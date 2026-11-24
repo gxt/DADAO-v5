@@ -1494,3 +1494,29 @@
   closed_in: null
   resolved_by: null
   title: "【P3】spec 措辞改动未跑下游解析器自检，已连续两次打断 `tests/arch` 自检：① `m18-spec-004` 删 §3.9 ⇒ `tests/arch/power/power_vast.py` 以 `### 3.9` 作 §3.8 结束标记而断链（`m16-chipyard-024` 返工 1 行修）；② `m18-spec-005` 把 §4.7 行文改成「软件只读（写忽略）」、「§5.1 合法值 **仍为** `{0,4,8}`」⇒ `tests/arch/hart/check_cfx15.py` 两处断言失效（`m16-chipyard-025` 返工修）。建议：spec/契约任务收尾必须跑 `python3 tests/arch/run_arch.py --self-test`（或把该自检纳入 spec 门控），并要求解析器用「章节起点/下一章起点」而非固定小节号作边界。"
+- id: ISS-531
+  scope:
+  - chipyard
+  - spec
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`cfx_pmem` DMA 旁路 D-cache，PA 侧一致性在 spec 未定义（`m16-chipyard-022` 复核）：RTL 的 DMA 引擎直接读写 PA，CPU 若先缓存目标行会读到旧值；探针靠「只用 CPU 未触碰的 PA 行」回避。需在 `DADAO-12 §4.9` 明确 DMA 与 D-cache 的先后/失效语义（或规定软件须 fence/clean 后再启动），三方实现与探针同步。"
+- id: ISS-532
+  scope:
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`arch-ptw-013` 的 RTL GAP 理由（pmem SRAM 不可达）已被 `m16-chipyard-022` 消除，可提升为 signature 用例（需改 `tests/arch/ptw/ptw_sig.S` 的 `PTW_CASE=13` 与登记），归 testcases 另立任务。"
+- id: ISS-533
+  scope:
+  - qemu
+  - gem5
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】QEMU/gem5 的 `cfx_pmem` 只实现 `cg15`（+`cg7`），`cg8/cg12/cg13/cg14` 走 `CFXREG`；RTL（`m16-chipyard-022`）按 `§4.9` 全实现 ⇒ `cfx_pmem` 寄存器面暂时不能三方逐槽比。`DIV-06` 的 `close_when`（021/022/023 合入）不足以关闭，需补 QEMU/gem5 面或改写条件。"

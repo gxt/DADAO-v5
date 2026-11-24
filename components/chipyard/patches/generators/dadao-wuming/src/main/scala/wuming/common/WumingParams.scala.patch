@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..e603d7f
+index 0000000..4f103a4
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,380 @@
+@@ -0,0 +1,421 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -27,7 +27,7 @@ index 0000000..e603d7f
 +import freechips.rocketchip.tile._
 +import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, MulDivParams}
 +import freechips.rocketchip.prci.ClockSinkParameters
-+import gewu.{GewuCacheParams, GewuCfxParams, GewuHartParams, GewuParams, GewuPtwParams}
++import gewu.{GewuCacheParams, GewuCfxParams, GewuHartParams, GewuParams, GewuPmemParams, GewuPtwParams}
 +
 +/** DADAO core parameters: no RISC-V semantics. */
 +case class WumingCoreParams(
@@ -87,7 +87,12 @@ index 0000000..e603d7f
 +  // machine: an absent window is an elaboration error, not a walk that reads
 +  // nowhere.
 +  paRamBase: Option[BigInt] = None,
-+  paRamSize: Option[BigInt] = None
++  paRamSize: Option[BigInt] = None,
++  // m16-chipyard-022: the `cfx_pmem` 64 KiB SRAM window in core addresses
++  // (`spec/Kaiwu §1.1`: 0x83ff_0000_0000) and its size.  Vast-only; Tiny has
++  // no cfx_pmem.
++  pmemBase: Option[BigInt] = None,
++  pmemSize: Option[BigInt] = None
 +)
 +
 +/** `cfxha` values of the cfx this machine can implement (`DADAO-12` §3.8). */
@@ -103,6 +108,8 @@ index 0000000..e603d7f
 +  val cache: Int = 5
 +  /** Hart management + asynchronous frame (`DADAO-12` §4.7, `ADR-0060`); Vast only. */
 +  val hart: Int = 15
++  /** Physical-memory management (`DADAO-12` §4.9); Vast only. */
++  val pmem: Int = 32
 +}
 +
 +/**
@@ -211,6 +218,23 @@ index 0000000..e603d7f
 +          spaceSize = 0,
 +          spaceAttr = 0,
 +          sourceMaskReset = maskInitCfx,
++          commonRows = true),
++        // cfx_pmem (`m16-chipyard-022`, `DADAO-12 §4.9`): 64 KiB SRAM at
++        // internal offset 0x3ff_0000_0000, so its cg7 block 0 is
++        // `exists|SRAM`, start = that offset, size 64 KiB, `R|W` (X = 0);
++        // it owns no exception vector and no mode rows.
++        GewuCfxParams(
++          id = WumingCfxHa.pmem,
++          vectorBase = required(p.pmemBase, "pmemBase"),
++          spaceDesc = 0x3,
++          spaceSize = required(p.pmemSize, "pmemSize"),
++          spaceAttr = 0x3,
++          sourceMaskReset = maskInitCfx,
++          // The shared face (cg0-cg3 masks/deleg, cg4 config, cg5 rc5, cg6
++          // scratch) is what makes the cfx reachable from U/S under the
++          // two-axis `cfxreg` rule (DIV-09: a cfx without `<mode>` rows is
++          // fail-closed there).  `cfx_pmem` is a system-service cfx (SBI
++          // PMEM_DMA runs from smon), so it opts in like `cfx_hart`.
 +          commonRows = true)) else Nil),
 +    monitor = 0, // cfx_hmon owns the exception frame (spec/Kaiwu §4.1)
 +    dataBits = 64,
@@ -233,6 +257,18 @@ index 0000000..e603d7f
 +    // `cfx_hart`'s cg8/cg9 face exists only on Kaiwu-Vast (`m16-chipyard-021`);
 +    // Kaiwu-Tiny has no cfx15 and gains neither ports nor flops.
 +    hart = if (p.useVM) Some(GewuHartParams(WumingCfxHa.hart, 0)) else None,
++    // `cfx_pmem` (`m16-chipyard-022`): the register face + DMA command port
++    // exist only on Kaiwu-Vast (`spec/Kaiwu §3`); its SRAM internal offset is
++    // the spec's `0x3ff_0000_0000` and every window comes from the address map.
++    pmem = if (p.useVM) Some(GewuPmemParams(
++      cfxId = WumingCfxHa.pmem,
++      sramBase = required(p.pmemBase, "pmemBase"),
++      sramSize = required(p.pmemSize, "pmemSize"),
++      sramOffset = BigInt("3ff00000000", 16),
++      paBase = required(p.paRamBase, "paRamBase"),
++      paSize = required(p.paRamSize, "paRamSize"),
++      romBase = required(p.bootromBase, "bootromBase"),
++      romSize = required(p.bootromSize, "bootromSize"))) else None,
 +    // `m16-chipyard-020`: Kaiwu-Vast runs the DADAO-12 §5.2 run-mode entry
 +    // routing (U/S/H monitors, `<mode>_switch_run_mode`, two-axis `cfxreg`
 +    // checks).  Kaiwu-Tiny has no U/S/J mode at all (`spec/Kaiwu §2` keeps the
@@ -259,6 +295,9 @@ index 0000000..e603d7f
 +    // m16-chipyard-019: cfx_smon's 64 KiB SRAM (`contract-see §3`).
 +    smonBase: BigInt,
 +    smonSize: BigInt,
++    // m16-chipyard-022: cfx_pmem's 64 KiB SRAM (`spec/Kaiwu §1.1`).
++    pmemBase: BigInt,
++    pmemSize: BigInt,
 +    bootromBase: BigInt,
 +    bootromSize: BigInt,
 +    paRamBase: BigInt,
@@ -271,6 +310,8 @@ index 0000000..e603d7f
 +    hmonSize = Some(hmonSize),
 +    smonBase = Some(smonBase),
 +    smonSize = Some(smonSize),
++    pmemBase = Some(pmemBase),
++    pmemSize = Some(pmemSize),
 +    bootromBase = Some(bootromBase),
 +    bootromSize = Some(bootromSize),
 +    useVM = true,

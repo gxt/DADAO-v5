@@ -24,6 +24,10 @@
 
 ## M16
 
+- **2026-11-24 `m16-chipyard-022`**
+  - 摘要：**cfx_pmem（cfxha 32）：64 KiB SRAM + SRAM↔PA DMA + `PMEM_DMA` 完成投递**（`DADAO-12 §4.9`/`§5.4`、`spec/Kaiwu §1.1`、`ADR-0061`）。`gewu` 新增 `GewuPmemParams`/`PmemState`：`cg8 rc0 pmem_exist`（RO）、`cg12/13/14 rc0–63 pmem_start/size/attr`（RW）、`cg15 rc0–4 dma_src/dst/size/ctrl/status`（`dma_size` 30 位；START 自清；DIR/IRQ_EN 读回；BUSY 期 cg15 写忽略；DONE/ERROR W1C、ERROR 清 ERR_CODE、ERR_CODE one-hot `[15:3]`）；START 周期判定 SIZE/CFX_RANGE/PA_RANGE/PA_FAULT，失败不置 BUSY。`cfx_pmem` 打开 `commonRows`（U/S 的两轴 `cfxreg` 才有行可判；`DIV-09` 的 cfx32 部分由此关闭）。新增 `WumingPmemDma`（tile 第三个 TL client，仅 Vast）：逐字节搬运（目的拍先读、只替换本次字节 ⇒ 非对齐/部分拍保留邻居字节），PA 侧 RAM 可读写、BootROM 只读。完成（`IRQ_EN=1`）置 `cfx_hart cg9 rc4` bit32（源身份 = cfxha 32），放行后 `src_frame` = bit32、投递即清；与 TIMER 同界一次进入、位图并集、`excp_async_num` +1；`dma_status` W1C 为源 ack。地址图新增 `0x83ff_0000_0000`/64 KiB（`kaiwu-vast-pmem-sram`），`inSpecWindow` 放行。**验证**：`tests/arch/pmem/pmem.S` + `check_pmem.py` H 85 槽、S/U 各 8 槽全绿；cfx15 74/34/34、cfx5_regs 22 记录、arch-ptw 15 例不回归；Tiny 11-cfx 4/5（`escape_ciii_cfx` 属 `DIV-11`）、01-load-store 38/38；注入「DMA 不搬运」「完成投 monitor」「pending 记 18」三路均红，`cp`+md5 还原并强制重建后回绿。
+  - 执行者：engineer
+
 - **2026-11-24 `m16-chipyard-026`**
   - 摘要：**`cfx_hart cg9` 改到 R2：进入瞬间的捕获缓冲**（`DADAO-12 §4.7`/`§5.4`，`m18-spec-005`）。删除 `src_frame != 0` 的“只置 pending / 不进入”分支：`io.intr.valid` 只看“pending 且被当前运行模式掩码放行”的源；同一指令边界一次投递并**整体覆盖** `cg9`（`prev_*`/`cause_ip`/`src_frame`），`src_pending` 扣除、`excp_async_num` 每次进入 +1；没有帧活动期、没有 `frame_valid`、没有软件清 `src_frame`。`escape` 的 `imms18[1] = 1`（汇编 `imms20 = 8`）编码合法但**不是异步返回**：删除 `escapeCg9Ok`，按所选帧无效报当前 cfx 的 `CFXESC`，不改 cfx/运行模式/`cg9`；`imms18 = 3` / `[17:2] ≠ 0` ⇒ `ILLI`，同步 `cg5` 帧返回不变。**验证**：`tests/arch/hart/cfx15.S`/`check_cfx15.py` 改到 R2（H 74 槽、U/S 各 34 槽：捕获快照、覆盖语义、`escape imms18=2 ⇒ CFXESC` 且 `cg9` 不变、掩码/pending/ack、RO、三模式）；注入「恢复 `src_frame != 0` 门控」「恢复 `escape imms18=2` 的 cg9 返回」两路红、`cp`+md5 还原重建后回绿；Tiny `11-cfx`/`01-load-store` 不回归。
   - 执行者：engineer

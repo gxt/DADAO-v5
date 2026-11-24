@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
 new file mode 100644
-index 0000000..46a30cc
+index 0000000..f45ea7e
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
-@@ -0,0 +1,185 @@
+@@ -0,0 +1,212 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile skeleton (m12-chipyard-001).
@@ -73,6 +73,17 @@ index 0000000..46a30cc
 +      sourceId = IdRange(0, 3),
 +      requestFifo = true)))))
 +
++  // ---- the cfx_pmem DMA port (`m16-chipyard-022`) -----------------------
++  // A third client so a running transfer never competes with the core's own
++  // data port (software polls `dma_status.BUSY` while the DMA moves bytes).
++  // Vast only: a machine without `cfx_pmem` (Kaiwu-Tiny) creates no node.
++  val pmemMasterNode: Option[TLClientNode] =
++    if (wumingTileParams.wumingParams.useVM) Some(TLClientNode(Seq(
++      TLMasterPortParameters.v1(Seq(TLMasterParameters.v1(
++        name = s"WumingCorePmem ${tileId}",
++        sourceId = IdRange(0, 1),
++        requestFifo = true)))))) else None
++
 +  // ---- the +loadmem= boot loader (m12-003) ------------------------------
 +  // It shares the tile's TileLink master port with the core: a tile-local TLXbar
 +  // merges the two clients, so the loader's writes and readback run over the
@@ -124,6 +135,7 @@ index 0000000..46a30cc
 +  portXbar := dataMasterNode
 +  portXbar := loadMem.node
 +  portXbar := semi.node
++  pmemMasterNode.foreach(n => portXbar := n)
 +
 +  // Master path copied from rocket-chip's TraceGenTile (the canonical custom
 +  // tile in this tree): clients -> xbar -> visibilityNode -> identity -> port.
@@ -140,6 +152,9 @@ index 0000000..46a30cc
 +class WumingTileModuleImp(outer: WumingTile) extends BaseTileModuleImp(outer) {
 +  val (fetchTl, fetchEdge) = outer.fetchMasterNode.out(0)
 +  val (dataTl, dataEdge) = outer.dataMasterNode.out(0)
++  // `cfx_pmem`'s own client port (`m16-chipyard-022`); absent on Kaiwu-Tiny.
++  val pmemOut: Option[(TLBundle, TLEdgeOut)] =
++    outer.pmemMasterNode.map(_.out(0))
 +
 +  val hartidBits = outer.hartIdSinkNode.bundle.getWidth
 +  val resetVectorBits = outer.resetVectorSinkNode.bundle.getWidth
@@ -156,7 +171,8 @@ index 0000000..46a30cc
 +      s"hartidBits=$hartidBits resetVectorBits=$resetVectorBits")
 +
 +  val core = Module(new WumingCore(
-+    fetchEdge, dataEdge, outer.wumingTileParams.wumingParams, hartidBits, resetVectorBits))
++    fetchEdge, dataEdge, pmemOut.map(_._2), outer.wumingTileParams.wumingParams,
++    hartidBits, resetVectorBits))
 +  val loadMem = outer.loadMem.module
 +  val semi = outer.semi.module
 +
@@ -176,6 +192,17 @@ index 0000000..46a30cc
 +  core.io.dmem.d.valid := dataTl.d.valid
 +  core.io.dmem.d.bits := dataTl.d.bits
 +  dataTl.d.ready := core.io.dmem.d.ready
++
++  // cfx_pmem DMA client (`m16-chipyard-022`): hand the core's port wires to the
++  // tile's client node.  Both sides exist together (WumingCore requires it).
++  for ((tl, _) <- pmemOut; port <- core.io.pmem) {
++    tl.a.valid := port.a.valid
++    tl.a.bits := port.a.bits
++    port.a.ready := tl.a.ready
++    port.d.valid := tl.d.valid
++    port.d.bits := tl.d.bits
++    tl.d.ready := port.d.ready
++  }
 +
 +  // Semihosting boundary: request out of the core, scalar answer back in.
 +  semi.semiReq := core.io.semi.req

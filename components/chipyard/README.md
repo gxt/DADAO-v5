@@ -409,6 +409,15 @@ make check-patch-tree
 - **零增益**：缓存只在 `useVM` 的机器实例化，Tiny 的 FIRRTL 里 `WumingCache` 出现 **0** 次；首册 38 个镜像在改前/改后 Tiny 二进制上仍逐字节相同。
 - **验证**：`tools/chipyard/dcache/vastdcache.S`（+ `vastdcache.lds`）把页表、同组 8 行数据、代码页与 PTW 新旧目标放在 PA 固定地址；`gen_vastdcache_tables.py` 是几何/PTE/magic/组索引的**单一真源**（cause one-hot 从 `contract-see §6.1` 现场解析），`check_vastdcache.py` 比对 35 条 8 字节记录 + 日志事件（组索引、受害者序列、写回顺序、PTW 命中；`--self-test` 11 条可达 FAIL）。覆盖：同址 1 缺失 + 4 命中；同组 8 行共存、第 9/10 行按 LRU 淘汰（受害者 B1→B2）；写后读命中不回内存；**写回时机以取指端口为独立观测量**（当时无 I-Cache）：把 `trap cfx_hmon` 指令字经缓存写入代码页后，淘汰前取指仍读到内存里的旧值（UNDI），强制淘汰（同组 8 次填充）后取指读到 `trap`（CFXTRAP）；PTW 读到核内经缓存写入的新 PTE（改 L2 PTE → `invalid/all` → 重走查 ⇒ 新映射的数据）。注入：替换策略改 MRU / `writeBack = false` / 组索引 6 位 ⇒ 均判据红；`cp`+md5 还原并强制重建后回绿。
 
+## cfx_pmem：64 KiB SRAM + SRAM↔PA DMA + PMEM_DMA 完成投递（`m16-chipyard-022`）
+
+- **范围**：`DADAO-12 §4.9` 的 `cfx_pmem`（cfxha 32）——寄存器面、DMA 与完成事件；地址图取 `spec/Kaiwu §1.1`（SRAM `0x83ff_0000_0000`、内部偏移 `0x3ff_0000_0000`）。
+- **寄存器面**（`gewu`）：`cg8 rc0 pmem_exist`（RO，64 个 PM 区域位图）；`cg12/13/14 rc0–63` 的 `pmem_start/size/attr`（RW）；`cg15 rc0–4` 的 `dma_src/dst/size/ctrl/status`（`dma_size` 只存 30 位；`dma_ctrl` 的 START 自清、DIR/IRQ_EN 读回；`dma_status` 的 BUSY 只读、DONE/ERROR 粘滞 W1C（ERROR 一并清 ERR_CODE）、ERR_CODE one-hot `[15:3]`）。`BUSY=1` 期间 cg15 的写（含 START 与 W1C）被接受但无效果；读不受影响。cg15 其余 rc 与 `cg8 rc1` 保留 ⇒ `CFXREG`。`cfx_pmem` 打开 `commonRows`（`<mode>` 掩码/deleg/cg4/cg5 rc5/cg6），否则 U/S 访问会按 `m16-chipyard-020` 的两轴规则 fail-closed（`DIV-09`），SBI `PMEM_DMA` 就无法从 smon 调用。
+- **DMA**：`START` 周期做四类校验（`SIZE`（0 或 >2^29）/`CFX_RANGE`/`PA_RANGE`/`PA_FAULT`），失败**不置 BUSY**、只置 ERROR+ERR_CODE；成功则把命令交给 `WumingPmemDma`（tile 的第三个 TL client，`WumingTile.pmemMasterNode`，仅 Vast 创建）。搬运逐字节：源拍按地址取 8 B，目的拍先读、只替换本次传输的字节后整拍写回 ⇒ 非对齐起点/部分拍不破坏邻居字节；PA 侧 RAM 可读可写、BootROM 只可读，其余 PA 归 `PA_FAULT`。总线拒绝/损坏 ⇒ 立即 ERROR（`PA_FAULT`）。
+- **完成投递**：`IRQ_EN=1` 时完成（DONE 或 ERROR）置 `cfx_hart cg9 rc4` 的 bit32（源身份 = 源 cfxha 32，`ADR-0061` D2）；放行由**当前运行模式** monitor 的 `cg8 rc1` bit32 求值，投递时 `src_frame` 位图 = bit32、pending 扣除；与 TIMER 同界时一次进入、`src_frame` 位并集、`excp_async_num` 每次进入 +1（R2：无帧门控、每次进入整体覆盖 `cg9`）。`dma_status` 的 W1C 是源 ack（DONE/ERROR 都清后 pending 落）；事件在 `gewu` 内打一拍（`RegNext`）以避免 `wEn → intr.valid` 组合环。
+- **不回归**：Tiny 不实现 cfx_pmem（`useVM=false`）：无 cfx32 行、无 pmem SRAM/端口/寄存器，`inSpecWindow` 不放行该窗口；cfx_hart 的仲裁由「仅 TIMER」扩到「TIMER|PMEM」，cfx15 三模式与 cfx5 寄存器面、PTW 15 例均不变。
+- **验证**：`tests/arch/pmem/pmem.S` + `check_pmem.py`（H 85 槽；S/U 各 8 槽）全绿；注入「DMA 不搬运」「完成投 monitor」「pending 记 18」三路均红，`cp`+md5 还原并强制重建后回绿；Tiny `11-cfx` 4/5（`escape_ciii_cfx` 为 `DIV-11` 既有口径）、`01-load-store` 38/38。
+
 ## cfx_hart 异步捕获缓冲（R2）：每次进入整体覆盖 + `escape` 不返回（`m16-chipyard-026`）
 
 - **范围**：`m18-spec-005` 把 `cg9` 改成**进入瞬间的捕获缓冲**（`DADAO-12 §4.7`/`§5.4`）；本任务把 `m16-chipyard-024` 的 pre-R2 行为（`src_frame != 0` 防重入、`escape` 释放帧）改到 R2。

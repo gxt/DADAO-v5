@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..a06c96f
+index 0000000..1154e0d
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,1656 @@
+@@ -0,0 +1,1939 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -324,6 +324,42 @@ index 0000000..a06c96f
 +}
 +
 +/**
++  * The `cfx_pmem` register face and DMA command port (`DADAO-12` §4.9,
++  * `m16-chipyard-022`).
++  *
++  * The registers and the setup validation live here; the byte mover is the
++  * core's bus-side engine (`WumingPmemDma`), fed by `GewuFileIO.pmem`.  Splitting
++  * them keeps every architecture-visible value (STATUS/ERR_CODE/sticky bits)
++  * next to the row decoders, while the TileLink master stays a core concern.
++  *
++  *   * `sramBase` / `sramSize` — the core-address window of the 64 KiB SRAM
++  *     (`spec/Kaiwu §1.1`); `sramOffset` is the cfx-internal offset
++  *     (`0x3ff_0000_0000`, `DADAO-12 §2.1`);
++  *   * `paBase`/`paSize`, `romBase`/`romSize` — the physical windows a transfer
++  *     may target: RAM for both directions, the BootROM only for reads
++  *     (`spec/Kaiwu §3` test-machine DMA rule).
++  *
++  * Every value is injected from the machine address map (`ADR-0053` D5).
++  */
++case class GewuPmemParams(
++  cfxId: Int,
++  sramBase: BigInt,
++  sramSize: BigInt,
++  sramOffset: BigInt,
++  paBase: BigInt,
++  paSize: BigInt,
++  romBase: BigInt,
++  romSize: BigInt
++) {
++  require(sramSize > 0 && (sramSize & (sramSize - 1)) == 0,
++    "Gewu: the cfx_pmem SRAM size must be a power of two")
++  require(sramOffset >= 0 && (sramOffset & ((BigInt(1) << 42) - 1)) == sramOffset,
++    "Gewu: the cfx_pmem SRAM offset must fit the 42-bit cfx space")
++  require(sramBase == (BigInt(cfxId) << 42) + sramOffset,
++    "Gewu: the cfx_pmem SRAM base must be (cfxha << 42) | sramOffset")
++}
++
++/**
 +  * `Gewu` parameters (ADR-0053 D5).
 +  *
 +  * The calling core injects the implemented cfx set and every machine-specific
@@ -378,6 +414,12 @@ index 0000000..a06c96f
 +    */
 +  hart: Option[GewuHartParams] = None,
 +  /**
++    * `m16-chipyard-022`: `Some` when this machine implements `cfx_pmem`
++    * (`Kaiwu-Vast`); `None` leaves its rows undefined (CFXREG, `Kaiwu-Tiny`)
++    * and adds neither ports nor flops.
++    */
++  pmem: Option[GewuPmemParams] = None,
++  /**
 +    * `m16-chipyard-020`: enable the DADAO-12 §5.2 run-mode entry routing and
 +    * the two-axis `cfxreg` authority checks.
 +    *
@@ -423,14 +465,19 @@ index 0000000..a06c96f
 +  // Same rule for `cfx_hart`: its cg8/cg9 rows must belong to an implemented cfx.
 +  require(hart.forall(h => cfx.exists(_.id == h.cfxId)),
 +    "Gewu: `hart.cfxId` must name an implemented cfx")
++  // Same rule for `cfx_pmem`: its cg8/cg12-cg15 rows must belong to an
++  // implemented cfx.
++  require(pmem.forall(m => cfx.exists(_.id == m.cfxId)),
++    "Gewu: `pmem.cfxId` must name an implemented cfx")
 +  // The common mode rows (cg0-cg3 + cg4/cg5/cg6) are defined for every cfx
 +  // (`DADAO-12 §3.1`-§3.4); `cg8 rc1` (the running mode's async source mask,
 +  // `ADR-0061` D5) is only defined for cfx0-cfx3 and is decoded outside this
 +  // matrix.  `cfx_hart` opts in for its mode rows (the two-axis access model of
 +  // `contract-see §6.3`) while its own cg8 rows are decoded by the hart face.
 +  require(cfx.filter(_.commonRows).forall(c =>
-+    (c.id >= 0 && c.id <= 3) || hart.exists(_.cfxId == c.id)),
-+    "Gewu: `commonRows` is defined for the cfx0-cfx3 monitors and cfx_hart only")
++    (c.id >= 0 && c.id <= 3) || hart.exists(_.cfxId == c.id) ||
++      pmem.exists(_.cfxId == c.id)),
++    "Gewu: `commonRows` is defined for the cfx0-cfx3 monitors, cfx_hart and cfx_pmem only")
 +  require(cfx.filter(_.commonRows).forall(c => c.scratchRegs >= 2 && c.scratchRegs <= 64),
 +    "Gewu: `scratchRegs` must be 2..64 (`DADAO-12 §3.7`)")
 +}
@@ -582,6 +629,14 @@ index 0000000..a06c96f
 +  // nor pay for flops from a feature it reports as CFXREG (CACHE-28).
 +  val cache: Option[CacheState] = gp.cache.map(_ => new CacheState(gp.dataBits))
 +
++  // ---- `cfx_pmem` state the core's DMA engine consumes (`DADAO-12 §4.9`) ----
++  //
++  // The registers, the row decode and every architecture-visible status value
++  // live here; the byte mover is the core's bus engine.  The group is absent
++  // on a machine without `cfx_pmem` (Kaiwu-Tiny), so such a profile gains no
++  // ports and no flops from rows it reports as CFXREG.
++  val pmem: Option[PmemState] = gp.pmem.map(_ => new PmemState(gp.dataBits))
++
 +  // ---- `cfx_hart` state (`DADAO-12` §4.7, `ADR-0060`) ---------------------
 +  //
 +  // `cycle`/`insn` are read through the cfx file, but their sources are the
@@ -598,6 +653,27 @@ index 0000000..a06c96f
 +  val timeValue = Input(UInt(dataBits.W))
 +  /** One-cycle pulse per retired instruction (`cg8 rc3 insn`). */
 +  val retire = Input(Bool())
++}
++
++/**
++  * The `cfx_pmem` DMA command port (`DADAO-12` §4.9).
++  *
++  * `start` is a one-cycle launch: it is raised only after the setup checks
++  * (SIZE / CFX_RANGE / PA_RANGE / PA_FAULT) passed, so the engine never has to
++  * repeat them.  `src`/`dst` are the raw 64-bit register values (the engine
++  * masks the CFX side to 42 bits and the PA side to 56 bits); `dir` is the
++  * direction of *this* launch (0 = CFX→PA, 1 = PA→CFX).  The engine owns
++  * `busy`; `done`/`error` are one-cycle completion events.
++  */
++class PmemState(dataBits: Int) extends Bundle {
++  val start = Output(Bool())
++  val src = Output(UInt(dataBits.W))
++  val dst = Output(UInt(dataBits.W))
++  val size = Output(UInt(30.W))
++  val dir = Output(Bool())
++  val busy = Input(Bool())
++  val done = Input(Bool())
++  val error = Input(Bool())
 +}
 +
 +/** The `cfx_cache` state a core's maintenance path consumes (`DADAO-12` §4.6). */
@@ -771,6 +847,32 @@ index 0000000..a06c96f
 +  }
 +
 +  private val hartRegs: Option[HartRegs] = hartId.map(_ => new HartRegs)
++
++  // ---- `cfx_pmem` architectural state (`DADAO-12` §4.9) -------------------
++  // The 64 PM-region descriptors (cg12/13/14), the cg15 DMA registers and the
++  // sticky completion state.  Created only when the machine implements the
++  // cfx, so Kaiwu-Tiny gains no flops and no muxing.
++  private val pmemId = gp.pmem.map(_.cfxId)
++
++  /** `cfx_pmem`'s registers; created only when `gp.pmem` is set. */
++  private class PmemRegs {
++    // cg12/13/14: 64 PM-region descriptors, reset 0 (`DADAO-12` §4.9).
++    val start = RegInit(VecInit(Seq.fill(64)(0.U(gp.dataBits.W))))
++    val size = RegInit(VecInit(Seq.fill(64)(0.U(gp.dataBits.W))))
++    val attr = RegInit(VecInit(Seq.fill(64)(0.U(gp.dataBits.W))))
++    // cg15: DMA command registers.
++    val dmaSrc = RegInit(0.U(gp.dataBits.W))
++    val dmaDst = RegInit(0.U(gp.dataBits.W))
++    val dmaSize = RegInit(0.U(30.W))
++    val dmaDir = RegInit(false.B)        // bit1 DIR (0 = CFX→PA)
++    val dmaIrqEn = RegInit(false.B)      // bit2 IRQ_EN
++    // cg15 rc4: sticky DONE / ERROR and the one-hot ERR_CODE (`[15:3]`).
++    val done = RegInit(false.B)
++    val error = RegInit(false.B)
++    val errCode = RegInit(0.U(13.W))     // bit0 SIZE, 1 CFX_RANGE, 2 PA_RANGE, 3 PA_FAULT
++  }
++
++  private val pmemRegs: Option[PmemRegs] = pmemId.map(_ => new PmemRegs)
 +
 +  // ---- monitor common register face (`m16-chipyard-019`) -------------------
 +  // `DADAO-12 §3`: cg0-cg2 are the three lower run-mode rows, cg3 is hypv (the
@@ -965,6 +1067,46 @@ index 0000000..a06c96f
 +    val isCfx = anyRead
 +  }
 +
++  // `cfx_pmem` rows (`DADAO-12` §4.9), decoded only when the machine implements
++  // the cfx: on any other profile these rows stay CFXREG and add no hardware.
++  private val pmemRows: Option[PmemRows] = pmemId.map { id =>
++    val isCfx = io.addr.ha === id.U(6.W)
++    val cg8 = isCfx && io.addr.cg === 8.U
++    val isDma = isCfx && io.addr.cg === 15.U
++    new PmemRows(
++      isExist = cg8 && io.addr.rc === 0.U,
++      isStart = isCfx && io.addr.cg === 12.U,
++      isPmSize = isCfx && io.addr.cg === 13.U,
++      isAttr = isCfx && io.addr.cg === 14.U,
++      isDmaSrc = isDma && io.addr.rc === 0.U,
++      isDmaDst = isDma && io.addr.rc === 1.U,
++      isDmaSize = isDma && io.addr.rc === 2.U,
++      isDmaCtrl = isDma && io.addr.rc === 3.U,
++      isDmaStatus = isDma && io.addr.rc === 4.U)
++  }
++
++  /** The `cfx_pmem` row decoders (one-hot by cg/rc construction). */
++  private class PmemRows(
++    val isExist: Bool,
++    val isStart: Bool,
++    val isPmSize: Bool,
++    val isAttr: Bool,
++    val isDmaSrc: Bool,
++    val isDmaDst: Bool,
++    val isDmaSize: Bool,
++    val isDmaCtrl: Bool,
++    val isDmaStatus: Bool) {
++    // `pmem_exist` (cg8 rc0) is RO; `cg15 rc5..63` are reserved and absent from
++    // every set, so they fall through to CFXREG.
++    val anyRead = isExist || isStart || isPmSize || isAttr || isDmaSrc ||
++      isDmaDst || isDmaSize || isDmaCtrl || isDmaStatus
++    // The DONE/ERROR W1C row is writable; `BUSY` itself is read-only, which the
++    // write block enforces by masking the value.
++    val anyWrite = isStart || isPmSize || isAttr || isDmaSrc || isDmaDst ||
++      isDmaSize || isDmaCtrl || isDmaStatus
++    val isCfx = anyRead
++  }
++
 +  // Monitor common face rows (`m16-chipyard-019`): only the enabled cfx decode
 +  // them, so an opted-out profile adds no terms (all `CommonEntry`s absent).
 +  private def anyCommon(f: CommonEntry => Bool): Bool =
@@ -1008,14 +1150,16 @@ index 0000000..a06c96f
 +    (readBase || commonRead ||
 +      ptwRows.map(_.anyRead).getOrElse(false.B) ||
 +      cacheRows.map(_.anyRead).getOrElse(false.B) ||
-+      hartRows.map(_.anyRead).getOrElse(false.B))
++      hartRows.map(_.anyRead).getOrElse(false.B) ||
++      pmemRows.map(_.anyRead).getOrElse(false.B))
 +  // `tlb_control` and `cache_ctrl` are WO: writing them is legal, reading them
 +  // is not (they are not in the read sets above).
 +  io.writeOk := implemented && cg3Allowed && cacheCtrlLegal &&
 +    (writeBase || commonWrite ||
 +      ptwRows.map(_.anyWrite).getOrElse(false.B) ||
 +      cacheRows.map(_.anyWrite).getOrElse(false.B) ||
-+      hartRows.map(_.anyWrite).getOrElse(false.B))
++      hartRows.map(_.anyWrite).getOrElse(false.B) ||
++      pmemRows.map(_.anyWrite).getOrElse(false.B))
 +
 +  /** Per-cfx constant, selected by the addressed instance. */
 +  private def perCfx(f: GewuCfxParams => BigInt): UInt =
@@ -1135,6 +1279,32 @@ index 0000000..a06c96f
 +  private val basePtwCacheHart =
 +    hartRdata.map(d => Mux(hartRows.get.isCfx, d, basePtwCache)).getOrElse(basePtwCache)
 +
++  // `cfx_pmem` read data (`DADAO-12` §4.9).  `pmem_exist` is the machine's
++  // hardware-set bitmap of PM regions (64 regions on this machine);
++  // `dma_status` reads `BUSY | DONE<<1 | ERROR<<2 | ERR_CODE<<3`, and
++  // `dma_ctrl` reads back `DIR`/`IRQ_EN` with START always 0 (self-clearing).
++  private val pmemRdata = for {
++    rows <- pmemRows
++    regs <- pmemRegs
++  } yield Mux(rows.isExist, Fill(gp.dataBits, 1.U(1.W)),
++    Mux(rows.isStart, regs.start(io.addr.rc),
++      Mux(rows.isPmSize, regs.size(io.addr.rc),
++        Mux(rows.isAttr, regs.attr(io.addr.rc),
++          Mux(rows.isDmaSrc, regs.dmaSrc,
++            Mux(rows.isDmaDst, regs.dmaDst,
++              Mux(rows.isDmaSize, regs.dmaSize.pad(gp.dataBits),
++                Mux(rows.isDmaCtrl,
++                  Cat(0.U((gp.dataBits - 3).W), regs.dmaIrqEn, regs.dmaDir,
++                    0.U(1.W)),
++                  Mux(rows.isDmaStatus,
++                    Cat(0.U((gp.dataBits - 16).W), regs.errCode, regs.error,
++                      regs.done, io.pmem.map(_.busy).getOrElse(false.B)),
++                    0.U(gp.dataBits.W))))))))))
++
++  private val basePtwCacheHartPmem =
++    pmemRdata.map(d => Mux(pmemRows.get.isCfx, d, basePtwCacheHart))
++      .getOrElse(basePtwCacheHart)
++
 +  // Monitor common face read data (`m16-chipyard-019`, `DADAO-12 §3`).  The
 +  // mode-row index is `cg` (0/1/2); `cg3` rows stay in `baseRdata` above.
 +  private val commonRdata =
@@ -1163,7 +1333,7 @@ index 0000000..a06c96f
 +                      0.U(gp.dataBits.W)))))))))
 +    })
 +
-+  io.rdata := Mux(commonRead, commonRdata, basePtwCacheHart)
++  io.rdata := Mux(commonRead, commonRdata, basePtwCacheHartPmem)
 +
 +  when(io.wEn && io.writeOk) {
 +    when(isMask) {
@@ -1325,6 +1495,112 @@ index 0000000..a06c96f
 +    when(io.hart.get.retire) { regs.insn := regs.insn + 1.U }
 +  }
 +
++  // ---- `cfx_pmem` writes and the DMA command (`DADAO-12` §4.9) -----------
++  // The setup checks (SIZE / CFX_RANGE / PA_RANGE / PA_FAULT) run here, in the
++  // START cycle: a rejected transfer never raises BUSY and sets ERROR with the
++  // one-hot ERR_CODE, while a legal one hands `start` to the core's byte mover
++  // (`GewuFileIO.pmem`).  While `BUSY` is high every cg15 write (registers and
++  // the DONE/ERROR W1C) is accepted by the row rules but has no effect; reads
++  // are unaffected.
++  private val pmemBusy: Bool = io.pmem.map(_.busy).getOrElse(false.B)
++  private val pmemStartWrite: Bool = pmemRows.map { rows =>
++    io.wEn && io.writeOk && rows.isDmaCtrl && io.wdata(0) && !pmemBusy
++  }.getOrElse(false.B)
++  /** One-hot error code of the START-time checks (bit order = §4.9 table). */
++  private val pmemErrNow: UInt =
++    (for {
++      cfg <- gp.pmem
++      regs <- pmemRegs
++    } yield {
++      val size = regs.dmaSize
++      val dir = io.wdata(1)
++      val cfxAddr = Mux(dir, regs.dmaDst, regs.dmaSrc)(41, 0)
++      val paAddr = Mux(dir, regs.dmaSrc, regs.dmaDst)(55, 0)
++      val paLimit = (BigInt(1) << 56).U(57.W)
++      def inWindow(x: UInt, base: BigInt, window: BigInt): Bool =
++        x >= base.U(56.W) && x < (base + window).U(56.W)
++      val sizeBad = size === 0.U || size > (BigInt(1) << 29).U
++      val cfxOff = cfxAddr - cfg.sramOffset.U(42.W)
++      val cfxBad = cfxAddr < cfg.sramOffset.U ||
++        (cfxOff.pad(43) + size.pad(43)) > cfg.sramSize.U
++      val paEnd = paAddr.pad(57) + size.pad(57)
++      val paRangeBad = paEnd > paLimit
++      val ramBad = !inWindow(paAddr, cfg.paBase, cfg.paSize)
++      val romBad = !inWindow(paAddr, cfg.romBase, cfg.romSize)
++      // A read may target RAM or the BootROM; a write only RAM (§4.9, §Kaiwu §3).
++      val paTargetBad = Mux(dir, ramBad && romBad, ramBad)
++      Mux(sizeBad, 1.U(13.W),
++        Mux(cfxBad, 2.U(13.W),
++          Mux(paRangeBad, 4.U(13.W), Mux(paTargetBad, 8.U(13.W), 0.U(13.W)))))
++    }).getOrElse(0.U(13.W))
++  private val pmemStartOk: Bool = pmemStartWrite && pmemErrNow === 0.U
++  private val pmemStartErr: Bool = pmemStartWrite && pmemErrNow =/= 0.U
++  private val pmemDoneEvent: Bool =
++    io.pmem.map(_.done).getOrElse(false.B)
++  private val pmemErrEvent: Bool =
++    io.pmem.map(_.error).getOrElse(false.B)
++  /** The asynchronous source event of `PMEM_DMA` (`IRQ_EN=1` at DONE/ERROR or
++    * at a rejected START).  Registered: the raw event depends on a cg15 write
++    * (`io.wEn`) and feeding it combinationally into `intr.valid` would close a
++    * loop through the core's own cfx write path. */
++  private val pmemEvent: Bool = RegNext(
++    ((pmemDoneEvent || pmemErrEvent) &&
++      pmemRegs.map(_.dmaIrqEn).getOrElse(false.B)) ||
++      (pmemStartErr && io.wdata(2)), false.B)
++  /** `dma_status` W1C of DONE/ERROR is the source ack: once neither event bit
++    * remains, the delivery-pending bit falls too (`DADAO-12 §5.4(二)`). */
++  private val pmemAck: Bool = pmemRegs.map { regs =>
++    val w1c = pmemRows.map(_.isDmaStatus).getOrElse(false.B) &&
++      io.wEn && io.writeOk && !pmemBusy
++    val doneLeft = regs.done && !io.wdata(1)
++    val errorLeft = regs.error && !io.wdata(2)
++    w1c && (io.wdata(1) || io.wdata(2)) && !(doneLeft || errorLeft)
++  }.getOrElse(false.B)
++
++  for (rows <- pmemRows; regs <- pmemRegs) {
++    when(io.wEn && io.writeOk) {
++      when(rows.isStart) {
++        regs.start(io.addr.rc) := io.wdata
++      }.elsewhen(rows.isPmSize) {
++        regs.size(io.addr.rc) := io.wdata
++      }.elsewhen(rows.isAttr) {
++        regs.attr(io.addr.rc) := io.wdata
++      }.elsewhen(!pmemBusy) {
++        // `BUSY` freezes the whole cg15 group (`DADAO-12` §4.9).  START itself
++        // is not stored: reading `dma_ctrl` always shows 0 there.
++        when(rows.isDmaSrc) {
++          regs.dmaSrc := io.wdata
++        }.elsewhen(rows.isDmaDst) {
++          regs.dmaDst := io.wdata
++        }.elsewhen(rows.isDmaSize) {
++          regs.dmaSize := io.wdata(29, 0)
++        }.elsewhen(rows.isDmaCtrl) {
++          regs.dmaDir := io.wdata(1)
++          regs.dmaIrqEn := io.wdata(2)
++        }.elsewhen(rows.isDmaStatus) {
++          when(io.wdata(1)) { regs.done := false.B }
++          when(io.wdata(2)) { regs.error := false.B; regs.errCode := 0.U }
++        }
++      }
++    }
++    // Sticky completion (`DONE`/`ERROR` are cleared by W1C only) and the
++    // setup error of a rejected START.  Events win over a same-cycle W1C.
++    when(pmemDoneEvent) { regs.done := true.B }
++    when(pmemErrEvent) { regs.error := true.B; regs.errCode := 8.U }
++    when(pmemStartErr) { regs.error := true.B; regs.errCode := pmemErrNow }
++  }
++
++  // The DMA command port to the core's byte mover.
++  for (b <- io.pmem; regs <- pmemRegs) {
++    b.start := pmemStartOk
++    b.src := regs.dmaSrc
++    b.dst := regs.dmaDst
++    b.size := regs.dmaSize
++    // The START write carries this transfer's DIR, so the launch uses the
++    // written bit rather than the value latched a cycle earlier.
++    b.dir := Mux(pmemStartOk, io.wdata(1), regs.dmaDir)
++  }
++
 +  // ---- entry target, per-mode vector/switch (`m16-chipyard-020`) ----------
 +  // §5.2 step 1: a synchronous exception / asynchronous interrupt enters the
 +  // monitor of the *exception-time* run mode (`U→cfx0`, `J→cfx1`, `S→cfx2`,
@@ -1450,12 +1726,16 @@ index 0000000..a06c96f
 +  // entry overwrites `cg9` as a whole, so there is no frame phase and no
 +  // nesting token.
 +  private def hartOpt: Option[HartRegs] = hartRegs
-+  /** The only source wired in this milestone: the hart-local TIMER, whose
-+    * cfxha is `cfx_hart` itself.  `m16-chipyard-022` adds PMEM_DMA (cfxha 32)
-+    * to the same bitmap and the same frame. */
++  /** The two sources wired on this machine: the hart-local TIMER (cfxha =
++    * `cfx_hart` itself) and `PMEM_DMA` (cfxha 32, `DADAO-12 §4.9`).  Both use
++    * the same bitmap, the same monitor mask and the same frame. */
 +  private val timerSrcBit: UInt = hartId
 +    .map(h => (1.U(gp.dataBits.W) << h.U)(gp.dataBits - 1, 0))
 +    .getOrElse(0.U(gp.dataBits.W))
++  private val pmemSrcBit: UInt = pmemId
++    .map(h => (1.U(gp.dataBits.W) << h.U)(gp.dataBits - 1, 0))
++    .getOrElse(0.U(gp.dataBits.W))
++  private val implSrcBits: UInt = timerSrcBit | pmemSrcBit
 +  private val timerCond: Bool = hartOpt.map { r =>
 +    r.timerEnable && hartTime >= r.timerCmp
 +  }.getOrElse(false.B)
@@ -1483,30 +1763,33 @@ index 0000000..a06c96f
 +        case (mask, i) => i.U -> mask })
 +    }
 +  private val asyncPendingNow: UInt = hartOpt.map { r =>
-+    r.asyncSrcPending | Mux(timerEvent, timerSrcBit, 0.U(gp.dataBits.W))
++    r.asyncSrcPending | Mux(timerEvent, timerSrcBit, 0.U(gp.dataBits.W)) |
++      Mux(pmemEvent, pmemSrcBit, 0.U(gp.dataBits.W))
 +  }.getOrElse(0.U(gp.dataBits.W))
 +  // The frame the arbiter offers: every pending source that the running
-+  // mode's mask lets through and whose local gate is open.  The `timerSrcBit`
++  // mode's mask lets through and whose local gate is open.  The `implSrcBits`
 +  // term keeps the frame inside the implemented sources (software cannot write
 +  // the bitmap, so reserved bits can never appear).
 +  private val asyncAllowed: UInt =
-+    asyncPendingNow & ~asyncMaskByMode & ~timerGate & timerSrcBit
++    asyncPendingNow & ~asyncMaskByMode & ~timerGate & implSrcBits
 +  io.intr.valid := asyncModel.B && asyncAllowed =/= 0.U
 +  io.intr.frame := asyncAllowed
 +  io.intr.vector := hartOpt.map(_.asyncVector).getOrElse(0.U(gp.dataBits.W))
 +
-+  // `src_pending` follows the source events (`D6`): an expiry sets its bit, a
-+  // delivery and the source's ack (`timer_cmp` rewrite) clear it.  Software
-+  // writes never reach it (the row is HW/RO).
++  // `src_pending` follows the source events (`D6`): a TIMER expiry or a
++  // `PMEM_DMA` completion sets its bit, a delivery and the source's ack
++  // (`timer_cmp` rewrite / `dma_status` W1C) clear it.  Software writes never
++  // reach it (the row is HW/RO).
 +  private val timerAck: Bool =
 +    hartRows.map(_.isTimerCmp).getOrElse(false.B) && io.wEn && io.writeOk
 +  for (r <- hartOpt) {
 +    val delivered = Mux(io.intr.ack && io.intr.valid, asyncAllowed,
 +      0.U(gp.dataBits.W))
-+    val acked = Mux(timerAck, timerSrcBit, 0.U(gp.dataBits.W))
-+    r.asyncSrcPending :=
-+      (r.asyncSrcPending | Mux(timerEvent, timerSrcBit, 0.U(gp.dataBits.W))) &
-+        ~(delivered | acked)
++    val events = Mux(timerEvent, timerSrcBit, 0.U(gp.dataBits.W)) |
++      Mux(pmemEvent, pmemSrcBit, 0.U(gp.dataBits.W))
++    val acked = Mux(timerAck, timerSrcBit, 0.U(gp.dataBits.W)) |
++      Mux(pmemAck, pmemSrcBit, 0.U(gp.dataBits.W))
++    r.asyncSrcPending := (r.asyncSrcPending | events) & ~(delivered | acked)
 +    // A rewritten deadline is a fresh arming: the compare condition on the new
 +    // value must be able to raise a new event even if the old one matched.
 +    when(timerAck) { r.timerSeen := false.B }.otherwise { r.timerSeen := timerCond }

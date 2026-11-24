@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..0a140f2
+index 0000000..3af2512
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,2283 @@
+@@ -0,0 +1,2323 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -124,6 +124,7 @@ index 0000000..0a140f2
 +class WumingCore(
 +  fetchEdge: TLEdgeOut,
 +  dataEdge: TLEdgeOut,
++  pmemEdge: Option[TLEdgeOut],
 +  params: WumingCoreParams,
 +  hartidBits: Int,
 +  resetVectorBits: Int
@@ -136,6 +137,9 @@ index 0000000..0a140f2
 +  val io = IO(new Bundle {
 +    val imem = new TLBundle(fetchEdge.bundle)
 +    val dmem = new TLBundle(dataEdge.bundle)
++    /** Dedicated `cfx_pmem` DMA client port (`m16-chipyard-022`); absent on a
++      * machine without `cfx_pmem` (Kaiwu-Tiny). */
++    val pmem = pmemEdge.map(e => new TLBundle(e.bundle))
 +    val hartid = Input(UInt((hartidBits max 1).W))
 +    val resetVector = Input(UInt(resetVectorBits.W))
 +    val bootEnable = Input(Bool())
@@ -199,6 +203,35 @@ index 0000000..0a140f2
 +  // constant) is injected from the machine address map (D5).
 +  private val gewuParams = WumingGewuParams(params)
 +  val gewu = Module(new GewuFile(gewuParams))
++  require(pmemEdge.isDefined == gewuParams.pmem.isDefined,
++    "WumingCore: the cfx_pmem port and its register face must exist together")
++
++  // ---- `cfx_pmem` DMA byte mover (`m16-chipyard-022`) ---------------------
++  // The register face and every status/error decision live in `gewu`; this is
++  // only the bus-side mover, on a dedicated client port so the core can keep
++  // polling `dma_status` while a transfer runs.
++  private val pmemDma: Option[WumingPmemDma] =
++    for (e <- pmemEdge; p <- gewu.io.pmem) yield {
++      val mover = Module(new WumingPmemDma(WumingPmemDmaParams(
++        sramBase = requiredValue(params.pmemBase, "pmemBase"),
++        sramOffset = BigInt("3ff00000000", 16)), e))
++      mover.io.start := p.start
++      mover.io.src := p.src
++      mover.io.dst := p.dst
++      mover.io.size := p.size
++      mover.io.dir := p.dir
++      p.busy := mover.io.busy
++      p.done := mover.io.done
++      p.error := mover.io.error
++      val tl = io.pmem.get
++      tl.a.valid := mover.io.tl.a.valid
++      tl.a.bits := mover.io.tl.a.bits
++      mover.io.tl.a.ready := tl.a.ready
++      mover.io.tl.d.valid := tl.d.valid
++      mover.io.tl.d.bits := tl.d.bits
++      tl.d.ready := mover.io.tl.d.ready
++      mover
++    }
 +
 +  // ---- address-translation state (`cfx_ptw`, m16-chipyard-006) -----------
 +  // `PTBR`/`ASID`/`ptw_enable` are `cfx_ptw`'s architectural state and live in
@@ -562,6 +595,12 @@ index 0000000..0a140f2
 +    if (params.useVM) requiredValue(params.smonBase, "smonBase") else BigInt(0)
 +  private val smonSizeValue =
 +    if (params.useVM) requiredValue(params.smonSize, "smonSize") else BigInt(0)
++  // m16-chipyard-022: cfx_pmem's 64 KiB SRAM is the second Vast-only
++  // core-internal window (`spec/Kaiwu §1.1`: 0x83ff_0000_0000).
++  private val pmemBaseValue =
++    if (params.useVM) requiredValue(params.pmemBase, "pmemBase") else BigInt(0)
++  private val pmemSizeValue =
++    if (params.useVM) requiredValue(params.pmemSize, "pmemSize") else BigInt(0)
 +  private val bootromBaseValue = requiredValue(params.bootromBase, "bootromBase")
 +  private val bootromSizeValue = requiredValue(params.bootromSize, "bootromSize")
 +  private def inWindow(x: UInt, base: BigInt, size: BigInt): Bool = {
@@ -573,6 +612,7 @@ index 0000000..0a140f2
 +    inWindow(x, sramBaseValue, sramSizeValue) ||
 +      inWindow(x, hmonBaseValue, hmonSizeValue) ||
 +      (if (params.useVM) inWindow(x, smonBaseValue, smonSizeValue) else false.B) ||
++      (if (params.useVM) inWindow(x, pmemBaseValue, pmemSizeValue) else false.B) ||
 +      inWindow(x, bootromBaseValue, bootromSizeValue)
 +
 +  // m16-chipyard-006: address routing (`contract-tlb` §10 TLB-40…TLB-43).

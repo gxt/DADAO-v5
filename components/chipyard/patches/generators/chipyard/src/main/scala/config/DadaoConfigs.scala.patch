@@ -1,9 +1,9 @@
 diff --git a/generators/chipyard/src/main/scala/config/DadaoConfigs.scala b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 new file mode 100644
-index 0000000..7c6867c
+index 0000000..0ad3af3
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
-@@ -0,0 +1,336 @@
+@@ -0,0 +1,351 @@
 +// See LICENSE for license details.
 +//
 +// DADAO SoC configurations.
@@ -183,6 +183,10 @@ index 0000000..7c6867c
 +  /** `cfx_smon`'s 64 KiB SRAM (`contract-see §3`; `m16-chipyard-019`). */
 +  val smonBase: BigInt = BigInt("bff00000000", 16)
 +  val smonSize: BigInt = BigInt(0x10000)
++  /** `cfx_pmem`'s 64 KiB SRAM (`spec/Kaiwu §1.1`, `m16-chipyard-022`):
++    * `(cfxha 32 << 42) | 0x3ff_0000_0000`. */
++  val pmemBase: BigInt = BigInt("83ff00000000", 16)
++  val pmemSize: BigInt = BigInt(0x10000)
 +  val appEntry: BigInt = WumingTinyAddressMap.appEntry
 +  /** Vast's 4 MiB image (image index table at offset 0, ELF payloads, power
 +    * flat segment at 0x3f_0000); decoded from the sparse text hex by the
@@ -279,6 +283,15 @@ index 0000000..7c6867c
 +      subBanks = 1,
 +      name = "kaiwu-vast-smon-sram",
 +      dtsEnabled = false),
++    // cfx_pmem's 64 KiB SRAM (`m16-chipyard-022`, `spec/Kaiwu §1.1`).
++    BankedScratchpadParams(
++      base = WumingVastAddressMap.pmemBase,
++      size = WumingVastAddressMap.pmemSize,
++      busWhere = MBUS,
++      banks = 1,
++      subBanks = 1,
++      name = "kaiwu-vast-pmem-sram",
++      dtsEnabled = false),
 +    // PA RAM: the translated memory window (`[0, 2 GiB)`, `spec/Kaiwu §1.1`).
 +    // A TLRAM slave is 2 GiB of *address* space; the backing store is the
 +    // simulator's sparse heap, so untouched pages cost nothing.
@@ -335,6 +348,8 @@ index 0000000..7c6867c
 +    hmonSize = WumingVastAddressMap.hmonSize,
 +    smonBase = WumingVastAddressMap.smonBase,
 +    smonSize = WumingVastAddressMap.smonSize,
++    pmemBase = WumingVastAddressMap.pmemBase,
++    pmemSize = WumingVastAddressMap.pmemSize,
 +    bootromBase = WumingVastAddressMap.bootROMBase,
 +    bootromSize = WumingVastAddressMap.bootROMSize,
 +    paRamBase = WumingVastAddressMap.paRamBase,

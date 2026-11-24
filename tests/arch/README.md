@@ -56,6 +56,7 @@ python3 tests/arch/run_arch.py --list
 | `cache/` | `cfx5`（cache） | 寄存器面 RTL 探针 `cfx5_regs.S` + `check_cfx5_regs.py`（`m16-chipyard-016`）；I/D 维护命令 RTL 探针 `cfx5_maint.S` + `gen_cfx5_maint_tables.py` + `check_cfx5_maint.py`（`m16-chipyard-017`，记录 + 缓存日志时序）；暂未登记 `tests/arch.yaml`（chipyard 后端目前只接 cfx4） |
 | `hart/` | `cfx15`（cfx_hart） | cg8 管理寄存器 + cg9 七槽捕获缓冲（R2：每次进入整体覆盖）+ 源位图/掩码/TIMER 投递 RTL 探针 `cfx15.S` + `check_cfx15.py`（`m16-chipyard-021`/`024`/`026`；`TMODE=3/2/0` 出 H/S/U 三个镜像，一份 case）；暂未登记 `tests/arch.yaml` |
 | `power/` | `cfx63`（power） | 寄存器面（`cg7` BootROM 块）+ power→hmon 移交：`arch-power-001`（hmon/smon/umon 各一次，28 槽）+ `arch-power-002`（属性拒绝面，只 hmon，3 槽）；载体/驱动 `power_vast.py` / `check_power.py`，RTL 承载 `gen_power_rtl.py` / `check_power_rtl.py`（`power_rtl.lds`） |
+| `pmem/` | `cfx32`（cfx_pmem） | 寄存器面（`pmem_exist`、`pmem_start/size/attr[0..63]`、`cg15` DMA 寄存器）与 SRAM ↔ PA DMA（逐字节、四类 setup 错误、ROM 只读）；完成投递 `cfx_hart cg9`（pending/frame bit32）、同界 timer+DMA 位图并集、ack 后 pending 落、覆盖语义、`escape imms18=2 ⇒ CFXESC`；RTL 探针 `pmem.S` + `check_pmem.py`（`m16-chipyard-022`；`TMODE=3/2/0` 出 H/S/U 三个镜像）；暂未登记 `tests/arch.yaml` |
 
 其余 cfx 按已有用例增建（`smon/`、`hmon/`、`cache/`、`hart/`、`pmem/`、`time/`、
 `power/`）；**不建**空壳子目录。Tiny 的 hmon 用例已迁出 arch（见下）。

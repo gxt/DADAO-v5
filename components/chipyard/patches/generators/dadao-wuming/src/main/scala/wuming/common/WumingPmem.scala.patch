@@ -1,0 +1,211 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingPmem.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingPmem.scala
+new file mode 100644
+index 0000000..9fae4f6
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingPmem.scala
+@@ -0,0 +1,205 @@
++// See LICENSE for license details.
++//
++// DADAO "wuming" cfx_pmem byte mover (`m16-chipyard-022`).
++//
++// `spec/DADAO-12 §4.9` defines the cfx_pmem DMA as a block move between the
++// cfx's 64 KiB SRAM and physical memory.  The *registers* and every
++// architecture-visible status value live in `gewu` (`GewuFile`): START,
++// DIR/IRQ_EN, BUSY/DONE/ERROR/ERR_CODE and the setup checks (SIZE /
++// CFX_RANGE / PA_RANGE / PA_FAULT) are all decided there.  This module is only
++// the byte mover: it receives a validated `start` plus the raw src/dst/size
++// and drives one TileLink client port.
++//
++// Why a separate port: the DMA has to run while the core executes (software
++// polls `dma_status.BUSY`).  The data port belongs to the D-cache on a
++// translating machine, and sharing it would stall the poll loop; a small
++// dedicated client keeps the two paths independent.
++//
++// Data movement is byte-exact: the source byte is read from its
++// address-ordered 8-byte beat, and the destination beat is read first and
++// written back with only the transferred bytes replaced, so unaligned starts
++// and partial beats never clobber neighbouring bytes.
++
++package wuming.common
++
++import chisel3._
++import chisel3.util._
++import freechips.rocketchip.tilelink.{TLBundle, TLEdgeOut}
++
++/** Windows the mover needs; every value is injected from the address map. */
++case class WumingPmemDmaParams(
++  /** Core address of the cfx_pmem SRAM (`spec/Kaiwu §1.1`). */
++  sramBase: BigInt,
++  /** cfx-internal offset of that SRAM (`DADAO-12 §2.1`). */
++  sramOffset: BigInt
++)
++
++class WumingPmemDma(
++  val params: WumingPmemDmaParams,
++  edge: TLEdgeOut
++) extends Module {
++  val addrBits = edge.bundle.addressBits
++  val beatBytes = edge.bundle.dataBits / 8
++  require(beatBytes == 8, "WumingPmemDma: expected a 64-bit TileLink beat")
++  require(addrBits >= 48, "WumingPmemDma: the address map must negotiate >= 48 bits")
++
++  val io = IO(new Bundle {
++    /** Dedicated TileLink client port. */
++    val tl = new TLBundle(edge.bundle)
++    // Command from `cfx_pmem` (already validated).
++    val start = Input(Bool())
++    val src = Input(UInt(64.W))
++    val dst = Input(UInt(64.W))
++    val size = Input(UInt(30.W))
++    val dir = Input(Bool())
++    val busy = Output(Bool())
++    val done = Output(Bool())
++    val error = Output(Bool())
++  })
++
++  private val lgSize = log2Ceil(beatBytes).U
++  private def beatOf(x: UInt): UInt = Cat(x(addrBits - 1, 3), 0.U(3.W))
++
++  // ---- state --------------------------------------------------------------
++  private val sIdle :: sDstReq :: sDstWait :: sByte :: sSrcReq :: sSrcWait :: sPutReq :: sPutWait :: Nil = Enum(8)
++  private val state = RegInit(sIdle)
++
++  private val busy = RegInit(false.B)
++  private val donePulse = RegInit(false.B)
++  private val errPulse = RegInit(false.B)
++  donePulse := false.B
++  errPulse := false.B
++
++  private val srcR = RegInit(0.U(addrBits.W))
++  private val dstR = RegInit(0.U(addrBits.W))
++  private val sizeR = RegInit(1.U(30.W))
++  private val idx = RegInit(0.U(30.W))
++
++  // One-beat staging.  `srcBeatData` is the address-ordered bus beat of the
++  // source; `dstBeatData` starts as the destination beat's current content so
++  // bytes outside the transfer survive.
++  private val srcBeatValid = RegInit(false.B)
++  private val srcBeatAddr = RegInit(0.U(addrBits.W))
++  private val srcBeatData = RegInit(0.U(64.W))
++  private val dstBeatData = RegInit(0.U(64.W))
++
++  private val srcByteAddr = srcR + idx
++  private val dstByteAddr = dstR + idx
++  private val srcOff = srcByteAddr(2, 0)
++  private val dstOff = dstByteAddr(2, 0)
++  private val srcByte = (srcBeatData >> (srcOff << 3))(7, 0)
++  // Write the transferred byte into the destination beat, keep the rest.
++  private val mergedBeat = Cat((0 until beatBytes).reverse.map { k =>
++    Mux(dstOff === k.U, srcByte, dstBeatData(8 * k + 7, 8 * k))
++  })
++  private val lastByte = idx === (sizeR - 1.U)
++  private val lastOfBeat = (dstByteAddr + 1.U)(2, 0) === 0.U
++  private val nextSrcBeat = beatOf(srcR + idx + 1.U)
++  private val srcHit = srcBeatValid && srcBeatAddr === beatOf(srcByteAddr)
++
++  // ---- one outstanding TileLink request ----------------------------------
++  private val reqAddr = Mux(state === sPutReq, beatOf(dstByteAddr - 1.U),
++    Mux(state === sSrcReq, beatOf(srcByteAddr), beatOf(dstByteAddr)))
++  private val reqIsPut = state === sPutReq
++  private val allBytes = Fill(beatBytes, 1.U(1.W))
++  private val (getLegal, getBits) = edge.Get(0.U, reqAddr, lgSize)
++  private val (putLegal, putBits) = edge.Put(0.U, reqAddr, lgSize, dstBeatData,
++    allBytes)
++  io.tl.a.valid := state === sDstReq || state === sSrcReq || state === sPutReq
++  io.tl.a.bits := Mux(reqIsPut, putBits, getBits)
++  io.tl.d.ready := state === sDstWait || state === sSrcWait || state === sPutWait
++  private val respFire = io.tl.d.fire
++  private val respBad = io.tl.d.bits.denied || io.tl.d.bits.corrupt
++
++  when(io.start && state === sIdle) {
++    // The CFX side is addressed by `(cfxha << 42) | offset`; the validated
++    // offset is what selects a byte inside the 64 KiB SRAM.
++    val cfxOff = (Mux(io.dir, io.dst, io.src))(41, 0) -
++      params.sramOffset.U(42.W)
++    val cfxBus = (params.sramBase.U + cfxOff)(addrBits - 1, 0)
++    val pa = Mux(io.dir, io.src, io.dst)(55, 0)
++    srcR := Mux(io.dir, pa(addrBits - 1, 0), cfxBus)
++    dstR := Mux(io.dir, cfxBus, pa(addrBits - 1, 0))
++    sizeR := io.size
++    idx := 0.U
++    srcBeatValid := false.B
++    busy := true.B
++    state := sDstReq
++  }.otherwise {
++    switch(state) {
++      is(sDstReq) {
++        when(io.tl.a.ready) { state := sDstWait }
++      }
++      is(sDstWait) {
++        when(respFire) {
++          when(respBad) {
++            busy := false.B
++            errPulse := true.B
++            state := sIdle
++          }.otherwise {
++            dstBeatData := io.tl.d.bits.data
++            state := Mux(srcHit, sByte, sSrcReq)
++          }
++        }
++      }
++      is(sByte) {
++        dstBeatData := mergedBeat
++        idx := idx + 1.U
++        when(lastByte || lastOfBeat) {
++          state := sPutReq
++        }.elsewhen(srcBeatValid && srcBeatAddr === nextSrcBeat) {
++          state := sByte
++        }.otherwise {
++          state := sSrcReq
++        }
++      }
++      is(sSrcReq) {
++        when(io.tl.a.ready) { state := sSrcWait }
++      }
++      is(sSrcWait) {
++        when(respFire) {
++          when(respBad) {
++            busy := false.B
++            errPulse := true.B
++            state := sIdle
++          }.otherwise {
++            srcBeatData := io.tl.d.bits.data
++            srcBeatAddr := beatOf(srcByteAddr)
++            srcBeatValid := true.B
++            state := sByte
++          }
++        }
++      }
++      is(sPutReq) {
++        when(io.tl.a.ready) { state := sPutWait }
++      }
++      is(sPutWait) {
++        when(respFire) {
++          when(respBad) {
++            busy := false.B
++            errPulse := true.B
++            state := sIdle
++          }.elsewhen(idx === sizeR) {
++            busy := false.B
++            donePulse := true.B
++            state := sIdle
++          }.otherwise {
++            state := sDstReq
++          }
++        }
++      }
++      is(sIdle) {}
++    }
++  }
++
++  assert(!io.tl.a.valid || reqIsPut || getLegal,
++    "WumingPmemDma: a source beat must be backed by a capable manager")
++  assert(!io.tl.a.valid || !reqIsPut || putLegal,
++    "WumingPmemDma: a destination beat must be writable")
++  assert(state === sIdle || !io.start,
++    "WumingPmemDma: START must not arrive while a transfer is running")
++
++  io.busy := busy
++  io.done := donePulse
++  io.error := errPulse
++}
