@@ -67,7 +67,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-linux-k2 check-linux-k5 check-linux-k6 \
         check-picolibc-tests check-picolibc-tests-full \
         check-modules check-full check-components check-knowledge-refs \
-        check-inst-asm inst-signature-data check-tests-index check-inst-macro-scope check-arch check-arch-smoke \
+        check-inst-asm inst-signature-data check-tests-index check-inst-macro-scope check-arch check-arch-smoke check-arch-self-test \
         check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
         check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
         clean-tests test-repro night-run check-night-report check-l3-report \
@@ -329,6 +329,7 @@ help:
 	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t; check-unit member)"
 	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t; check-unit member)"
 	@echo "  make check-arch-smoke  arch smoke: tests/arch.yaml level=smoke rep set (run_arch.py) + 25 svc + ptw/tlb carrier (L2; m16-testcases-007; probe root under TEST_ARTIFACTS_DIR — INFRA-146t)"
+	@echo "  make check-arch-self-test  Downstream arch parser self-check: run_arch.py --self-test (index/modes/expected.yaml + driver --selfcheck, no simulator; L1; ISS-530/m16-infra-002)"
 	@echo "  make check-arch      arch L3 member: same checks as check-arch-smoke (m16-testcases-007; old cfx probes retained for cfx4 migration)"
 	@echo "  make test-m6          Run M6 E2E gate (lli value-level diff + Embench all benches -O0/-O2 + full lit MC suite; opt-in, INTEG-025t)"
 	@echo "  make check-patch-tree  Check component + submodule patch sets (docs/Process-01, 10 assertions)"
@@ -1147,7 +1148,7 @@ _locked-clean-work:
 # 两条排在 `check-temp-dirs` **之前**：它们在 `$DADAO_TMP`（`check_toolchain.py`
 # 默认建任务临时目录）下跑探针，先跑可让该目录 mtime 保持新鲜，避免陈旧临时
 # 目录误报；`check_k0.py`（L2）另行把 DADAO_TMP 指到自己的 scratch。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-opcodes-repro check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-idl-sync check-idl-parse check-idl-exec-anchor check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-config-pins check-writer-guards check-temp-dirs
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-opcodes-repro check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-arch-self-test check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-idl-sync check-idl-parse check-idl-exec-anchor check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-config-pins check-writer-guards check-temp-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1776,6 +1777,23 @@ ARCH_CARRIER_LOG = .work/log/arch/check-arch-smoke-carrier.log
 # （`tests/arch/ptw/ptw_carrier_tlb.py`，15 条 TLB/PTW 探针）。
 ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t integ046t integ047t integ048t integ049t integ050t integ051t integ007t
 ARCH_PTW_CARRIER = tests/arch/ptw/ptw_carrier_tlb.py
+
+# arch 下游解析器自检（L1；ISS-530 / m16-infra-002）：spec/契约的措辞改动曾两次
+# 打断 `tests/arch` 的解析器（`power_vast.py` 拿 `### 3.9` 当 §3.8 的边界、
+# `check_cfx15.py` 两处文案断言），根因是 spec 任务收尾没跑下游解析器自检。
+# 本目标 = `run_arch.py --self-test`：索引 / modes / 各 `expected.yaml` 结构 +
+# 每个 driver 的 `--selfcheck`，**不启动模拟器**（Process-07 §3 判据 1 ⇒ L1）。
+# 读安装根的工具链路径（未 `make install-host` ⇒ 红，同 `check-components`）；
+# fail-closed：`--self-test` rc≠0 即红，不吞退出码。
+ARCH_SELF_LOG = .work/log/arch/check-arch-self-test.log
+check-arch-self-test:
+	@test -f $(ARCH_DRIVER) || { echo "check-arch-self-test: ERROR: $(ARCH_DRIVER) not found"; exit 1; }
+	@mkdir -p .work/log/arch
+	@$(PYTHON) $(ARCH_DRIVER) --self-test > $(ARCH_SELF_LOG) 2>&1; \
+	  rc=$$?; \
+	  if [ $$rc -ne 0 ]; then cat $(ARCH_SELF_LOG); echo "check-arch-self-test: FAIL (run_arch --self-test rc=$$rc)"; exit $$rc; fi; \
+	  tail -n 2 $(ARCH_SELF_LOG); \
+	  echo "check-arch-self-test: PASS (downstream arch parsers)"
 
 _locked-check-arch-smoke: install-host build-bootrom
 	@test -f $(ARCH_DRIVER) || { echo "check-arch-smoke: ERROR: $(ARCH_DRIVER) not found"; exit 1; }

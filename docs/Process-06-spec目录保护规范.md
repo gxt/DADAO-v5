@@ -80,3 +80,7 @@
 - **IDL 段的约定**：一条指令一个标记对；标记名 = 该指令在 `contracts/opcodes.yaml` 的 id；**每个源 operation 必有落点、每个落点必有源**（空标记 ⇒ FAIL）；落点册必须与源文件册（`idl/SimRISC-NN.idl` ↔ `spec/SimRISC-NN-*.md`）一致；标记之间不得放其它标记（禁嵌套）。
 - **改字的正确姿势**：改语义 ⇒ 改 `idl/*.idl` 后跑 `python3 idl/tools/idl_render.py`；只想让门控变绿而改 `spec/` 里的块 ⇒ 下一次 `check-idl-sync` 必红（该门控是**逐字节**比对，不是「格式检查」）。
 - **审计口径**：`spec/` 的任何改动仍须用户事先允许（§2）并同笔更新 `spec/.manifests.toml`（§5）；本节的附加要求是「生成段的改动必须能追到源」。
+
+## 10. spec 措辞改动的下游解析器自检（MUST）
+
+spec/契约正文的措辞或章节编号改动可能打断下游解析器（`tests/arch/power/power_vast.py` 曾以 `### 3.9` 作 §3.8 的边界、`tests/arch/hart/check_cfx15.py` 有两处文案断言，`ISS-530`）：此类任务收尾**必须**跑 `make check-arch-self-test`（L1，已在 `make check` 内；即 `run_arch.py --self-test`，不启动模拟器）并 rc=0，方可交付验收。

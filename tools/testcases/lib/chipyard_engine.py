@@ -13,6 +13,15 @@ Invocation (the pattern ``tests/inst`` has used since m12-chipyard-004)::
         +loadmem=<elf> +semiout=<out> +max-cycles=<N> [+semicmdline=<line>] \
         +permissive-off none
 
+Verbose traces are opt-in (``m16-infra-002``): ``run(..., verbose=True)`` -- or
+``DADAO_CHIPYARD_VERBOSE=1`` in the environment -- inserts ``+verbose`` right
+after ``+permissive`` and before ``+permissive-off``.  The harness gates its
+Chisel ``printf`` output on ``PRINTF_COND=+verbose``, so ``WumingPtw: ad-wb`` /
+``tlb-evict`` events and the ``WumingCore: exec`` trace exist only then; the
+PTW checkers' log face (``check_ptw_walk.py --log`` / ``check_ptw_tlb.py
+--log``) is the consumer that opts in.  Default is off: the command line is
+byte-identical to before and no trace appears.
+
 What the driver reads back
 --------------------------
 * **guest exit status**: the harness's semihosting responder prints
@@ -61,6 +70,12 @@ DEFAULT_MAX_CYCLES = 2_000_000_000
 
 ENGINES = ("qemu", "chipyard")
 
+# Opt-in switch for the harness's `printf` traces (m16-infra-002).  An explicit
+# `verbose=True` wins; the environment variable lets an ad-hoc runner (e.g. the
+# ptw_walk / ptw_tlb evidence drivers) turn the traces on without editing it.
+VERBOSE_ENV = "DADAO_CHIPYARD_VERBOSE"
+_VERBOSE_TRUTHY = ("1", "true", "yes", "on")
+
 # `[WumingSemi] SYS_EXIT(0x18) reason=0x20026 code=0x0 cycle=12345 -> host exit status 0`
 _SYS_EXIT_RE = re.compile(
     r"\[WumingSemi\] SYS_EXIT\(0x[0-9a-fA-F]+\) reason=0x([0-9a-fA-F]+) "
@@ -77,6 +92,18 @@ _VERILATOR_ERROR_RE = re.compile(r"^%Error", re.MULTILINE)
 
 def abspath(repo_root, path):
     return path if os.path.isabs(path) else os.path.join(str(repo_root), path)
+
+
+def verbose_requested(verbose=False):
+    """Whether this run should pass ``+verbose`` to the simulator.
+
+    ``verbose=True`` is explicit; otherwise ``DADAO_CHIPYARD_VERBOSE`` in
+    ``{1,true,yes,on}`` (case-insensitive) opts in.  Anything else -- including
+    the default empty environment -- keeps the historical command line.
+    """
+    if verbose:
+        return True
+    return os.environ.get(VERBOSE_ENV, "").strip().lower() in _VERBOSE_TRUTHY
 
 
 def default_sim(repo_root):
@@ -137,7 +164,7 @@ def _read(path):
 
 
 def run(elf, outdir, *, sim, timeout, max_cycles=DEFAULT_MAX_CYCLES,
-        cmdline=None, env_extra=None, cwd=None):
+        cmdline=None, env_extra=None, cwd=None, verbose=False):
     """Run one ELF on the chipyard Tiny harness; return the raw observation."""
     os.makedirs(outdir, exist_ok=True)
     semiout = os.path.join(outdir, "semi.out")
@@ -146,8 +173,15 @@ def run(elf, outdir, *, sim, timeout, max_cycles=DEFAULT_MAX_CYCLES,
         if os.path.exists(path):
             os.unlink(path)
 
-    cmd = [str(sim), "+permissive", "+loadmem=%s" % elf,
-           "+semiout=%s" % semiout, "+max-cycles=%s" % max_cycles]
+    trace = verbose_requested(verbose)
+    cmd = [str(sim), "+permissive"]
+    if trace:
+        # `+verbose` must sit after `+permissive` and before `+permissive-off`
+        # (m16-gem5-005 finding 3); any other position is dropped by the
+        # harness's argument parser.
+        cmd.append("+verbose")
+    cmd += ["+loadmem=%s" % elf,
+            "+semiout=%s" % semiout, "+max-cycles=%s" % max_cycles]
     if cmdline:
         cmd.append("+semicmdline=%s" % cmdline)
     cmd += ["+permissive-off", "none"]
@@ -186,7 +220,7 @@ def run(elf, outdir, *, sim, timeout, max_cycles=DEFAULT_MAX_CYCLES,
 
     return {
         "elf": str(elf), "cmd": cmd, "rc": rc, "timed_out": timed_out,
-        "seconds": round(seconds, 2),
+        "seconds": round(seconds, 2), "verbose": trace,
         "semiout": _read(semiout), "log": log_path, "sim_text": text,
         "guest_exit": guest_exit, "guest_cycles": guest_cycles,
         "max_cycles": int(max_cycles),
@@ -201,7 +235,7 @@ def run(elf, outdir, *, sim, timeout, max_cycles=DEFAULT_MAX_CYCLES,
 
 def evaluate(elf, outdir, *, sim, timeout, sim_md5=None,
              max_cycles=DEFAULT_MAX_CYCLES, cmdline=None, env_extra=None,
-             cwd=None):
+             cwd=None, verbose=False):
     """Run and normalise the outcome.
 
     Returned dict:
@@ -217,6 +251,9 @@ def evaluate(elf, outdir, *, sim, timeout, sim_md5=None,
     * ``semiout`` the guest console bytes (markers);
     * ``md5`` the simulator binary's md5 (same before and after);
     * ``seconds`` wall clock.
+
+    ``verbose=True`` forwards `+verbose` to the simulator (module docstring);
+    the returned ``cmd`` shows whether it was passed.
     """
     result = {"status": None, "exit": None, "cycles": None, "reason": "",
               "gap": None, "semiout": b"", "md5": None, "seconds": 0.0,
@@ -230,7 +267,7 @@ def evaluate(elf, outdir, *, sim, timeout, sim_md5=None,
         return result
 
     obs = run(elf, outdir, sim=sim, timeout=timeout, max_cycles=max_cycles,
-              cmdline=cmdline, env_extra=env_extra, cwd=cwd)
+              cmdline=cmdline, env_extra=env_extra, cwd=cwd, verbose=verbose)
     result.update(semiout=obs["semiout"], seconds=obs["seconds"],
                   cmd=obs["cmd"], log=obs["log"], md5=obs["sim_md5_after"],
                   cycles=obs["guest_cycles"],
