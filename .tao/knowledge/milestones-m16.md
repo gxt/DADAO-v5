@@ -20,7 +20,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m16-testcases-014 | 3–4 h | cfx32 pmem 完成中断 + 同界多源（R2 捕获缓冲；源位 32/15） |
 | m16-chipyard-027 | 2–3 h | RTL 缺面补齐（power common face + cfx5 S/U 可达；ISS-524/DIV-16） |
 | m16-qemu-006 | 2–3 h | QEMU `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧（ISS-533/525） |
 | m16-gem5-025 | 2–3 h | gem5 `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧（ISS-533/525） |
@@ -33,6 +32,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-testcases-014 | 2026-11-25 01:26 | 3–4 h | cfx32 pmem 完成中断 + 同界多源（R2 捕获缓冲；源位 32/15） |
 
 ## 已验证
 
