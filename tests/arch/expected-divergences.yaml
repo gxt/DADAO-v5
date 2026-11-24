@@ -55,11 +55,11 @@ divergences:
   - id: DIV-06
     kind: temporary
     scope: [chipyard]
-    impact: "cfx15（cfx_hart）与 cfx32（cfx_pmem）的 RTL 功能不参与三方逐槽比较；cfx34（cfx_time）**已参与**（`arch-time-001/002`，`m16-chipyard-023` 起三平台同一 case 逐槽相等）。"
-    reason: "RTL 的三个 cfx 已由 `m16-chipyard-021/022/023` 补齐，剩下的限制在后端而不是 RTL：① **cfx15** 的判据读 `cfx_hart cg9`（R2 捕获缓冲七槽），而 QEMU（`target/dadao/helper.c` 只有 cg8）与 gem5（`src/arch/dadao/node_cfx.cc` 只有 cg8）都**没有 cg9** ⇒ 三方逐槽不可比；② **cfx32** 的 QEMU/gem5 只实现 `cg15`（`ISS-533`），`cg8/12/13/14` 一律 `CFXREG`，而 RTL 按 `DADAO-12 §4.9` 全实现 ⇒ 寄存器面不可逐槽比。cfx34 的三方面已由 `m16-chipyard-023` 打通（RTL 侧 `check_time_rtl.py` 由 `run_arch.py` 的 chipyard 后端按 `check_<cfx>_rtl.py` 发现，并按 `--mode` 出三模式镜像）。"
-    user_ruling: "2026-11-22（本项）；2026-11-24 按实际状态收窄（cfx34 移除）"
+    impact: "cfx32（cfx_pmem）的**寄存器面**（`cg8 pmem_exist` / `cg12/13/14`）不参与三方逐槽比较；其 DMA/捕获面（`cg15` + `cfx_hart cg9` + monitor 掩码）已由 `arch-pmem-001/002` 逐槽比较（`m16-testcases-014`，QEMU+RTL 两方；gem5 见 `DIV-17`）。cfx15 已由 `DIV-17` 收窄为 gem5；cfx34 已三方（`m16-chipyard-023`）。"
+    reason: "RTL 的 cfx15/32/34 已由 `m16-chipyard-021/022/023` 补齐，剩下的限制在后端而不是 RTL：**cfx32** 的 QEMU/gem5 只实现 `cg15`（`ISS-533`），`cg8/12/13/14` 一律 `CFXREG`，而 RTL 按 `DADAO-12 §4.9` 全实现 ⇒ 只有**寄存器面**不可逐槽比；DMA/捕获面（`cg15` + `cfx_hart cg9`）三承载都有，`m16-testcases-014` 的 `arch-pmem-001/002` 因此可逐槽（QEMU+RTL；gem5 的 R2 前模型见 `DIV-17`）。cfx15 的 R2 缺口已由 `DIV-17` 单独收窄（QEMU 已有 `cg9`），cfx34 的三方面已由 `m16-chipyard-023` 打通。"
+    user_ruling: "2026-11-22（本项）；2026-11-24 按实际状态收窄（cfx34 移除）；2026-11-25 cfx15 移交 DIV-17、cfx32 收窄为寄存器面（m16-testcases-014）"
     status: active
-    close_when: "① QEMU/gem5 实现 `cfx_hart cg9`（R2 七槽）⇒ 删 cfx15 部分；② QEMU/gem5 补齐 cfx_pmem 的 `cg8/12/13/14`（`ISS-533`）⇒ 删 cfx32 部分；两项都关才能删本条"
+    close_when: "QEMU/gem5 补齐 cfx_pmem 的 `cg8/12/13/14`（`ISS-533`）⇒ 删本条（DMA/捕获面已由 `arch-pmem-001/002` 覆盖，本条的 cfx15 部分已移交 `DIV-17`）"
 
   - id: DIV-07
     kind: temporary
@@ -135,8 +135,8 @@ divergences:
   - id: DIV-17
     kind: temporary
     scope: [gem5]
-    impact: "`arch-hart-001/002`（cfx_hart TIMER R2 捕获缓冲）不参与 gem5 逐槽：gem5 仍是 `ADR-0061` R2 前模型（无 `cfx_hart cg9`、来源掩码仍为旧 `cfx_intr_mask`/`global_cfx_intr_mask` 两级），该用例在 gem5 上 fail-closed（rc=1），不进三方比较；QEMU+RTL 两方逐槽。"
-    reason: "`m16-testcases-013` 的载体按 `spec/DADAO-12 §4.7/§5.4` R2 写（cg9 捕获缓冲、monitor `cg8 rc1` 掩码）；gem5 侧没有对应实现（`tests/arch/vast-arch-inventory.md` cfx15-gem5 段已标「R2 前口径」），且没有已立的 gem5 迁移任务。"
+    impact: "`arch-hart-001/002`（cfx_hart TIMER R2 捕获缓冲）与 `arch-pmem-001/002`（cfx_pmem DMA 完成中断 + 同界多源）不参与 gem5 逐槽：gem5 仍是 `ADR-0061` R2 前模型（无 `cfx_hart cg9`、来源掩码仍为旧 `cfx_intr_mask`/`global_cfx_intr_mask` 两级），这些用例在 gem5 上 fail-closed（rc=1），不进三方比较；QEMU+RTL 两方逐槽。"
+    reason: "`m16-testcases-013`/`014` 的载体按 `spec/DADAO-12 §4.7/§5.4` R2 写（cg9 捕获缓冲、monitor `cg8 rc1` 掩码）；gem5 侧没有对应实现（`tests/arch/vast-arch-inventory.md` cfx15-gem5 / cfx32-gem5 段标「R2 前口径」）——`arch-pmem-001` 在 gem5 上从槽 16（`cfx_hart cg9` 读）起读回指令字并 rc=1（`m16-testcases-014` 实测），且没有已立的 gem5 迁移任务。"
     user_ruling: "待用户裁定（2026-11-25 实测登记；DIV-06 的 cfx15 部分在本条收窄为 gem5）"
     status: active
     close_when: "gem5 实现 `cfx_hart cg9` 七槽 + R2 捕获缓冲（每次进入覆盖）/monitor `cg8 rc1` 掩码迁移（新立 gem5 任务）"

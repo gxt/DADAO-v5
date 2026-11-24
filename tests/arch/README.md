@@ -28,7 +28,9 @@ python3 tests/arch/run_arch.py --list
   `tools/testcases/parity/qemu_gem5_shim.py`，`-machine kaiwu-vast`）已接；
   `chipyard`（RTL）由 cfx 目录内的 `check_<cfx>_rtl.py` 承载（`kind: driver`，
   仿真器由 `--chipyard-sim` 指定；**cfx4** 由 `m16-chipyard-018`、**cfx34** 由
-  `m16-chipyard-023`、**cfx5** 由 `m16-testcases-009` 接入，其余 cfx 仍 fail-closed）；没有 RTL
+  `m16-chipyard-023`、**cfx5** 由 `m16-testcases-009`、**cfx15** 由
+  `m16-testcases-013`、**cfx32** 由 `m16-testcases-014` 接入，其余 cfx 仍
+  fail-closed）；没有 RTL
   承载的 cfx **fail-closed**（`PlatformError` ⇒ 非零退出），禁止静默降级为
   「其余平台通过」。`rtl-coverage.yaml` 登记的 `gap` 记 `GAP`（不当作通过）。
 - `--cache-model`：缺省 `on`；传 `off` 退出 2。**唯一例外**是 `modes.yaml` 显式
@@ -52,14 +54,14 @@ python3 tests/arch/run_arch.py --list
 | 目录/文件 | cfx | 内容 |
 |------|-----|------|
 | `run_arch.py` | — | 唯一驱动（`--cfx/--platforms/--cache-model/--level/--self-test/--list`） |
-| `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`（含逐槽差异登记读取）；`platform.py` 的 qemu/gem5（driver 经 shim）/chipyard（RTL 承载 = 目录内 `check_<cfx>_rtl.py`；已接 cfx4 / cfx34 / cfx5，其余 cfx fail-closed）后端 |
+| `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`（含逐槽差异登记读取）；`platform.py` 的 qemu/gem5（driver 经 shim）/chipyard（RTL 承载 = 目录内 `check_<cfx>_rtl.py`；已接 cfx4 / cfx34 / cfx5 / cfx15 / cfx32，其余 cfx fail-closed）后端 |
 | `common/env-{hmon,smon,umon}/` | — | **运行模式环境**（每个模式一个目录，`env.S`；共享 `common/env.lds`）：进入模式、栈、异常向量、退出与签名区；body 与模式解耦（`m16-testcases-015`，见 `common/env-README.md` / `common/env-MIGRATION.md`） |
 | `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.S`，10 条）+ `expected.yaml`；代表迁移用例 `umon_mode_regs.body.S` + 驱动 `common/check_mode_env.py`（`arch-umon-011`，三模式）；**fence 基础验证** `umon_fence.py`（载体）/ `check_fence.py`（驱动，`arch-umon-012` 放行面三模式、`arch-umon-013` 保留面 hmon）+ `gen_fence_rtl.py` / `check_fence_rtl.py`（按需 RTL 承载，`fence_rtl.lds`）；**cfx0+cfx2 寄存器面 RTL 探针** `cfx02_regs.S` + `check_cfx02_regs.py`（`m16-chipyard-019`，47 条记录）；**U/S/H 模式进入路由 RTL 探针** `mode_entry.S` + `check_mode_entry.py`（`m16-chipyard-020`，同一份 case 链接 TMODE=0/2/3，14/21/14 槽）；cfx0/cfx2 两个 RTL 探针暂未登记 `tests/arch.yaml`——chipyard 后端目前只接 cfx4（`check_ptw_rtl.py`），且 hmon 模式环境只在 QEMU/gem5 载体上可用 |
 | `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针：载体/生成器 `ptw_carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）、驱动型入口 `check_tlb.py`（`kind: driver`）；QEMU 与 gem5（shim）逐条跑。**RTL 承载**（`m16-chipyard-018`）：`ptw_sig.S` + `gen_ptw_sig_tables.py` + `check_ptw_rtl.py`（cfx4 的 15 条映射见 `rtl-coverage.yaml`）；`ptw_regs.S`/`ptw_walk.S`/`ptw_tlb.S`（及各自 `check_ptw_*.py`/`gen_ptw_*_tables.py`）由 `tools/chipyard/{ptw,tlb}/` 迁入，是 RTL 的额外检查点 |
 | `cache/` | `cfx5`（cache） | **三方用例**（`m16-testcases-009`）：`arch-cache-001/002/003` 由 `check_cache.py`（QEMU/gem5，env 三模式）与 `check_cache_rtl.py`（RTL，`cache_rtl.S`）跑同一槽序；`arch-cache-004` 是 `cache-model=off` 分支（QEMU/gem5；RTL 记 `rtl-coverage.yaml` 的 gap）。唯一期望源 `cache_oracle.py` + `expected.yaml`。另有 RTL 专项探针 `cfx5_regs.S`/`check_cfx5_regs.py`（`m16-chipyard-016`）与 `cfx5_maint.S`/`gen_cfx5_maint_tables.py`/`check_cfx5_maint.py`（`m16-chipyard-017`，缓存日志时序），不登记进索引 |
 | `hart/` | `cfx15`（cfx_hart） | cg8 管理寄存器 + cg9 七槽捕获缓冲（R2：每次进入整体覆盖）+ 源位图/掩码/TIMER 投递 + jump 目标精确点；`arch-hart-001`（hmon，80 槽）/ `arch-hart-002`（smon/umon，40 槽），同一份 `cfx15.S`；QEMU + RTL 两方逐槽（归一化签名），gem5 fail-closed（`DIV-17`）；驱动 `check_hart.py` / `check_hart_rtl.py`（`m16-testcases-013`） |
 | `power/` | `cfx63`（power） | 寄存器面（`cg7` BootROM 块）+ power→hmon 移交：`arch-power-001`（hmon/smon/umon 各一次，28 槽）+ `arch-power-002`（属性拒绝面，只 hmon，3 槽）；载体/驱动 `power_vast.py` / `check_power.py`，RTL 承载 `gen_power_rtl.py` / `check_power_rtl.py`（`power_rtl.lds`） |
-| `pmem/` | `cfx32`（cfx_pmem） | 寄存器面（`pmem_exist`、`pmem_start/size/attr[0..63]`、`cg15` DMA 寄存器）与 SRAM ↔ PA DMA（逐字节、四类 setup 错误、ROM 只读）；完成投递 `cfx_hart cg9`（pending/frame bit32）、同界 timer+DMA 位图并集、ack 后 pending 落、覆盖语义、`escape imms18=2 ⇒ CFXESC`；RTL 探针 `pmem.S` + `check_pmem.py`（`m16-chipyard-022`；`TMODE=3/2/0` 出 H/S/U 三个镜像）；暂未登记 `tests/arch.yaml` |
+| `pmem/` | `cfx32`（cfx_pmem） | **DMA 完成中断 + 同界多源**（`m16-testcases-014`）：`arch-pmem-001`（hmon，55 槽：DMA/状态/一致性 clean+invalidate（A）/ILLI/捕获/`escape imms18=2 ⇒ CFXESC`/同界 TIMER+DMA 一次进入/ack/覆盖）+ `arch-pmem-002`（smon/umon，10 槽：完成落在目标模式、各写自己 monitor 掩码）；载体 `pmem_dma.S` + 驱动 `check_pmem_dma.py`（QEMU/gem5）与 `check_pmem_rtl.py`（RTL），判据 `pmem_oracle.py`，QEMU+RTL 两方逐槽（gem5 fail-closed，`DIV-17`）。另有 RTL 寄存器面探针 `pmem.S` + `check_pmem.py`（`m16-chipyard-022`），不进索引（`DIV-06`） |
 
 | `time/` | `cfx34`（cfx_time） | **per-system 全局时间计数器**（只读、**无中断**）：`arch-time-001`（`time_freq` 与 RO 再读、`time_value` 的单调/严格递增/增量有界/epoch、与 `cfx_hart cycle` 同基准；hmon/smon/umon 各一次，7 槽）+ `arch-time-002`（`cg10 rc2/rc63` 保留 rc、`rc0/rc1` 的 RO 写 ⇒ `CFXREG`；只 hmon，6 槽）；载体 `time{,_reject}.body.S` + 驱动 `check_time.py`，判据只有一份（`time_oracle.py`），RTL 承载 `time_rtl.S` + `check_time_rtl.py`（`m16-chipyard-023`：**三平台同一 case 逐槽比较**） |
 其余 cfx 按已有用例增建（`smon/`、`hmon/`、`cache/`、`hart/`、`pmem/`、`time/`、
@@ -89,8 +91,9 @@ python3 tests/arch/run_arch.py --list
 - **RTL 按需**：`gen_fence_rtl.py` 从同一张探针表生成 `.S`，
   `check_fence_rtl.py` 经 `tools/testcases/lib/chipyard_engine.py` 在
   `WumingVastConfig` 上跑并逐槽比对（RTL 测试体固定 hypv、同步异常固定进
-  hmon；`+loadmem` + semihosting）。`run_arch.py` 的 chipyard 后端接 cfx4/cfx34/cfx5
-  （`m16-chipyard-018`/`023`/`m16-testcases-009`），其它 cfx 仍 fail-closed，故这些 RTL 探针不进
+  hmon；`+loadmem` + semihosting）。`run_arch.py` 的 chipyard 后端接
+  cfx4/cfx34/cfx5/cfx15/cfx32（`m16-chipyard-018`/`023`/`m16-testcases-009`/`013`/
+  `014`），其它 cfx 仍 fail-closed，故这些 RTL 探针不进
   `run_arch` 的常规路径。
 
 **未覆盖项（显式登记，不假装全覆盖；用户 2026-11-22 裁定完整覆盖暂不做）**：

@@ -257,24 +257,24 @@ RTL（`m16-chipyard-016/017`）均已实现 cfx5；`run_arch.py --cfx 5` 的三�
 - **寄存器面**：有。cfx32 在 Vast 掩码内（`components/qemu/patches/target/dadao/cpu.c.patch:55`）；64 KiB SRAM 窗口（`components/qemu/patches/target/dadao/helper.c.patch:1058`；宿主侧映射 `components/qemu/patches/hw/dadao/dadao-machine.c.patch:1119`）；`cg15 rc0..4` DMA 寄存器（`components/qemu/patches/target/dadao/helper.c.patch:2386`、`components/qemu/patches/target/dadao/helper.c.patch:2404`）；cg7 pmem 块（`components/qemu/patches/target/dadao/helper.c.patch:1975`）。
 - **命令与副作用**：有。`cg15 rc3` 写 START 触发 DMA，1 ms 虚拟时间完成（`components/qemu/patches/target/dadao/helper.c.patch:2338`、`components/qemu/patches/target/dadao/helper.c.patch:2380`）；BUSY 期间写 rc0..3 被忽略（`components/qemu/patches/target/dadao/helper.c.patch:2404`）。
 - **异常与子原因**：有。`PMEM_DMA = 1<<8`（`components/qemu/patches/target/dadao/cpu.h.patch:405`）；PA/尺寸/CFX 越界错误码（`components/qemu/patches/target/dadao/helper.c.patch:2349`～`components/qemu/patches/target/dadao/helper.c.patch:2364`）。
-- **现有测试载体**：QEMU bootrom 探针。`tools/testcases/arch/min_rom_probe_integ042t.py:1`（SRAM+DMA + PMEM_DMA 捕获：投递 `cfx_hart cg9`、屏蔽只置 pending、`dma_status` W1C ack 落位）、`tools/testcases/arch/min_rom_probe_integ047t.py:1`（DMA 的 SBI 契约）。
-- **现有门控**：`check-arch`（L3，`integ042t`/`integ047t` 在 `ARCH_CFX_PROBES`，`Makefile:1706`）。
+- **现有测试载体**：QEMU bootrom 探针。`tools/testcases/arch/min_rom_probe_integ042t.py:1`（SRAM+DMA + PMEM_DMA 捕获：投递 `cfx_hart cg9`、屏蔽只置 pending、`dma_status` W1C ack 落位）、`tools/testcases/arch/min_rom_probe_integ047t.py:1`（DMA 的 SBI 契约）；**arch 用例** `arch-pmem-001/002`（`tests/arch/pmem/check_pmem_dma.py`，与 RTL 同一 `pmem_dma.S`，`m16-testcases-014`）。
+- **现有门控**：`check-arch`（L3，`integ042t`/`integ047t` 在 `ARCH_CFX_PROBES`，`Makefile:1706`）；`run_arch --cfx 32 --platforms qemu,chipyard`（逐槽）。
 
 ### cfx32 pmem — gem5
 
 - **寄存器面**：有。cfx32 在 `kCfxhaMap`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:33`）；`dmaRegRead`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:556`）、`dmaRegWrite`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:624`）；pmem 64 KiB 区间（`components/gem5/patches/configs/dadao/fs.py.patch:104`）。
 - **命令与副作用**：有。DMA 事件 `NodeDmaEvent`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:93`）与完成处理（同文件 `components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:600` 一带）。
 - **异常与子原因**：有。`CausePmemDma = 1<<8`（`components/gem5/patches/src/arch/dadao/node_cfx.hh.patch:70`）——**仍为 ADR-0061 R2 前口径**（宏 cause + 目标 cfx 投递）；R2 的源身份 = 源 cfxha（bit 32）/ hart-first 捕获由 gem5 侧后续任务迁移。
-- **现有测试载体**：无（Vast cfx32 无 gem5 用例）。
-- **现有门控**：无。
+- **现有测试载体**：`arch-pmem-001/002`（`tests/arch/pmem/check_pmem_dma.py` 经 shim）；因仍是 R2 前模型（无 `cfx_hart cg9`）在 gem5 上 fail-closed（`DIV-17`）。
+- **现有门控**：`run_arch --cfx 32 --platforms gem5` 预期 rc=1（fail-closed，非 PASS）。
 
 ### cfx32 pmem — RTL
 
-- **寄存器面**：缺。`WumingCfxHa` 无 pmem（`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala.patch:89`）；现场 `grep -rl cfx_pmem components/chipyard/patches` = 0 命中。
-- **命令与副作用**：缺。无 64 KiB SRAM / DMA 命令。
-- **异常与子原因**：缺。无 `PMEM_DMA` 源。
-- **现有测试载体**：无。
-- **现有门控**：无。
+- **寄存器面**：有（`m16-chipyard-022`）：`cg8 pmem_exist`、`cg12/13/14`、`cg15` 全量。
+- **命令与副作用**：有。64 KiB SRAM + SRAM↔PA DMA（逐字节、四类 setup 错误、ROM 只读、BUSY 期写忽略）。
+- **异常与子原因**：有。`PMEM_DMA` 源 = 源 cfxha 32，投 `cfx_hart` 的 R2 捕获缓冲（`m16-chipyard-026` 的 R2 语义）。
+- **现有测试载体**：`tests/arch/pmem/pmem.S`（RTL 寄存器面探针 `check_pmem.py`，不进索引）+ `pmem_dma.S`（`check_pmem_rtl.py`；`arch-pmem-001` hmon 55 槽、`arch-pmem-002` smon/umon 10 槽，`m16-testcases-014`）。
+- **现有门控**：`run_arch --cfx 32 --platforms chipyard`（与 QEMU 两方逐槽）。
 
 ---
 

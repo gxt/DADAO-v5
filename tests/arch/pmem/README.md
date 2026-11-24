@@ -1,43 +1,48 @@
-# `tests/arch/pmem/` — cfx_pmem（cfxha 32）arch 探针
+# `tests/arch/pmem/` — cfx_pmem（cfxha 32）DMA 完成中断 + 同界多源
 
 `spec/DADAO-12 §4.9` 把物理存储器管理放在 `cfx_pmem`（cfxha 32）上：64 KiB
 SRAM、`cg12/13/14` 的 PM 区域描述、`cg15` 的 SRAM ↔ PA DMA，以及完成事件
 `PMEM_DMA` 作为异步源投递 `cfx_hart`（源身份 = 源 cfxha 32，`ADR-0061` D2）。
+DMA 与 D-cache **不保证硬件一致**（`§4.9` 的 A 口径）：软件在 `START` 前对 PA
+源区间 `clean`、在 `DONE && BUSY=0` 后对 PA 目标区间 `invalidate`（`§4.6`）。
 
-本目录承载它的 RTL 用例（`m16-chipyard-022`）。
+本目录两套载体，判据各一份：
 
 | 文件 | 作用 |
 | --- | --- |
-| `pmem.S` | `WumingVastConfig` 上的 cfx_pmem 探针：`pmem_exist`（RO）、`pmem_start/size/attr[0..63]`（RW）、`cg15` DMA 寄存器（`dma_size` 30 位、START 自清、DIR/IRQ_EN 读回、BUSY 期写忽略、DONE/ERROR W1C、ERR_CODE one-hot）；DMA 逐字节搬运（8 B/32 B 往返、3 B 非对齐部分拍保留邻居字节）、四类 setup 错误（SIZE / CFX_RANGE / PA_RANGE / PA_FAULT）与只读 BootROM 可读不可写；完成投递（屏蔽期只置 `cfx_hart cg9 src_pending` bit32 → 放行后 `src_frame` = bit32、pending 投递即清）；同一界 timer(15)+DMA(32) 一次进入、`src_frame` 位图并集、`excp_async_num` 每次进入 +1；`dma_status` W1C 后 pending 落（解除掩码无遗留投递）；覆盖语义（再触发 ⇒ 第二次进入整体覆盖 `cg9`）；`escape imms18 = 2` ⇒ `CFXESC` 且 `cg9` 不变 |
-| `pmem.lds` | 固定 `ENTRY` 布局；`--defsym TMODE=<0\|2\|3>` 在**汇编期**选运行模式（同一份 `.S` 出 H/S/U 三个镜像） |
-| `check_pmem.py` | 独立判据：期望值现场取自 `spec/DADAO-12` §1/§3.6/§4.9/§5.1/§5.4、`spec/Kaiwu` §1.1/§3、`ADR-0061`、`contract-see` §3/§6.1、`contract-cfx-aliases` 与 `contracts/opcodes.yaml`；`cause_ip` 用 ELF 符号精确断言；`--self-test` 对每条记录做可达 FAIL 证明 |
+| `pmem_dma.S` + `pmem_dma.lds` / `pmem_dma_qemu.lds` | **三方承载同一份 case**（`m16-testcases-014`）：DMA 8 B/3 B 搬运、DONE/ERROR+ERR_CODE、一致性 clean/invalidate（A）、屏蔽→pending、捕获（`src_frame=1<<32`、细节回 `cg15 rc4`）、`escape imms18=2 ⇒ CFXESC` 且 `cg9` 不变、同界 TIMER(15)+DMA(32) 一次进入（位图并集、计数 +1）、W1C 后 pending 落、覆盖语义；H/S/U 三模式（`--defsym TMODE=3/2/0`） |
+| `pmem_oracle.py` | 独立判据：期望值现场取自 `spec/DADAO-12` §1/§4.6/§4.9/§5.1/§5.4、`spec/Kaiwu` §1.1/§3、`ADR-0061`、`contract-see` §3/§6.1、`contracts/opcodes.yaml`；`cause_ip` 用 ELF 符号精确断言；`--self-test` 对每条记录做可达 FAIL 证明。真源解析/编码复用 `check_pmem.py` |
+| `check_pmem_dma.py` | QEMU/gem5 驱动（`run_arch.py` 的 driver 承载）：flat bin `ENTRY=0x0010_0000`，`-icount shift=0`；过 oracle 后写归一化签名（每槽 1） |
+| `check_pmem_rtl.py` | RTL 驱动（chipyard 后端按 `check_<cfx_dir>_rtl.py` 发现）：`+loadmem` 同一 ELF 到 `0xffff_ff01_0100`；过同一 oracle 后写归一化签名 |
+| `expected.yaml` | 归一化签名登记（**不是判据**）：001 = 55 槽、002 = 10 槽，全 1 |
+| `pmem.S` + `pmem.lds` + `check_pmem.py` | **RTL 寄存器面探针**（`m16-chipyard-022`，不进索引）：`pmem_exist`（RO）、`pmem_start/size/attr[0..63]`（RW）、`cg15` 寄存器面全量、BUSY 期写忽略、四类 setup 错误 —— QEMU/gem5 只实现 `cg15`（`ISS-533`、`DIV-06`），故这些槽不进 `arch-pmem-*` |
+
+## 用例
+
+- **`arch-pmem-001`**（hmon/hypv，55 槽）：DMA 往返/部分拍、状态与错误码、
+  一致性（A）、ILLI 非法 `escape`、捕获/`CFXESC`、同界多源、ack、覆盖。
+- **`arch-pmem-002`**（smon/supv、umon/user，10 槽）：DMA 在 hypv 启动、完成
+  事件落在目标模式；各写**自己** monitor 的 `cg8 rc1` 掩码行 → 只置 pending →
+  放行 → 同一界投递（`src_frame = 1<<32`、pending 投递后清、`excp_async_num=1`）。
 
 ## 测试机约定（非 spec 常量）
 
-- **`pmem_exist` 读回全 1**：`§4.9` 只说“硬件设置，指示 PM 区域是否存在”，
-  本机按“最多 64 个不连续 PM 区域”实现 64 位位图并报告全部存在。该值是
-  **测试机约定**，checker 以 `PMEM_REGIONS = 64` 显式声明。
-- **DMA 的 PA 可访问面**：RAM 可读可写、BootROM 只可读（`spec/Kaiwu §3`
-  测试机 DMA 规定）；其余 PA 属 `PA_FAULT`。
+- **PA 测试窗**：`0x20_0000` 起（PTW 首张页表的 PTE0 覆盖 PA `[0, 512 MiB)`，
+  VA = PA）；DMA 与 CPU 访问同一窗。`pmem_dma.lds` 把首张页表（4 个 512 MiB
+  超页）装到 PA 0，探针在 `_start` 写 PTBR/`ptw_enable`（QEMU/gem5 的 step5
+  BootROM 已做，幂等）；U 模式把 PTE0 的 HSJU 改成 `0xF` 并失效 TLB。
+- **DMA 的 PA 可访问面**：RAM 可读可写、BootROM 只可读（`spec/Kaiwu §3`）；
+  其余 PA 属 `PA_FAULT`。
 
 ## 运行
 
 ```sh
-llvm-mc --triple=dadao-unknown-elf -filetype=obj -I <repo> -defsym TMODE=3 \
-    tests/arch/pmem/pmem.S -o <out>/pmem_h.o
-ld.lld -T tests/arch/pmem/pmem.lds <out>/pmem_h.o -o <out>/pmem_h.elf
-simulator-chipyard.harness-WumingVastConfig +permissive +verbose \
-    +loadmem=pmem_h.elf +semiout=pmem_h.out +max-cycles=20000000 \
-    +permissive-off none
-python3 tests/arch/pmem/check_pmem.py --stream pmem_h.out --elf pmem_h.elf \
-    --nm llvm-nm --mode 3 --root <repo>
+python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,chipyard --mode hmon
+python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,chipyard --mode smon
+python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,chipyard --mode umon
 ```
 
-`TMODE`：`3` = hmon/hypv（寄存器面 + DMA + 捕获全量），`2` = smon/supv，
-`0` = umon/user（两者只验证“各写自己 monitor 掩码行 + 投递”，DMA 在 hypv
-里先启动、完成事件落在目标模式）。
-
-## 与 `run_arch.py` 的关系
-
-与 `tests/arch/hart/`、`tests/arch/cache/` 的 RTL 探针同型：直跑 RTL，暂未登记
-`tests/arch.yaml`（`run_arch.py` 的 chipyard 后端仍 fail-closed）。
+gem5 仍是 `ADR-0061` R2 前模型（无 `cfx_hart cg9`）⇒ `arch-pmem-001/002` 在 gem5
+上 fail-closed（rc=1，非 PASS），差异登记 `expected-divergences.yaml` `DIV-17`；
+逐槽比较是 QEMU+RTL 两方。RTL 寄存器面探针 `pmem.S` 单独直跑（见
+`m16-chipyard-022` 的 README 历史）。

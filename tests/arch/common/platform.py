@@ -11,8 +11,8 @@ scope。本文件只定义统一入口与 fail-closed 约定：
     `tools/testcases/parity/qemu_gem5_shim.py` 跑（`-machine kaiwu-vast`、
     `--profile vast`；shim 支持 `cache-model=on` → `--caches`，当前 ptw 载体不依赖
     cache）；`kind: asm` 仍未接，显式抛 `PlatformError`（不静默跳过）。
-  * `chipyard`：**cfx4（`m16-chipyard-018`）、cfx34（`m16-chipyard-023`）与
-    cfx15（`m16-testcases-013`）已接**：
+  * `chipyard`：**cfx4（`m16-chipyard-018`）、cfx34（`m16-chipyard-023`）、
+    cfx15（`m16-testcases-013`）与 cfx32（`m16-testcases-014`）已接**：
     `kind: driver` 且本
     cfx 目录有 `check_<cfx>_rtl.py` 时调 RTL 承载（`--only/--sim/--work-dir/
     --signature-out`）；驱动返回 77 = `rtl-coverage.yaml` 里登记的 `gap`

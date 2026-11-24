@@ -1,0 +1,46 @@
+# tests/arch/pmem/expected.yaml — cfx32（cfx_pmem）DMA 完成中断用例的签名流登记
+# （`m16-testcases-014`）。
+#
+# **登记，不是判据**：原始签名流（含本平台 ELF 地址）由 `pmem_oracle.py` 现场判
+# （`spec/DADAO-12 §4.6/§4.9/§5.1/§5.4`、`ADR-0061`、`contract-see` 与
+# `contracts/opcodes.yaml`）；两个承载（`check_pmem_dma.py` / `check_pmem_rtl.py`）
+# 在通过本平台 oracle 后写**归一化**签名：每槽 1 = 该槽通过。QEMU 的
+# `cause_ip`（0x0010_00xx）与 RTL 的（0xffff_ff01_01xx）不同，不能直接逐槽比；
+# 归一化后 `run_arch.py` 的两方（QEMU+RTL）逐槽比较才有意义（gem5 仍是 R2 前
+# 模型 ⇒ fail-closed，登记 `DIV-17`）。
+#
+# 判据来源：
+#   * `cfx_pmem`（cfxha 32）的 cg15 / SRAM / ERR_CODE：`DADAO-12 §4.9`、
+#     `spec/Kaiwu §1.1/§3`；
+#   * DMA 与 D-cache 的一致性（软件 `clean`/`invalidate`，粒度 = PA 区间）：
+#     `§4.9`（A）+ `§4.6`；
+#   * `PMEM_DMA` 源 = 源 cfxha 32、mask = 当前模式 monitor `cg8 rc1`、
+#     `cfx_hart cg9` 捕获缓冲 / 每次进入整体覆盖 / 同界多源一次进入：
+#     `§4.7`、`§5.4`、`ADR-0061`、`contract-see §3`；
+#   * `escape imms18 = 2` ⇒ 当前 cfx 的 `CFXESC`（不是异步返回）：`§5.1`；
+#   * 同步 cause 位号：`contract-see §6.1`。
+#
+# 寄存器面（`cg8 pmem_exist` / `cg12/13/14`）不在本 case：QEMU/gem5 只实现
+# `cg15`（`ISS-533`、`DIV-06`），寄存器面留在 RTL 探针 `pmem.S`。
+schema: 1
+cases:
+  - id: arch-pmem-001
+    carrier: arch/pmem/check_pmem_dma.py
+    checks:
+      - label: pmem-dma-hmon
+        note: >-
+          hmon/hypv 55 槽：DMA 8 B/3 B 搬运、DONE/ERROR+ERR_CODE、一致性
+          clean/invalidate（A）、ILLI 非法 escape、屏蔽→pending、捕获
+          （src_frame=1<<32）、escape imms18=2 ⇒ CFXESC、同界 TIMER+DMA
+          一次进入（位图并集/计数 +1）、W1C 后 pending 落、覆盖语义
+        signature: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+
+  - id: arch-pmem-002
+    carrier: arch/pmem/check_pmem_dma.py
+    checks:
+      - label: pmem-dma-su
+        note: >-
+          smon/supv 与 umon/user 10 槽：DMA 在 hypv 启动、完成落在目标模式；
+          各写自己 monitor 的掩码行 → 只置 pending → 放行 → 同一界投递
+          （src_frame=1<<32、pending 投递后清、excp_async_num=1）
+        signature: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]

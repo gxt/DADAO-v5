@@ -408,3 +408,29 @@
   level: full
   requires:
   - qemu
+
+# cfx_pmem（cfxha 32）DMA 完成中断 + 同界多源（m16-testcases-014）。
+# 载体 `arch/pmem/pmem_dma.S` 与 RTL 共用同一份 case 源；QEMU/gem5 用 flat bin
+# （ENTRY 0x0010_0000），RTL 用 pmem_dma.lds。001 = hmon/hypv（55 槽：DMA/一致性/
+# 捕获/多源/覆盖/escape）；002 = 同一 DMA 完成投递在 smon/supv 与 umon/user（10 槽）。
+# 只碰三承载都实现的 cg15 + cfx_hart cg9 + monitor 掩码 + cfx_cache cg8；寄存器面
+# （cg8/12/13/14）留在 RTL 探针 `pmem.S`（`DIV-06`）。gem5 仍是 R2 前模型 ⇒
+# fail-closed（`DIV-17`），逐槽比较是 QEMU+RTL 两方。
+- id: arch-pmem-001
+  file: arch/pmem/check_pmem_dma.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-pmem-002
+  file: arch/pmem/check_pmem_dma.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
