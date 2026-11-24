@@ -1556,3 +1556,20 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`idl_check_trace` 全量 273/274：`ld.o_rrii_ra` 第 205 条差异（`ra3/ra9/ra10` 与 exec 侧 `ra5/ra61`）。`m17-idl-021` 实测主树与 worktree 逐字相同 ⇒ 既有差分；属 RAS 有效区/E4 口径，未进 L1/L2 门控。建议随下次触碰 RAS/trace 时按 `SimRISC-00 §2.4` 订正判据或登记为文档化等价。"
+- id: ISS-536
+  scope:
+  - qemu
+  - spec
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】QEMU 的 `cfx_hart cg9 rc6`（`async_switch_run_mode`）写被接受并**生效**（投递时 `inner_run_mode = 写入值`；写 0 ⇒ 异步入 user），而 `§4.7` 要求固定 supv(2)、`§5.4` 要求入口 supv 单向量；RTL 为「写接受、忽略」。另：`§4.7` 只对 `rc3/rc4` 明文写「写忽略」，`rc6` 未明写 ⇒ 建议 spec 补一行。归属：QEMU 修复 + spec 措辞（M18 会话，承接 `m18-qemu-006`；对应 `DIV-18` 的 `close_when`）。"
+- id: ISS-537
+  scope:
+  - gem5
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2·待裁定】gem5 仍是 ADR-0061 R2 前的异步模型（无 `cfx_hart cg9`），`m16-testcases-013` 的 cfx15 异步只有 QEMU+RTL 两方逐槽（登记 `DIV-17`）。M16「三方一致」在裁定前不成立：需用户选择 ① 豁免（`DIV-17` 改 permanent/conditional，M16 收口接受 gem5 无异步面）或 ② 立 gem5 R2 迁移任务（异步捕获缓冲 + 掩码/pending，归 M18）。"

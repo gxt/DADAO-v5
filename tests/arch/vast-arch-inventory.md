@@ -237,16 +237,16 @@ RTL（`m16-chipyard-016/017`）均已实现 cfx5；`run_arch.py --cfx 5` 的三�
 - **寄存器面**：有。cfx15 在 `kCfxhaMap`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:33`）；`hartRegRead`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:670`）、`hartRegWrite`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:703`）。
 - **命令与副作用**：有。定时器事件 `NodeTimerEvent`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:108`）、到期处理 `nodeTimerExpire`（同文件 `components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:880` 一带）。
 - **异常与子原因**：有。`CauseTimer = 1<<10`（`components/gem5/patches/src/arch/dadao/node_cfx.hh.patch:69`）——**仍为 ADR-0061 R2 前口径**（宏 cause + 目标 cfx 投递）；R2 的 `cg9` 捕获缓冲 / hart-first 投递 / monitor 掩码由 gem5 侧后续任务迁移，本册只记差异、不改 gem5。
-- **现有测试载体**：无（Vast cfx15 无 gem5 用例）。
-- **现有门控**：无。
+- **现有测试载体**：`arch-hart-001/002`（`tests/arch/hart/check_hart.py`，QEMU/RTL 同一 `cfx15.S`）；gem5 侧因 R2 前模型 fail-closed（`expected-divergences.yaml` `DIV-17`）。
+- **现有门控**：`run_arch --case arch-hart-001 --platforms gem5` 预期 rc=1（fail-closed，非 PASS）。
 
 ### cfx15 hart — RTL
 
-- **寄存器面**：缺。`WumingCfxHa` 无 hart（`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala.patch:89`）；现场 `grep -rl cfx_hart components/chipyard/patches` = 0 命中。
-- **命令与副作用**：缺。无 hart 行、无定时器实现。
-- **异常与子原因**：缺。无 TIMER 源。
-- **现有测试载体**：无。
-- **现有门控**：无。
+- **寄存器面**：有。`m16-chipyard-021` 落 cfx_hart cg8 + cg9 十六 rc；`m16-chipyard-024` 改到 `ADR-0061`（cg9 七槽、mask 归 monitor）；`m16-chipyard-026` 改到 R2（捕获缓冲、无帧门控、`escape imms18=2 ⇒ CFXESC`）。
+- **命令与副作用**：有。TIMER 投 `cfx_hart` supv 单向量；`src_frame`/`src_pending` 位 = 源 cfxha。
+- **异常与子原因**：有。R2 捕获缓冲语义（每次进入整体覆盖）。
+- **现有测试载体**：`tests/arch/hart/cfx15.S`（RTL 承载 `cfx15.lds` + `check_hart_rtl.py`；`arch-hart-001` hmon 80 槽、`arch-hart-002` smon/umon 40 槽）。
+- **现有门控**：`run_arch --case arch-hart-001/002 --platforms chipyard`（`m16-testcases-013`）。
 
 ---
 

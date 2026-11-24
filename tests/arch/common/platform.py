@@ -11,7 +11,8 @@ scope。本文件只定义统一入口与 fail-closed 约定：
     `tools/testcases/parity/qemu_gem5_shim.py` 跑（`-machine kaiwu-vast`、
     `--profile vast`；shim 支持 `cache-model=on` → `--caches`，当前 ptw 载体不依赖
     cache）；`kind: asm` 仍未接，显式抛 `PlatformError`（不静默跳过）。
-  * `chipyard`：**cfx4（`m16-chipyard-018`）与 cfx34（`m16-chipyard-023`）已接**：
+  * `chipyard`：**cfx4（`m16-chipyard-018`）、cfx34（`m16-chipyard-023`）与
+    cfx15（`m16-testcases-013`）已接**：
     `kind: driver` 且本
     cfx 目录有 `check_<cfx>_rtl.py` 时调 RTL 承载（`--only/--sim/--work-dir/
     --signature-out`）；驱动返回 77 = `rtl-coverage.yaml` 里登记的 `gap`
@@ -89,11 +90,13 @@ def self_test_fail_closed() -> list:
                         "应由 check_ptw_rtl.py 提供（m16-chipyard-018）")
     arch_root = str(Path(__file__).resolve().parents[1])
     ctx = type("Ctx", (), {"arch_root": arch_root})()
-    try:
-        Path(_rtl_driver(ctx, {"id": "arch-ptw-002", "cfx_dir": "ptw",
-                               "kind": "driver"}))
-    except PlatformError as exc:
-        problems.append("chipyard: cfx4 的 RTL 承载缺失（%s）" % exc)
+    for cid, cfx_dir in (("arch-ptw-002", "ptw"), ("arch-hart-001", "hart")):
+        try:
+            Path(_rtl_driver(ctx, {"id": cid, "cfx_dir": cfx_dir,
+                                   "kind": "driver"}))
+        except PlatformError as exc:
+            problems.append("chipyard: %s 的 RTL 承载缺失（%s）"
+                            % (cfx_dir, exc))
     try:
         _rtl_driver(ctx, {"id": "arch-none", "cfx_dir": "no_such_cfx",
                           "kind": "driver"})

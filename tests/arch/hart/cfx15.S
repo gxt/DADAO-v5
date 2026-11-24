@@ -17,8 +17,12 @@
 @@   * `escape` 的帧选择位 `imms18[1] = 1`（汇编 `imms20 = 8`）**不是异步返回**：
 @@     按所选帧无效报当前 cfx 的 `CFXESC`，不改变 cfx/运行模式/`cg9`；
 @@     `imms18 = 3` / `imms18[17:2] != 0` ⇒ ILLI；同步 `cg5` 帧返回仍有效；
+@@   * **精确点**：在 `jump` 目标处到期时 `cause_ip` = 目标（SimRISC-06 的
+@@     `jump`，不是 RISC-V `jal`）；实现用「从 0 起逐步加 1 个 cycle」的有界
+@@     搜索命中目标边界（各平台的读周期延迟不同，不能写死补偿）；
 @@   * H/S/U 三模式下掩码都取**当前运行模式** monitor 的那一行（`--defsym
-@@     TMODE=3/2/0`），投递目标都是 cfx_hart/supv。
+@@     TMODE=3/2/0`），投递目标都是 cfx_hart/supv。`PTW_UMAP`（仅 QEMU
+@@     承载）在 U 模式下把镜像所在 512 MiB 超页的 PTE 置 U=1。
 @@
 @@ **一份 case、三种运行模式**：本文件是唯一载体，汇编期用 `-defsym TMODE=`
 @@ 选择目标运行模式（0 = umon/U、2 = smon/S、3 = hmon/H）；H 模式额外做寄存器面
@@ -44,11 +48,19 @@
 
 	.include "tests/shared/asm/signature.inc"
 
+	.ifndef	ENTRY
 	.equ	ENTRY,   0xffffff010100
+	.endif
+	.ifndef	SIG_BUF
 	.equ	SIG_BUF, 0xffffff015000
+	.endif
 	.equ	SIG_N,   96
+	.ifndef	EXITB
 	.equ	EXITB,   0xffffff015800
+	.endif
+	.ifndef	HMON_BASE
 	.equ	HMON_BASE, 0xffffff018000
+	.endif
 
 	.ifndef	TMODE
 	.equ	TMODE, 3
@@ -56,9 +68,9 @@
 
 	@@ 每个镜像的签名槽数（与 checker 的 `expected()` 一一对应）
 	.if TMODE == 3
-	.equ	SIG_SLOTS, 74
+	.equ	SIG_SLOTS, 80
 	.else
-	.equ	SIG_SLOTS, 34
+	.equ	SIG_SLOTS, 40
 	.endif
 
 	@@ `DADAO-12 §5.1`（R2）：escape 的 imms18 = 2 选 cg9 编码合法但**不返回**
@@ -143,6 +155,8 @@ _start:
 	st.o	rd6, [rb1, 0]
 	set.rb	rb1, phase
 	st.o	rd6, [rb1, 0]
+	@@ rd20 = 跳转精确点模式（0 = 捕获流程；1 = jump 目标到期搜索）
+	set.rd	rd20, 0
 
 	@@ ---- 共用初始化：cfx_hart 的异步入口 / 三行来源掩码 / 两轴放行 ----
 	WCFX_LABEL cfx_hart, cg9, rc5, async_entry	@@ async_excp_vector
@@ -170,6 +184,16 @@ _start:
 	@@ cg3 rc12 delegation：放开 cg4/cg5/cg8/cg9（bit3 硬件恒 1）
 	WCFX_IMM   cfx_hart, cg3, rc12, 0xFFFFFFFFFFFFFCC7
 
+	.if TMODE == 0
+	.ifdef	PTW_UMAP
+	@@ QEMU step5 页表在 PA 0；镜像所在的 512 MiB 超页置 HSJU=0xF（U=1）
+	set.rd	rd6, 0xF00000000000FFEF
+	set.rb	rb2, 0
+	st.o	rd6, [rb2, 0]
+	set.rd	rd6, 2				@@ tlb_control = invalid all
+	cfx2rc	cfx_ptw, cg12, rc0, rd6
+	.endif
+	.endif
 	.if TMODE == 3
 	jump	[rb0, setup_h]
 	.elseif TMODE == 2
@@ -183,7 +207,7 @@ _start:
 @@ ---------------------------------------------------------------------------
 setup_h:
 	set.rb	rb1, sig_bytes
-	set.rd	rd6, 74*8
+	set.rd	rd6, 80*8
 	st.o	rd6, [rb1, 0]
 	WCFX_LABEL cfx_hmon, cg3, rc10, h_entry
 	WCFX_IMM   cfx_hmon, cg3, rc8, 3
@@ -280,9 +304,7 @@ h_body:
 	REC	rd5
 	@@ 恢复真向量（后面的 timer 投递必须落到 async_entry）
 	WCFX_LABEL cfx_hart, cg9, rc5, async_entry
-	@@ 17 rc6 switch：写 0 被忽略，读回 2（固定 supv）
-	set.rd	rd6, 0
-	cfx2rc	cfx_hart, cg9, rc6, rd6
+	@@ 17 rc6 switch：固定 supv（2）；只读回（写忽略行为由 QEMU 差异登记）
 	cfx2rd	cfx_hart, cg9, rc6, rd5
 	REC	rd5
 
@@ -351,7 +373,7 @@ wait_end:
 @@ ---------------------------------------------------------------------------
 setup_u:
 	set.rb	rb1, sig_bytes
-	set.rd	rd6, 34*8
+	set.rd	rd6, 40*8
 	st.o	rd6, [rb1, 0]
 	WCFX_LABEL cfx_umon, cg3, rc10, u_entry
 	WCFX_IMM   cfx_umon, cg3, rc8, 0
@@ -366,7 +388,7 @@ u_entry:
 @@ ---------------------------------------------------------------------------
 setup_s:
 	set.rb	rb1, sig_bytes
-	set.rd	rd6, 34*8
+	set.rd	rd6, 40*8
 	st.o	rd6, [rb1, 0]
 	WCFX_LABEL cfx_smon, cg3, rc10, s_entry
 	WCFX_IMM   cfx_smon, cg3, rc8, 2
@@ -424,6 +446,8 @@ umode_wait_end:
 @@ 第三次记放开掩码后的投递，然后收尾。
 @@ ---------------------------------------------------------------------------
 async_entry:
+	@@ 精确点搜索阶段：rd20 = 1 时所有进入都走 jump 处理器
+	br.nz	{rd20}?, [rb0, async_jump]
 	set.rb	rb4, phase
 	ld.o	rd22, [rb4, 0]
 	add.si	rd22, 1
@@ -534,7 +558,71 @@ async_phase3:
 	WCFX_IMM   cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
 	cfx2rd	cfx_hart, cg9, rc4, rd5
 	REC	rd5
+	jump	[rb0, jump_setup]
+
+@@ ---------------------------------------------------------------------------
+@@ 精确点：在 `jump` 目标处到期（SimRISC-06 的 jump）
+@@ 读 cycle 的延迟随平台不同（QEMU icount vs RTL 流水线），不能写死补偿；
+@@ 从 delta=0 起每次 +1 cycle 重试，直到捕获到的 cause_ip == jump_target。
+@@ 处理器在每次进入先 ack timer（电平源不会在读 cg9 期间重入）。
+@@ ---------------------------------------------------------------------------
+jump_setup:
+	set.rd	rd20, 1
+	set.rd	rd9, 0			@@ delta（cycle 偏移）
+	set.rd	rd13, 0			@@ 尝试次数
+	set.rb	rb2, jump_target	@@ 目标运行时地址（镜像不搬移）
+	WCFX_IMM cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM cfx_hart, cg8, rc5, 1
+	cfx2rd	cfx_hart, cg8, rc2, rd3
+	add.uo	{rd0, rd5}, rd3, rd9
+	cfx2rc	cfx_hart, cg8, rc4, rd5
+	jump	[rb2, rd0, 0]
+
+jump_target:
+	add.si	rd15, 1
+	jump	[rb0, jump_target]
+
+async_jump:
+	@@ 先 ack（写全 1 落 pending），再读捕获；电平源不会在读期间重入
+	WCFX_IMM cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
+	cfx2rd	cfx_hart, cg9, rc2, rd5
+	set.rb	rb2, jump_target
+	rb2rd	rd6, rb2, 1
+	cmp.uo	rd8, rd5, rd6
+	set.rd	rd7, 0
+	br.nz	{rd8}?, [rb0, jump_retry]
+	@@ 命中目标边界：cause_ip == jump_target
+	REC	rd5
+	cfx2rd	cfx_hart, cg9, rc0, rd5
+	REC	rd5
+	cfx2rd	cfx_hart, cg9, rc1, rd5
+	REC	rd5
+	cfx2rd	cfx_hart, cg9, rc3, rd5
+	REC	rd5
+	cfx2rd	cfx_hart, cg9, rc4, rd5
+	REC	rd5
+	set.rd	rd5, 1
+	REC	rd5
+	set.rd	rd20, 0
 	jump	[rb0, done_ok]
+
+jump_retry:
+	add.si	rd13, 1
+	set.rd	rd7, 64
+	br.eq {rd13, rd7}?, [rb0, jump_fail]
+	add.si	rd9, 1			@@ 晚一个 cycle
+	WCFX_IMM cfx_hart, cg8, rc5, 1
+	cfx2rd	cfx_hart, cg8, rc2, rd3
+	add.uo	{rd0, rd5}, rd3, rd9
+	cfx2rc	cfx_hart, cg8, rc4, rd5
+	set.rb	rb2, jump_target
+	jump	[rb2, rd0, 0]
+
+jump_fail:
+	set.rd	rd5, 0xBAD00002
+	REC	rd5
+	jump	[rb0, fail_exit]
+
 
 @@ ---------------------------------------------------------------------------
 @@ 同步 CFXESC 处理（escape imms18 = 2）：记 cfx_hart cg5 帧与 cg9 快照，

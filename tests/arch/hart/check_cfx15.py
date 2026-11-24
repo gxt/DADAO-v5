@@ -323,6 +323,13 @@ def expected(root, mode, syms):
             ("unmasked delivery: pending = 0", 0),
             ("unmasked delivery: excp_async_num = 3 entries", 3),
             ("final ack: pending = 0", 0),
+            # m16-testcases-013: jump-target precise point (SimRISC-06 jump).
+            ("jump target: cause_ip = jump target", sym("jump_target")),
+            ("jump target: prev_run_mode = supv", M["supv"]),
+            ("jump target: prev_cfx_code = cfx_hart", ha),
+            ("jump target: src_frame = source bit", src_bit),
+            ("jump target: pending = 0", 0),
+            ("jump target: converged", 1),
         ]
 
     if mode == M["hypv"]:
@@ -344,7 +351,7 @@ def expected(root, mode, syms):
             ("cg9 src_frame write ignored (HW/RO)", 0),
             ("cg9 src_pending write ignored (HW/RO)", 0),
             ("cg9 vector <- all ones (48b, low2=0)", 0xFFFFFFFFFFFF & ~0x3),
-            ("cg9 switch <- 0 ignored, reads 2", 2),
+            ("cg9 switch reads 2 (fixed supv)", 2),
             ("CFXREG: read cg9 rc7 (cause)", cfxreg),
             ("CFXREG: read cg9 rc7 (info)", rd(ha, 9, 7, 5)),
             ("CFXREG: read cg9 rc7 witness", 0xC0DE0013),
@@ -512,7 +519,7 @@ def main():
         else:
             syms = {n: 0x1000 + 8 * i for i, n in enumerate(
                 ("wait_begin", "umode_wait_begin", "rearm_fallback",
-                 "pending_fallback", "async_entry"))}
+                 "pending_fallback", "async_entry", "jump_target"))}
         exp = expected(args.root, args.mode, syms)
         if args.expected:
             for i, (name, v) in enumerate(exp):

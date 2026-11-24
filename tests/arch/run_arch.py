@@ -346,8 +346,8 @@ def self_test() -> int:
             print("  FAIL  后端接线/fail-closed: %s" % problem)
     else:
         print("  PASS  后端接线: gem5 driver 承载已接（qemu_gem5_shim）；"
-              "chipyard 的 cfx4/cfx34 已接（check_ptw_rtl.py / "
-              "check_time_rtl.py）、其余 cfx fail-closed")
+              "chipyard 的 cfx4/cfx34/cfx15 已接（check_ptw_rtl.py / "
+              "check_time_rtl.py / check_hart_rtl.py）、其余 cfx fail-closed")
 
     print("-" * 72)
     if problems:

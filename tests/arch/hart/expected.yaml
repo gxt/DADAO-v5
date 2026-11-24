@@ -1,0 +1,29 @@
+# tests/arch/hart/expected.yaml — `cfx_hart`（cfxha 15）用例的签名流登记
+# （`m16-testcases-013`，R2）。
+#
+# **登记，不是判据**：原始签名流（含本平台 ELF 地址）由 `check_cfx15.py` 的
+# oracle 现场判（`spec/DADAO-12 §4.7/§5.4`、`ADR-0061`、`contract-see` 与
+# `contracts/opcodes.yaml`）；两个承载（`check_hart.py` / `check_hart_rtl.py`）
+# 在通过本平台 oracle 后写**归一化**签名：每槽 1 = 该槽通过。QEMU 的
+# `cause_ip`（0x0010_00xx）与 RTL 的（0xffff_ff01_01xx）不同，不能直接逐槽比；
+# 归一化后 `run_arch.py` 的三方逐槽比较才有意义。
+schema: 1
+cases:
+  - id: arch-hart-001
+    carrier: arch/hart/check_hart.py
+    checks:
+      - label: hart-hmon
+        note: >-
+          hmon/hypv 80 槽：cg8 寄存器面、cg9 七槽、RO 写忽略、CFXREG/ILLI、
+          屏蔽→pending→放行、捕获/覆盖、escape imms18=2 ⇒ CFXESC、jump
+          目标精确点；原始值由 check_cfx15.py 现场判
+        signature: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+
+  - id: arch-hart-002
+    carrier: arch/hart/check_hart.py
+    checks:
+      - label: hart-su
+        note: >-
+          smon/supv 与 umon/user 40 槽：同一捕获/覆盖/escape/jump 流程，掩码取
+          当前模式 monitor（cfx_smon / cfx_umon）
+        signature: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]

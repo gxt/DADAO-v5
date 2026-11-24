@@ -33,12 +33,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-testcases-013 | 2026-11-24 23:40 | 2–3 h | cfx15 timer 中断（R2 捕获缓冲：覆盖语义、`escape` 拒绝、三模式） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-testcases-013 | 2026-11-25 01:25 | cfx15 timer 中断（R2：80/40 槽、覆盖语义、`escape` 拒绝；QEMU+RTL 逐槽，gem5 登记 DIV-17） |
 | m16-spec-003 | 2026-11-24 23:58 | DMA 与 D-cache 一致性（裁定 A：软件 clean/invalidate）+ contract power 块值订正 |
 | m16-testcases-009 | 2026-11-24 23:40 | cfx5 用例三方跑（4 case/61 槽；hmon 三方 144/96/128 B 全同；off 口径；DIV-15/16） |
 | m16-chipyard-023 | 2026-11-24 22:14 | RTL cfx34 time（`cg10` freq/value 只读、无中断；三方逐槽、H/S/U；DIV-06 收窄） |

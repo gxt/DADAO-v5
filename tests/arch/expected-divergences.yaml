@@ -7,7 +7,7 @@
 # 逃过判据）——`case` + `slot`（0 基）+ `chipyard`（RTL 侧期望）；该槽在
 # QEMU/gem5 侧仍按规范值判。差异被修好时该例外不再成立 ⇒ 承载判红，提示删除条目。
 schema: 1
-updated: "2026-11-24"
+updated: "2026-11-25"
 
 divergences:
   - id: DIV-01
@@ -131,3 +131,21 @@ divergences:
     user_ruling: "2026-11-24（本任务发现；是否给 RTL 补 cfx5 commonRows 待用户裁定）"
     status: active
     close_when: "RTL 给 cfx5 开 `commonRows`（补齐 cg0–cg7 与 deleg）并复跑 RTL 的 smon/umon，删本条与 `rtl-coverage.yaml` 的四条 mode gap"
+
+  - id: DIV-17
+    kind: temporary
+    scope: [gem5]
+    impact: "`arch-hart-001/002`（cfx_hart TIMER R2 捕获缓冲）不参与 gem5 逐槽：gem5 仍是 `ADR-0061` R2 前模型（无 `cfx_hart cg9`、来源掩码仍为旧 `cfx_intr_mask`/`global_cfx_intr_mask` 两级），该用例在 gem5 上 fail-closed（rc=1），不进三方比较；QEMU+RTL 两方逐槽。"
+    reason: "`m16-testcases-013` 的载体按 `spec/DADAO-12 §4.7/§5.4` R2 写（cg9 捕获缓冲、monitor `cg8 rc1` 掩码）；gem5 侧没有对应实现（`tests/arch/vast-arch-inventory.md` cfx15-gem5 段已标「R2 前口径」），且没有已立的 gem5 迁移任务。"
+    user_ruling: "待用户裁定（2026-11-25 实测登记；DIV-06 的 cfx15 部分在本条收窄为 gem5）"
+    status: active
+    close_when: "gem5 实现 `cfx_hart cg9` 七槽 + R2 捕获缓冲（每次进入覆盖）/monitor `cg8 rc1` 掩码迁移（新立 gem5 任务）"
+
+  - id: DIV-18
+    kind: temporary
+    scope: [qemu]
+    impact: "`cfx_hart cg9 rc6`（async switch run mode）在 QEMU 上可被写 0 覆盖（读回 0），规范为固定 supv（2）。用例只读回 rc6（不写 0），写忽略行为不在三方比较面；若在 QEMU 上恢复「写 0 ⇒ 读 2」断言会红。"
+    reason: "RTL（`m16-chipyard-024/026`）按规范忽略写；QEMU `dadao_hart_async_reg_write` 的 rc6 分支写 `val & 3`。`m16-testcases-013` 不在 tests/arch 用例里覆盖该写忽略（避免把 QEMU 缺陷带进三方签名），登记为 QEMU 实现差异。"
+    user_ruling: "待用户裁定（2026-11-25 实测登记）"
+    status: active
+    close_when: "QEMU 修 `cg9 rc6` 写入忽略（固定 2）并在 `arch-hart-001` 恢复写 0 断言"
