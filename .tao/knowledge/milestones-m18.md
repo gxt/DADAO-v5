@@ -32,19 +32,15 @@
 | --- | --- | --- |
 | m18-linux-023 | 4–8 h | Linux `arch/dadao` 按扁平位图解码 PTW 故障（由 M17 迁入；依赖 M17 平台迁移） |
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
-| m18-linux-008 | 2–3 h | K1–K4 门控断言补强（ISS-444/457/487/488；可达 FAIL + §4a 退役） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
-| m18-linux-010 | 30 min | ISS-486 措辞订正（libc 侧检查；3 处注释/文档，产物不变） |
-| m18-linux-011 | 30 min | ISS-496 applet 计数改按白名单/符号表派生（去 `enabled - infra` 抵消假设） |
 | m18-linux-012 | 1–2 h | ISS-503 K6 门控五条 finding（恒真断言并入 region、计数/标签/符号名订正） |
-| m18-qemu-001 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
 | m18-spec-001 | 2–4 h | cg4 `scratch_regs_num` 缺省值：每个非 reserved cfx = 2（QEMU/gem5/RTL 由 4 改 2）；spec/契约 + 探针 |
-| m18-gem5-001 | 2–3 h | gem5 `escape` frame selector 语义/断言（b6 + decode assertions + check_b6） |
 | m18-chipyard-001 | 3–5 h | RTL `escape` frame selector 语义（cg9；等 M16 chipyard 批次） |
 | m18-linux-015 | 2–3 h | `mlock2`/`MLOCK_ONFAULT` 路径 SIGSEGV（KERNEL_BUG） |
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
 | m18-linux-017 | 3–4 h | `clock_nanosleep(TIMER_ABSTIME)` 整机停摆（KERNEL_BUG） |
 | m18-linux-018 | 2–3 h | 套件环境补齐（TMPFS/MEMFD、非 root uid、`/proc/iomem`；SUITE_ENV） |
+| m18-idl-002 | 2–3 h | IDL 执行器 cg9 新模型（src 位 cfxha、七槽 HW/RO、monitor mask、一帧多源、escape 释放） |
 
 > **已作废（2026-11-23，ADR-0060）**：`m18-qemu-002`（monitor-first QEMU）reviewer Accepted 但**不合入 master**，分支留参考；`m18-qemu-003`（旧探针迁 monitor-first）未开工、被 hart-first 取代。
 
@@ -52,6 +48,11 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m18-linux-010 | 2026-11-24 23:18 | 30 min | ISS-486 措辞订正（libc 侧检查；3 处注释/文档，产物不变） |
+| m18-linux-011 | 2026-11-24 23:18 | 30 min | ISS-496 applet 计数改按白名单/符号表派生（去 `enabled - infra` 抵消假设） |
+| m18-gem5-001 | 2026-11-24 23:18 | 2–3 h | gem5 `escape` frame selector 语义/断言（b6 + decode assertions + check_b6） |
+| m18-qemu-001 | 2026-11-24 23:18 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
+| m18-linux-008 | 2026-11-24 23:18 | 2–3 h | K1–K4 门控断言补强（ISS-444/457/487/488；可达 FAIL + §4a 退役） |
 | m18-linux-022 | 2026-11-23 20:12 | 3–5 h | 内核异步新模型（mask 归 monitor、src 位 cfxha、一帧多源） |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
@@ -66,13 +67,12 @@
 | m18-spec-005 | 2026-11-23 22:36 | ADR-0061 R2 规格/活文档（cg9 捕获缓冲、smon handoff、escape 不异步返回；14 文件；63+20 证据） |
 | m18-qemu-005 | 2026-11-23 20:12 | QEMU 异步模型修订（ADR-0061：mask 归 monitor、src 位 cfxha、cg9 七槽、一帧多源；13+33 证据） |
 | m18-spec-004 | 2026-11-23 18:33 | 异步模型修订（掩码归 monitor、源索引 cfxha、`cg9` 七槽只读、§5.4 专节；ADR-0061；版本仍 0.8.0-rc） |
+| m18-linux-021 | 2026-11-23 17:57 | **作废**（ADR-0061）：内核 hart-first 掩码/cause 口径，未完工；替代 `m18-linux-022` |
 | m18-testcases-001 | 2026-11-23 17:57 | **作废**（ADR-0061）：旧异步探针迁 hart-first 口径，未完工；替代 `m18-testcases-003` |
 | m18-testcases-002 | 2026-11-23 17:57 | **作废**（ADR-0061）：`escape` cg9 向量，口径并入 `m18-testcases-003` |
-| m18-linux-021 | 2026-11-23 17:57 | **作废**（ADR-0061）：内核 hart-first 掩码/cause 口径，未完工；替代 `m18-linux-022` |
 | m18-qemu-004 | 2026-11-23 17:26 | QEMU hart-first 异步仲裁（`cfx_hart cg9`、mask 15/32、pending 17/18、escape bit1；16+12 证据） |
 | m18-llvm-001 | 2026-11-23 16:05 | `escape` 汇编/反汇编支持 0/4/8（imms18 bit1；lit 182/182；`case-ledger` 生成物） |
 | m18-idl-001 | 2026-11-23 15:53 | `escape` 帧选择位 IDL/语义库/向量（cg9 自检 14 条；11-cfx case13/14/19/20；cg9 向量延至 testcases-002） |
-| m18-idl-002 | 2–3 h | IDL 执行器 cg9 新模型（src 位 cfxha、七槽 HW/RO、monitor mask、一帧多源、escape 释放） |
 | m18-spec-003 | 2026-11-23 15:01 | `escape` frame selector 编码真源（SimRISC-11/IDL/Toolchain-01/contract-asm/Kaiwu/opcodes/legality；19 路径） |
 | m18-linux-013 | 2026-11-23 13:45 | **作废**（ADR-0060）：monitor-first 内核异步方案，未开工 |
 | m18-qemu-002 | 2026-11-23 13:45 | **作废**（ADR-0060）：monitor-first QEMU，reviewer Accepted 但未合入，分支留参考 |
