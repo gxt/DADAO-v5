@@ -14,6 +14,15 @@
 
 现状：`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala.patch` 中 `WumingRasOp.PUSH/SPILL` 做 `raNext(i) := ra(i+1)`（i=1..62）、`POP` 做 `raNext(i) := ra(i−1)`（i=2..63），每周期整体搬移。QEMU 的 `ras_base` + `ra_phys()` 是参考实现（`1 + (base + i) % 63`）。
 
+## 统一环形约定（硬约束；用户 2026-11-25）
+
+四平台必须用**同一套**隐藏布局，否则「全 64 槽按值比」会因窗口外残留不同而假红：
+
+- 物理槽：`0` = `ra0` 元数据（`{SBZ,RACNT,MRPTR}`，不占窗口），`1..63` = 环形数据槽；
+- 映射：`phys(i) = 1 + ((base + i) % 63)`，`i ∈ 1..63`；`base` 为 6 位隐藏基准（0..62，复位 0，不可架构访问）；
+- 推进方向与 QEMU `ra_phys()` 一致：`call` 压栈 `base += 1`、`ret` 弹栈 `base −= 1`（模 63），写入/读出均经映射；
+- 架构视图（`ld.o-ra`/`st.o-ra`/`rd2ra`/`ra2rd` 与 trace/`-d cpu` 导出）一律按映射换算。
+
 ## 要做
 
 1. 在 `WumingRegFile` 增加隐藏基准寄存器 `rasBase`（6 位，0..62，复位 0，**不可架构访问**）；
