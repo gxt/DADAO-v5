@@ -117,9 +117,9 @@
   scope:
   - llvm
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: m20-llvm-003（2026-11-26：ABS48 症状已由 m14-llvm-006 修；本任务修 PC 相对操作数：`.set` equate 折成绝对常量后放行，写出的 A-B/未定义/跨段仍拒；check-lit 186/186）
   title: '【P2】`m14-llvm-005` 后 `.set VD, L1-L0` 再 `set.zw rbX, wpN, VD` 由「静默 0」变为**报错**（`VD` 是 Absolute 符号、本可编码 4）。禁静默是对的，但把「已由 `.set` 固化为绝对符号」的操作数也一并拒了，属表达能力回退；诊断文案还把它称作 symbol difference（其实是单符号操作数）。建议：对 `.set` 定义的 Absolute 符号放行，或至少改文案 + lit 固化。'
 - id: ISS-504
   scope:
