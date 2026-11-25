@@ -627,6 +627,8 @@ python3 tools/gem5/check_b4.py --source .work/source/gem5   # B4 执行断言（
 python3 tools/gem5/check_b5.py --source .work/source/gem5   # B5 执行断言（29/29）
 python3 tools/gem5/check_b6.py --source .work/source/gem5   # B6 执行断言（30/30）
 python3 tools/gem5/check_b7.py --source .work/source/gem5   # B7 执行断言 + 3946 条 oracle 差分
+python3 tools/gem5/check_node_escape_intr.py --platforms gem5,qemu --selfcheck
+                                             # 同步异常帧 escape 不改写 monitor cg8 rc1（ISS-472）
 make check-patch-tree
 ```
 
