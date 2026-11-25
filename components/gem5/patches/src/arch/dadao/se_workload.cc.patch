@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..b9f6dd8
+index 0000000..805368f
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,6423 @@
+@@ -0,0 +1,6446 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
@@ -3916,6 +3916,21 @@ index 0000000..b9f6dd8
 +            uint32_t bitset, bool pi, Addr timeoutAddr, bool absolute,
 +            bool realtime)
 +{
++    // Validate the timeout *before* taking the waiter: an invalid timespec or
++    // an already-expired absolute deadline returns without parking the thread,
++    // so there is no queue entry to own and nothing may be allocated (a waiter
++    // allocated here would have no owner to free it -- ISS-345).
++    Tick when = 0;
++    if (timeoutAddr != 0) {
++        bool expired = false;
++        const int status = futexDeadline(tc, timeoutAddr, absolute, realtime,
++                                        when, expired);
++        if (status != 0)
++            return status;
++        if (expired)
++            return -ETIMEDOUT;
++    }
++
 +    auto *waiter = new FutexWaiter();
 +    waiter->process = process;
 +    waiter->cid = tc->contextId();
@@ -3925,21 +3940,11 @@ index 0000000..b9f6dd8
 +    waiter->tid = threadOf(process, tc).tid;
 +
 +    if (timeoutAddr != 0) {
-+        Tick when = 0;
-+        bool expired = false;
-+        const int status = futexDeadline(tc, timeoutAddr, absolute, realtime,
-+                                        when, expired);
-+        if (status != 0)
-+            return status;
-+        if (expired)
-+            return -ETIMEDOUT;
-+        {
-+            auto *event = new EventFunctionWrapper(
-+                    [waiter] { futexTimeout(waiter); },
-+                    "dadao-futex-timeout", true);
-+            waiter->timeout = event;
-+            getEventQueue(0)->schedule(event, when);
-+        }
++        auto *event = new EventFunctionWrapper(
++                [waiter] { futexTimeout(waiter); },
++                "dadao-futex-timeout", true);
++        waiter->timeout = event;
++        getEventQueue(0)->schedule(event, when);
 +    }
 +
 +    futexWaiters.push_back(waiter);
@@ -4290,23 +4295,31 @@ index 0000000..b9f6dd8
 +                                                   val));
 +      }
 +
-+      case FutexRequeueOp: {
-+        const size_t woken = wakeFutexWaiters(process, uaddr, FutexBitsetAny,
-+                                             val);
-+        return static_cast<RegVal>(
-+                woken + requeueFutexWaiters(process, uaddr, uaddr2, val2));
-+      }
-+
++      case FutexRequeueOp:
 +      case FutexCmpRequeueOp: {
-+        uint32_t word = 0;
-+        if (!readGuestWord(tc, uaddr, word))
-+            return static_cast<RegVal>(-EFAULT);
-+        if (word != val3)
-+            return static_cast<RegVal>(-EAGAIN);
++        // futex(2) copies the 4th slot into a u32 and the kernel takes
++        // nr_wake/nr_requeue as *signed* ints: a negative count is EINVAL
++        // (kernel/futex/requeue.c, checked before the key lookup and before
++        // the CMP word test).  A rejected call must not wake or move anything,
++        // so the return value cannot be inflated by a failed call.
++        const uint32_t nrRequeue = static_cast<uint32_t>(val2);
++        if ((val & 0x80000000u) != 0 || (nrRequeue & 0x80000000u) != 0)
++            return static_cast<RegVal>(-EINVAL);
++        if (op == FutexCmpRequeueOp) {
++            uint32_t word = 0;
++            if (!readGuestWord(tc, uaddr, word))
++                return static_cast<RegVal>(-EFAULT);
++            if (word != val3)
++                return static_cast<RegVal>(-EAGAIN);
++        }
++        // Linux accounting: futex_requeue() wakes the first nr_wake waiters
++        // and requeues up to nr_requeue of the rest; the syscall returns the
++        // number of tasks woken plus requeued.
 +        const size_t woken = wakeFutexWaiters(process, uaddr, FutexBitsetAny,
 +                                             val);
 +        return static_cast<RegVal>(
-+                woken + requeueFutexWaiters(process, uaddr, uaddr2, val2));
++                woken + requeueFutexWaiters(process, uaddr, uaddr2,
++                                            nrRequeue));
 +      }
 +
 +      case FutexLockPiOp: {
@@ -4338,6 +4351,16 @@ index 0000000..b9f6dd8
 +      }
 +
 +      case FutexUnlockPiOp: {
++        // "We release only a lock we actually own" (kernel/futex/pi.c,
++        // __futex_unlock_pi): the owner tid is the low 30 bits of the futex
++        // word, and a non-owner unlock is EPERM *without* touching the word.
++        uint32_t word = 0;
++        if (!readGuestWord(tc, uaddr, word))
++            return static_cast<RegVal>(-EFAULT);
++        const int tid = threadOf(process, tc).tid;
++        if ((word & FutexTidMask) != static_cast<uint32_t>(tid))
++            return static_cast<RegVal>(-EPERM);
++
 +        FutexWaiter *next = nullptr;
 +        bool more = false;
 +        for (auto *waiter : futexWaiters) {
@@ -4349,7 +4372,7 @@ index 0000000..b9f6dd8
 +            else
 +                more = true;
 +        }
-+        uint32_t word = 0;
++        word = 0;
 +        if (next != nullptr) {
 +            word = static_cast<uint32_t>(next->tid);
 +            if (more)

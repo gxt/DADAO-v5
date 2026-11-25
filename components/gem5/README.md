@@ -385,6 +385,16 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
     `FUTEX_LOCK_PI`/`UNLOCK_PI`/`TRYLOCK_PI` 按 futex 字里的 owner tid +
     `FUTEX_OWNER_DIED` 建模（SE 无优先级，PI 只做所有权移交；musl 的
     userspace trylock 由 `OWNER_DIED` 位得到 `EOWNERDEAD`）。
+    三处 Linux 细节（`m20-gem5-002` / ISS-345）：`UNLOCK_PI` 先校验调用者
+    是否为 owner（`word & FUTEX_TID_MASK != tid` ⇒ `EPERM`，用户字不动）；
+    `REQUEUE`/`CMP_REQUEUE` 的返回值是**唤醒数 + 改挂数**之和，负数
+    `nr_wake`/`nr_requeue`（第 4 槽按 u32 截断后最高位为 1，与内核 `int`
+    参数同口径）⇒ `EINVAL`，被拒调用不唤醒/不改挂任何 waiter；
+    `WAIT`/`WAIT_BITSET` 的非法 timespec 与已过期绝对 deadline 在**分配
+    `FutexWaiter` 之前**返回 `EINVAL`/`ETIMEDOUT`，不留宿主内存。跨引擎探针
+    `tools/testcases/se/{futex_probe.c,check_se_futex.py}`：宿主 Linux
+    （oracle）/ gem5 SE / qemu-user 三侧断言逐行一致，并用 gem5 进程
+    `ru_maxrss` 的 `leak N` vs `wake N` 峰值差（<4 MiB）守住「早退分支无分配」。
   - **robust list**：`set_robust_list` 保存每线程链表头（长度必须
     `3*sizeof(long)`，否则 `EINVAL`）；`get_robust_list` 回读该头并总是
     报告内核长度（未注册时头为 NULL，同 Linux）。线程退出时按
