@@ -146,9 +146,9 @@
   scope:
   - idl
   milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M17
+  resolved_by: m17-idl-022（跳过集按两侧并集对称剔除；布局统一后由 m17-idl-024 简化为全 64 槽按值比）
   title: 【P3】`idl_check_trace` 全量 273/274：`ld.o_rrii_ra` 第 205 条差异（`ra3/ra9/ra10` 与 exec 侧 `ra5/ra61`）。`m17-idl-021` 实测主树与 worktree 逐字相同 ⇒ 既有差分；属 RAS 有效区/E4 口径，未进 L1/L2 门控。建议随下次触碰 RAS/trace 时按 `SimRISC-00 §2.4` 订正判据或登记为文档化等价。
 - id: ISS-541
   scope:
