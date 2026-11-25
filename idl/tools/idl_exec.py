@@ -333,8 +333,13 @@ class Cfx:
         if cfxha in MODE_MONITOR.values():
             self.cg8[CG8_ASYNC_INTR_MASK] = MASK64
         # cg9 异步捕获缓冲（spec/DADAO-12 §4.7）：只有 cfx_hart 持有；None = 该 cfx
-        # 不实现 cg9（访问 ⇒ CFXREG）。
-        self.cg9 = [0] * 16 if cfxha == CFX_HART else None
+        # 不实现 cg9（访问 ⇒ CFXREG）。`rc6`（`async_switch_run_mode`）为 RW 2 位
+        # 字段、复位 2（supv）；异步进入取该寄存器的当前值（§5.4（五））。
+        if cfxha == CFX_HART:
+            self.cg9 = [0] * 16
+            self.cg9[CG9_SWITCH] = MODE_SUPV
+        else:
+            self.cg9 = None
 
     def set_space(self, block, desc, start, size, attr):
         self.cg7[4 * block + CG7_DESC] = desc
@@ -761,7 +766,7 @@ class Machine:
         cg9[CG9_PREV_MODE] = self.mode & 0x3
         cg9[CG9_PREV_CFX] = self.cfx_code & 0x3F
         cg9[CG9_CAUSE_IP] = self.ip & MASK48 & ~0x3   # 已提交指令之后的 rb0
-        self.mode = cg9[CG9_SWITCH] & 0x3             # 固定 supv（rc6）
+        self.mode = cg9[CG9_SWITCH] & 0x3             # 取 rc6（RW，复位 2 = supv）
         self.cfx_code = CFX_HART
         self.ip = cg9[CG9_VECTOR] & MASK48
         hart.cg4[CG4_ASYNC_NUM] += 1
@@ -2883,6 +2888,21 @@ def self_test():
        hartb.cg9[CG9_SRC_FRAME], ASYNC_SRC_TIMER | ASYNC_SRC_PMEM)
     eq("async_multi_pending_drained", hartb.cg9[CG9_SRC_PENDING], 0)
     eq("async_multi_num_once", hartb.cg4[CG4_ASYNC_NUM], 1)
+
+    # `cg9 rc6`（`async_switch_run_mode`）：RW 2 位字段、复位 2（supv，§4.7），异步进入
+    # **取该寄存器当前值**（§5.4（五））——不是硬固定 supv：写入非 supv 值后进入落到写入值。
+    eq("async_switch_reset", Cfx(CFX_HART, 0, 0, MASK64).cg9[CG9_SWITCH], MODE_SUPV)
+    mc = _mk_machine()
+    hartc = Cfx(CFX_HART, 0x0FFF_0000_4000, MODE_SUPV, MASK64)
+    hartc.cg9[CG9_VECTOR] = 0x0FFF_0000_4000
+    mc.cfx[CFX_HART] = hartc
+    mc.cfx[3].access(8, CG8_ASYNC_INTR_MASK, True, 0)      # hmon 全放行
+    hartc.access(9, CG9_SWITCH, True, MODE_JAIL)
+    eq("async_switch_write", hartc.cg9[CG9_SWITCH], MODE_JAIL)
+    mc.mode = MODE_HYPV
+    mc.async_post(ASYNC_SRC_TIMER)
+    eq("async_switch_entry", mc.async_entry(), True)
+    eq("async_switch_entry_uses_rc6", mc.mode, MODE_JAIL)
 
     # src_frame / src_pending 是 HW/RO：软件写忽略（不改变读数、不产生异常）。
     hartb.access(9, CG9_SRC_FRAME, True, 0)

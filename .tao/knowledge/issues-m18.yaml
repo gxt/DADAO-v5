@@ -167,11 +167,12 @@
   - idl
   - qemu
   - spec
+  - chipyard
   milestone: M18
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P2·需用户裁定】`cg9 rc6`（switch_run_mode）口径不一致：spec `DADAO-12 §4.7` 初始值 2 + `§5.4` 伪码注「固定 supv」，`contract-see` 同句；而 QEMU（`helper.c:3410` 写 `val&0x3`、`helper.c:3209` 进入取 rc6、`cpu.c:348` 复位 2）与 IDL 执行器均「接受 2 位、进入取 rc6」，RTL 未核。`m18-idl-002` reviewer 判 F1：择一——① spec/契约措辞改「复位 2、进入取 rc6」；② QEMU+RTL+IDL 三侧硬固定 supv。另 F2：IDL `Cfx.__init__` 的 `cg9[6]` 初值 0 ≠ spec/QEMU 的 2。
+  title: 【P2·需用户裁定】`cg9 rc6`（switch_run_mode）口径不一致：spec `DADAO-12 §4.7` 初始值 2 + `§5.4` 伪码注「固定 supv」，`contract-see` 同句；而 QEMU（`helper.c:3410` 写 `val&0x3`、`helper.c:3209` 进入取 rc6、`cpu.c:348` 复位 2）与 IDL 执行器均「接受 2 位、进入取 rc6」，RTL 未核。`m18-idl-002` reviewer 判 F1：择一——① spec/契约措辞改「复位 2、进入取 rc6」；② QEMU+RTL+IDL 三侧硬固定 supv。另 F2：IDL `Cfx.__init__` 的 `cg9[6]` 初值 0 ≠ spec/QEMU 的 2。RTL 实测 `GewuFile.scala` rc6 恒 supv（读 2/写忽略/进入 `runMode:=2.U`），与裁定①不一致，待 `m18-chipyard-001` 对齐。
 - id: ISS-539
   scope:
   - linux

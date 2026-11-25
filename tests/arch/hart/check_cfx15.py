@@ -161,8 +161,19 @@ def facts(root):
                 % name)
     if not re.search(r"不产生异常|不计异常", spec):
         raise OracleError("spec §4.7: 'write ignored, no exception' not stated")
-    if "固定 supv（2）" not in spec:
-        raise OracleError("spec §4.7: fixed supv value not found")
+    # `cg9 rc6` is RW with reset 2 (supv) and the entry takes the register
+    # value.  `m18-spec-006` rewrote the §4.7 cell from "固定 supv（2）" to
+    # "复位值 2（supv），异步进入取本寄存器当前值"; accept both so the oracle
+    # keeps working across that editorial change (same precedent as the bitmap
+    # wording above), and still fail when neither is stated.
+    switch_cell = rows["cfx_hart_async_switch_run_mode"][2]
+    old_switch = "固定 supv（2）" in switch_cell
+    new_switch = ("复位值 2（supv）" in switch_cell
+                  and "异步进入取本寄存器当前值" in switch_cell)
+    if not old_switch and not new_switch:
+        raise OracleError(
+            "spec §4.7: rc6 must say '固定 supv（2）' or "
+            "'复位值 2（supv）' + '异步进入取本寄存器当前值'")
 
     # The async source mask row lives on cfx0-cfx3 (`cg8 rc1`, reset all ones).
     mask_rows = re.findall(
