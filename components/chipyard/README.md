@@ -69,6 +69,26 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
   qemu,gem5,chipyard` **三方逐槽**比较（无差异登记）；RTL 侧另从 `+verbose` 的
   `cfx2 …` trace 独立复核原始读数（`delta = 0xf3e` 级）与访问模式。
 
+## `cfx_power_ctrl` 写侧（`m16-chipyard-031`）
+
+- **寄存器行**（`DADAO-12 §4.12`）：`cfx_power cg8 rc1` 是 **WO**。`GewuCfxParams`
+  新增 `powerCtrl`（默认 `false`；`require` 限制为「复位 cfx、至多一个」）；
+  `GewuFile` 把它加进 `writeOk` 的写集、不加进任何读集 ⇒ 读仍是 `CFXREG`。
+- **事件**：写被接受时 `io.power.valid` 一周期有效，`action` 编码
+  0 = POWEROFF（bit0）、1 = HARD_RESET（bit1）、2 = SOFT_RESET（bit2），bit0
+  优先（QEMU/gem5 同序）；写 0（或只有 ≥3 位）被接受但无事件。
+- **落动作**：`WumingCore` 收到事件即 `state := sHalt`（`io.halted` →
+  `WithWumingCeaseSuccess` → TestDriver `$finish`）。测试机没有板级断电/复位：
+  bit0/1/2 一律**结束仿真**，复位 = 结束 + harness 重启（gem5 `DADAO_POWER_*`
+  同口径）；`+verbose` 打 `WumingCore: power … action=<n>` 说明结束原因。
+- **范围**：`WumingGewuParams` 只在 `useVM`（Kaiwu-Vast）打开；`Kaiwu-Tiny` 按
+  `spec/Kaiwu §3` 保持未实现 ⇒ 读写都 `CFXREG`（与 QEMU 的 profile 门控同口径）。
+- **验证**：`arch-power-001` 35 → 36 槽（新增「写 0 被接受」，
+  QEMU/gem5/RTL 三方逐槽）；`check_power_rtl.py --write-side` 四例：
+  写 0 接受 + 读 `CFXREG`、bit0/1/2 各「写 ⇒ 仿真结束」（rc=0、无 `SYS_EXIT`、
+  有 `WumingCore: power` trace）。注入「写仍报 `CFXREG`」「去掉 halt」均真重建后红，
+  `cp`+md5 还原重建回绿。
+
 ## 缺面补齐：cfx_power 公共面 / cfx5 模式面 / 56 位 `addr_start`（`m16-chipyard-027`）
 
 - **`cfx_power`（cfx63）公共面**（`ISS-524`、`DADAO-12 §3.5/§3.7`）：Vast 上

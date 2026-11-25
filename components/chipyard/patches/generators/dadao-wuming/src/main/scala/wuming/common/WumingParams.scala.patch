@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..aeb259a
+index 0000000..fc149d0
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,470 @@
+@@ -0,0 +1,473 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -178,8 +178,10 @@ index 0000000..aeb259a
 +      // cg6 scratch) is required for every non-reserved cfx (`ISS-524`).  It is
 +      // opened on the translating machine only: `Kaiwu-Tiny`'s register map is
 +      // a regression criterion and keeps its pre-M16 partial face (cfx3/cfx63
-+      // have no `commonRows` there).  `cg7` (BootROM space) and the Tiny-only
-+      // `cg8 rc1` are unaffected.
++      // have no `commonRows` there).  `cg7` (BootROM space) is unaffected.
++      // `cg8 rc1 cfx_power_ctrl` (`DADAO-12 §4.12`): the WO write side is also
++      // Vast-only (`m16-chipyard-031`) — `spec/Kaiwu §3` keeps it unimplemented
++      // on Kaiwu-Tiny, so the row stays CFXREG there in both directions.
 +      GewuCfxParams(
 +        id = WumingCfxHa.power,
 +        vectorBase = required(p.bootromBase, "bootromBase"),
@@ -187,7 +189,8 @@ index 0000000..aeb259a
 +        spaceSize = required(p.bootromSize, "bootromSize"),
 +        spaceAttr = 0x5,
 +        sourceMaskReset = maskInitCfx,
-+        commonRows = p.useVM)) ++
++        commonRows = p.useVM,
++        powerCtrl = p.useVM)) ++
 +      (if (p.useVM) Seq(
 +        // cfx0 umon (`m16-chipyard-019`): no internal space, so cg7 block 0
 +        // stays `exists = 0` and `hypv_excp_vector` is platform-defined (we

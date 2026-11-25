@@ -11,8 +11,12 @@ RTL 侧的差异（`gen_power_rtl.py` 文件头）：故障走固件 hmon
 （`HMON_BASE+0xE0` / `+0xF8`），测试体固定交付为 `cfx_power`（cfx63）/hypv
 （无 U/S 进入链）⇒ `arch-power-001` 只跑一次。
 
+`--write-side`（`m16-chipyard-031`）跑 `cfx_power ctrl` 的写侧：写 0 被接受 +
+读 ⇒ `CFXREG`，以及 bit0/1/2 ⇒ 结束仿真（复位 = 结束 + harness 重启）。
+
 用法：
   check_power_rtl.py --only arch-power-001 [--sim PATH] [--work-dir DIR]
+  check_power_rtl.py --write-side [--sim PATH] [--work-dir DIR]
   check_power_rtl.py --selfcheck
 退出码：0 通过；1 判据失败；2 用法/缺件/配置错误。
 """
@@ -20,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
@@ -72,7 +77,9 @@ def _run(cmd, timeout=120):
 def build(case_id: str, work: Path, bin_dir: Path = None) -> Path:
     gen = _load_gen()
     carrier = gen.load_carrier()
-    if case_id != "diagnose" and case_id not in carrier.CASES:
+    if (case_id != "diagnose" and case_id != "write0"
+            and case_id not in [e[0] for e in gen.POWER_ACTIONS]
+            and case_id not in carrier.CASES):
         raise SetupError("未知 case %r（允许 %s）"
                          % (case_id, list(carrier.CASES)))
     bin_dir = Path(bin_dir) if bin_dir else _paths.host_toolchain_bin()
@@ -83,7 +90,14 @@ def build(case_id: str, work: Path, bin_dir: Path = None) -> Path:
             raise SetupError("缺件 %s（make install-host）" % path)
     work.mkdir(parents=True, exist_ok=True)
     asm = work / ("power_%s.S" % case_id)
-    text = gen.render_diagnose() if case_id == "diagnose" else gen.render(case_id)
+    if case_id == "diagnose":
+        text = gen.render_diagnose()
+    elif case_id == "write0":
+        text = gen.render_write0()
+    elif case_id in [e[0] for e in gen.POWER_ACTIONS]:
+        text = gen.render_power_action(case_id)
+    else:
+        text = gen.render(case_id)
     asm.write_text(text, encoding="utf-8")
     obj = work / ("power_%s.o" % case_id)
     rc, out = _run([str(llvm_mc), "--triple=dadao-unknown-elf", "-filetype=obj",
@@ -171,7 +185,7 @@ def selfcheck() -> int:
             if spec[0] == "rw":
                 exp_writes.append(target)
                 exp_reads.append(target)
-            elif spec[0] == "fault_wr":
+            elif spec[0] in ("fault_wr", "wr_ok"):
                 exp_writes.append(target)
             else:                       # reg / ip_in_rom / fault_rd
                 exp_reads.append(target)
@@ -185,7 +199,9 @@ def selfcheck() -> int:
                                ", ".join("%#x" % v for v in want)))
         # 故障面每槽必须「清 cause 槽 + 读 cause 槽」各一次（不靠残留值），
         # 且入口把回落点设成 abort（意外异常 ⇒ __EXIT 126，不是 PASS）。
-        n_fault = sum(1 for _, _, s in table if s[0].startswith("fault"))
+        # `wr_ok`（写被接受）也走同一条原因槽通道。
+        n_fault = sum(1 for _, _, s in table
+                      if s[0] in ("fault_rd", "fault_wr", "wr_ok"))
         if text.count("[rb20, 0xE0]") != 2 * n_fault:
             problems.append("%s: cause 槽访问 %d 次 ≠ 2 × %d 个故障槽"
                             % (case_id, text.count("[rb20, 0xE0]"), n_fault))
@@ -196,6 +212,36 @@ def selfcheck() -> int:
             problems.append("%s: 有故障槽但缺 `abort` 回落点" % case_id)
         if "__EXIT\t126" not in text:
             problems.append("%s: 缺 fail-closed 退出（__EXIT 126）" % case_id)
+
+    # 写侧探针（`m16-chipyard-031`）：写 0 两槽 / 每个动作一槽，目标固定
+    # `cfx_power cg8 rc1`，且都带 fail-closed 的 `__EXIT 126`。
+    target = "cfx_power, cg8, rc1"
+    write0 = gen.render_write0()
+    if write0.count("__REC") != 2:
+        problems.append("write0: __REC %d ≠ 2 槽" % write0.count("__REC"))
+    if write0.count("cfx2rc\t%s" % target) != 1:
+        problems.append("write0: 缺一次 `cfx2rc %s`" % target)
+    if write0.count("cfx2rd\t%s" % target) != 1:
+        problems.append("write0: 缺一次 `cfx2rd %s`（读 ⇒ CFXREG）" % target)
+    if "__EXIT\t126" not in write0:
+        problems.append("write0: 缺 fail-closed 退出（__EXIT 126）")
+    print("  PASS  write0: %d 槽，写 0 + 读 CFXREG 各一次，含 abort 126"
+          % write0.count("__REC"))
+    for name, value, _ in gen.POWER_ACTIONS:
+        text = gen.render_power_action(name)
+        # 仿真在 power 事件处结束 ⇒ 签名 dump 不执行，探针不得有 `__REC`。
+        if text.count("__REC") != 0:
+            problems.append("%s: __REC %d ≠ 0（结束后不会 dump）"
+                            % (name, text.count("__REC")))
+        if text.count("cfx2rc\t%s" % target) != 1:
+            problems.append("%s: 缺一次 `cfx2rc %s`" % (name, target))
+        if "set.rd\trd6, %#x" % value not in text:
+            problems.append("%s: 写入值不是 %#x" % (name, value))
+        if "jump\t[rb0, abort]" not in text or "__EXIT\t126" not in text:
+            problems.append("%s: 缺「未结束仿真 ⇒ 126」的 fail-closed 分支"
+                            % name)
+        print("  PASS  %s: 写 %#x ⇒ 结束仿真（零槽，含 abort 126）"
+              % (name, value))
 
     print("-" * 72)
     if problems:
@@ -313,6 +359,112 @@ def run_case(case_id: str, sim: Path, work: Path, timeout: int,
     return 0 if not problems else 1
 
 
+def run_write_probes(sim: Path, work: Path, timeout: int,
+                     bin_dir: Path = None) -> int:
+    """`cfx_power ctrl` 写侧探针（`m16-chipyard-031`）。
+
+    1. `write0`：写 0 被接受（原因槽 = 0）+ 读同一寄存器 ⇒ `CFXREG`（两槽，
+       与 QEMU/gem5 的 `power_ctrl_write0_ok` 槽同场景）；
+    2. `poweroff`/`hard-reset`/`soft-reset`：写 bit0/1/2 ⇒ **结束仿真**
+       （rc=0、无 `*** FAILED ***`、无 `SYS_EXIT`；`+verbose` 的
+       `WumingCore: power ... action=<n>` 指明动作）。复位 = 结束 + harness
+       重启（gem5 同口径）。
+
+    退出码：0 全过；1 判据失败；2 缺件/配置。
+    """
+    gen = _load_gen()
+    carrier = gen.load_carrier()
+    causes = carrier.cause_bits()
+    power = carrier.cfx_codes()["power"]
+    problems = []
+    print("=" * 72)
+    print("check_power_rtl --write-side（cfx_power ctrl 写侧；m16-chipyard-031）")
+    print("=" * 72)
+    if not sim.is_file():
+        raise SetupError("缺 RTL 仿真器: %s（--sim 或 chipyard Vast 构建）" % sim)
+
+    # ---- 1. 写 0 被接受 + 读 ⇒ CFXREG -----------------------------------
+    n_before = len(problems)
+    elf = build("write0", work / "write0", bin_dir)
+    res = chipyard_engine.run(str(elf), str(work / "write0" / "sim"),
+                              sim=str(sim), timeout=timeout)
+    want = [0, causes["CFXREG"]]
+    got = None
+    if res.get("timed_out"):
+        problems.append("write0: 仿真超时（%ds / max-cycles）" % timeout)
+    if res.get("verilator_error"):
+        problems.append("write0: Verilator %Error（见 sim.log）")
+    if res.get("guest_exit") != 0:
+        problems.append("write0: guest 退出码 %r（0 = 通过；126 = abort）"
+                        % res.get("guest_exit"))
+    if not res.get("sim_stable"):
+        problems.append("write0: 仿真器二进制 md5 前后不一致: %r -> %r"
+                        % (res.get("sim_md5_before"),
+                           res.get("sim_md5_after")))
+    blob = res.get("semiout") or b""
+    (work / "write0" / "signature.bin").write_bytes(blob)
+    try:
+        got = _signature.parse(blob, len(want))
+    except _signature.SignatureError as exc:
+        problems.append("write0: 签名流: %s" % exc)
+    else:
+        for idx, (g, w) in enumerate(zip(got, want)):
+            if g != w:
+                problems.append("write0: 槽 %d 期望 %#x 实际 %r"
+                                % (idx, w, g))
+    print("  %-4s rtl        %-22s rc=%s slots=%s（0 = 写被接受，%#x = 读 ⇒ CFXREG）"
+          % ("PASS" if len(problems) == n_before else "FAIL", "write0",
+             res.get("guest_exit"), got, causes["CFXREG"]))
+
+    # ---- 2. bit0/1/2 ⇒ 结束仿真 -----------------------------------------
+    for name, value, action in gen.POWER_ACTIONS:
+        n_before = len(problems)
+        elf = build(name, work / name, bin_dir)
+        res = chipyard_engine.run(str(elf), str(work / name / "sim"),
+                                  sim=str(sim), timeout=timeout, verbose=True)
+        text = res.get("sim_text") or ""
+        # 仿真在 power 事件处结束 ⇒ 不产生签名流；「body 已执行 + 写被接受」由
+        # `+verbose` 的 cfx2 行现场断言（`ok=true` 就是 `writeOk`）。
+        # `WumingCore: cfx2 ... ha=<n> cg= 8 rc= 1 write=1 ok=1 ...`
+        accepted = re.compile(
+            r"WumingCore: cfx2 .*\bha=\s*%d cg=\s*8 rc=\s*1 "
+            r"write=1 ok=1\b" % power)
+        if not accepted.search(text):
+            problems.append("%s: 缺「写被接受」的 cfx2 trace（ha=%d cg=8 "
+                            "rc=1 write=1 ok=1）" % (name, power))
+        if res.get("timed_out"):
+            problems.append("%s: 仿真超时（%ds，仿真没结束）" % (name, timeout))
+        if res.get("rc") != 0:
+            problems.append("%s: 进程退出码 %r（结束仿真应为 0）"
+                            % (name, res.get("rc")))
+        if "*** FAILED ***" in text:
+            problems.append("%s: 日志含 *** FAILED ***（max-cycles/失败）"
+                            % name)
+        if "[WumingSemi] SYS_EXIT" in text:
+            problems.append("%s: 走了 SYS_EXIT（不是 power 动作结束）" % name)
+        if "WumingCore: power" not in text:
+            problems.append("%s: 缺 `WumingCore: power` 事件行（+verbose）"
+                            % name)
+        elif "action=%d" % action not in text:
+            problems.append("%s: 事件行的 action 不是 %d（内部编码 0/1/2）"
+                            % (name, action))
+        print("  %-4s rtl        %-22s rc=%s ended=%s action=%s"
+              % ("PASS" if len(problems) == n_before else "FAIL", name,
+                 res.get("rc"),
+                 "no-SYS_EXIT" if "[WumingSemi] SYS_EXIT" not in text
+                 else "SYS_EXIT",
+                 "yes" if "WumingCore: power" in text else "missing"))
+
+    print("-" * 72)
+    if problems:
+        for p in problems:
+            print("  [FAIL] %s" % p)
+        print("check_power_rtl: write-side FAIL（%d 项）" % len(problems))
+        return 1
+    print("check_power_rtl: write-side PASS")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--only", default=None)
@@ -323,16 +475,20 @@ def main(argv=None) -> int:
                     help="llvm-mc/ld.lld 所在目录（缺省 = 安装根 host 工具链）")
     ap.add_argument("--diagnose", action="store_true",
                     help="跑未纳入判据的差分探针（写 0/cg4/cg6）")
+    ap.add_argument("--write-side", action="store_true",
+                    help="跑 cfx_power ctrl 写侧探针（写 0 接受 + bit0/1/2 "
+                         "结束仿真；m16-chipyard-031）")
     ap.add_argument("--selfcheck", action="store_true")
     args = ap.parse_args(argv)
     if args.selfcheck:
         return selfcheck()
-    if not args.only and not args.diagnose:
-        print("check_power_rtl: --only 或 --diagnose 必填", file=sys.stderr)
+    if not args.only and not args.diagnose and not args.write_side:
+        print("check_power_rtl: --only / --diagnose / --write-side 必填",
+              file=sys.stderr)
         return 2
     work = (Path(args.work_dir) if args.work_dir
             else Path(_paths.test_artifacts_dir()) / "arch" / "power_rtl"
-            / args.only)
+            / (args.only or "write-side"))
     work = work.resolve()
     try:
         bin_dir = (Path(args.toolchain_bin) if args.toolchain_bin
@@ -340,6 +496,9 @@ def main(argv=None) -> int:
         if args.diagnose:
             return run_diagnose(Path(args.sim).resolve(),
                                 work / "diagnose", args.timeout, bin_dir)
+        if args.write_side:
+            return run_write_probes(Path(args.sim).resolve(), work,
+                                    args.timeout, bin_dir)
         return run_case(args.only, Path(args.sim).resolve(), work, args.timeout,
                         bin_dir=bin_dir)
     except SetupError as exc:

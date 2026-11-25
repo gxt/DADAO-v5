@@ -198,9 +198,9 @@
   - gem5
   - chipyard
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: "m16-qemu-006 + m16-gem5-025 + m16-chipyard-031（三实现写侧齐）"
   title: "【P3】`cfx_power_ctrl` 写侧：QEMU（m16-qemu-006）与 gem5（m16-gem5-025）已实现（写接受、读 CFXREG）；**RTL 仍缺**（`GewuFile` 无 power 写分支，写 0 报 CFXREG）。需 chipyard 补 RTL 后再把写侧升为三方判据。"
 - id: ISS-526
   scope:

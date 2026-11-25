@@ -43,27 +43,31 @@ cfx_hmon`），收尾回 hypv。
 
 ## 观测（签名流，槽 = 一个观测点）
 
-`arch-power-001`（28 槽）：移交 4 槽（`prev_cfx` = 63、`prev_mode` = hypv、
+`arch-power-001`（36 槽）：移交 4 槽（`prev_cfx` = 63、`prev_mode` = hypv、
 `cause_id` = `CFXTRAP`、`cause_ip` 落在 BootROM 窗口的归一化标志）；`cg7`
-块 0 四字段 + 块 1–15 的 `desc` + 块 15 的 `start/size/attr`（22 槽）；收尾在
-hypv 做 `cg5 rc1` 的 RW 回读（写哨兵、还原 cfxha，2 槽）。
+块 0 四字段 + 块 1–15 的 `desc` + 块 15 的 `start/size/attr`（22 槽）；`cg4`/`cg6`
+配置面 7 槽；`cfx_power_ctrl`（`cg8 rc1`，WO）**写 0 被接受** 1 槽（`m16-chipyard-031`，
+原因槽仍 0）；收尾在 hypv 做 `cg5 rc1` 的 RW 回读（写哨兵、还原 cfxha，2 槽）。
 
 `arch-power-002`（3 槽，只 hmon）：`cg7` 写 ⇒ `CFXREG`、`cfx_power_ctrl` 读 ⇒
 `CFXREG`、`cg8 rc2` 读 ⇒ `CFXREG`（未定义 rc）。故障经 body 自装的
 `cfx_hmon.hypv` 处理程序记 `excp_cause_id` 后 `escape` 回 `cause_ip + 4`。
 
+`cfx_power_ctrl` 的 `bit0/1/2`（POWEROFF/HARD_RESET/SOFT_RESET）会结束仿真，
+没有「执行后仍可观测」的签名槽；RTL 写侧探针
+（`check_power_rtl.py --write-side`）逐位断言「写该位 ⇒ 仿真结束」。
+
 ## 未覆盖项（显式登记，见 `tests/arch/README.md`）
 
-  * `cfx_power_ctrl` 的**写侧**（规范为 WO ⇒ 写 0 应被接受）：QEMU 已在
-    `m16-qemu-006`、gem5 已在 `m16-gem5-025` 实现（写被接受、读仍 `CFXREG`；
-    gem5 的 bit0/1/2 按 `§4.12` 结束仿真，复位约定为「结束 + harness 重启」）；
-    RTL 未实现 ⇒ 三方未齐前不写进判据（不拿实现现状当期望），由 `--diagnose`
-    逐方报告并登记差异；
+  * `cfx_power_ctrl` 的**写侧**：写 0 被接受已进 `arch-power-001` 的三方签名槽
+    （QEMU `m16-qemu-006`、gem5 `m16-gem5-025`、RTL `m16-chipyard-031`）；bit0/1/2
+    的副作用（结束仿真，复位约定为「结束 + harness 重启」）只由 RTL 写侧探针
+    断言，不进签名流；
   * `cfx_power` 的 `cg4 rc1`（`version`）是 HW 值，spec 不规定、测试机约定
     也不在合约里 ⇒ 不写进逐槽判据（`cg4` 的 `cfx_id` 与四个计数器、`cg6`
     的 rc0/rc1 RW 已纳入，见 `_config_slots`）；
-  * 电源语义本身（`bit0/1/2` = 关机/硬复位/软复位）不做：写这三位会真的停机/
-    复位，没有「执行后仍可观测」的判据（任务书「不做」第 1 条）。
+  * 电源语义本身（`bit0/1/2` = 关机/硬复位/软复位）不做板级断电/重启验证：
+    测试机约定只到「结束仿真」（任务书「不做」第 1 条）。
 
 用法：
   power_vast.py --only arch-power-001 --mode hmon --qemu PATH \\
@@ -317,6 +321,7 @@ def slot_table(case_id):
       * `("rw", cfx, cg, rc, 期望)`            写值后读回
       * `("fault_rd", cfx, cg, rc, 期望)`      读 ⇒ 期望异常，槽记 cause id
       * `("fault_wr", cfx, cg, rc, 期望)`      写 ⇒ 期望异常，槽记 cause id
+      * `("wr_ok", cfx, cg, rc, 写值, 期望)`   写 ⇒ 期望**被接受**，槽记 cause id
     """
     codes = cfx_codes()
     causes = cause_bits()
@@ -336,6 +341,14 @@ def slot_table(case_id):
         ]
         out.extend(_config_slots(power))
         out.extend(_space_slots(power))
+        out.extend([
+            # `cfx_power_ctrl`（`cg8 rc1`，WO）写侧：写 0 必须**被接受**
+            # （原因槽保持 0，不产生 CFXREG）——`DADAO-12 §4.12` + `SimRISC-11`
+            # 「WO 只写」。读侧拒绝面在 `arch-power-002`；bit0/1/2 的副作用
+            # 会结束仿真，放进 RTL 写侧探针（`check_power_rtl.py --write-side`），
+            # 不进签名流。
+            ("mid", "power_ctrl_write0_ok", ("wr_ok", power, 8, 1, 0, 0)),
+        ])
         out.extend([
             # `cg5 rc1` 是 RW：写哨兵读回、再还原 power 的 cfxha。
             ("post", "hmon_prev_cfx_rw", ("rw", hmon, 5, 1, RW_SENTINEL)),
@@ -459,14 +472,17 @@ def _emit_slot(seq, spec, brfix=None):
         seq.e(P.cfx2rd(cfx, cg, rc, 5))
         SIG.upd(seq, 5)
         return
-    if kind in ("fault_rd", "fault_wr"):
-        _, cfx, cg, rc, _ = spec
+    if kind in ("fault_rd", "fault_wr", "wr_ok"):
+        _, cfx, cg, rc = spec[:4]
         seq.e(*P.load_rb(7, FAULT_SLOT))
         seq.e(P.st_o(0, 7, 0))              # 清故障槽（不靠残留）
         if kind == "fault_rd":
             seq.e(P.cfx2rd(cfx, cg, rc, 6))
         else:
-            seq.e(*P.load_rd(6, 0))
+            # `wr_ok` 写的是 spec 给的值（写 0 ⇒ 规范要求被接受）；`fault_wr`
+            # 只关心「被拒」，写 0 即可。
+            value = spec[4] if kind == "wr_ok" else 0
+            seq.e(*P.load_rd(6, value))
             seq.e(P.cfx2rc(cfx, cg, rc, 6))
         seq.e(P.ld_o(5, 7, 0))
         SIG.upd(seq, 5)
@@ -513,8 +529,8 @@ def slot_asm(spec, idx):
             "\tcfx2rd\t%s, rd5" % reg(cfx, cg, rc),
             "\t__REC\trd5",
         ]
-    if kind in ("fault_rd", "fault_wr"):
-        _, cfx, cg, rc, _ = spec
+    if kind in ("fault_rd", "fault_wr", "wr_ok"):
+        _, cfx, cg, rc = spec[:4]
         lab = "f%d" % idx
         lines = [
             "\tst.o\trd0, [rb20, 0xE0]\t@@ 清固件 cause 槽（不靠残留）",
@@ -524,7 +540,9 @@ def slot_asm(spec, idx):
         if kind == "fault_rd":
             lines.append("\tcfx2rd\t%s, rd6" % reg(cfx, cg, rc))
         else:
-            lines.append("\tset.rd\trd6, 0")
+            value = spec[4] if kind == "wr_ok" else 0
+            lines.append("\tset.rd\trd6, %s" % (("%#x" % value) if value
+                                                else "0"))
             lines.append("\tcfx2rc\t%s, rd6" % reg(cfx, cg, rc))
         lines += ["%s:" % lab,
                   "\tld.o\trd5, [rb20, 0xE0]",
@@ -907,6 +925,16 @@ def selfcheck() -> int:
               % sum(1 for _, _, s in slots if s[0] == "reg" and s[2] == 7))
     print("  PASS  arch-power-001 槽类型: %r"
           % sorted({spec[0] for _, _, spec in slots}))
+    # 写侧覆盖点：`cfx_power_ctrl`（cg8 rc1）的「写 0 被接受」必须有一个槽，
+    # 且目标就是 power 的 cg8 rc1（现场统计，不写死槽数）。
+    pw = cfx_codes()["power"]
+    n_wr_ok = sum(1 for _, _, s in slots
+                  if s[0] == "wr_ok" and s[1] == pw and s[2] == 8 and s[3] == 1)
+    if n_wr_ok < 1:
+        problems.append("arch-power-001 缺 `cfx_power_ctrl` 写接受槽（cg8 rc1）")
+    else:
+        print("  PASS  arch-power-001 写接受槽: %d（cfx_power cg8 rc1 写 0）"
+              % n_wr_ok)
 
     print("-" * 72)
     if problems:

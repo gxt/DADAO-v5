@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..97bdfb6
+index 0000000..3a244fe
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,2295 @@
+@@ -0,0 +1,2314 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -2166,6 +2166,19 @@ index 0000000..97bdfb6
 +    is(sHalt) { }
 +  }
 +
++  // ---- `cfx_power` power-control action (`DADAO-12 §4.12`) ----------------
++  // `m16-chipyard-031`: an accepted write to `cfx_power cg8 rc1` whose bits 0-2
++  // are non-zero raises a one-cycle action event.  The test machine has no
++  // board-level power rail or reset tree, so every action ends the simulation
++  // (`io.halted` → the harness's success line → `$finish`); a reset is
++  // "end + harness restart", the same convention gem5 uses (`m16-gem5-025`).
++  // The override sits after the `state` switch, so the instruction after the
++  // write never executes; the write itself already committed through
++  // `gewu.io.wEn` in the same cycle.
++  when(gewu.io.power.valid) {
++    state := sHalt
++  }
++
 +  // ---- queue update (single writer for head/count/entries) ---------------
 +  when(fifoFlush) {
 +    qCount := 0.U
@@ -2295,6 +2308,12 @@ index 0000000..97bdfb6
 +  when(state === sFault && !faultPrinted) {
 +    faultPrinted := true.B
 +    printf(p"WumingCore: fault ip=0x${Hexadecimal(ip(47, 0))} inst=0x${Hexadecimal(inst)} cycle=${cycles}\n")
++  }
++  // `cfx_power_ctrl` action (`DADAO-12 §4.12`): 0 = POWEROFF, 1 = HARD_RESET,
++  // 2 = SOFT_RESET.  Printed in the commit cycle, before the halt, so a
++  // `+verbose` run names why the simulation ended (`m16-chipyard-031`).
++  when(state === sExec && gewu.io.power.valid) {
++    printf(p"WumingCore: power ip=0x${Hexadecimal(ip(47, 0))} action=${gewu.io.power.action} cycle=${cycles}\n")
 +  }
 +
 +  io.halted := state === sHalt

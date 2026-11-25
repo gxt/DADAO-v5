@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..91d4c15
+index 0000000..3d08bb4
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,2023 @@
+@@ -0,0 +1,2091 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -116,6 +116,15 @@ index 0000000..91d4c15
 +//   cg10 rc0     time_freq (RO; the machine's counting frequency in Hz)
 +//   cg10 rc1     time_value (RO; free-running 64-bit count, reset from 0)
 +//   cg10 rc2-63  reserved ⇒ CFXREG
++//
++// `cfx_power` also has `cg8 rc1 cfx_power_ctrl` (`DADAO-12` §4.12) on the
++// translating machine (`m16-chipyard-031`): **WO** — the write is accepted,
++// a read is CFXREG, and bits 0-2 raise POWEROFF / HARD_RESET / SOFT_RESET as
++// a one-cycle `io.power` event (bit0 wins; a write of 0 is a no-op).  The
++// consumer decides what the action means; the test machine ends the
++// simulation (a reset is "end + harness restart", the gem5 convention).
++// Kaiwu-Tiny keeps the row unimplemented (`spec/Kaiwu` §3), so there it stays
++// CFXREG for both directions.
 +//
 +// Every other (cg, rc) of an implemented cfx is not on this profile and
 +// reads/writes as CFXREG — never as a silent zero.  A `cfxha` that names no
@@ -257,7 +266,16 @@ index 0000000..91d4c15
 +  /** `cfx_⟨cfxname⟩_scratch_regs_num` (cg4 rc6) when `commonRows` is set. */
 +  scratchRegs: Int = 4,
 +  /** `cfx_⟨cfxname⟩_version` (cg4 rc1) — test-machine value, spec leaves it HW. */
-+  version: BigInt = BigInt("10000", 16)
++  version: BigInt = BigInt("10000", 16),
++  /**
++    * Implement `cg8 rc1 cfx_power_ctrl` (`DADAO-12 §4.12`): WO — the write is
++    * accepted and reads as CFXREG, bits 0-2 raise the POWEROFF/HARD_RESET/
++    * SOFT_RESET action event.  Only the reset cfx (`runCfxReset`) may set it,
++    * and only on the translating machine: `spec/Kaiwu §3` keeps Kaiwu-Tiny's
++    * `power_ctrl` unimplemented (access ⇒ CFXREG), so this flag stays off
++    * there (`m16-chipyard-031`).
++    */
++  powerCtrl: Boolean = false
 +)
 +
 +/**
@@ -489,6 +507,13 @@ index 0000000..91d4c15
 +    "Gewu: `time.cfxId` must name an implemented cfx")
 +  require(time.forall(t => t.freq < (BigInt(1) << dataBits)),
 +    "Gewu: `time_freq` must fit one cfx register")
++  // `cfx_power_ctrl` (`DADAO-12 §4.12`) is the reset cfx's WO row.  Two
++  // claimants would make the single event ambiguous, and a non-reset cfx has
++  // no such register in the spec: both are elaboration errors.
++  require(cfx.count(_.powerCtrl) <= 1,
++    "Gewu: at most one cfx may implement `cfx_power_ctrl`")
++  require(cfx.filter(_.powerCtrl).forall(_.id == runCfxReset),
++    "Gewu: `powerCtrl` belongs to the reset cfx (`cfx_power`) only")
 +  // Same rule for `cfx_pmem`: its cg8/cg12-cg15 rows must belong to an
 +  // implemented cfx.
 +  require(pmem.forall(m => cfx.exists(_.id == m.cfxId)),
@@ -617,6 +642,23 @@ index 0000000..91d4c15
 +  val permDenied = Output(Bool())
 +  /** Two-axis denial of `trap` on the addressed cfx (`<mode>_cfxtrap`). */
 +  val trapDenied = Output(Bool())
++
++  /**
++    * `cfx_power` power-control event (`DADAO-12 §4.12`, `m16-chipyard-031`).
++    *
++    * `cg8 rc1 cfx_power_ctrl` is WO: the write is accepted (`writeOk`) and the
++    * row has no read path (`readOk` is false ⇒ reading it is CFXREG).  A write
++    * whose bits 0-2 are non-zero raises a one-cycle event; `action` encodes
++    * 0 = POWEROFF (bit0), 1 = HARD_RESET (bit1), 2 = SOFT_RESET (bit2), with
++    * bit0 winning when several are set (the QEMU/gem5 priority).  A write of 0
++    * — or one with only bits ≥3 set — is accepted with no action (`valid`
++    * low).  The consumer decides what "power off" means; the test machine ends
++    * the simulation and lets the harness restart for a reset.
++    */
++  val power = new Bundle {
++    val valid = Output(Bool())
++    val action = Output(UInt(2.W))
++  }
 +
 +  /**
 +    * Asynchronous delivery (`DADAO-12 §5.4`, `ADR-0061` D1/D3/D5/D6).
@@ -1169,6 +1211,22 @@ index 0000000..91d4c15
 +    val isCfx = anyRead
 +  }
 +
++  // `cfx_power` `cg8 rc1 cfx_power_ctrl` (`DADAO-12 §4.12`, `m16-chipyard-031`).
++  // WO: the write is accepted and there is no read path, so the row never joins
++  // a read set (a read stays CFXREG).  Decoded only for the cfx that opts in;
++  // Kaiwu-Tiny keeps the row unimplemented (`spec/Kaiwu §3`).
++  private val powerCtrlRow: Option[PowerCtrlRows] =
++    gp.cfx.find(_.powerCtrl).map { c =>
++      val isCfx = io.addr.ha === c.id.U(6.W)
++      new PowerCtrlRows(
++        isCtrl = isCfx && io.addr.cg === 8.U && io.addr.rc === 1.U)
++    }
++
++  /** The `cfx_power_ctrl` row decoder (WO, no state of its own). */
++  private class PowerCtrlRows(val isCtrl: Bool) {
++    val anyWrite = isCtrl
++  }
++
 +  // Monitor common face rows (`m16-chipyard-019`): only the enabled cfx decode
 +  // them, so an opted-out profile adds no terms (all `CommonEntry`s absent).
 +  private def anyCommon(f: CommonEntry => Bool): Bool =
@@ -1223,7 +1281,17 @@ index 0000000..91d4c15
 +      ptwRows.map(_.anyWrite).getOrElse(false.B) ||
 +      cacheRows.map(_.anyWrite).getOrElse(false.B) ||
 +      hartRows.map(_.anyWrite).getOrElse(false.B) ||
-+      pmemRows.map(_.anyWrite).getOrElse(false.B))
++      pmemRows.map(_.anyWrite).getOrElse(false.B) ||
++      powerCtrlRow.map(_.anyWrite).getOrElse(false.B))
++
++  // `cfx_power_ctrl` is write-executes with no state (`DADAO-12 §4.12`): the
++  // accepted write raises a one-cycle action event.  bit0 = POWEROFF wins over
++  // bit1 = HARD_RESET and bit2 = SOFT_RESET (QEMU/gem5 priority); a write of 0
++  // or one with only bits ≥3 set is accepted with no event.
++  private val powerFire = powerCtrlRow.map(r => io.wEn && io.writeOk && r.isCtrl)
++    .getOrElse(false.B)
++  io.power.valid := powerFire && io.wdata(2, 0) =/= 0.U
++  io.power.action := Mux(io.wdata(0), 0.U, Mux(io.wdata(1), 1.U, 2.U))
 +
 +  /** Per-cfx constant, selected by the addressed instance. */
 +  private def perCfx(f: GewuCfxParams => BigInt): UInt =

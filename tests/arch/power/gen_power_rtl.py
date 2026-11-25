@@ -17,6 +17,8 @@ RTL 与 QEMU/gem5 的差异只有「故障观察通道」与「运行模式」�
 用法：
   gen_power_rtl.py --only arch-power-001 --out PATH
   gen_power_rtl.py --only arch-power-001            # 打到 stdout
+  gen_power_rtl.py --only write0                    # 写侧：写 0 接受（m16-chipyard-031）
+  gen_power_rtl.py --only poweroff|hard-reset|soft-reset  # 写侧：写位 ⇒ 结束仿真
 """
 from __future__ import annotations
 
@@ -36,6 +38,18 @@ for _sub in (("tools", "testcases", "arch"), ("tools", "testcases", "lib"),
         sys.path.insert(0, _p)
 
 CARRIER = _HERE.with_name("power_vast.py")
+
+# `cfx_power cg8 rc1`（`DADAO-12 §4.12`，WO）的 bit0/1/2 写侧探针
+# （`m16-chipyard-031`）：(名字, 写入值, RTL `io.power.action` 编码)。
+# 动作编码是本实现**文档化的内部约定**（`GewuFile` 的 `power` 端口注释：
+# 0 = POWEROFF、1 = HARD_RESET、2 = SOFT_RESET，bit0 优先，与 QEMU/gem5 同序），
+# 只用于核对 `+verbose` 的 `WumingCore: power ... action=` 行，不是 spec 派生值。
+# bit1/2 在本测试机无法真正重启 ⇒ 按 gem5 同口径「结束仿真 + harness 重启」。
+POWER_ACTIONS = (
+    ("poweroff", 0x1, 0),
+    ("hard-reset", 0x2, 1),
+    ("soft-reset", 0x4, 2),
+)
 
 
 def load_carrier():
@@ -119,7 +133,7 @@ def render_diagnose() -> str:
             "\tset.rd rd5, 0",
         ]
         if kind == "wr":
-            lines += ["\tset.rd rd6, 0",
+            lines += ["\tset.rd\trd6, 0",
                       "\tcfx2rc\t%s, rd6" % target]
         else:
             lines += ["\tcfx2rd\t%s, rd5" % target]
@@ -133,9 +147,101 @@ def render_diagnose() -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# 写侧探针（`m16-chipyard-031`）：`cfx_power cg8 rc1`（WO，`DADAO-12 §4.12`）
+#
+# 与 QEMU/gem5 的同一场景（`power_vast.py` 的 `wr_ok` 槽 = 写 0 被接受；
+# `poweroff.S` 式的「写位 ⇒ 结束仿真」）：bit0/1/2 在测试机上的约定是
+# **结束仿真**，复位 = 结束 + harness 重启（gem5 `DADAO_POWER_*` 同口径）。
+# 失败路径：写被拒/未结束仿真 ⇒ `abort`（`__EXIT 126`），不是静默通过。
+# ---------------------------------------------------------------------------
+def _probe_head(reason: str) -> list:
+    return [
+        "@@ 自动生成（tests/arch/power/gen_power_rtl.py；m16-chipyard-031）"
+        "——禁止手改。",
+        "@@ %s" % reason,
+        "",
+        "\t.include \"tests/inst/macros/inst_test.inc\"",
+        "",
+        "\t__TEST_BEGIN",
+        "\tset.rb rb20, HMON_BASE",
+        "\tset.rb rb21, abort",
+        "\tst.o rb21, [rb20, 0xF8]\t@@ 任何意外异常 ⇒ abort（fail-closed）",
+        "\tst.o rd0, [rb20, 0xE0]\t@@ 清固件 cause 槽（不靠残留）",
+    ]
+
+
+def render_write0() -> str:
+    """写 0 被接受 + 读同一寄存器 ⇒ `CFXREG`（两槽）。
+
+    槽 0 = 写 0 之后固件 hmon 的 cause 槽（0 = 被接受，没有 `CFXREG`）；
+    槽 1 = `cfx2rd` 触发 `CFXREG` 后 cause 槽的值。与 `power_vast.py` 的
+    `power_ctrl_write0_ok` 槽（QEMU/gem5）同场景。
+    """
+    carrier = load_carrier()
+    codes = carrier.cfx_codes()
+    target = "cfx_power, cg%d, rc%d" % (8, 1)
+    if codes["power"] != 63:
+        raise SystemExit("gen_power_rtl: cfx_power 不是 63（%r）"
+                         % codes["power"])
+    lines = _probe_head("写 0 被接受（WO）+ 读同一寄存器 ⇒ CFXREG。")
+    lines += [
+        "\tset.rd\trd6, 0",
+        "\tcfx2rc\t%s, rd6\t@@ 写 0：WO 写必须被接受" % target,
+        "\tld.o rd5, [rb20, 0xE0]",
+        "\t__REC\trd5\t@@ 槽 0 = 0（接受）",
+        "\tst.o rd0, [rb20, 0xE0]\t@@ 清 cause 槽",
+        "\tset.rb rb21, read_done",
+        "\tst.o rb21, [rb20, 0xF8]\t@@ 读故障的返回点",
+        "\tcfx2rd\t%s, rd6\t@@ WO 读 ⇒ CFXREG" % target,
+        "read_done:",
+        "\tld.o rd5, [rb20, 0xE0]",
+        "\t__REC\trd5\t@@ 槽 1 = CFXREG",
+        "\t__TEST_END",
+        "abort:",
+        "\t__EXIT\t126",
+        "\t__TEST_SECTIONS",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def render_power_action(name: str) -> str:
+    """写 `bit0/1/2` ⇒ 仿真结束（零槽；写被接受由 `+verbose` 现场断言）。
+
+    仿真结束由 harness 的 success 线（`io.halted`）驱动 `$finish`，所以本探针
+    **不写** `__TEST_END` 之后的收尾：写被接受且动作生效 ⇒ 进程在 `+verbose`
+    的 `WumingCore: power action=<n>` 之后结束（rc=0，无 SYS_EXIT）。写未被接受
+    （`CFXREG`）或动作未生效时，执行流落到 `abort`（`__EXIT 126`）。
+    """
+    entry = next((e for e in POWER_ACTIONS if e[0] == name), None)
+    if entry is None:
+        raise SystemExit("gen_power_rtl: 未知动作 %r（允许 %s）"
+                         % (name, [e[0] for e in POWER_ACTIONS]))
+    _, value, _ = entry
+    lines = _probe_head("写 bit%s ⇒ %s：结束仿真（复位 = 结束 + harness 重启）。"
+                        % (("0" if value & 1 else
+                            "1" if value & 2 else "2"), name))
+    lines += [
+        # 不写签名槽：仿真在 power 事件处结束，`__TEST_SECTIONS` 的 dump 不会执行；
+        # 「body 已执行 + 写被接受」由 `+verbose` 的 cfx2 行现场断言。
+        "\tset.rd\trd6, %#x" % value,
+        "\tcfx2rc\tcfx_power, cg8, rc1, rd6\t@@ %s" % name,
+        "\tjump\t[rb0, abort]\t@@ 未结束仿真 ⇒ fail-closed（126）",
+        "abort:",
+        "\t__EXIT\t126",
+        "\t__TEST_END",
+        "\t__TEST_SECTIONS",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--only", default=None, help="arch-power-001/002")
+    ap.add_argument("--only", default=None,
+                    help="arch-power-001/002 或 write0 / poweroff / hard-reset "
+                         "/ soft-reset")
     ap.add_argument("--diagnose", action="store_true",
                     help="渲染未纳入判据的差分探针（写 0/cg4/cg6）")
     ap.add_argument("--out", default=None, help="输出 .S（缺省 stdout）")
@@ -151,11 +257,17 @@ def main(argv=None) -> int:
     if not args.only:
         print("gen_power_rtl: --only 或 --diagnose 必填", file=sys.stderr)
         return 2
-    if args.only not in carrier.CASES:
-        print("gen_power_rtl: 未知 case %r（允许 %s）"
-              % (args.only, list(carrier.CASES)), file=sys.stderr)
+    if args.only == "write0":
+        text = render_write0()
+    elif args.only in [e[0] for e in POWER_ACTIONS]:
+        text = render_power_action(args.only)
+    elif args.only in carrier.CASES:
+        text = render(args.only)
+    else:
+        print("gen_power_rtl: 未知 case %r（允许 %s + write0/%s）"
+              % (args.only, list(carrier.CASES),
+                 "/".join(e[0] for e in POWER_ACTIONS)), file=sys.stderr)
         return 2
-    text = render(args.only)
     if args.out:
         Path(args.out).write_text(text, encoding="utf-8")
     else:
