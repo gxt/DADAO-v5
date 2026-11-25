@@ -33,9 +33,10 @@
 ## 硬约束
 
 1. 独立 worktree；不提交 git；证据脚本 = 运行期证据目录内 `run.sh`。
-2. 只动：`tests/inst/**`、`tests/unit/**`（向量侧）、`tests/case-ledger.tsv`、`tests/data/inst-signature/**`、`tests/arch/**`（探针，如需）、本任务书。
+2. 只动：`tests/inst/**`、`tests/unit/**`（向量侧）、`tests/case-ledger.tsv`、`tests/data/inst-signature/**`、`tests/arch/**`（含 `expected-divergences.yaml`、`vast-arch-inventory.md` 中向量相关项）、`tests/ee-vast/**`、`tests/ee-tiny/**`、`tests/shared/asm/**`（qemu-008 登记的载体/legacy 探针）、`tools/testcases/generate_lit_vectors.py`（修生成器旧语法）、`tools/testcases/arch/**`（legacy 探针，如需）、本任务书。
 3. 不改实现（QEMU/RTL/gem5/IDL/LLVM/内核）、spec/契约/Makefile；不改版本号。
 4. 期望值必须**独立派生自 spec**，不得从 QEMU/RTL 生成；`cp`+md5 还原；临时目录 `/tmp/opencode/m18-testcases-004/`。
+5. **已知待修**：`tools/testcases/generate_lit_vectors.py` 仍产旧 `escape` 语法（`m18-llvm-002` reviewer 发现）；`tests/arch/hart/cfx15.S`、`tests/ee-vast/*`、`tests/shared/asm/perm_hv.inc`、legacy 探针（`044t/045t/046t/integ040/044/048/049/050/051/async_094t`）仍是旧槽位/旧语法（`m18-qemu-008` 已登记）——本任务统一迁移到新布局，不得留着等别人。
 
 ## 待裁定
 
