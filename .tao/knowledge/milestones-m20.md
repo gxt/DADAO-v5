@@ -23,13 +23,13 @@
 | --- | --- | --- | --- |
 | m20-gem5-002 | 2–3 h | gem5 SE futex 三处细节对齐（ISS-345；无泄漏/EPERM/REQUEUE 返回值） |
 | m20-gem5-004 | 4–8 h | gem5 SE 输出差异定位与修复（ISS-362 + ISS-367；`neural`/`pcompress2`） |
-| m20-llvm-003 | 1–2 h | 允许 `.set` 定义的 Absolute 符号作指令立即数（ISS-430） |
-| m20-testcases-005 | 1–2 h | picolibc harness `.done` 复用键纳入输入指纹（ISS-504） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m20-llvm-003 | 2026-11-25 22:13 | 1–2 h | 允许 `.set` Absolute 符号作指令立即数（ISS-430） |
+| m20-testcases-005 | 2026-11-25 22:13 | 1–2 h | picolibc harness `.done` 复用键纳入输入指纹（ISS-504） |
 | m20-gem5-003 | 2026-11-25 17:03 | 4–8 h | gem5 SE 长尾挂死定位与修复（ISS-361；已恢复，按 m16-gem5-025 后 rebase） |
 
 ## 已验证
