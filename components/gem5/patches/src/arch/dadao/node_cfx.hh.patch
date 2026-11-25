@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..8ea7420
+index 0000000..50ff761
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,458 @@
+@@ -0,0 +1,469 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -339,6 +339,15 @@ index 0000000..8ea7420
 +
 +    NodeDmaState dma;
 +
++    /** cfx_pmem PM region descriptors (spec/DADAO-12 §4.9): cg12/13/14
++     *  rc0-63 start/size/attr, reset 0.  `pmemExist` is the read-only
++     *  `cg8 rc0` value: this test machine reports all 64 regions present
++     *  (the same convention as QEMU/RTL). */
++    uint64_t pmemExist = 0;
++    uint64_t pmemStart[64] = {};
++    uint64_t pmemSize[64] = {};
++    uint64_t pmemAttr[64] = {};
++
 +    /** cfx_cache (cfx5) controls; the L1 contents live in the classic caches. */
 +    NodeCacheState cache;
 +
@@ -360,7 +369,9 @@ index 0000000..8ea7420
 +    uint64_t asyncSrcFrame = 0;       /* cg9 rc3 (HW/RO)    */
 +    uint64_t asyncSrcPending = 0;     /* cg9 rc4 (HW/RO)    */
 +    uint64_t asyncExcpVector = 0;     /* cg9 rc5 (48 bits)  */
-+    uint64_t asyncSwitchRunMode = NodeSupv; /* cg9 rc6 (fixed 2) */
++    /* cg9 rc6 `async_switch_run_mode`: RW, reset 2 (supv); an async entry
++     * uses the current value (spec/DADAO-12 §4.7, m18-spec-006). */
++    uint64_t asyncSwitchRunMode = NodeSupv;
 +
 +    Event *dmaEvent = nullptr;
 +    Event *timerEvent = nullptr;

@@ -55,8 +55,10 @@ hypv 做 `cg5 rc1` 的 RW 回读（写哨兵、还原 cfxha，2 槽）。
 ## 未覆盖项（显式登记，见 `tests/arch/README.md`）
 
   * `cfx_power_ctrl` 的**写侧**（规范为 WO ⇒ 写 0 应被接受）：QEMU 已在
-    `m16-qemu-006` 实现（写被接受、读仍 `CFXREG`）；gem5/RTL 仍未实现 ⇒ 三方
-    未齐前不写进判据（不拿实现现状当期望），由 `--diagnose` 逐方报告并登记差异；
+    `m16-qemu-006`、gem5 已在 `m16-gem5-025` 实现（写被接受、读仍 `CFXREG`；
+    gem5 的 bit0/1/2 按 `§4.12` 结束仿真，复位约定为「结束 + harness 重启」）；
+    RTL 未实现 ⇒ 三方未齐前不写进判据（不拿实现现状当期望），由 `--diagnose`
+    逐方报告并登记差异；
   * `cfx_power` 的 `cg4 rc1`（`version`）是 HW 值，spec 不规定、测试机约定
     也不在合约里 ⇒ 不写进逐槽判据（`cg4` 的 `cfx_id` 与四个计数器、`cg6`
     的 rc0/rc1 RW 已纳入，见 `_config_slots`）；

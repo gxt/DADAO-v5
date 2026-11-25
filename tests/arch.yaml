@@ -414,8 +414,8 @@
 # （ENTRY 0x0010_0000），RTL 用 pmem_dma.lds。001 = hmon/hypv（55 槽：DMA/一致性/
 # 捕获/多源/覆盖/escape）；002 = 同一 DMA 完成投递在 smon/supv 与 umon/user（10 槽）。
 # 只碰三承载都实现的 cg15 + cfx_hart cg9 + monitor 掩码 + cfx_cache cg8；寄存器面
-# （cg8/12/13/14）留在 RTL 探针 `pmem.S`（`DIV-06`）。gem5 仍是 R2 前模型 ⇒
-# fail-closed（`DIV-17`），逐槽比较是 QEMU+RTL 两方。
+# （cg8/12/13/14）三承载已同口径（`m16-qemu-006`/`m16-gem5-025`/`m16-chipyard-022`），
+# 逐槽证据留在 RTL 探针 `pmem.S`（`DIV-06` 已删除）。
 - id: arch-pmem-001
   file: arch/pmem/check_pmem_dma.py
   kind: driver

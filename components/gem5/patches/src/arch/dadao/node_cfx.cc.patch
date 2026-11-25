@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..8398e3a
+index 0000000..0e4c185
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1565 @@
+@@ -0,0 +1,1608 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -25,6 +25,7 @@ index 0000000..8398e3a
 +#include "mem/request.hh"
 +#include "sim/cur_tick.hh"
 +#include "sim/eventq.hh"
++#include "sim/sim_exit.hh"
 +#include "sim/system.hh"
 +
 +namespace gem5
@@ -272,6 +273,14 @@ index 0000000..8398e3a
 +    }
 +
 +    s.dma = NodeDmaState();
++    // cfx_pmem register face (spec/DADAO-12 §4.9): 64 regions all present on
++    // the test machine; the descriptors reset to 0.
++    s.pmemExist = ~0ULL;
++    for (unsigned i = 0; i < 64; ++i) {
++        s.pmemStart[i] = 0;
++        s.pmemSize[i] = 0;
++        s.pmemAttr[i] = 0;
++    }
 +
 +    s.timeBaseTick = curTick();
 +    s.insnCount = 0;
@@ -279,7 +288,7 @@ index 0000000..8398e3a
 +    s.timerCtrl = 0;
 +
 +    // cfx_hart cg9 async capture buffer reset values (spec/DADAO-12 §4.7):
-+    // every slot 0 except the fixed supv switch value.
++    // every slot 0 except the `rc6` reset value (supv = 2).
 +    s.asyncPrevRunMode = 0;
 +    s.asyncPrevCfxCode = 0;
 +    s.asyncCauseIp = 0;
@@ -569,10 +578,20 @@ index 0000000..8398e3a
 +      case 8:
 +        if (cfxha < 4 && rc == 1)
 +            return &r.globalCfxIntrMask;
-+        return (cfxha == CfxhaPtw && rc == 8) ? &s.ptwEnable : nullptr;
++        if (cfxha == CfxhaPtw && rc == 8)
++            return &s.ptwEnable;
++        // cfx_pmem `cg8 rc0 pmem_exist` is RO (spec/DADAO-12 §4.9): a write
++        // has no register and takes the caller's CFXREG path.
++        if (cfxha == CfxhaPmem && rc == 0)
++            return write ? nullptr : &s.pmemExist;
++        return nullptr;
 +      case 9:
 +        return (cfxha == CfxhaPtw && rc == 0) ? &s.ptbr : nullptr;
 +      case 12:
++        // cfx_pmem `cg12 rc0-63 pmem_start` (RW, §4.9), before cfx_ptw's
++        // cg12 control/TLB rows.
++        if (cfxha == CfxhaPmem)
++            return rc < 64 ? &s.pmemStart[rc] : nullptr;
 +        if (cfxha != CfxhaPtw)
 +            return nullptr;
 +        switch (rc) {
@@ -582,6 +601,10 @@ index 0000000..8398e3a
 +          case 3: return &s.tlbSize;
 +          default: return nullptr;
 +        }
++      case 13:
++        return (cfxha == CfxhaPmem && rc < 64) ? &s.pmemSize[rc] : nullptr;
++      case 14:
++        return (cfxha == CfxhaPmem && rc < 64) ? &s.pmemAttr[rc] : nullptr;
 +      default:
 +        return nullptr;
 +    }
@@ -710,10 +733,9 @@ index 0000000..8398e3a
 + *  Seven slots; `rc7`-`rc15` are reserved and raise CFXREG (the caller does
 + *  that when this returns false).  `rc3`/`rc4` are HW/RO: a software write is
 + *  ignored, reads back the hardware value and raises nothing; `rc0`-`rc2`
-+ *  are HW/RW and `rc5`/`rc6` are software configuration.  Widths follow the
-+ *  spec row: 2-bit run mode, 6-bit cfxha, 48-bit 4-byte-aligned addresses,
-+ *  and `rc6` is the fixed supv switch value (writes are accepted but the
-+ *  register keeps 2 -- DADAO-12 §4.7 "固定 supv（2）"). */
++ *  and `rc5`/`rc6` are HW/RW.  Widths follow the spec row: 2-bit run mode,
++ *  6-bit cfxha, 48-bit 4-byte-aligned addresses; `rc6` is RW with reset 2
++ *  (supv) and an async entry takes its current value (§4.7, m18-spec-006). */
 +bool
 +hartAsyncRegRead(const NodeState &s, unsigned rc, uint64_t *val)
 +{
@@ -746,7 +768,9 @@ index 0000000..8398e3a
 +        s.asyncExcpVector = val & kAsyncIpMask & kAsyncIpAlign;
 +        return true;
 +      case 6:
-+        // Fixed supv (2): the write is accepted, the value does not change.
++        // RW, 2 bits (spec/DADAO-12 §4.7): the write lands and the async
++        // entry uses the current value; reset remains 2 (supv).
++        s.asyncSwitchRunMode = val & kAsyncModeMask;
 +        return true;
 +      default:
 +        return false;
@@ -1252,7 +1276,8 @@ index 0000000..8398e3a
 +        return false;
 +    s.cfx[hart].excpAsyncNum++;
 +
-+    // Entry: supv single vector, target cfx = cfx_hart, fixed supv mode.
++    // Entry: vector = cg9 rc5, target cfx = cfx_hart, run mode = cg9 rc6
++    // (RW, reset 2 = supv; the current value is used, spec/DADAO-12 §4.7).
 +    s.runMode = s.asyncSwitchRunMode & kAsyncModeMask;
 +    s.cfxCode = static_cast<uint8_t>(CfxhaHart);
 +    clearReservationOnEntry(tc);   // spec/SimRISC-12 §1; ISS-443
@@ -1528,6 +1553,24 @@ index 0000000..8398e3a
 +    }
 +    if (cg == 7) {
 +        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++        return true;
++    }
++    // cfx_power `cg8 rc1 power_ctrl` is WO (spec/DADAO-12 §4.12): bit0 =
++    // POWEROFF, bit1 = HARD_RESET, bit2 = SOFT_RESET; a write of 0 is
++    // accepted with no action, a read has no register (CFXREG below).
++    // The gem5 FS test machine has no reset/reboot facility: all three
++    // actions end the simulation with a named cause and exit code 0; a
++    // reset is "end + harness restarts" on this machine (documented in
++    // components/gem5/README.md).  fs.py recognises the DADAO_POWER_ prefix
++    // as a guest exit so the harness can tell it from a non-guest stop.
++    if (cg == 8 && cfxha == CfxhaPower && rc == 1) {
++        if (val & 0x1) {
++            exitSimLoopNow("DADAO_POWER_POWEROFF", 0);
++        } else if (val & 0x2) {
++            exitSimLoopNow("DADAO_POWER_HARD_RESET", 0);
++        } else if (val & 0x4) {
++            exitSimLoopNow("DADAO_POWER_SOFT_RESET", 0);
++        }
 +        return true;
 +    }
 +

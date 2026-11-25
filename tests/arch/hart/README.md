@@ -49,9 +49,8 @@ python3 tests/arch/run_arch.py --case arch-hart-002 --mode smon ...   # / umon �
 `cg8 rc1` 掩码、pending/一次捕获/每次进入覆盖）。**`cg9 rc6` 按
 `m18-spec-006` 判**（RW、复位 2、异步进入取该值）：001 写 rc6=0/1/3 读回同值，
 并在 supv 下以 rc6=0 / 2 连续投递，用下一次进入的 `prev_run_mode` 证明进入
-模式（0 ⇒ user、2 ⇒ supv）。QEMU 已由 `m16-qemu-007` 对齐；RTL 对齐由
-`m16-chipyard-028`、gem5 由 `m16-gem5-025`，在此之前这两方在本组槽上红
-（`DIV-18` 收窄为这两方 + 用例断言已落地）。
+模式（0 ⇒ user、2 ⇒ supv）。QEMU 已由 `m16-qemu-007` 对齐，RTL 由
+`m16-chipyard-028`、gem5 由 `m16-gem5-025` 对齐（`DIV-18` 已删除）。
 
 ## 运行期证据
 

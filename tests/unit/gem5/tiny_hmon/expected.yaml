@@ -74,7 +74,7 @@ records:
   - {kind: check, id: 5, expect: 3}                       # hmon excp_prev_run_mode
   - {kind: check, id: 6, expect: 1}                       # hmon trap_num
   - {kind: check, id: 7, expect: 0x1122334455667788}      # scratch round trip
-  - {kind: check, id: 8, expect: 0x0F0F}                  # cfx_intr_mask RW
+  - {kind: check, id: 8, expect: 0x0F0F}                  # cg8 rc1 async intr mask RW
   - {kind: check, id: 9, expect: 0x3}                     # hmon cg7 desc: exists|SRAM
   - {kind: check, id: 10, expect: hmon_base - (3 << 42)}  # hmon cg7 start
   - {kind: check, id: 11, expect: 0x1_0000}               # hmon cg7 size

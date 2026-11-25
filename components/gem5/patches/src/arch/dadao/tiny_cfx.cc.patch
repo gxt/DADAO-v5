@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/tiny_cfx.cc b/src/arch/dadao/tiny_cfx.cc
 new file mode 100644
-index 0000000..63daaf1
+index 0000000..71881fb
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.cc
-@@ -0,0 +1,521 @@
+@@ -0,0 +1,499 @@
 +// DADAO Tiny machine model: cfx_power (cfx63) + cfx3 hmon.
 +#include "arch/dadao/tiny_cfx.hh"
 +
@@ -63,24 +63,15 @@ index 0000000..63daaf1
 +    return off < size && len <= size - off;
 +}
 +
-+int
-+monitorIndex(uint8_t runMode)
-+{
-+    // Tiny is always hypv; its monitor is cfx3 (spec/Kaiwu §2/§4.4).
-+    (void)runMode;
-+    return tinyCfxIndex(TinyCfxhaHmon);
-+}
-+
 +uint64_t *
 +modeReg(TinyCfxMode *m, int cg, int rc)
 +{
-+    if (rc >= 0 && rc <= 4) {
++    if (rc >= 0 && rc <= 3) {
 +        switch (rc) {
 +          case 0: return &m->cfxtrap;
 +          case 1: return &m->cfxmem;
 +          case 2: return &m->cfxreg;
-+          case 3: return &m->cfxexe;
-+          default: return &m->cfxIntrMask;
++          default: return &m->cfxexe;
 +        }
 +    }
 +    if (rc == 8)
@@ -195,7 +186,9 @@ index 0000000..63daaf1
 +    else
 +        s.cfx[ci].excpSyncNum++;
 +
-+    // Step 5: save the frame and, for a trap, the monitor's global mask.
++    // Step 5: save the frame.  No interrupt-source mask is saved: the async
++    // source mask is policy, not exception state (spec/DADAO-12 §5.2 step 4,
++    // §5.3 step 3); QEMU/RTL/Vast do not move `cg8 rc1` either.
 +    // `prevCfxCode` is sampled before step 6 rewrites `cfxCode`
 +    // (DADAO-12 §5.2 step 5/6).
 +    s.cfx[ci].prevRunMode = entryMode;
@@ -203,15 +196,6 @@ index 0000000..63daaf1
 +    s.cfx[ci].causeIp = causeIp;
 +    s.cfx[ci].causeId = cause;
 +    s.cfx[ci].causeInfo = causeInfo;
-+    if (cause == TinyCauseCfxTrap) {
-+        const int mon = monitorIndex(entryMode);
-+        s.cfx[ci].savedIntrMonitor = static_cast<uint64_t>(mon);
-+        s.cfx[ci].savedIntrValid = true;
-+        if (mon >= 0) {
-+            s.cfx[ci].savedGlobalIntrMask = s.cfx[mon].globalCfxIntrMask;
-+            s.cfx[mon].globalCfxIntrMask = ~0ULL;
-+        }
-+    }
 +
 +    // Step 6: the run mode is fixed at hypv on the Tiny profile -- the machine
 +    // provides no mode-switch path (spec/Kaiwu §2), so a guest-written
@@ -273,7 +257,6 @@ index 0000000..63daaf1
 +            mr.cfxmem = maskInit;
 +            mr.cfxreg = maskInit;
 +            mr.cfxexe = maskInit;
-+            mr.cfxIntrMask = ~0ULL;
 +            mr.switchRunMode = 3;  // hypv (DADAO-13 §1 cg3)
 +            // Platform-defined vector初值 (DADAO-13 §1): the hmon handler is
 +            // installed at the hmon SRAM base; the power reset vector is the
@@ -416,16 +399,9 @@ index 0000000..63daaf1
 +        return true;
 +    }
 +
-+    // Step 1: restore the monitor global mask saved by `trap` (a plain
-+    // synchronous fault saved nothing; spec/DADAO-12 §5.3).
-+    if (s.cfx[ci].savedIntrValid) {
-+        const int mon = static_cast<int>(s.cfx[ci].savedIntrMonitor);
-+        if (mon >= 0 && mon < 2)
-+            s.cfx[mon].globalCfxIntrMask = s.cfx[ci].savedGlobalIntrMask;
-+        s.cfx[ci].savedIntrValid = false;
-+    }
-+    // Step 2: restore the previous run mode and current cfx (spec/DADAO-12
++    // Step 1: restore the previous run mode and current cfx (spec/DADAO-12
 +    // §5.3 step 2); without the cfx restore a nested frame could not escape.
++    // No interrupt-source mask is restored (§5.3 step 3).
 +    s.runMode = s.cfx[ci].prevRunMode & 0x3;
 +    s.cfxCode = static_cast<uint8_t>(s.cfx[ci].prevCfxCode & 0x3F);
 +    // Step 3/4: count the escape and return to cause_ip + offset.
@@ -461,7 +437,9 @@ index 0000000..63daaf1
 +        out = cg7Value(s, ci, rc & 0x3F);
 +        return true;
 +    }
-+    if (cg > 7) {
++    if (cg > 8) {
++        // cg8 carries the monitor async-intr-mask row (and, for other cfx,
++        // no row: regPtr returns nullptr); cg9+ do not exist on Tiny.
 +        tinyCfxRaise(tc, s, TinyCauseCfxReg, -1, pc, info);
 +        return false;
 +    }

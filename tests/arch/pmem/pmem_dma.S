@@ -23,10 +23,10 @@
 @@   * H/S/U 三模式各跑一次（`--defsym TMODE=3/2/0`），各写**自己** monitor 的
 @@     掩码行；投递目标都是 `cfx_hart` 的 supv 单向量。
 @@
-@@ 为什么不含 cfx_pmem 的 cg8/cg12/13/14 寄存器面：gem5 只实现 cg15
-@@ （`ISS-533`、`DIV-06`；QEMU 已在 `m16-qemu-006` 补齐寄存器面），
-@@ 寄存器面留在 RTL 探针 `pmem.S`；本文件只碰三承载
-@@ 都实现的 cg15 + `cfx_hart cg9` + monitor 掩码 + `cfx_cache cg8`，故可逐槽比较。
+@@ 为什么不含 cfx_pmem 的 cg8/cg12/13/14 寄存器面：这些槽是三承载都已实现
+@@ 的寄存器面（QEMU `m16-qemu-006`、gem5 `m16-gem5-025`、RTL
+@@ `m16-chipyard-022`），但另由 RTL 探针 `pmem.S` 逐槽覆盖；本文件只碰
+@@ cg15 + `cfx_hart cg9` + monitor 掩码 + `cfx_cache cg8`，故可逐槽比较。
 @@
 @@ 期望值见 `pmem_oracle.py`（现场从 `spec/DADAO-12 §1/§4.6/§4.9/§5.1/§5.4`、
 @@ `spec/Kaiwu §1.1/§3`、`.tao/adr/adr-0061-*.md`、`contract-see` §3/§6.1 与

@@ -535,7 +535,15 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   （`contract-cache` CACHE-03/04）；复位 mask 按 ADR-0045 D4 **只允许 hmon**，
   smon/umon 使用须由固件打开对应 mode 行 + `cg3 rc12` 委托。保留 cfxha ⇒
   `ILLI`；CFXPERM/CFXREG 均进当前模式 monitor（DADAO-12 §5.2，与 QEMU-083t
-  一致）。smon（cfx2）SRAM/寄存器保留。
+  一致）。smon（cfx2）SRAM/寄存器保留。`cfx_power cg8 rc1`（power ctrl，WO）
+  按 `§4.12` 落副作用：bit0/1/2 ⇒ `exitSimLoopNow` 结束仿真（cause
+  `DADAO_POWER_{POWEROFF,HARD_RESET,SOFT_RESET}`、退出码 0），写 0 无动作，
+  读 ⇒ `CFXREG`（`m16-gem5-025`）；gem5 FS 无重启设施，复位约定为「结束 +
+  harness 重启」。
+- **cfx_pmem（cfx32）寄存器面（`m16-gem5-025`）**：`cg8 rc0 pmem_exist`
+  （RO，本测试机约定 64 个 PM 区域全存在 ⇒ 全 1）、`cg12/13/14 rc0–63`
+  （start/size/attr，RW，复位 0）；其余 rc（含 `cg8` 其它 rc、`cg12/13/14` 的
+  rc≥64）⇒ `CFXREG`。与 QEMU（`m16-qemu-006`）/RTL（`m16-chipyard-022`）同口径。
 - **cfx_pmem DMA**：cg15 rc0–rc4（`src`/`dst`/`size`/`ctrl`/`status`），
   DIR 0=CFX→PA / 1=PA→CFX，BUSY 期间写被忽略、DONE/ERROR W1C；
   ERR_CODE 一组一热 `status[15:3]`（SIZE/CFX_RANGE/PA_RANGE/PA_FAULT）；
@@ -550,7 +558,8 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   （复位全 1），pending = `cfx_hart cg9 rc4`；每个指令边界把
   `pending & ~mask` **一次性**并入一次捕获（`cg9 rc3` 并集、`rc4` 扣除、
   `excp_async_num` 每次进入 +1），**每次进入整体覆盖** `cg9`（无
-  `frame_valid`、无帧门控）；入口 = `cg9 rc5` 的 supv 单向量（`rc6` 固定 2），
+  `frame_valid`、无帧门控）；入口 = `cg9 rc5` 的 supv 单向量（`rc6` RW、复位 2
+  = supv，异步进入取该寄存器当前值），
   `cause_ip` = 已提交指令之后的 `rb0`；`escape imms18 = 2` ⇒ 当前 cfx 的
   `CFXESC`（`cg9` 不是返回帧）。
 - **CLI**：`--profile {tiny,vast}`（默认 tiny）、`--kernel`（Vast 可选）、
@@ -606,7 +615,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），
   清单见 `series`；规范 `docs/Process-01-组件补丁组织与构建编排.md`。
-- 规模（2026-11-04 现场统计，`series` 行数 = 磁盘补丁数）：**97 份**；
+- 规模（2026-11-25 现场统计，`series` 行数 = 磁盘补丁数）：**106 份**；
   相对 GEM5-015t 后新增 8（Node 的 `node_{cfx,tlb,mmu}` + 3 个 Python
   子类/别名），修改 `configs/dadao/fs.py`、`DadaoFsWorkload.py`、`SConscript`、
   `fs_machine.{hh,cc}`、`fs_workload.{hh,cc}`、`inst.cc`、`isa.{hh,cc}`。

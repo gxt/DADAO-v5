@@ -1,9 +1,9 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..aec1bdd
+index 0000000..b29b090
 --- /dev/null
 +++ b/configs/dadao/fs.py
-@@ -0,0 +1,548 @@
+@@ -0,0 +1,550 @@
 +#!/usr/bin/env python3
 +# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Vast).
 +#
@@ -63,6 +63,7 @@ index 0000000..aec1bdd
 +
 +LAST_THREAD_CAUSE = "exiting with last active thread context"
 +FAULT_PREFIX = "DADAO_FS_FAULT_"
++POWER_PREFIX = "DADAO_POWER_"
 +SEMI_PREFIX = "semi:"
 +NON_GUEST_EXIT = 125
 +CPU_TYPES = ("atomic", "timing")
@@ -539,7 +540,8 @@ index 0000000..aec1bdd
 +
 +    guest_exit = (cause == LAST_THREAD_CAUSE or
 +                  cause.startswith(SEMI_PREFIX) or
-+                  cause.startswith(FAULT_PREFIX))
++                  cause.startswith(FAULT_PREFIX) or
++                  cause.startswith(POWER_PREFIX))
 +    if not guest_exit:
 +        # A non-guest stop (max ticks, panic, ...) must never be mistaken for
 +        # the guest's own status.
