@@ -9,7 +9,7 @@ QEMU/gem5 期望在 `expected.yaml`），以及 cfx4 的 RTL 承载（`m16-chipy
 |------|------|
 | `ptw_carrier_tlb.py` / `check_tlb.py` | QEMU/gem5 的载体与驱动入口（`kind: driver`，`--only <case>`） |
 | `expected.yaml` | 15 条 case 的期望清单（大类/子原因/`cause_info` 语义/已接线签名槽/来源 §） |
-| `ptw_sig.S` + `ptw_sig.lds` + `gen_ptw_sig_tables.py` | **RTL 承载**：同一组 case id/期望；`--defsym PTW_CASE=1..12` 选场景 |
+| `ptw_sig.S` + `ptw_sig.lds` + `gen_ptw_sig_tables.py` | **RTL 承载**：同一组 case id/期望；`--defsym PTW_CASE=1..13` 选场景 |
 | `check_ptw_rtl.py` + `rtl-coverage.yaml` | RTL 驱动与 15 条 case 的覆盖清单（`signature`/`guest`/`partial`/`gap`） |
 | `ptw_regs.S` / `check_ptw_regs.py` | cfx4 寄存器面 + 地址路由（`m16-chipyard-006`；由原 `tools/chipyard/ptw/` 迁入） |
 | `ptw_walk.S` + `gen_ptw_walk_tables.py` / `check_ptw_walk.py` | 两级步查 + A/D + 故障（`m16-chipyard-007`；由原 `tools/chipyard/ptw/` 迁入） |
@@ -49,6 +49,15 @@ guest 内断言（非零退出 = 该镜像内第 N 条断言失败）。
 RTL 的 `cfx_pmem` SRAM 窗口后，`ptw_sig.S` 加 `PTW_CASE=13`（页表整表清零仍能
 写/读 cfx_pmem SRAM；保留 cfx 的普通 ld ⇒ `CFXMEM`，`cause_info` = 访问地址），
 签名流 3 槽 `[写后回读, cause_id, cause_info]`，与 QEMU/gem5 同一组值。
+
+**RTL 扁平 cause 回归（`m16-testcases-022`）**：`m17-chipyard-001` 把 RTL 的
+`excp_cause_id` 对齐 ADR-0062 扁平位图（PTW 权限/缺失只置高位位图、低位 cause=0；
+`CFXMEM`/`CFXPERM` 置位时 `[63:32]` 全 0）后，RTL 承载的 15 条 case 全部转绿：
+`009/011/013` 由 known-red 变 `PASS`（rc=0），`002/006/007` 不回归（`007` 的
+DIV-14 两槽仍按登记值 0/0 判），`014/015` 仍是 `gap`（rc=77）。
+`arch-ptw-013` 的签名槽 0（cfx_pmem 写后回读）原先在 `SIGUPD` 前被
+`INVAL_ALL` 覆写的 `rd6`（`CTL_INVALID_ALL`）覆盖，记成命令字而非回读值；本任务
+把 `SIGUPD` 移到回读断言之后（槽序不变），与 `expected.yaml` 的 M1 逐字节一致。
 
 ## H/S/U（J 不测；`m16-testcases-019`）
 

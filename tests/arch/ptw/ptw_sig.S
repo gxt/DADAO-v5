@@ -460,12 +460,13 @@ c11d_ok:
 	STV	rd5, PMEM_SRAM
 	LDV	rd6, PMEM_SRAM
 	__VERIFY_RD	2, rd6, M1
+	@@ 先记录回读值（槽 0 = M1）；`INVAL_ALL` 会覆写 rd6（`CTL_INVALID_ALL`）
+	SIGUPD	rd6
 
 	@@ 还原恒等表：签名区/后续访存都靠它
 	set.rd	rd6, PT_L1
 	cfx2rc	cfx_ptw, cg9, rc0, rd6
 	INVAL_ALL
-	SIGUPD	rd6
 
 	@@ 保留 cfx 的普通 ld ⇒ CFXMEM（低位 cause 1<<1），cause_info = 访问地址
 	ARM_FAULT	c13_ok

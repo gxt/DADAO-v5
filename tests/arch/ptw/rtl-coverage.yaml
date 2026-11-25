@@ -60,12 +60,12 @@ cases:
   arch-ptw-009:
     status: guest
     rtl_case: 9
-    note: "ptw_enable=0 ⇒ 只置 CFXMEM（无高位位图）+ cause_info=VA；TLB 旁路"
+    note: "ptw_enable=0 ⇒ 只置 CFXMEM（低位 1<<1，高位位图全 0）+ cause_info=VA；TLB 旁路"
 
   arch-ptw-010:
     status: guest
     rtl_case: 10
-    note: "页表未映射 ⇒ CFXMEM + DGPTRAP（数据）/ IGPTRAP（取指）"
+    note: "页表未映射 ⇒ 只置 DGPTRAP（数据）/ IGPTRAP（取指），CFXMEM=0（ADR-0062 扁平位图）"
 
   arch-ptw-011:
     status: guest

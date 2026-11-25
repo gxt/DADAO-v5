@@ -48,6 +48,11 @@
 > 009 rc=47、011 rc=54，同因）。修复/回归由 **`m16-testcases-022`** 在
 > **`m17-chipyard-001`（RTL 对齐扁平位图）** 合入后进行；本任务**不主张**该项
 > 已在 RTL 上通过。
+>
+> **已闭合（`m16-testcases-022`，2026-11-25）**：`m17-chipyard-001` 合入并重建后，
+> RTL 承载的 `arch-ptw-009/011/013` 均 `rc=0`（`013` 三槽
+> `0x1122334455667788 / 0x2 / 0x180000000040`）；上文「已知红 / EXPECTED-RED」
+> 只是当时的登记，本行起该项不再计为 known-red。
 
 **测试结果**：QEMU+gem5 全绿：`run_arch --cfx 4 --platforms qemu,gem5 --mode {hmon,smon,umon}` 各 15/15，逐 case QEMU==gem5 签名流逐字节相同（三模式各 30 次比对）；`arch-ptw-013` 的三槽 = `0x1122334455667788 / 0x2 / 0x180000000040`（与 `expected.yaml`、RTL 生成器一致）。`arch-ptw-011` 各模式检查数 hmon=5 / smon=7 / umon=7（S/U 轴）。静态：`check_tlb --selfcheck`、`gen_ptw_sig_tables --selfcheck`（4 签名 case / 13 槽）、`check_ptw_rtl --selfcheck`（signature=4、guest=9、gap=2）全 PASS。**RTL 侧 known-red（裁定 B / `ISS-m16-006`）**：RTL 的 cause 仍是 ADR-0056 口径，`m16-testcases-022` 在 `m17-chipyard-001` 后修复/回归，见遗留 1。
 **修改文件**：`tests/arch/ptw/{ptw_carrier_tlb.py,check_tlb.py,expected.yaml,gen_ptw_sig_tables.py,ptw_sig.S,rtl-coverage.yaml,README.md}`、`tests/arch/modes.yaml`、`tests/arch/README.md`、`tests/arch/PLAN.md`、`tests/arch/vast-arch-inventory.md`、`tests/arch/common/{env-umon/env.S,env/cfx_perm.inc,env-README.md,env-MIGRATION.md}`、`tools/testcases/arch/node_probe_prelude.py`；证据脚本与日志放运行期证据目录（`run.sh` / `logs/`，不入库）。
