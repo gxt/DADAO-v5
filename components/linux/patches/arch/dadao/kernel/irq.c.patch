@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/irq.c b/arch/dadao/kernel/irq.c
 new file mode 100644
-index 000000000..2f0403d30
+index 000000000..673ffb0e2
 --- /dev/null
 +++ b/arch/dadao/kernel/irq.c
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,155 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO async vector installation and the per-mode source masks
@@ -41,9 +41,22 @@ index 000000000..2f0403d30
 +#define CFX_MON_CG_ASYNC_MASK		8
 +#define CFX_MON_RC_ASYNC_MASK		1
 +
++/*
++ * The supv row (`cg2`) of a monitor (spec/DADAO-12 §3.3): the four source
++ * masks and the trap target it supplies.  `cfx_jmon`'s row carries the kernel's
++ * asynchronous kernel-context return (kernel/async_trap.S).
++ */
++#define CFX_MON_CG_SUPV			2
++#define CFX_MON_RC_TRAP_MASK		0
++#define CFX_MON_RC_REG_MASK		2
++#define CFX_MON_RC_SWITCH_MODE		8
++#define CFX_MON_RC_EXCP_VECTOR		10
++
 +/* Boot verdicts, guest segment of spec/Kaiwu §7.1 (time.c continues). */
 +#define K2_FAIL_ASYNC_VECTOR		0x11
 +#define K2_FAIL_ASYNC_MODE		0x12
++#define K2_FAIL_RESUME_VECTOR		0x16
++#define K2_FAIL_RESUME_MODE		0x17
 +
 +static unsigned long smon_mask(void)
 +{
@@ -80,6 +93,46 @@ index 000000000..2f0403d30
 +	if (mode != DADAO_MODE_SUPV)
 +		dadao_k2_fail(K2_FAIL_ASYNC_MODE,
 +			      "cfx_hart async switch_run_mode");
++
++	/*
++	 * ---- 1b. the kernel-context return, before anything is deliverable --
++	 *
++	 * A delivery taken in kernel mode resumes through `cfx_jmon`
++	 * (kernel/async_trap.S): the asynchronous entry leaves the hardware's
++	 * current cfx at `cfx_hart` and only a synchronous `escape` can put the
++	 * interrupted one back, so the stub needs a `cg5` frame of its own.  The
++	 * kernel does not implement jail mode, so `cfx_jmon`'s supv row is free
++	 * for that use — but it must be installed *before* the source masks
++	 * below are opened, or a delivery would jump to vector 0.
++	 */
++	vec = (unsigned long)dadao_async_kernel_resume;
++	DADAO_CFX_WRITE(cfx_jmon, CFX_MON_CG_SUPV, CFX_MON_RC_SWITCH_MODE,
++			DADAO_MODE_SUPV);
++	DADAO_CFX_WRITE(cfx_jmon, CFX_MON_CG_SUPV, CFX_MON_RC_EXCP_VECTOR, vec);
++	vread = DADAO_CFX_READ(cfx_jmon, CFX_MON_CG_SUPV, CFX_MON_RC_EXCP_VECTOR);
++	mode = DADAO_CFX_READ(cfx_jmon, CFX_MON_CG_SUPV,
++			      CFX_MON_RC_SWITCH_MODE) & 0x3;
++	dadao_early_printf("K2 irq: resume cfx_jmon_supv_excp_vector=%#lx "
++			   "want=%#lx mode=%lu\n", vread, vec, mode);
++	if (vread != vec)
++		dadao_k2_fail(K2_FAIL_RESUME_VECTOR,
++			      "cfx_jmon supv vector read-back");
++	if (mode != DADAO_MODE_SUPV)
++		dadao_k2_fail(K2_FAIL_RESUME_MODE,
++			      "cfx_jmon supv switch_run_mode");
++
++	/*
++	 * The two source bits that path needs, still before the masks open:
++	 * `trap cfx_jmon` is a control transfer from the asynchronous entry
++	 * (source cfxha 15), and the trampoline re-opens `cfx_smon cg8 rc1`
++	 * while `cfx_jmon` is current, so that row must allow source 1.
++	 */
++	DADAO_CFX_WRITE(cfx_jmon, CFX_MON_CG_SUPV, CFX_MON_RC_TRAP_MASK,
++			DADAO_CFX_READ(cfx_jmon, CFX_MON_CG_SUPV,
++				       CFX_MON_RC_TRAP_MASK) & ~(1UL << 15));
++	DADAO_CFX_WRITE(cfx_smon, CFX_MON_CG_SUPV, CFX_MON_RC_REG_MASK,
++			DADAO_CFX_READ(cfx_smon, CFX_MON_CG_SUPV,
++				       CFX_MON_RC_REG_MASK) & ~(1UL << DADAO_CFX_JMON));
 +
 +	/*
 +	 * ---- 2. the two source masks ---------------------------------------

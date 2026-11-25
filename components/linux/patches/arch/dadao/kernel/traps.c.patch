@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..dfa89682b
+index 000000000..1246746e8
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,786 @@
+@@ -0,0 +1,753 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -447,39 +447,6 @@ index 000000000..dfa89682b
 +	 */
 +	dadao_in_frame = 0;
 +	return DADAO_TRAP_RESUME_SKIP;
-+}
-+
-+/*
-+ * The smon half of ADR-0061 R2's kernel-context asynchronous handoff.
-+ *
-+ * Called from the supv stub *before* its register capture (kernel/trap.S): the
-+ * asynchronous entry switched the hardware's current cfx to `cfx_hart`, and
-+ * there is no asynchronous `escape` to put it back (§5.4).  Left there, the
-+ * next `escape cfx_<interrupted>` — every umon/smon stub ends that way — fails
-+ * its "cfxha == inner_cfx_code" check and raises `CFXESC` (§5.3 step 0) into
-+ * `cfx_hart`'s vector, which is 0: a fetch at address 0 on the interrupted
-+ * stack.
-+ *
-+ * `cg5`'s `excp_prev_run_mode`/`excp_prev_cfx_code`/`excp_cause_ip` are
-+ * software-writable (§3.6), so writing the captured values makes the stub's
-+ * `escape` restore the interrupted mode and cfx code before it lands on
-+ * `dadao_async_kernel_return` (kernel/async_trap.S).  The stub keeps its static
-+ * frame and mask untouched on purpose: this exception is normally nested inside
-+ * an active supv exception (`dadao_trap_busy`), whose `escape` still needs
-+ * them — and the delivery's own register file is the asynchronous capture.
-+ */
-+void dadao_async_kernel_handoff(void)
-+{
-+	extern unsigned long dadao_async_prev_mode;
-+	extern unsigned long dadao_async_prev_cfx;
-+	extern void dadao_async_kernel_return(void);
-+
-+	DADAO_CFX_WRITE(cfx_smon, SMON_CG_FRAME, SMON_RC_FRAME_PREV_MODE,
-+			READ_ONCE(dadao_async_prev_mode));
-+	DADAO_CFX_WRITE(cfx_smon, SMON_CG_FRAME, SMON_RC_FRAME_PREV_CFX,
-+			READ_ONCE(dadao_async_prev_cfx));
-+	DADAO_CFX_WRITE(cfx_smon, SMON_CG_FRAME, SMON_RC_FRAME_CAUSE_IP,
-+			(unsigned long)dadao_async_kernel_return);
 +}
 +
 +static unsigned long dadao_trap_dispatch(struct pt_regs *regs,

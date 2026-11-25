@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
 new file mode 100644
-index 000000000..ea47d8531
+index 000000000..5aa6f3cac
 --- /dev/null
 +++ b/arch/dadao/kernel/trap.S
-@@ -0,0 +1,1771 @@
+@@ -0,0 +1,1741 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception vector (K2).
@@ -91,44 +91,14 @@ index 000000000..ea47d8531
 +dadao_supv_excp:
 +	/*
 +	 * Stage the three bootstrap registers first (the same parking
-+	 * `DADAO_GPR_SAVE` does), so the selector check below can use rd2/rd3
-+	 * without losing the interrupted file.
++	 * `DADAO_GPR_SAVE` does), so the capture below can use rd2/rd3 without
++	 * losing the interrupted file.
 +	 */
 +	cfx2rc	cfx_smon, cg6, rc0, rd2		/* scratch[0] = interrupted rd2 */
 +	cfx2rc	cfx_smon, cg6, rc1, rd3		/* scratch[1] = interrupted rd3 */
 +	rb2rd	rd2, rb3, 1			/* rd2 = interrupted rbtp */
 +	cfx2rc	cfx_smon, cg6, rc2, rd2		/* scratch[2] = interrupted rb3 */
 +
-+	/*
-+	 * ADR-0061 R2 kernel-context asynchronous handoff: a delivery taken in
-+	 * kernel mode comes back through this vector so the interrupted run mode
-+	 * and current cfx can be rebuilt (there is no asynchronous `escape`).  It
-+	 * is handled *before* the register capture, and without touching this
-+	 * stub's frame or mask: the delivery normally lands inside an active
-+	 * supv exception, whose `dadao_excp_save`/`dadao_supv_saved_mask` must
-+	 * survive.  The register file is in the asynchronous capture
-+	 * (kernel/async_trap.S) and the trampoline restores it from there.
-+	 */
-+	cfx2rc	cfx_smon, cg6, rc3, rd4		/* scratch[3] = interrupted rd4 */
-+	cfx2rd	cfx_smon, cg5, rc2, rd2		/* excp_cause_id */
-+	cfx2rd	cfx_smon, cg5, rc4, rd3		/* excp_cause_info */
-+	set.rd	rd4, DADAO_CAUSE_CFXTRAP
-+	br.ne	{rd2, rd4}?, [rb0, .Lsupv_not_handoff]
-+	set.rd	rd4, 0x3ffff
-+	and.o	rd3, rd3, rd4
-+	set.rd	rd4, DADAO_SMON_FROM_ASYNC_KERNEL
-+	br.ne	{rd3, rd4}?, [rb0, .Lsupv_not_handoff]
-+	set.rb	rb5, dadao_async_kernel_handoff
-+	call	[rb5, rd0, 0]
-+	escape	cfx_smon, [excp_cause_ip, 0]
-+	jump	[rb0, .Lstuck]
-+
-+.Lsupv_not_handoff:
-+	/* The interrupted rd4 must be in the frame: it was borrowed for the
-+	 * selector compare only (the capture below starts from rd4). */
-+	cfx2rd	cfx_smon, cg6, rc3, rd4
-+
-+.Lsupv_capture:
 +	/* 1.-3. Capture the register file (asm/entry.h, cfx_smon's scratch). */
 +	DADAO_GPR_SAVE_STAGED cfx_smon, dadao_excp_save
 +	set.rb	rb4, dadao_supv_saved_mask
