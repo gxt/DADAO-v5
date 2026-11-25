@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """归档期从分册后的 `issues-*.yaml` 抽取某里程碑的 `closed` 项。
 
+拆册后的口径（用户 2026-11-25）：里程碑收尾时**先** `--write`/`--check` 生成并
+核对快照，**再**把这些 `closed` 项从活台账删除（`issues-left` 只留未解决项）。
+删除后 `--check` 不再适用（活台账已无该集），改用 `--verify` 对快照做离线自检
+（行数 / ID 唯一 / 计数行一致）。
+
 判据（单一）：`status: closed` **且** `closed_in == <里程碑>`。
 不再按 `resolved_by` 的任务提交日反推 —— 任务号后缀、跨里程碑提交、文本型
 `resolved_by`（如「用户裁定」）都会让反推失准。
@@ -17,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 
 import yaml
@@ -61,7 +67,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(add_help=True)
     ap.add_argument("--milestone", required=True, help="里程碑编号，如 M13")
     ap.add_argument("--write", metavar="PATH", help="写入归档册")
-    ap.add_argument("--check", metavar="PATH", help="校验归档册与现场集一致")
+    ap.add_argument("--check", metavar="PATH",
+                    help="收尾时一次性核对：归档册须与活台账的 closed 集逐字节一致"
+                         "（拆册后条目会在收尾时从活台账删除，故本开关不再适用于已清理的里程碑）")
+    ap.add_argument("--verify", metavar="PATH",
+                    help="离线自检归档册本身（行数/ID 唯一/计数行一致）；活台账已清理时用它")
     args = ap.parse_args()
 
     rows = load(args.milestone)
@@ -83,6 +93,29 @@ def main() -> int:
             print(f"archive_issues: FAIL — {args.check} != 现场集 ({len(rows)} rows)", file=sys.stderr)
             return 1
         print(f"archive_issues: PASS ({len(rows)} rows, closed_in == {args.milestone})")
+        return 0
+
+    if args.verify:
+        if not os.path.isfile(args.verify):
+            print(f"archive_issues: FAIL — {args.verify} not found", file=sys.stderr)
+            return 1
+        with open(args.verify, "r", encoding="utf-8") as f:
+            body = f.read()
+        ids = re.findall(r"^\|\s*(ISS-[^\s|]+)\s*\|", body, re.M)
+        problems = []
+        if len(ids) != len(set(ids)):
+            dup = sorted({i for i in ids if ids.count(i) > 1})
+            problems.append(f"duplicate ids: {dup}")
+        m = re.search(r"\*\*计数\*\*：\*\*(\d+) 条\*\*", body)
+        if not m:
+            problems.append("缺少「**计数**：**N 条**」行")
+        elif int(m.group(1)) != len(ids):
+            problems.append(f"计数行 {m.group(1)} != 实际行 {len(ids)}")
+        if problems:
+            for e in problems:
+                print(f"archive_issues: FAIL — {args.verify}: {e}", file=sys.stderr)
+            return 1
+        print(f"archive_issues: PASS verify ({len(ids)} rows, ids unique, 计数一致)")
         return 0
 
     print(text)

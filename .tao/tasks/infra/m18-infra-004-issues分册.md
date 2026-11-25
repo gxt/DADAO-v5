@@ -6,7 +6,7 @@
 **可并行分片**：否（`issues*` 为全仓共享文件，单写者）
 **预估**：2–3 h
 **档位**：中改（复核 ≤40 min）
-**状态**：待开始
+**状态**：待验收
 
 ## 背景（用户 2026-11-25 裁定）
 
@@ -37,3 +37,13 @@
 ## 约束
 
 不提交 git（由主会话合并）；只改 `.tao/knowledge/issues*`、`tools/infra/{check_issues,archive_issues,issues_store}.py`、`tools/spec/check_scope.py`、上述文档与本任务书；**不改任何 issue 的编号、状态、字段内容**；不动 `.tao/archive/**`；术语「寄存器组」；完成区不写具体 `.work/**` 路径。
+
+## 完成区（2026-11-25，第一轮落地 + 用户追加 1–3）
+
+1. **拆分**：`issues.yaml`（193 条）→ `issues-{left,m16,m17,m18,m19}.yaml`（107/44/18/20/4），多重集逐条比对与拆分前**完全相等**；原文件删除。
+2. **ID 口径**：存量旧号**冻结**（用户裁定，不重编）；新增用 `ISS-<file>-NNN`；`check_issues` 增「ID 形状 / 新增重复必败 / 文件与 milestone 一致」三条断言，6 对存量重复登记在 `KNOWN_LEGACY_DUPLICATES`（新增重复即失败，去重后必须删登记，否则判陈旧）。
+3. **用户追加 1–3（收尾清理）**：`issues-left` 中 M12–M15 的 **55 条 closed 全部核对在对应 `archive/M*/issues-closed.md` 后删除**（M12 27 / M13 17 / M14 10 / M15 1，missing=0）；`issues-left` 现只剩 **52 条 open**；`issues-m16/m17/m18` 的 closed 保留到各自收尾。
+4. **`archive_issues.py`**：新增 `--verify PATH`（离线自检：行数 / ID 唯一 / 计数行一致）；`--check` 明确为「删除前一次性核对」；M12–M15 `--verify` 全 PASS（27/17/10/1）。
+5. **文档**：`Process-04 §4` 增加「先 check 后删除、再用 verify」的清理顺序；`MEMORY.md` 的「活台账保留全部条目供 --check」改为「收尾后不保留已归档 closed」。
+6. **门控**：`check_issues` 101 open / 38 closed（139 条 5 册）rc=0；`check-knowledge-refs`、`check-milestones-fresh`、`check-manifests-guard` 全 PASS。
+7. **遗留**：`ISS-476`（M17 册里 `closed_in: M15`）为账目错位——未在本次清理内处理（它不在 left），处置口径待 M17 会话/用户裁定。

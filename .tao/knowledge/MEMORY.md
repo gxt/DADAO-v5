@@ -117,5 +117,5 @@
 
 - 任务台账：`.tao/knowledge/milestones-m16.md`（M16）等活册（三分表：待开始 / 进行中 / 已验证；按任务书 `**项目里程碑**` 分派）；**M12–M15 台账已合并进 `.tao/archive/M12/`、`M13/`、`M14/`、`M15/`（M15：2026-11-22，`m15-integ-001`）并删除**，M11 及以前同。
 - M10 完成任务书与 issue 快照：`.tao/archive/M10/`。
-- 已归档 issue：`.tao/archive/M*/issues-closed.md`（按 `closed_in` 取集）；活 `issues-*.yaml` 保留全部条目（关闭项留作溯源，`archive_issues.py --check` 依此复核快照）。
+- 已归档 issue：`.tao/archive/M*/issues-closed.md`（按 `closed_in` 取集）；**收尾后活台账不再保留已归档的 `closed` 项**（用户 2026-11-25）：`--check` 在删除前一次性核对、`--verify` 在删除后自检快照；`issues-left` 只放未解决项。
 - 一次性过程与长日志：运行期日志目录（可删、未归档）；临时产物：`/tmp/opencode/<任务ID>/`。
