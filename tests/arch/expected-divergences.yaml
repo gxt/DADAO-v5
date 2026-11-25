@@ -37,11 +37,12 @@ divergences:
   - id: DIV-04
     kind: temporary
     scope: [qemu, gem5, chipyard]
-    impact: "ADWBFAIL（CFXMEM [56]）不做三方用例；保留 RTL 的 CASE_ADWB 手工证据。"
-    reason: "正常路径不可达（PA RAM 全可写），三平台都只能注入；QEMU/gem5 无测试专用注入钩子（ISS-515）。"
-    user_ruling: "2026-11-22"
-    status: active
-    close_when: "用户决定给 QEMU/gem5 加测试专用注入并立任务"
+    impact: "ADWBFAIL（CFXMEM [56]）不做用例（用户 2026-11-25 裁定）：三平台都不构造 A/D 回写失败，`arch-ptw-007` 只保留成功的 flush 回写+删除。"
+    reason: "用户裁定：页表必须放在内存里（PTE 一律用内存的物理地址，不得放 BootROM/只读镜像），且不构建 ADWBFAIL 的测试用例。RTL 的 `ptw_walk`（`CASE_ADWB`）/`ptw_tlb`（`CASE_OR`）注入镜像仅为实现层内部证据，不构成用例覆盖。"
+    user_ruling: "2026-11-25"
+    status: wont-fix
+    closed_in: M16
+    close_when: "不适用：用户 2026-11-25 裁定 ADWBFAIL 不做用例，本条目直接关闭"
 
   - id: DIV-05
     kind: temporary
@@ -69,24 +70,6 @@ divergences:
     user_ruling: "2026-11-22（任务书：020 仅补 cfx0/2 路由）；2026-11-25 收窄（cfx5 随 m16-chipyard-027 落地）"
     status: active
     close_when: "cfx3/cfx4（及 Tiny 的 cfx63）的 `<mode>` 行落地"
-
-  - id: DIV-14
-    kind: temporary
-    scope: [chipyard]
-    impact: "`arch-ptw-007` 的 `flush_adwbfail` 后半（槽 2/3：`cause_info` = ROM 叶 PTE PA、两次 flush 的失败次数）在 RTL 上观测不到：RTL 的 PA RAM 全可写，运行期构造不出 A/D 回写失败 ⇒ 该镜像记录 `(0, 0)`（未发生异常 / 未失败），前两槽（`flush_ok`）仍按规范值逐槽判。"
-    reason: "QEMU/gem5 的页表放在只读 BootROM 镜像里，`flush` 的 A/D 回写失败可自然构造（`spec/DADAO-12 §4.5`）；RTL 的测试体经 `+loadmem` 装入 PA RAM，BootROM 只作固定启动固件（`m16-chipyard-025` 起为 4 MiB），探针无法把叶 PTE 放进只读页。RTL 的回写失败路径仍由 `ptw_tlb.S` 的 `CASE_OR` 实现层注入覆盖（`m16-chipyard-008`），不在运行期判据内。"
-    user_ruling: "待用户裁定（2026-11-23 实测登记；与 DIV-04 同源）"
-    status: active
-    close_when: "RTL 提供可放置只读叶 PTE 的承载（测试页表进 BootROM），或给 PTW 加测试专用回写失败注入；届时按 QEMU 的 CFXMEM[56]/2 次判并删除本条"
-    slots:
-      - case: arch-ptw-007
-        slot: 2
-        label: flush_adwbfail_cause_info
-        chipyard: 0
-      - case: arch-ptw-007
-        slot: 3
-        label: flush_adwbfail_count
-        chipyard: 0
 
   - id: DIV-15
     kind: permanent

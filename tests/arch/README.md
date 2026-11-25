@@ -57,7 +57,7 @@ python3 tests/arch/run_arch.py --list
 | `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`（含逐槽差异登记读取）；`platform.py` 的 qemu/gem5（driver 经 shim）/chipyard（RTL 承载 = 目录内 `check_<cfx>_rtl.py`；已接 cfx4 / cfx34 / cfx5 / cfx15 / cfx32，其余 cfx fail-closed）后端 |
 | `common/env-{hmon,smon,umon}/` | — | **运行模式环境**（每个模式一个目录，`env.S`；共享 `common/env.lds`）：进入模式、栈、异常向量、退出与签名区；body 与模式解耦（`m16-testcases-015`，见 `common/env-README.md` / `common/env-MIGRATION.md`） |
 | `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.S`，10 条）+ `expected.yaml`；代表迁移用例 `umon_mode_regs.body.S` + 驱动 `common/check_mode_env.py`（`arch-umon-011`，三模式）；**fence 基础验证** `umon_fence.py`（载体）/ `check_fence.py`（驱动，`arch-umon-012` 放行面三模式、`arch-umon-013` 保留面 hmon）+ `gen_fence_rtl.py` / `check_fence_rtl.py`（按需 RTL 承载，`fence_rtl.lds`）；**cfx0+cfx2 寄存器面 RTL 探针** `cfx02_regs.S` + `check_cfx02_regs.py`（`m16-chipyard-019`，47 条记录）；**U/S/H 模式进入路由 RTL 探针** `mode_entry.S` + `check_mode_entry.py`（`m16-chipyard-020`，同一份 case 链接 TMODE=0/2/3，14/21/14 槽）；cfx0/cfx2 两个 RTL 探针暂未登记 `tests/arch.yaml`——chipyard 后端目前只接 cfx4（`check_ptw_rtl.py`），且 hmon 模式环境只在 QEMU/gem5 载体上可用 |
-| `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针：载体/生成器 `ptw_carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §；`checks_by_mode` 承载 011 的 S/U 轴）、驱动型入口 `check_tlb.py`（`kind: driver`）；**H/S/U 三模式**（`m16-testcases-019`：镜像 = 载体固件段 + 共享 `common/env-<mode>` + body，`cfx_access: [umon, smon, ptw, pmem, power]`），QEMU 与 gem5（shim）逐条跑。**RTL 承载**（`m16-chipyard-018`）：`ptw_sig.S` + `gen_ptw_sig_tables.py` + `check_ptw_rtl.py`（cfx4 的 15 条映射见 `rtl-coverage.yaml`；013 于 `m16-testcases-019` 提升为 signature）；`ptw_regs.S`/`ptw_walk.S`/`ptw_tlb.S`（及各自 `check_ptw_*.py`/`gen_ptw_*_tables.py`）由 `tools/chipyard/{ptw,tlb}/` 迁入，是 RTL 的额外检查点 |
+| `ptw/` | `cfx4`（TLB/PTW） | 14 条 TLB/PTW 探针：载体/生成器 `ptw_carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §；`checks_by_mode` 承载 011 的 S/U 轴）、驱动型入口 `check_tlb.py`（`kind: driver`）；**H/S/U 三模式**（`m16-testcases-019`：镜像 = 载体固件段 + 共享 `common/env-<mode>` + body，`cfx_access: [umon, smon, ptw, pmem, power]`），QEMU 与 gem5（shim）逐条跑。**RTL 承载**（`m16-chipyard-018`）：`ptw_sig.S` + `gen_ptw_sig_tables.py` + `check_ptw_rtl.py`（cfx4 的 14 条映射见 `rtl-coverage.yaml`；013 于 `m16-testcases-019` 提升为 signature）；`ptw_regs.S`/`ptw_walk.S`/`ptw_tlb.S`（及各自 `check_ptw_*.py`/`gen_ptw_*_tables.py`）由 `tools/chipyard/{ptw,tlb}/` 迁入，是 RTL 的额外检查点 |
 | `cache/` | `cfx5`（cache） | **三方用例**（`m16-testcases-009`，`arch-cache-001` 于 `m16-testcases-020` 补 I+D 同选 21 槽）：`arch-cache-001/002/003` 由 `check_cache.py`（QEMU/gem5，env 三模式）与 `check_cache_rtl.py`（RTL，`cache_rtl.S`）跑同一槽序；`arch-cache-004` 是 `cache-model=off` 分支（QEMU/gem5；RTL 记 `rtl-coverage.yaml` 的 gap）。唯一期望源 `cache_oracle.py` + `expected.yaml`。另有 RTL 专项探针 `cfx5_regs.S`/`check_cfx5_regs.py`（`m16-chipyard-016`）与 `cfx5_maint.S`/`gen_cfx5_maint_tables.py`/`check_cfx5_maint.py`（`m16-chipyard-017`，缓存日志时序），不登记进索引 |
 | `hart/` | `cfx15`（cfx_hart） | cg8 管理寄存器 + cg9 七槽捕获缓冲（R2：每次进入整体覆盖）+ 源位图/掩码/TIMER 投递 + jump 目标精确点；`arch-hart-001`（hmon，89 槽；含 `cg9 rc6` 写 0/1/3 读回与异步进入取 rc6）/ `arch-hart-002`（smon/umon，40 槽），同一份 `cfx15.S`；QEMU + gem5 + RTL 三方逐槽（归一化签名，gem5 的 R2 异步面由 `m16-gem5-026` 补齐）；驱动 `check_hart.py` / `check_hart_rtl.py`（`m16-testcases-013`） |
 | `power/` | `cfx63`（power） | 寄存器面（`cg7` BootROM 块）+ power→hmon 移交：`arch-power-001`（hmon/smon/umon 各一次，35 槽）+ `arch-power-002`（属性拒绝面，只 hmon，3 槽）；载体/驱动 `power_vast.py` / `check_power.py`，RTL 承载 `gen_power_rtl.py` / `check_power_rtl.py`（`power_rtl.lds`） |
@@ -114,15 +114,15 @@ RTL（chipyard `WumingVastConfig`）接入 `m16-testcases-010` 的同一组 case
 期望：`run_arch.py --cfx 4 --platforms qemu,gem5,chipyard` 逐槽比较，三方
 （QEMU / gem5 / RTL）一致才算通过。映射与缺口在 `ptw/rtl-coverage.yaml`
 （`signature` / `guest` / `partial` / `gap` 四类，`gap` 必须写原因与
-`close_when`；`check_ptw_rtl.py --selfcheck` 与 `tests/arch.yaml` 的 15 条
+`close_when`；`check_ptw_rtl.py --selfcheck` 与 `tests/arch.yaml` 的 14 条
 双向核对，`gap` 不会被当成 PASS）。
 
 | 面 | 载体 | 说明 |
 |----|------|------|
-| 签名（002/006/007/013） | `ptw/ptw_sig.S` + `gen_ptw_sig_tables.py` | 与 QEMU 载体同一组数据地址/PTE 值 ⇒ 逐字节相同（`007` 的回写失败两槽按 DIV-14 登记；`013` 的 cfx_pmem 旁路 3 槽） |
+| 签名（002/006/007/013） | `ptw/ptw_sig.S` + `gen_ptw_sig_tables.py` | 与 QEMU 载体同一组数据地址/PTE 值 ⇒ 逐字节相同（`007` 的 flush 回写+删除 2 槽；`013` 的 cfx_pmem 旁路 3 槽；ADWBFAIL 不做用例，`DIV-04`） |
 | guest（001/003/004/005/008/009/010/011/012） | 同上（`PTW_CASE=1..13`） | guest 内断言（非零退出 = 该影像第 N 条断言失败）；签名流 0 槽 |
 | 额外检查点 | `ptw/ptw_regs.S`、`ptw/ptw_walk.S`、`ptw/ptw_tlb.S` | 由 `tools/chipyard/{ptw,tlb}/` 迁入（`m16-chipyard-018`）；寄存器面/两级走查/I-D TLB 的独立判据与自检保留。`ptw_walk` 31 槽、`ptw_tlb` 54 槽（loadmem 约 13 min）；`ptw_regs` 保持既有 TL `A' channel re-used a source ID` 断言（KNOWN-RED，非本任务引入） |
-| 缺口（014/015） | — | 014：A/D 回写失败（RTL 的 PA RAM 全可写，DIV-04/DIV-14）；015：ILLI 的 `cause_info`（需只读内存窗口页）。013 已由 `m16-chipyard-022` 的 SRAM 窗口 + `m16-testcases-019` 的 `PTW_CASE=13` 提升为 signature |
+| 缺口（015） | — | 015：ILLI 的 `cause_info`（需只读内存窗口页）。013 已由 `m16-chipyard-022` 的 SRAM 窗口 + `m16-testcases-019` 的 `PTW_CASE=13` 提升为 signature；014（ADWBFAIL「条目级遇错即停」）与 007 的 `flush_adwbfail` 子项按用户 2026-11-25 裁定删除（15→14 case，`DIV-04`） |
 
 - 判据来源：几何/PTE/数据 magic 与 QEMU 载体同一组值；cause 编码现场从
   `contract-see §6.1/§6.1.1` 解析并与 `spec/DADAO-12 §3.6` 互校；
@@ -141,7 +141,8 @@ RTL（chipyard `WumingVastConfig`）接入 `m16-testcases-010` 的同一组 case
   只跑 hmon 一次。
 - **RTL 差异**：`expected-divergences.yaml` 的 `slots`（scope 含 chipyard、
   `close_when` 必填）；QEMU/gem5 侧仍按规范值判，RTL 侧按登记值判；例外被修好
-  时 RTL 承载判红，提示删除条目（DIV-14）。
+  时 RTL 承载判红，提示删除条目。当前 cfx4 **无**逐槽例外（`DIV-14` 已随
+  ADWBFAIL 用例删除一并删除）。
 - **不回归**：Tiny 无 PTW，本任务不触碰 Tiny 路径；RTL 的既有探针（cfx0/2、
   cfx5、cfx15、power）不在本任务的判据内。
 
@@ -267,13 +268,13 @@ make check-arch         # L3：与 check-arch-smoke 同一套检查（用户 202
 
 - 代表集条数由 `tests/arch.yaml` 的 `level: smoke` **现场派生**，不写死；代表集为空 /
   `run_arch.py` 或索引缺失 / 任一 case 失败 ⇒ 非零（fail-closed，不得 `|| true`）。
-- cfx4 PTW/TLB carrier（`ARCH_PTW_CARRIER = tests/arch/ptw/ptw_carrier_tlb.py`，15 条）
+- cfx4 PTW/TLB carrier（`ARCH_PTW_CARRIER = tests/arch/ptw/ptw_carrier_tlb.py`，14 条）
   **并入 `check-arch-smoke`**；`check-arch` 只依赖 smoke + echo，两目标同跑。
 - 旧 `ARCH_CFX_PROBES`（010 后 14 项、无 `tlb`）**不再被 `check-arch` 调用**；
   文件与变量保留，**待 cfx4 迁移任务处理**（`m16-testcases-007`）。
 - 25 服务覆盖（`min_rom_probe_046t`）仍是 `check-arch-smoke` 的一部分。
 - full 集（`run_arch.py --level full` 的 `arch-ptw-*` 跨平台逐槽比对）**不进** L2/L3，
-  按需/里程碑收口跑 `run_arch.py`；L2/L3 的 ptw 面由 carrier 的 15 条 QEMU 探针承担。
+  按需/里程碑收口跑 `run_arch.py`；L2/L3 的 ptw 面由 carrier 的 14 条 QEMU 探针承担。
 
 ## Tiny hmon 已迁出
 

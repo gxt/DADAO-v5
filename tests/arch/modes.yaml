@@ -89,8 +89,9 @@ cases:
 
   # cfx4（TLB/PTW，`m16-testcases-019`）：H/S/U 各跑一次。镜像 = 载体的
   # 固件段（power→hmon→PTW on）+ **共享** `common/env-<mode>` + 本 case 的
-  # body；body 留在载体自己的 ROM 里（007/014 的判据要只读页表、015 要只读内存
-  # 窗口，step5 固件的 ROM 内容固定，构造不出这些向量 —— 实测）。
+  # body；body 留在载体自己的 ROM 里（015 要只读内存窗口，step5 固件的 ROM
+  # 内容固定，构造不出该向量 —— 实测）。`arch-ptw-014` 与 007 的 ADWBFAIL
+  # 子项已删除（用户 2026-11-25：页表必须放内存、不构建 ADWBFAIL 用例，`DIV-04`）。
   # cfx_access：body 访问 cfx_ptw（PTBR/ptw_enable/TLB 命令）、cfx_pmem
   # （013 的 SRAM 旁路窗口）、cfx_power（ROM 取指与 015 的 ROM store）；
   # smon/umon 下处理程序在**当前模式监视器**名下运行，还要写它的异常向量并读
@@ -144,10 +145,6 @@ cases:
     cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-013:
-    modes: [hmon, smon, umon]
-    cfx_access: [umon, smon, ptw, pmem, power]
-
-  arch-ptw-014:
     modes: [hmon, smon, umon]
     cfx_access: [umon, smon, ptw, pmem, power]
 

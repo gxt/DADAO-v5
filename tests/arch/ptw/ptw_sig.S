@@ -1,6 +1,6 @@
 @@ ptw_sig.S — cfx4 的 RTL 签名承载（`m16-chipyard-018`）
 @@
-@@ 目的：把 `m16-testcases-010` 的 15 条 `arch-ptw-*` 中的 cfx4 语义搬到
+@@ 目的：把 `m16-testcases-010` 的 14 条 `arch-ptw-*` 中的 cfx4 语义搬到
 @@ `WumingVastConfig` 上跑，并与 QEMU/gem5 的**同一组**数据地址/PTE 值对齐
 @@ ⇒ 已接线签名流（`arch-ptw-002/006/007`）可以逐字节比较。
 @@
@@ -22,7 +22,9 @@
 @@   DA/DB/DC/DD = 0x6000_0000/0x6100_0000/0x6200_0000/0x6300_0000
 @@   数据由探针在运行期经 VA = PA + 2 TiB 写入（超页 L1[0x1003]）。
 @@
-@@ 用例选择：`llvm-mc --defsym PTW_CASE=<n>`（1..13）。
+@@ 用例选择：`llvm-mc --defsym PTW_CASE=<n>`（1..13，编号 = case 号 001–013）。
+@@ 014 已删（ADWBFAIL，用户 2026-11-25 裁定）；015 是登记 gap、无 RTL 镜像，
+@@ 故编号无空洞，也不为 015 保留号位。
 @@ 只有 002/006/007/013 写签名流（与 QEMU/gem5 逐槽比较）；其余 case 由
 @@ guest 内断言判（`SYS_EXIT(点号)` ⇒ 红），签名流为 0 槽（与 QEMU 的空流一致）。
 @@
@@ -283,8 +285,8 @@ c4b_ok:
 	__EXIT	0
 
 .elseif PTW_CASE == 7
-	@@ ---- 007：flush 回写 A/D 并删除；回写失败（RTL 不可构造）----
-	SIG_BEGIN	TEST_BUF, 4
+	@@ ---- 007：flush 回写 A/D 并删除（ADWBFAIL 不做用例，DIV-04）----
+	SIG_BEGIN	TEST_BUF, 2
 	LDV	rd5, 0
 	__VERIFY_RD	36, rd5, M1
 	set.rd	rd5, M3
@@ -298,19 +300,7 @@ c4b_ok:
 	LDV	rd6, 0
 	__VERIFY_RD	38, rd6, M2
 	SIGUPD	rd6
-	@@ 回写失败面：RTL 的 PA RAM 全可写 ⇒ 两次 flush 都成功；
-	@@ 槽 2/3 记 (cause_info, cause_id) = (0, 0)（未发生异常），
-	@@ 由 `expected-divergences.yaml` 的 DIV-14 登记（QEMU/gem5 为
-	@@ ROM 页表的 CFXMEM[56] + 2 次失败）。
-	ARM_FAULT	c7_ok
-	TLB_CTL	CTL_INVALID_ALL
-	TLB_CTL	CTL_INVALID_ALL
-c7_ok:
-	READ_INFO	rd7
-	SIGUPD	rd7
-	READ_CAUSE	rd7
-	SIGUPD	rd7
-	SIG_DUMP	TEST_BUF, 4
+	SIG_DUMP	TEST_BUF, 2
 	__EXIT	0
 
 .elseif PTW_CASE == 8

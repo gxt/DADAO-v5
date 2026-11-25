@@ -1,7 +1,7 @@
 # tests/arch/ptw/rtl-coverage.yaml — cfx4 的 RTL（chipyard `WumingVastConfig`）
 # 覆盖清单（`m16-chipyard-018`）
 #
-# 目的：把 `m16-testcases-010` 的 15 条 `arch-ptw-*` 与 RTL 承载**机械**对起来，
+# 目的：把 `m16-testcases-010` 的 14 条 `arch-ptw-*` 与 RTL 承载**机械**对起来，
 # 让「没跑」不能冒充「通过」。每条的 `status`：
 #
 #   signature  RTL 产出与 QEMU/gem5 同一组签名槽（逐槽比较；登记差异见
@@ -12,7 +12,7 @@
 #              不当作通过；必须写 `reason` 与 `close_when`
 #
 # `rtl_case` = `ptw_sig.S` 的 `--defsym PTW_CASE=<n>`。清单与
-# `tests/arch.yaml`（cfx4 的 15 条）**双向**核对（`check_ptw_rtl.py --selfcheck`）；
+# `tests/arch.yaml`（cfx4 的 14 条）**双向**核对（`check_ptw_rtl.py --selfcheck`）；
 # `signature` 集必须等于 `expected.yaml` 里带 `signature:` 的 case 集。
 schema: 1
 
@@ -50,7 +50,7 @@ cases:
   arch-ptw-007:
     status: signature
     rtl_case: 7
-    note: "flush 回写 A/D 并删除；回写失败面在 RTL 运行期不可构造（DIV-14）"
+    note: "flush 回写 A/D 并删除（2 槽与 QEMU/gem5 逐字节相同）；ADWBFAIL 不做用例（用户 2026-11-25 裁定，DIV-04）"
 
   arch-ptw-008:
     status: guest
@@ -81,11 +81,6 @@ cases:
     status: signature
     rtl_case: 13
     note: "cfx 空间旁路：PTE 全零时 cfx_pmem SRAM 写/读回 + 保留 cfx ⇒ CFXMEM（3 槽与 QEMU/gem5 相同；`m16-chipyard-022` 补齐 SRAM 窗口后由 `m16-testcases-019` 从 gap 提升）"
-
-  arch-ptw-014:
-    status: gap
-    reason: "A/D 回写失败的「条目级 + 遇错即停」需要运行期构造回写失败；RTL 的 PA RAM 全可写（同一原因见 DIV-04/DIV-14），构造不出只读叶 PTE。"
-    close_when: "RTL 提供只读叶 PTE 承载或测试专用回写失败注入；届时把三条目/停止点场景加入 `ptw_sig.S`"
 
   arch-ptw-015:
     status: gap

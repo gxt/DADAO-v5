@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """`tests/arch/ptw/check_tlb.py` — arch ptw 的 scope 内驱动入口（kind: driver）。
 
-判据与载体都在本目录：`ptw_carrier_tlb.py`（`m14-testcases-005` 的 15 条
+判据与载体都在本目录：`ptw_carrier_tlb.py`（`m14-testcases-005` 的 14 条
 `arch-ptw-*`、contract-tlb §11；`m16-testcases-010` 由
 `tools/testcases/arch/min_rom_probe_tlb.py` 迁入）。本文件只把
 「用例 id → `--only`」、引擎路径、运行期工作目录与签名流产物路径接到

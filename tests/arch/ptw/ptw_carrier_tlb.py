@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""arch-ptw-001…015 — TLB / page-table-walk probes (`contract-tlb §11`, K3).
+"""arch-ptw-001…013 / 015 — TLB / page-table-walk probes (`contract-tlb §11`, K3).
 
 本文件是 `tests/arch/ptw/` 的**载体/生成器**（`m16-testcases-010` 由
-`tools/testcases/arch/min_rom_probe_tlb.py` 迁入）：一个驱动、15 个 case、
+`tools/testcases/arch/min_rom_probe_tlb.py` 迁入）：一个驱动、14 个 case、
 每个检查一个 BootROM 镜像。期望清单在 `tests/arch/ptw/expected.yaml`；
 `check_tlb.py` 是 `run_arch.py` 的驱动入口（`kind: driver`）。
 
@@ -52,8 +52,7 @@ Case ↔ contract (`.tao/contracts/contract-tlb.md §11`):
   `CFXREG`, `scope=11` ⇒ `CFXREG`, `scope=all` ignores start/size
   (TLB-22/23/24) — 005 `ASID_ANY`/`G` (TLB-05/25/26) — 006 `clean` writes A/D
   back and keeps the entry vs `invalid` not writing back (TLB-17) — 007
-  `flush` writes back + deletes, and the write-back failure path (`CFXMEM` +
-  `[56] ADWBFAIL`, `cause_info` = PTE PA, entry kept; TLB-16/17/37) — 008
+  `flush` writes back A/D and deletes the entry (TLB-17/15) — 008
   PTBR/ASID/`ptw_enable` writes do not invalidate (TLB-29) — 009
   `ptw_enable = 0` ⇒ `CFXMEM` (no bitmap bit), TLB bypassed, no entry
   (TLB-41/43) — 010 unmapped page ⇒ `[52] DGPTRAP` (data) / `[48] IGPTRAP`
@@ -63,22 +62,19 @@ Case ↔ contract (`.tao/contracts/contract-tlb.md §11`):
   an explicit invalidate
   (TLB-07/18) — 013 `VA[47:42] != 0` bypasses PTW/TLB: `cfx_pmem` SRAM with
   an all-zero page table, reserved cfx ⇒ `CFXMEM` alone with PTW on *and* off
-  (TLB-40) — 014 a write-back failure is entry-granular and stops
-  the command: the entries before it are processed, the failing one keeps its
-  state, the rest are untouched (TLB-37) — 015 `ILLI` at an IP inside the
+  (TLB-40) — 015 `ILLI` at an IP inside the
   memory window: `cause_info` = the instruction word read back through the
   guest TLB page base (`ADR-0004 D5.6` ROM store, `contract-see §6.1`).
 
-A/D write-back failure (007's second half) needs **no implementation-side
-injection** here: PTBR points at a page table inside the read-only BootROM, so
-the walk reads the leaf PTE but the atomic OR write-back cannot complete —
-exactly the `spec/DADAO-12 §4.5` "read succeeds, write fails" case (task book
-「载体提示」).  Moving that PTE into writable RAM makes the fault disappear,
-which is one of the injected counter-examples used to prove the assertion is
-reachable.
+Page tables are always placed **in memory** (user ruling 2026-11-25): PTBR
+points at a writable RAM table and every PTE address is a memory physical
+address.  A page table inside the read-only BootROM is not a legal carrier, so
+the A/D write-back failure (`CFXMEM` sub-cause `[56] ADWBFAIL`) is **not**
+exercised by any case here: `arch-ptw-007` covers only the successful `flush`
+(write-back + delete), and `DIV-04` records why no ADWBFAIL case is built.
 
 Usage:
-  ptw_carrier_tlb.py                 # all 15 cases, all checks
+  ptw_carrier_tlb.py                 # all 14 cases, all checks
   ptw_carrier_tlb.py --only arch-ptw-005
   ptw_carrier_tlb.py --list
   ptw_carrier_tlb.py --selfcheck     # contract tables + expected.yaml
@@ -277,10 +273,11 @@ HAND_OFF = 0x2000                # handler slot, body-relative
 # 负责「固件段（power→hmon→PTW on）+ 本 case 的 body」。
 #
 # 为什么 body 仍在 ROM 而不在 RAM（与 cache/time/hart/pmem 的 asm body 不同）：
-# 本载体的 15 条检查里，007/014 的判据是**只读页表**（A/D 回写失败，`TLB-37`）、
-# 015 的判据是**只读内存窗口**的 `ILLI`，都需要一份由载体自己生成、运行期只读的
-# ROM 内容；step5 固件的 ROM 内容固定，构造不出这些向量（`m16-testcases-019`
-# 实测）。故本载体的 4 MiB 镜像同时承担「固件 + env + body」，ROM 仍是只读面。
+# 本载体的 14 条检查里，015 的判据是**只读内存窗口**的 `ILLI`，需要一份由载体
+# 自己生成、运行期只读的 ROM 内容；step5 固件的 ROM 内容固定，构造不出该向量
+# （`m16-testcases-019` 实测）。故本载体的 4 MiB 镜像同时承担「固件 + env + body」，
+# ROM 仍是只读面。**页表一律放在内存里**（用户 2026-11-25 裁定）：`arch-ptw-007`
+# 的 ADWBFAIL 子项与 `arch-ptw-014` 已删（`DIV-04`），载体不再有只读页表面。
 # ---------------------------------------------------------------------------
 MODES = ("hmon", "smon", "umon")
 MODE = "hmon"                    # 由 `--mode` 设定（`main()`）
@@ -317,7 +314,7 @@ ENV_OFF = ENV_BASE - P.RESET_PC          # 预置段 `jump` 的目标（相对 R
 # A guest FAIL code is the assertion's ordinal **inside its own image**
 # (`0x01`–`0x7F`): every check is a separate boot-ROM image and the driver
 # decodes the code against the check it just ran, so the ordinal is unambiguous
-# and 15 cases × up to 9 assertions no longer has to fit in one flat scheme
+# and 14 cases × up to 9 assertions no longer has to fit in one flat scheme
 # (that needed 135 > 0x7F, overlapping the machine-fault exit encodings).
 MAX_FAIL_CODE = 0x7F
 
@@ -402,8 +399,6 @@ class Check:
         self._n = 0
         self.handlers = None
         self.words_at = None
-        self.image_at = None     # ROM image offsets (read-only page tables)
-        self.rom_at = None       # 复位窗口尾部等 prelude 之外的 ROM 偏移
         self.hmon_extra = None   # words run inside the prelude hmon segment
         self.expect = None       # (low cause name or None, bitmap bit name or None)
         self.sig_want = []       # 签名流期望（每个 `sig_obs` 一项；空 = 不接线）
@@ -549,8 +544,7 @@ def build_image(chk, tools, work):
     """Full 4 MiB boot ROM: prelude + shared env + this check's body."""
     blob = chk.body()
     sections = assemble_env(MODE, tools, work, len(chk.sig_want))
-    rom = bytearray(P.build_rom([], image_at=chk.image_at,
-                                hmon_extra=chk.hmon_extra, entry=ENV_OFF))
+    rom = bytearray(P.build_rom([], hmon_extra=chk.hmon_extra, entry=ENV_OFF))
     env_off = ENV_BASE - P.BOOTROM_BASE
     body_off = env_off + ENV_BODY_OFF
     spans = [("body", body_off, body_off + len(blob))]
@@ -562,19 +556,6 @@ def build_image(chk, tools, work):
     rom[body_off:body_off + len(blob)] = blob
     prelude = (P.RESET_PC - P.BOOTROM_BASE,
                P.RESET_PC - P.BOOTROM_BASE + P.BODY_OFF)
-    for label, start, end in spans + [("prelude",) + prelude]:
-        for off in sorted(chk.image_at or {}):
-            span = len(P.words_to_bytes((chk.image_at or {})[off]))
-            if start < off + span and off < end:
-                raise SetupError("%s 段与 image_at 0x%x 重叠" % (label, off))
-    for off in sorted(chk.rom_at or {}):
-        words = P.words_to_bytes(chk.rom_at[off])
-        if off + len(words) > P.BOOTROM_SIZE:
-            raise SetupError("rom_at 0x%x 越过 ROM 末尾" % off)
-        for label, start, end in spans + [("prelude",) + prelude]:
-            if start < off + len(words) and off < end:
-                raise SetupError("rom_at 0x%x 与 %s 段重叠" % (off, label))
-        rom[off:off + len(words)] = words
     return bytes(rom)
 
 
@@ -1145,9 +1126,9 @@ def _c006(no, cid):
     return [_finish(c)]
 
 
-# -- 007: flush writes back + deletes; a failed write-back keeps it --------
-@case(7, "arch-ptw-007", "tlb_flush_adwb_fail",
-      "flush: A/D back + delete; ROM-resident PTE: CFXMEM[56] and the entry stays")
+# -- 007: flush writes back + deletes --------------------------------------
+@case(7, "arch-ptw-007", "tlb_flush_ad",
+      "flush: A/D back + delete (ADWBFAIL is not exercised: DIV-04)")
 def _c007(no, cid):
     out = []
 
@@ -1173,43 +1154,7 @@ def _c007(no, cid):
     assert_no_new_fault(c)
     set_handler(c, unexpected_fault(c))
     out.append(_finish(c))
-
-    # (b) write-back failure: the leaf PTE lives in the read-only BootROM
-    c = _new(no, cid, "flush_adwbfail", "ROM page table: CFXMEM + [56] ADWBFAIL")
-    sig_begin(c)
-    c.rom_at = {_ROM_PTE_IMAGE_OFF: list(_ROM_PTE_WORDS)}
-    set_handler(c, fault_handler(c, None, "ADWBFAIL", info=_ROM_PTE_PA))
-    # PA 0x40 要经 512 MiB 恒等超页写；user 模式下该超页必须也允许 U
-    # （HSJU=H|S|U，`DADAO-12 §2.2.5`），否则写侧先吃 `[32] NUPERM`。
-    st64(c, PT_L1 + 0 * 8, pte_super(0))
-    tlb_cmd(c, OP_INVALID, SCOPE_ALL, asid_any=True)
-    st64(c, 0x40, M1)                          # PA 0x40 (identity table)
-    tlb_cmd(c, OP_INVALID, SCOPE_ALL, asid_any=True)
-    set_ptbr(c, P.RESET_PC)                    # the ROM-resident page table
-    ld_va(c, _ROM_VA, rd=5)
-    a_eq(c, c.s, 5, M1, "the ROM leaf PTE is readable (fill worked)")
-    arm_fault(c)
-    tlb_cmd(c, OP_FLUSH, SCOPE_ALL, asid_any=True)   # write-back must fail
-    tlb_cmd(c, OP_FLUSH, SCOPE_ALL, asid_any=True)   # still present & dirty
-    a_fault_count(c, 2)
-    tlb_cmd(c, OP_INVALID, SCOPE_ALL, asid_any=True)  # needs no write-back
-    ld_va(c, _ROM_VA, rd=6)
-    a_eq(c, c.s, 6, M1, "after the failed flush the page is still reachable")
-    set_ptw(c, True)
-    set_ptbr(c, P.PT_PA)
-    tlb_cmd(c, OP_INVALID, SCOPE_ALL, asid_any=True)
-    sig_obs(c, RD_INFO, _ROM_PTE_PA)        # cause_info = ROM 里的叶 PTE 物理地址
-    sig_obs(c, RD_FAULTS, 2)                # 两次 flush 都失败（条目未删）
-    out.append(_finish(c))
     return out
-
-
-_ROM_L1_IDX = 0x1FFF
-_ROM_VA = (_ROM_L1_IDX << 29) | 0x40
-_ROM_PTE_PA = P.RESET_PC + _ROM_L1_IDX * 8
-_ROM_PTE_IMAGE_OFF = P.RESET_PC - P.BOOTROM_BASE + _ROM_L1_IDX * 8
-_ROM_PTE = pte_super(0)
-_ROM_PTE_WORDS = [(_ROM_PTE >> 32) & 0xFFFFFFFF, _ROM_PTE & 0xFFFFFFFF]
 
 
 # -- 008: PTBR / ASID / ptw_enable writes do not invalidate ----------------
@@ -1499,95 +1444,6 @@ def _c013(no, cid):
     return out
 
 
-# -- 014: an A/D write-back failure is entry-granular, then stops the command
-L2C = 0x7FF4_0000                # L1[2] -> L2 for page Z (RAM, 64 KiB aligned)
-ROM_L2_IMAGE_OFF = 0x100000      # 64 KiB-aligned page inside the read-only ROM
-ROM_L2 = P.BOOTROM_BASE + ROM_L2_IMAGE_OFF
-DX, DY, DZ = 0x6400_0000, 0x6500_0000, 0x6600_0000
-VX, VY, VZ = 0x0, 1 << 29, 2 << 29
-
-
-def _three_entries(chk):
-    """Cache X, Y, Z with pending A/D; Y's leaf PTE sits in the read-only ROM.
-
-    Entry order = fill order = the order `cfx_ptw_tlb_control` walks them, so
-    the first failure is entry 2 (`TLB-37`: entry-granular, stop at the first
-    failure).  The L1 table pointer only keeps `PPN[55:16]`, hence a 64 KiB
-    aligned ROM page for the leaf.
-    """
-    st64(chk, DX, M1)
-    st64(chk, DY, M2)
-    st64(chk, DZ, M3)
-    st64(chk, L2A + 0, pte_leaf(DX, a=False, d=False))
-    st64(chk, L2C + 0, pte_leaf(DZ, a=False, d=False))
-    st64(chk, PT_L1 + 0 * 8, pte_table(L2A))
-    st64(chk, PT_L1 + 1 * 8, pte_table(ROM_L2))
-    st64(chk, PT_L1 + 2 * 8, pte_table(L2C))
-    y = pte_leaf(DY, a=False, d=False)
-    chk.image_at = {ROM_L2_IMAGE_OFF: [(y >> 32) & 0xFFFFFFFF,
-                                       y & 0xFFFFFFFF]}
-    tlb_cmd(chk, OP_INVALID, SCOPE_ALL, asid_any=True)
-    ld_va(chk, VX, rd=5)
-    st_va(chk, VX, M4)                       # X: A + D pending
-    ld_va(chk, VY, rd=6)                     # Y: A pending (leaf is read-only)
-    ld_va(chk, VZ, rd=7)
-    st_va(chk, VZ, M4)                       # Z: A + D pending
-
-
-@case(14, "arch-ptw-014", "tlb_control_stop",
-      "flush: entries before the failure are processed, the failing one is "
-      "kept, the rest are untouched (TLB-37)")
-def _c014(no, cid):
-    """Entry-granular stop-on-error with three cached, dirty entries.
-
-    "Processed" for `flush` = A/D OR'd back into the PTE (the delete half is
-    case 007's normal path); "not processed" = the PTE still has A/D = 0, which
-    cannot be confused with a deletion (`TLB-37`).
-
-    `TLB-37` fixes *what* stops (the first failing entry and everything after
-    it) but not the walk order; the probe therefore builds the command in
-    insertion order (X, Y, Z) and names the failure "entry 2".
-    """
-    out = []
-
-    # (a) entry 1 was written back, entry 3 was not even looked at.
-    c = _new(no, cid, "flush_stop_after",
-             "three entries: 1 processed, 2 fails, 3 left untouched")
-    record_baseline(c)
-    _three_entries(c)
-    set_handler(c, fault_handler(c, None, "ADWBFAIL", info=ROM_L2))
-    arm_fault(c)
-    tlb_cmd(c, OP_FLUSH, SCOPE_ALL, asid_any=True)
-    a_fault_count(c, 1)
-    ld64(c, L2A + 0, rd=6)
-    a_eq(c, c.s, 6, pte_leaf(DX, a=True, d=True),
-         "entry 1 (before the failure) was processed: A/D written back")
-    ld64(c, L2C + 0, rd=7)
-    a_eq(c, c.s, 7, pte_leaf(DZ, a=False, d=False),
-         "entry 3 (after the failure) was not processed: its PTE is untouched")
-    out.append(_finish(c))
-
-    # (b) the failing entry keeps its translation and its PTE.
-    c = _new(no, cid, "flush_stop_kept",
-             "three entries: the failed one keeps its translation")
-    record_baseline(c)
-    _three_entries(c)
-    set_handler(c, fault_handler(c, None, "ADWBFAIL", info=ROM_L2))
-    arm_fault(c)
-    tlb_cmd(c, OP_FLUSH, SCOPE_ALL, asid_any=True)
-    a_fault_count(c, 1)
-    ld_va(c, VY, rd=6)
-    a_eq(c, c.s, 6, M2, "the failed entry kept its state (still a usable hit)")
-    ld64(c, ROM_L2, rd=8)
-    a_eq(c, c.s, 8, pte_leaf(DY, a=False, d=False),
-         "the failed write-back left entry 2's PTE unchanged")
-    ld64(c, L2C + 0, rd=7)
-    a_eq(c, c.s, 7, pte_leaf(DZ, a=False, d=False),
-         "entry 3 (after the failure) was not processed at all")
-    out.append(_finish(c))
-    return out
-
-
 # -- 015: ILLI at an IP inside the memory window ---------------------------
 VA_P = 5 << 29                   # L1[5]: VA[47:42] == 0, PTW-mapped
 L2P = 0x7FF5_0000                # L2 for L1[5] (64 KiB aligned, in RAM)
@@ -1753,8 +1609,8 @@ def selfcheck():
     for mode in MODES:
         MODE = mode
         cases = build_all()
-        if len(cases) != 15:
-            problems.append("[%s] driver defines %d cases, expected 15"
+        if len(cases) != 14:
+            problems.append("[%s] driver defines %d cases, expected 14"
                             % (mode, len(cases)))
         ids = [cid for _n, cid, _name, _d, _c in cases]
         if len(set(ids)) != len(ids):

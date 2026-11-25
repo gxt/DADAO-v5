@@ -9,9 +9,10 @@
 
 - `arch-umon-011` — body `tests/arch/umon/umon_mode_regs.body.S`；hmon/smon/umon
   三模式均通过，签名逐槽一致（驱动 `tests/arch/common/check_mode_env.py`）。
-- `arch-ptw-001`…`015`（cfx4）— `m16-testcases-019`：载体 `ptw_carrier_tlb.py`
+- `arch-ptw-001`…`013`、`015`（cfx4）— `m16-testcases-019`：载体 `ptw_carrier_tlb.py`
   用共享 `common/env-{hmon,smon,umon}` 进入/退出（`--mode`），`modes.yaml`
-  三条模式全开；body 留在载体自己的 ROM（007/014/015 需要只读页表/内存窗口），
+  三条模式全开；body 留在载体自己的 ROM（015 需要只读内存窗口；007/014 已按
+  用户 2026-11-25 裁定删除，载体不再有只读页表），
   故障处理程序装在**当前模式监视器**的 `<mode>` 行、在触发模式里运行。
 
 ## 待迁移（按载体分组）

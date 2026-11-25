@@ -122,14 +122,21 @@
 > hmon/smon/umon 各跑一次（共享 `common/env-*`；测试页 PTE 的 HSJU = H|S|U），
 > PTE 的 S/U 轴在 `arch-ptw-011` 的 `checks_by_mode` 里逐模式构造；`arch-ptw-013`
 > 提升为 RTL `signature`（`PTW_CASE=13`，3 槽）。
+>
+> **ADWBFAIL 收口注（`m16-testcases-023`，2026-11-25）**：用户裁定**页表必须放内存**
+> （PTE 一律用内存物理地址，不得放 BootROM/只读镜像）且**不构建 ADWBFAIL 用例** ⇒
+> `arch-ptw-007` 删除 `flush_adwbfail` 子项（签名槽 10 → 8，只留 `flush_ok` 2 槽），
+> **`arch-ptw-014` 整条删除**（同类 ADWBFAIL 构造，case 数 15 → 14，RTL 的 gap 只剩
+> `015`）、`DIV-14` 删除、`DIV-04` 关闭（`wont-fix`）。RTL 的 `ptw_walk`（`CASE_ADWB`）/
+> `ptw_tlb`（`CASE_OR`）注入镜像仅为实现层内部证据，**不构成用例覆盖**。
 
 ### cfx4 ptw — QEMU
 
 - **寄存器面**：有。cfx4 在 Vast 掩码内（`components/qemu/patches/target/dadao/cpu.c.patch:55`）；`cg8 rc8` ptw_enable、`cg9 rc0` PTBR、`cg12 rc0..3` TLB 控制/ASID/始/长（`components/qemu/patches/target/dadao/helper.c.patch:2048`）。
 - **命令与副作用**：有。`tlb_control` 写即执行（`components/qemu/patches/target/dadao/helper.c.patch:707`、`components/qemu/patches/target/dadao/helper.c.patch:3125`）；两级步查 `dadao_ptw_walk`（`components/qemu/patches/target/dadao/helper.c.patch:771`）；TLB 命中/填充（`components/qemu/patches/target/dadao/helper.c.patch:536`、`components/qemu/patches/target/dadao/helper.c.patch:633`）。
 - **异常与子原因**：有，且为**扁平位图**（`ADR-0062`）：PTW 权限/缺失/回写失败只置高位位图一位（`[32..38]` `NU/NJ/NS/NH/NR/NW/NXPERM`、`[48..55]` `IGPTRAP/ISPTRAP/IGPFTRAP/ISPFTRAP/DGPTRAP/DSPTRAP/DGPFTRAP/DSPFTRAP`、`[56] ADWBFAIL`，父 `CFXPERM`/`CFXMEM` = 0），`CFXPERM` 只表示 cfx 来源掩码拒绝、`CFXMEM` 只表示非 PTW 核内访存（`components/qemu/patches/target/dadao/helper.c.patch` 的 `dadao_sync_cause`/`dadao_tlb_check`/`dadao_ptw_walk`、`components/qemu/patches/target/dadao/cpu.h.patch` 的 `DADAO_SUB_*` 表）。
-- **现有测试载体**：QEMU bootrom 探针。`tests/arch/ptw/ptw_carrier_tlb.py:1`（15 条 `arch-ptw-001..015`，期望清单 `tests/arch/ptw/expected.yaml:1`，驱动 `tests/arch/ptw/check_tlb.py`）；`m16-testcases-010` 由 `tools/testcases/arch/min_rom_probe_tlb.py` 迁入。另有 `tools/testcases/arch/min_rom_probe_integ039t.py`、`tools/testcases/arch/min_rom_probe_integ040t.py`（RAM/页表场景，未迁）。
-- **检查点 → `contract-tlb` 条款**：`001` 填充/命中（TLB-08/10）；`002` 命中不重读 PTE（TLB-07）；`003` invalid+VA（TLB-23）；`004` range/size=0/保留 scope/scope=all（TLB-22/23/24）；`005` ASID_ANY/G（TLB-05/25/26）；`006` clean A/D 回写/保留（TLB-14/15/17）；`007` flush 回写+删除/回写失败（TLB-16/17/37）；`008` 写 PTBR/ASID/`ptw_enable` 不隐含失效（TLB-29）；`009` `ptw_enable=0` bypass（TLB-41/43）；`010` 未映射 DGPTRAP/IGPTRAP（TLB-35）；`011` 权限子原因（TLB-32/34）；`012` 改 PTE 需显式失效（TLB-07/18）；`013` `VA[47:42]≠0` bypass（TLB-40/41）；`014` 条目级遇错即停（TLB-37）；`015` 内存窗口 ILLI `cause_info`（ADR-0004 D5.6 + `contract-see §6.1`）。
+- **现有测试载体**：QEMU bootrom 探针。`tests/arch/ptw/ptw_carrier_tlb.py:1`（14 条 `arch-ptw-001..013`/`015`，期望清单 `tests/arch/ptw/expected.yaml:1`，驱动 `tests/arch/ptw/check_tlb.py`）；`m16-testcases-010` 由 `tools/testcases/arch/min_rom_probe_tlb.py` 迁入。另有 `tools/testcases/arch/min_rom_probe_integ039t.py`、`tools/testcases/arch/min_rom_probe_integ040t.py`（RAM/页表场景，未迁）。
+- **检查点 → `contract-tlb` 条款**：`001` 填充/命中（TLB-08/10）；`002` 命中不重读 PTE（TLB-07）；`003` invalid+VA（TLB-23）；`004` range/size=0/保留 scope/scope=all（TLB-22/23/24）；`005` ASID_ANY/G（TLB-05/25/26）；`006` clean A/D 回写/保留（TLB-14/15/17）；`007` flush 回写+删除（TLB-17/15）；`008` 写 PTBR/ASID/`ptw_enable` 不隐含失效（TLB-29）；`009` `ptw_enable=0` bypass（TLB-41/43）；`010` 未映射 DGPTRAP/IGPTRAP（TLB-35）；`011` 权限子原因（TLB-32/34）；`012` 改 PTE 需显式失效（TLB-07/18）；`013` `VA[47:42]≠0` bypass（TLB-40/41）；`015` 内存窗口 ILLI `cause_info`（ADR-0004 D5.6 + `contract-see §6.1`）。**ADWBFAIL（`[56]`）不做用例**（用户 2026-11-25 裁定：页表必须放内存 + 不构建 ADWBFAIL 用例；`DIV-04`）。
 - **现有门控**：`check-arch`（L3；`integr039t`/`integr040t` 在 `ARCH_CFX_PROBES`；`tests/arch/ptw/ptw_carrier_tlb.py` 由 `ARCH_PTW_CARRIER` 单独调起）。
 
 ### cfx4 ptw — gem5
@@ -137,7 +144,7 @@
 - **寄存器面**：有。cfx4 在 `kCfxhaMap`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:33`）；ptw 行解析 `components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:526`（enable/PTBR/TLB 控制）。
 - **命令与副作用**：有。TLB 维护与步查在 `components/gem5/patches/src/arch/dadao/node_tlb.cc.patch:127`（PTE 回写）与 `components/gem5/patches/src/arch/dadao/node_tlb.cc.patch:146`（缺页子原因）+ `components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:1080` 一带的 `tlbControl` 执行。
 - **异常与子原因**：有。`components/gem5/patches/src/arch/dadao/node_tlb.cc.patch:151`（IGPTRAP/DGPTRAP/ISPFTRAP/DSPFTRAP）、`components/gem5/patches/src/arch/dadao/node_tlb.cc.patch:167`（NU/NH PERM）、`components/gem5/patches/src/arch/dadao/node_tlb.cc.patch:262`（NX/NW/NR）、`components/gem5/patches/src/arch/dadao/node_tlb.cc.patch:308`（ADWBFAIL）、`components/gem5/patches/src/arch/dadao/node_tlb.cc.patch:378`（NONPTW）。
-- **现有测试载体**：`tests/arch/ptw/check_tlb.py` 经 `tools/testcases/parity/qemu_gem5_shim.py`（`-machine kaiwu-vast`）跑 15 条 `arch-ptw-*`（`m16-testcases-010`；QEMU 与 gem5 逐条通过，已接线签名流逐槽相同）。
+- **现有测试载体**：`tests/arch/ptw/check_tlb.py` 经 `tools/testcases/parity/qemu_gem5_shim.py`（`-machine kaiwu-vast`）跑 14 条 `arch-ptw-*`（`m16-testcases-010`；QEMU 与 gem5 逐条通过，已接线签名流逐槽相同）。
 - **现有门控**：无（`run_arch.py` 按需跑，不进 L2/L3）。
 
 ### cfx4 ptw — RTL
@@ -145,8 +152,8 @@
 - **寄存器面**：有。`GewuPtwParams`（`components/chipyard/patches/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala.patch:225`）与六个行译码（`components/chipyard/patches/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala.patch:479`）；ptw 仅 `useVM = true` 的 Vast 注入（`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala.patch:147`）。
 - **命令与副作用**：有。`tlb_control` 写脉冲与 scope/size 校验（`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala.patch:1582`）；步查 `components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala.patch:415`；I/D TLB `components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingTlb.scala.patch:65`。
 - **异常与子原因**：有。`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala.patch:303`（HSJU→NU/NH PERM）、`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala.patch:306`（NX/NW/NR）、`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala.patch:491`（ADWBFAIL）、`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala.patch:417`（NONPTW）；`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingTlb.scala.patch:171`（IGPTRAP/DGPTRAP）。
-- **现有测试载体**：RTL ELF+loadmem。`tests/arch/ptw/ptw_regs.S:1`（寄存器面 19 记录）、`tests/arch/ptw/ptw_walk.S:1`（两级步查/A-D）、`tests/arch/ptw/ptw_tlb.S:1`（I/D TLB）；`tests/arch/ptw/ptw_sig.S` 是 15 条 `arch-ptw-*` 的 RTL 承载（002/006/007 逐槽签名，其余 guest 断言）。
-- **现有门控**：`tests/arch/ptw/check_ptw_rtl.py`（cfx4 的 RTL 驱动，`rtl-coverage.yaml` 映射 15 条）；额外检查点 `check_ptw_regs.py` / `check_ptw_walk.py` / `check_ptw_tlb.py`（`Makefile` 无单独目标；RTL 经 `run_arch.py --platforms chipyard`）。
+- **现有测试载体**：RTL ELF+loadmem。`tests/arch/ptw/ptw_regs.S:1`（寄存器面 19 记录）、`tests/arch/ptw/ptw_walk.S:1`（两级步查/A-D）、`tests/arch/ptw/ptw_tlb.S:1`（I/D TLB）；`tests/arch/ptw/ptw_sig.S` 是 14 条 `arch-ptw-*` 的 RTL 承载（002/006/007 逐槽签名，其余 guest 断言）。
+- **现有门控**：`tests/arch/ptw/check_ptw_rtl.py`（cfx4 的 RTL 驱动，`rtl-coverage.yaml` 映射 14 条）；额外检查点 `check_ptw_regs.py` / `check_ptw_walk.py` / `check_ptw_tlb.py`（`Makefile` 无单独目标；RTL 经 `run_arch.py --platforms chipyard`）。
 
 ---
 

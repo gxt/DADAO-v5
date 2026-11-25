@@ -3,16 +3,17 @@
 `WumingVastConfig`）承载驱动（`m16-chipyard-018`，`kind: driver`）。
 
 **同一 case id、同一期望**：本文件按 `tests/arch/ptw/rtl-coverage.yaml` 把
-`m16-testcases-010` 的 15 条 `arch-ptw-*` 映射到 RTL 承载：
+`m16-testcases-010` 的 14 条 `arch-ptw-*` 映射到 RTL 承载：
 
   * `signature`（002/006/007/013）：跑 `ptw_sig.S` 的同一 case，签名流与
     QEMU/gem5 逐槽比较；期望值来自 `expected.yaml`（唯一真源），登记的 RTL
-    差异来自 `tests/arch/expected-divergences.yaml` 的 `slots`（DIV-14）；
+    差异来自 `tests/arch/expected-divergences.yaml` 的 `slots`（当前无条目：
+    ADWBFAIL 不做用例，`DIV-04`）；
   * `guest`（001/003/004/005/008/009/010/011/012）：同一 `ptw_sig.S` 的 case，
     由 guest 内断言判（非零退出 = 该检查失败）；签名流 0 槽（QEMU/gem5 侧也是
     0 槽，跨平台比较按空流登记）；
   * `partial`（当前无条目）：同上，但只覆盖 QEMU 检查点的一部分（原因在清单里）；
-  * `gap`（014/015）：RTL 当前没有等价观测面，登记原因与 `close_when`；
+  * `gap`（015）：RTL 当前没有等价观测面，登记原因与 `close_when`；
     只返回 `GAP`（退出码 77），**不**把「没跑」当成通过。
 
 判据不写魔数：几何/PTE/期望槽全部由 `gen_ptw_sig_tables.py` 现场算出，并与
@@ -262,7 +263,7 @@ def selfcheck() -> int:
     except OSError as exc:
         problems.append("无法运行生成器: %s" % exc)
 
-    # 2) 覆盖清单 == arch.yaml 的 cfx4 15 条；signature 集 == expected.yaml 的
+    # 2) 覆盖清单 == arch.yaml 的 cfx4 14 条；signature 集 == expected.yaml 的
     #    `signature:` 集（机械核对，不靠人记）。
     table = coverage()
     arch = yaml.safe_load((_REPO / "tests" / "arch.yaml").read_text(encoding="utf-8"))

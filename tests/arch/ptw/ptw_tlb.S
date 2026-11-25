@@ -39,7 +39,9 @@
 @@ `__REC` 写进结果缓冲，由宿主 `check_ptw_tlb.py` 逐条与生成器期望比对。
 @@
 @@ `.ifdef CASE_OR`：只跑 P5（ADWBFAIL 注入专用镜像；注入会让 D 侧命令回写
-@@ 一直失败，其它阶段会落在未布置的故障回路上）。
+@@ 一直失败，其它阶段会落在未布置的故障回路上）。**该镜像只是实现层的内部证据**
+@@ （`check_ptw_tlb.py --or-only --expect-adwb`），**不构成 `tests/arch` 的
+@@ ADWBFAIL 用例覆盖**：ADWBFAIL 不做用例（用户 2026-11-25 裁定，`DIV-04`）。
 @@
 @@ 页表与数据由 `+loadmem=` 装入 PA RAM（`ptw_tlb.lds` 的段按生成器常量放置）；
 @@ 探针自身在核内 SRAM（`addr[47:42] ≠ 0`，不经翻译）。

@@ -1,6 +1,7 @@
-# tests/arch/ptw/expected.yaml — `arch-ptw-001`…`arch-ptw-015`（TLB/PTW 探针清单）
+# tests/arch/ptw/expected.yaml — `arch-ptw-001`…`arch-ptw-013`、`arch-ptw-015`
+#   （TLB/PTW 探针清单；`arch-ptw-014` 已随 ADWBFAIL 用例删除，用户 2026-11-25）
 #
-# 载体：`tests/arch/ptw/ptw_carrier_tlb.py`（一个驱动、15 个 case、一 ROM 一检查；
+# 载体：`tests/arch/ptw/ptw_carrier_tlb.py`（一个驱动、14 个 case、一 ROM 一检查；
 #   `m16-testcases-010` 由 `tools/testcases/arch/min_rom_probe_tlb.py` 迁入），
 #   由 `tests/arch/run_arch.py --cfx 4` 经 `check_tlb.py` 逐条调用（`--only <case>`）。
 #   本文件不是第二套判据：**位号与 cause 值由驱动现场从合约解析**（见下「来源」列），
@@ -121,8 +122,8 @@ cases:
     source: [contract-tlb §11 ⑥, TLB-15, TLB-17, TLB-14]
 
 - id: arch-ptw-007
-  only: tlb_flush_adwb_fail
-  title: flush 回写 A/D 并删除；回写失败 ⇒ CFXMEM[56] + info=PTE PA 且条目不删
+  only: tlb_flush_ad
+  title: flush 回写 A/D 并删除（页表在内存里；ADWBFAIL 不做用例，DIV-04）
   checks:
   - label: flush_ok
     cause: none
@@ -131,13 +132,6 @@ cases:
     # 签名流：[flush 回写后的 PTE（A/D=1）, 条目删除后重走页表读到的值]
     signature: [0xd00000006000ffed, 0x99aabbccddeeff00]
     source: [contract-tlb §11 ⑦, TLB-17, TLB-15]
-  - label: flush_adwbfail
-    cause: null
-    subcause: ADWBFAIL
-    info: pte_pa
-    # 签名流：[cause_info = ROM 叶 PTE 的 PA, 两次 flush 的失败次数]
-    signature: [0xfffffffffff8, 0x2]
-    source: [contract-tlb §11 ⑦, TLB-16, TLB-37, spec/DADAO-12 §4.5]
 
 - id: arch-ptw-008
   only: tlb_no_implicit_invalidate
@@ -317,22 +311,6 @@ cases:
     subcause: null
     info: address
     source: [contract-tlb §11 ⑫, TLB-40, TLB-41]
-
-- id: arch-ptw-014
-  only: tlb_control_stop
-  title: A/D 回写失败「条目级 + 遇错即停」——失败前的条目已处理、失败条目原样保留、其后的条目不处理
-  # TLB-37 固定「停在哪」但不固定遍历顺序；探针按填充顺序（X→Y→Z）构造，故「第 2 条失败」即插入序第 2 条。
-  checks:
-  - label: flush_stop_after
-    cause: null
-    subcause: ADWBFAIL
-    info: pte_pa
-    source: [contract-tlb TLB-37, ADR-0041 D3.2, contract-see §6.1, §6.1.1, spec/DADAO-12 §4.5]
-  - label: flush_stop_kept
-    cause: null
-    subcause: ADWBFAIL
-    info: pte_pa
-    source: [contract-tlb TLB-37, ADR-0041 D3.2, contract-see §6.1.1, spec/DADAO-12 §4.5]
 
 - id: arch-ptw-015
   only: illi_insn_word_window

@@ -58,8 +58,6 @@ DD = 0x6300_0000             # G 条目的第二个目标（case 005）
 VA0, VA1 = 0x0, 0x1_0000
 VA_BASE = 0x200_0000_0000    # VA = PA + 2 TiB（VA[47:42] = 0）
 
-ROM_PTE_PA = 0xFFFF_FFFF_FFF8     # QEMU：RESET_PC + 0x1FFF*8（ROM 里的叶 PTE）
-
 # 013 的两个地址（各承载的同一组值）：
 #   cfx_pmem SRAM 窗口 = cfx32 内部偏移 0x3ff_0000_0000 + 0x1000（`DADAO-12 §4.9`）
 #   保留 cfx 的普通 ld：cfxha 6..14 / 16..31 / 35..61（`DADAO-12 §1`）
@@ -71,7 +69,8 @@ HSJU_ALL = 0xD
 
 # RTL 上运行期**观测不到**的槽：{case: {slot: 观测值}}（登记在
 # `tests/arch/expected-divergences.yaml`，`--selfcheck` 双向核对）。
-RTL_DIVERGED_SLOTS = {7: {2: 0, 3: 0}}
+# 当前无登记差异：ADWBFAIL 不做用例（用户 2026-11-25 裁定），`DIV-14` 已删除。
+RTL_DIVERGED_SLOTS = {}
 
 M1 = 0x1122_3344_5566_7788
 M2 = 0x99AA_BBCC_DDEE_FF00
@@ -178,11 +177,9 @@ def expected_slots(case: int) -> list:
         # [clean 前 PTE(A/D=0), clean 回写后 PTE(A/D=1), invalid 后 PTE(A/D=0)]
         return [PTE_DA_A0D0, PTE_DA_A1D1, PTE_DB_A0D0]
     if case == 7:
-        # [flush 回写后的 PTE, 删除后重走页表读到的值, ADWBFAIL cause_info, 失败次数]
-        # 后两槽是**规范期望**（QEMU/gem5 的 ROM 页表可构造回写失败）；RTL 的 PA
-        # RAM 全可写、运行期构造不出该失败，故按登记差异（见
-        # `RTL_DIVERGED_SLOTS` / `expected-divergences.yaml`）判 RTL 的 0/0。
-        return [PTE_DA_A1D1, M2, ROM_PTE_PA, 2]
+        # [flush 回写后的 PTE, 删除后重走页表读到的值]（页表在内存里；
+        # ADWBFAIL 不做用例，用户 2026-11-25 裁定）
+        return [PTE_DA_A1D1, M2]
     return []
 
 
@@ -363,6 +360,9 @@ def selfcheck() -> int:
         if registered.get(cid) != slots:
             problems.append("%s: RTL 差异 %r 与 expected-divergences.yaml %r 不符"
                             % (cid, slots, registered.get(cid)))
+    if registered and not RTL_DIVERGED_SLOTS:
+        problems.append("expected-divergences.yaml 仍登记 RTL 逐槽例外 %r，"
+                        "但本生成器无对应差异（ADWBFAIL 不做用例）" % (registered,))
     extra = sorted(set(declared) - set(live))
     if extra:
         problems.append("expected.yaml 还有已接线签名未在本生成器登记: %r" % extra)

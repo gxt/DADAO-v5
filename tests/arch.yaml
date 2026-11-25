@@ -231,15 +231,6 @@
   level: full
   requires:
   - qemu
-- id: arch-ptw-014
-  file: arch/ptw/check_tlb.py
-  kind: driver
-  machine: vast
-  platforms:
-  - system
-  level: full
-  requires:
-  - qemu
 - id: arch-ptw-015
   file: arch/ptw/check_tlb.py
   kind: driver
