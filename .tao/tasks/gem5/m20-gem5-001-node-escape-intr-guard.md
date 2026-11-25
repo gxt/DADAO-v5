@@ -10,10 +10,12 @@
 
 ## 背景（M20 分诊，2026-11-25）
 
-`ISS-472` 记录 gem5 `nodeEscape` 缺 QEMU 的 `saved_intr_mask_valid` 守卫
+`ISS-472` 记录 gem5 `nodeEscape` 缺 `savedIntrValid` 守卫
 （`m16-gem5-013` 复核查出）：从**同步异常帧** `escape` 时，gem5 会把
 `cfx0.global_cfx_intr_mask` 写成旧值/0；Tiny 侧 `tinyEscape` 已有
-`savedIntrValid` 判定，Node 侧没有。
+`savedIntrValid` 判定，Node 侧没有。（QEMU 当前已不建模该内部 mask，
+不能再以 QEMU 的 `saved_intr_mask_valid` 作对照；口径以 Tiny 与
+`spec/DADAO-12 §5.2/§5.3` 的“trap 保存、同步异常不保存”为准。）
 
 现场确认：
 
