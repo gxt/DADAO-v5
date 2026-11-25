@@ -402,10 +402,10 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 - **用户逐条确认（2026-11-02）**：本 ADR 与 `ADR-0039`/`ADR-0040`/`ADR-0043` 四项修订逐条确认；逐条口径与原始记录见 `.tao/tasks/spec/`.tao/archive/M11/spec/SPEC-183t-Machine-v5-Tiny-Node规范收口.md`（归档不改名）`。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-11-02`）。
 
-**rev. 2026-11-05（用户已定稿；退出码迁移）：D5.7/D5.8 改为三分 + 指针。** 保留「guest pass / guest fail / 机器 fault」三分决策：guest pass = `0x00`–`0x3F`、guest fail = `0x40`–`0x7F`、机器 fault = `0x80`–`0xFF`；机器 fault 再分其它 cfx 段（`0x80`–`0xBF`）与 monitor 段（`0xC0`–`0xFF`）。
+**rev. 2026-11-05（用户已定稿；退出码迁移）：D5.7/D5.8 改为三分 + 指针。** 保留「guest pass / guest fail / 机器 fault」三分决策（机器 fault 再分「其它 cfx」与「monitor」两段）；退出码分段与位域以 `spec/Kaiwu §7.1` 为准，本 ADR 不复述。
 
 - **D5.8 指针化**：删除逐码表与从 spec cause 位派生退出码的公式；完整位域、monitor 的 11 个异常位索引、`CFXTRAP`/`CFXESC` 进入目标/当前 cfx 的编码，以及未映射/A-D 回写失败/reserved cfx 的落点，均以 `spec/Kaiwu-测试机运行环境.md §7.1` 为唯一正文。
-- **D5.7 分区同步**：`0x00`–`0x3F` = PASS、`0x40`–`0x7F` = FAIL，`0x80`–`0xFF` = 机器 fault 段；harness 判定按区间，不再按单值 `0x00`。
+- **D5.7 分区同步**：退出码分段与位域以 `spec/Kaiwu §7.1` 为准，本 ADR 不复述；harness 判定只看 `$?`。
 - **不变**：D1–D4、D5.1–D5.6、D6 的其余决策正文；历史条目保留（`Process-03`）。
 - **流程说明**：本次为经授权的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`」的例外；`**状态**` 行已标 `rev. 2026-11-05`）。
 
