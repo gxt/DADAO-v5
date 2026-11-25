@@ -27,6 +27,9 @@ owner = "m18-session"
 [files."issues-m19.yaml"]
 owner = "m19-session"
 
+[files."issues-m20.yaml"]
+owner = "m20-session"
+
 [files."milestones-m16.md"]
 owner = "main-session"
 

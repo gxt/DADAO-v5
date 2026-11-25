@@ -181,3 +181,30 @@
   closed_in: null
   resolved_by: null
   title: 【P1】**用户态信号投递死在异步异常入口**（私人干净内核复现，`m18-linux-006` 返工）：`MALIGN(0x1000) ip=dadao_async_excp+0x1fc info=0xfffeffff7fff` → `die mode=2 code=0xec`；另有 `die 0xe1` 与 `clock_gettime01` 无 die 停摆；约 **1 次/10 例**。属 `m18-linux-024`（异步交付窗口）族但表现为信号路径；导致 LTP 跑批无法建立「连跑 2 次一致」的验收基线。处置：并入 024（或另立）定位异步入口的 MALIGN/现场污染，修后复跑 LTP ≥2 次。
+- id: ISS-427
+  scope:
+  - infra
+  - qemu
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P2】节点组件树（`.work/source/<name>`）的 `dadao: <name> patch series` 提交会随主控机补丁集演进而**无法重放**：`apply_series --component <name>` 报 `HEAD is neither base nor base+1 matching the patch set; refusing`（实测 server207 的 qemu `cd44d5f`，主控机 `e916acb`）。`sync_node_repo.sh` 只同步仓库、不重置 `.work/source`。可复现处置：节点 `git -C .work/source/<name> fetch origin && git checkout -f <base>`，再 `apply_series --component <name>` 重放。建议在 `sync_node_repo.sh` 加一个 `--reset-components` 选项（按 `components.lock.toml` 的 base 重置，需重建），或至少在文档里固化该处置。'
+- id: ISS-428
+  scope:
+  - qemu
+  - infra
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】节点（server207）上 `tools/qemu/k0_boot_probe.py` 复跑失败（`main` 段 guest exit 1、`-d cpu` dump 0 字节、`rd*` 全 -1），主控机同源同探针 101/101 全绿。节点二进制含 K1 新串（`strings | grep -c ELF-VA-TO-PA` = 1），说明补丁在；差异点在运行期（疑 `bootrom-image`+`-kernel` 路径在节点触发 loader 拒绝后 exit 1，或 semihosting 退出未被接管）。影响：M14 K1 的节点侧验证与后续节点三平台对比暂不可信。需在节点侧抓 stderr 与 QEMU 退出路径定位（探针正例目前丢弃 stderr）。
+- id: ISS-456
+  scope:
+  - infra
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】证据脚本按**脚本自身路径**推仓库根，在任务 worktree 里会经 `.work` 软链解析到**主工作树**，从而把产物误写进 `master`：`m14-linux-008` 的 `run.sh` 初版实测误写 6 个文件（已按 HEAD blob 逐文件复原、`git status` 干净、md5 与 HEAD 一致）。与 `ISS-389`（worktree `.work` 未软链导致从零编）是同一软链机制的两个反向踩坑。处置：证据脚本一律**按 cwd 推仓库根**（`git rev-parse --show-toplevel`）并在解析结果等于 `master` 工作树时**拒绝运行**；或把该约束写进 engineer/reviewer 的「一键证据脚本」规范并加一条自检。（2026-11-17 复发：`m16-gem5-010` 复核以证据目录为 cwd ⇒ `make_patch` 写脏主工作树 6 个 patch，已 `cp`+md5 还原）

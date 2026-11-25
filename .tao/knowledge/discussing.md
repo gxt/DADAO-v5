@@ -628,6 +628,14 @@
   5. **交付与验收判据**：Linux 经 SBI 引导成功（替代当前直连 monitor 路径）、`cfx_time`/IPI/hart start-stop/RFENCE 等扩展逐条可用、三平台签名/引导一致；是否需要 `check-*` 门控与三平台矩阵。
   6. **工程面**：是否新增 `components/opensbi`（锁 + 补丁集 + `.cache` 镜像 + 节点 synced），以及版本/许可（BSD-2-Clause）记录与 `manifests/` 锁口径。
 
+## 未立册方向（2026-11-25，原 M20 内容转出）
+
+用户 2026-11-25 重定 M20 为「修完可修 issue + 定四方差分/夜跑基准」，原 M20 的两项内容**不占号**，暂列于此，待后续立册：
+
+- **gem5 Minor 接入**（原 `m20-gem5-001`，估 4–6 天）：`initiateAcc`/`completeAcc` + `ldm/stm` 微操作 + trace；与 wuming 对拍 ≥20 例。前置：逐指令 trace 格式（`m17-idl-003`）、访存时序（`m16-gem5-006`）。
+- **wuqing 微架构规格与 generator 骨架**（原 `m20-chipyard-001`，估 5–7 天）：规格先行；资源与 Genesys2 预算对账。前置：`m16-chipyard-010`（I-Cache）、`m19-chipyard-001`（FPGA 资源实测反推参数）。
+- 两者同属「golden = wuming RTL、Minor 与 wuqing 各自先对齐再对比」的路线（用户 2026-11-20），立册时按该口径重写，不与新 M20 的 issue 清理混算。
+
 ## issues（backlog，2026-11-20 分诊）
 
 - `ISS-355`【P2】`tools/gem5/build_gem5.py:191` 在 运行期目录 不存在时抛 `ValueError`： 首次 `make build-gem5` rc=2，需先跑…

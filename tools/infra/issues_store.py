@@ -34,7 +34,7 @@ GLOB = "issues-*.yaml"
 OLD_ID_RE = re.compile(r"^ISS-(\d+)$")
 NEW_ID_RE = re.compile(r"^ISS-(left|m\d+)-(\d{3,})$")
 
-MILESTONES = ("M16", "M17", "M18", "M19")
+MILESTONES = ("M16", "M17", "M18", "M19", "M20")
 
 
 def paths() -> list[Path]:

@@ -5,14 +5,6 @@
 # `ISS-left-NNN`（NNN 从 001 起，取本文件内未用最小号）。跨文件修改须用户同意；
 # 里程碑收尾时本文件应清空，未解决条目汇总到 `issues-left.yaml`。
 #
-- id: ISS-345
-  scope:
-  - gem5
-  milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P3】gem5 SE futex 细节与 Linux/QEMU 不完全一致：`FUTEX_UNLOCK_PI` 未校验调用者是否为 owner （Linux 返回 EPERM）；`FUTEX_REQUEUE` 返回值语义（唤醒+改挂之和）待与内核/QEMU 对齐； `parkOnFutex` 在等待队列 deadline 分支提前返回时漏 `delete FutexWaiter`（宿主内存小泄漏）。 语料当前不可达；随下一次 futex 任务修。
 - id: ISS-355
   scope:
   - infra
@@ -30,32 +22,6 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`check_milestone_tasks.py` 两处基线残留：① 新式核验册名 `mNN-<module>-*` 不被 `MBOOK_NAME_RE` 命中，会按「无 m 册」跳过；② m 册标题自引自身文件名号可绕 vacuous 检查。 两者均非本次（m12-infra-002）引入；当前 m 册已可选，影响低，登记待清理。
-- id: ISS-361
-  scope:
-  - gem5
-  - testcases
-  milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P1】gem5 SE 长尾 **72/72 在 3600s 仍超时**（qemu 侧 72/72 全 pass），且最小时耗例 （`functional/clocale_mbfuncs`、`regression/raise-race`，qemu 0.0 s）同样吃满 3600 s ⇒ 不像「单纯慢」（qemu 中位 44 s、最大 1103 s，按 10–50× 放大也解释不了 0 s 例）。 疑为 gem5 SE 挂死（FP 未实现死循环 / syscall 重试 / IO 自旋）。影响：M13 比值分布 `n=0`，`m13-testcases-003`（7200s 复核）很可能无效。 证据：`m13-testcases-001` 全量结果（72 例，gem5 全部 `blocked`/`time budget`）。 建议：003 改为「定位 72 例挂死根因」而非「加预算」；先挑最小例（qemu 0.0 s）做 单例诊断（gem5 stats/指令计数/`--debug-flags` 分段）。 实测（2026-11-10，`functional/clocale_mbfuncs`，SIGINT 90 s 后 dump stats）： `simInsts=40,847,163`、`numCycles=40,847,163`、退出原因 `user interrupt received`、 无 guest exit ⇒ 该例在 90 s 内跑了 4085 万条指令仍未结束，符合「死循环」而非「慢」。
-- id: ISS-362
-  scope:
-  - gem5
-  - testcases
-  milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P1】gem5 SE（dynamic）`MultiSource/Benchmarks/FreeBench/neural` **oracle mismatch**： 输出长度相同（358 B vs 358 B）但内容不同，qemu 侧同例通过（输出 == reference）。 首行 `Matrix size is 20x28` 一致 ⇒ 差异在后段，疑浮点舍入/格式化（与 M13 FP 差分同源）。 证据：`m13-testcases-002` 全量（93 例）结果，`tests/data/m13-002-dynamic-3600s-full.json`。 建议：M13 FP 差分任务（`m13-integ-002`）把它作为首个定位样本；先 `cmp` 逐字节定位差异列。
-- id: ISS-363
-  scope:
-  - gem5
-  milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】gem5 `tinyEnter` 直接取 `switch_run_mode` 作为新运行模式：guest 先把该寄存器写成 !=3 再触发同步异常，就会**离开 hypv**；QEMU 对非 user profile 强制 `HYPV`（引 `Kaiwu §2` 「Tiny 运行模式恒 hypv」）。同时 gem5 未实现 `cg3 仅 hypv 可访问`（`DADAO-13 §1`）。 影响：三平台差分时 Tiny 的越权路径会分叉。建议在 M13 差分（`m13-integ-002`/`003`）前修， 改动量小（`tinyEnter` 强制 HYPV + cg3 访问检查）。 证据：`m13-gem5-001` reviewer 第 1 轮 finding 3。
 - id: ISS-366
   scope:
   - testcases
@@ -64,15 +30,6 @@
   closed_in: null
   resolved_by: null
   title: '【P2】`run_engine_ratio.py` **逐套件串行**执行（`for suite in selection: for engine: run_driver`）： 当某分片里一个套件只有 1 例时（本仓 dynamic/static 长尾分片各有 1 个 libc-test 例）， 该例会**独占整个预算窗口**（7200 s），其余 35 例 llvm-ts 才开始跑 ⇒ 「48 并发」实际只有 1 路。 实测：`m13-testcases-003` 首轮 long static 在前 36 分钟只有 1 个 `gem5.opt`（load≈1.0）。 规避：`run.sh` 已改为**按套件并发**（每套件一个进程、各自 work-dir/json），合并在分析侧。 建议：在 `run_engine_ratio` 内部支持跨套件并发（或至少按预计耗时排序，短套件先跑）。'
-- id: ISS-367
-  scope:
-  - gem5
-  - testcases
-  milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P1】gem5 SE（static）`MultiSource/Benchmarks/FreeBench/pcompress2` oracle mismatch：gem5 跑完（4408 s，exit=0）但输出与参考不同，qemu 通过；比值 404×。与 `ISS-362`（dynamic `neural`）同类，疑浮点/格式化。证据：`m13-testcases-003` A 组 static 结果（`split/A/static/ratio-static-llvm-ts.json`）。建议：与 `ISS-362` 合并为「gem5 输出差异」样本集，交 `m13-integ-002` 定位。
 - id: ISS-372
   scope:
   - testcases
@@ -100,15 +57,6 @@
   closed_in: null
   resolved_by: null
   title: '【P2】`make check-arch` / `check-arch-smoke` 在本机 `EXIT=2`：`CMake Error: The source directory ".../.work/source/llvm-project/llvm" does not exist`（`m13-integ-007` reviewer 重试 3 次同错：默认、`-o install-host`、`-o` 全链）。检查体本身可用（m5 e2e 10/10、25 服务、14 探针全 rc=0），说明是 `install-host → build-mc` 的 llvm 源路径问题。建议：核 `.work/source/llvm-project` 的目录形态（monorepo 根 vs `llvm/` 子目录）与 `build-mc` 传入的 CMake 源路径是否一致。 补充（2026-11-11 04:5x）：architect 实测 `.work/source/llvm-project/llvm` **存在** ⇒ 非目录缺失，疑为并行任务在该目录上操作（或 worktree 软链指向差异）导致的瞬时现象；复现时先记录 `ls -ld` 与 mtime。'
-- id: ISS-384
-  scope:
-  - spec
-  - chipyard
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】**需用户裁定**：`m13-spec-001` 只授权就地修订 `ADR-0004`，但两处活正文仍写旧 guest 分区——`ADR-0009 D5`（decision 正文，非修订节）与 `components/chipyard/README.md:44`。选项：① 就地修订这两处（需用户逐条确认 ADR-0009 的 decision 变更）；② 改为指针引用 `spec/Kaiwu §7.1`（ADR 不承载规范正文）。
 - id: ISS-389
   scope:
   - infra
@@ -117,40 +65,6 @@
   closed_in: null
   resolved_by: null
   title: 【P2】**任务 worktree 的 `.work/` 未软链到主工作树时会从零编 LLVM（13 GB）并撑爆 tmpfs**（`m12-chipyard-012` 实测）。主工作树已有 `.work/build`/`.work/source`，任务 worktree 里跑 `make check-*` 会解析到自己的空 `.work`，触发全量 LLVM 构建。建议：① 建 worktree 后立即 `ln -s <主树>/.work /tmp/opencode/<task>/.work`（或在 `git worktree add` 后由脚本自动建链）；② 在 AGENTS.md 子代理硬约束里加一条「`.work` 必须是软链，禁止在任务树内重建」；③ `check-disk` 增加「任务树内 `.work` 非软链」的告警。
-- id: ISS-425
-  scope:
-  - llvm
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】LLVM DADAO **CodeGen 侧** `DADAORegisterInfo.cpp` 仍以 `DADAO::RBSP`（= SP）作 RA 寄存器，与 MC 侧（`ra63`，DWARF 255）不一致；当前无消费者（grep 证实），但形态上是同一口径两处真源。建议后续统一并补断言。
-- id: ISS-427
-  scope:
-  - infra
-  - qemu
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: '【P2】节点组件树（`.work/source/<name>`）的 `dadao: <name> patch series` 提交会随主控机补丁集演进而**无法重放**：`apply_series --component <name>` 报 `HEAD is neither base nor base+1 matching the patch set; refusing`（实测 server207 的 qemu `cd44d5f`，主控机 `e916acb`）。`sync_node_repo.sh` 只同步仓库、不重置 `.work/source`。可复现处置：节点 `git -C .work/source/<name> fetch origin && git checkout -f <base>`，再 `apply_series --component <name>` 重放。建议在 `sync_node_repo.sh` 加一个 `--reset-components` 选项（按 `components.lock.toml` 的 base 重置，需重建），或至少在文档里固化该处置。'
-- id: ISS-428
-  scope:
-  - qemu
-  - infra
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】节点（server207）上 `tools/qemu/k0_boot_probe.py` 复跑失败（`main` 段 guest exit 1、`-d cpu` dump 0 字节、`rd*` 全 -1），主控机同源同探针 101/101 全绿。节点二进制含 K1 新串（`strings | grep -c ELF-VA-TO-PA` = 1），说明补丁在；差异点在运行期（疑 `bootrom-image`+`-kernel` 路径在节点触发 loader 拒绝后 exit 1，或 semihosting 退出未被接管）。影响：M14 K1 的节点侧验证与后续节点三平台对比暂不可信。需在节点侧抓 stderr 与 QEMU 退出路径定位（探针正例目前丢弃 stderr）。
-- id: ISS-430
-  scope:
-  - llvm
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】`m14-llvm-005` 后 `.set VD, L1-L0` 再 `set.zw rbX, wpN, VD` 由「静默 0」变为**报错**（`VD` 是 Absolute 符号、本可编码 4）。禁静默是对的，但把「已由 `.set` 固化为绝对符号」的操作数也一并拒了，属表达能力回退；诊断文案还把它称作 symbol difference（其实是单符号操作数）。建议：对 `.set` 定义的 Absolute 符号放行，或至少改文案 + lit 固化。
 - id: ISS-431
   scope:
   - testcases
@@ -168,32 +82,6 @@
   closed_in: null
   resolved_by: null
   title: 【P3】L1 门控自己在 `/tmp/opencode/<门控ID>/` 建空 scratch 目录却不清，命名又与任务 ID 同形：`check-code-range`(INFRA-106t)、`check-width-sizes`(LLVM-130t)、`check_qemu_trans`/`check_decodetree_repro`(INFRA-102t)、`check_runner_reap`(TESTCASES-085t)、`check_toolchain`(m14-infra-001) 跑完各留一个 0 B 空目录；2 h 后 `check-temp-dirs` 把它们判成「非活动临时目录」变红（2026-11-15 晚 `make check` 两次因此红、需手工删，曾误以为是历史残留）。处置：门控收尾 `rmdir` 自己的 scratch（或 `check-temp-dirs` 白名单登记门控自有目录），并在命名上区分「门控 scratch」与「任务临时目录」。
-- id: ISS-456
-  scope:
-  - infra
-  - linux
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】证据脚本按**脚本自身路径**推仓库根，在任务 worktree 里会经 `.work` 软链解析到**主工作树**，从而把产物误写进 `master`：`m14-linux-008` 的 `run.sh` 初版实测误写 6 个文件（已按 HEAD blob 逐文件复原、`git status` 干净、md5 与 HEAD 一致）。与 `ISS-389`（worktree `.work` 未软链导致从零编）是同一软链机制的两个反向踩坑。处置：证据脚本一律**按 cwd 推仓库根**（`git rev-parse --show-toplevel`）并在解析结果等于 `master` 工作树时**拒绝运行**；或把该约束写进 engineer/reviewer 的「一键证据脚本」规范并加一条自检。（2026-11-17 复发：`m16-gem5-010` 复核以证据目录为 cwd ⇒ `make_patch` 写脏主工作树 6 个 patch，已 `cp`+md5 还原）
-- id: ISS-459
-  scope:
-  - spec
-  - qemu
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P3】TLB 的**跨 hart 失效传播（shootdown）**在 v5 侧无任何规定：`cfx_ptw_tlb_control` 只描述「本 hart 的 TLB」操作（`DADAO-12 §4.5`），而多 hart 下改 PTBR/ASID/PTE 后如何通知其它 hart、经什么机制（IPI 尚无发送服务/寄存器，见架构未决项）全部空白。用户 2026-11-16 裁定「目前只考虑单 hart 情况」⇒ M14/K3 按 **per-hart** 声明（写入 `Kaiwu`/`contract-tlb`），本条保留为多 hart 机型的重开点（与 `ISS-440` 同类处置）。
-- id: ISS-461
-  scope:
-  - testcases
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P3】`check-inst-macro-scope` 的 S8（「已整例宏化的 `.S` 正文不得再有裸 `__CHECK_*`」）以**行首 `\t`** 为界，而 `llvm-mc` 实测接受**列 0 的宏调用/指令** ⇒ 列 0 的裸断言行不被 S8 抓到（`m15-testcases-004` 复核 F-a）。现存列 0 断言行 = 0，且该边界在基线扫描器同样存在（未被本任务放宽）。处置：S8 与扫描器统一改为「允许缩进或列 0」，并补一条列 0 反例注入。"
 - id: ISS-462
   scope:
   - infra
@@ -227,56 +115,6 @@
   closed_in: null
   resolved_by: null
   title: 【P2】探针超时后遗留的 **`gem5.opt` 进程 + 巨大 `-D cpu` trace** 把工作盘写满（`m16-gem5-010` 实测，与 `ISS-464` 同夜的第二次 ENOSPC）：超时只杀 driver，`gem5.opt` 子进程继续跑并持续写 trace ⇒ 几分钟内写满盘。处置：① 证据脚本/门控一律加 `EXIT` trap 杀进程组（该任务已就地加）；② 跑批入口统一 `timeout --kill-after` 或 `setsid` + 组杀；③ `-D <flag>` 类调试日志必须配 `--debug-start/--debug-end` 窗口（AGENTS 已有此规则，缺机械门控）。（2026-11-17 追加实测：gem5 跑 `integ042t` 单次 dump **约 7.8 GB**，已停跑清理）
-- id: ISS-468
-  scope:
-  - llvm
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】`llvm-objdump` 对 `rf` 寄存器组寄存器号断言崩溃（`DADAOInstPrinter::getRegisterName` 越界），`tests/inst/**/*_rf.S` 的 9 个镜像无法生成 IP→助记符表（`m16-chipyard-001` 实测；本轮改用固定布局探针 `.dd.t32` + 已知编码字补测 `ftcls`/`focls`/`rf2rf`）。影响：任何按 objdump 反汇编做周期/语义测量的工具对这 9 例都失效。处置：修 `getRegisterName` 的 rf 寄存器组映射并补 lit 用例（含 rf 寄存器组全部指令）。
-- id: ISS-471
-  scope:
-  - gem5
-  milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】`tools/gem5/check_tiny_hmon.py` 有与 semihosting 无关的预存在红（`m15-testcases-018` 复核时发现）：期望 `cause_id = 0x2`，而引擎自 `m16-gem5-009` 起给 18 位子原因 `0x200000000000002`（cause 与 wyde 子原因合写）；record 34 起错位、条数 43 vs 42。影响：该脚本的结论不可直接用于 hmon 验收。处置建议：按 `DADAO-12 §3.6` 的 18 位口径改期望（或比较时只取低 16 位 cause），并核对条数差异的来源；单独立 gem5 任务。
-- id: ISS-472
-  scope:
-  - gem5
-  milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P3】gem5 `nodeEscape` 缺 QEMU 的 `saved_intr_mask_valid` 守卫（`m16-gem5-013` 复核查出）：从**同步异常帧** `escape` 时，gem5 会把 `cfx0.global_cfx_intr_mask` 写成 0，而 QEMU（`helper.c:2889`）有 `saved_intr_mask_valid` 判定、不写。影响：同步帧 escape 后两引擎的中断屏蔽状态分叉（当前探针不触发该路径，故未暴露）。处置建议：gem5 补同形守卫 + 一条探针断言（同步帧 escape 后 `global_cfx_intr_mask` 不变）。
-- id: ISS-484
-  scope:
-  - spec
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P3】契约索引/引用两处陈旧（`m15-spec-009` 复核查出）：① `contract-see.md:5` 引 `spec/SimRISC-11-其它.md`（0.5.4）——该**文件名只存在于 ≤0.5.4**，0.5.6 起改名 `SimRISC-11-核芯功能扩展指令.md` ⇒ 只改版本号会变成「死路径配活版本」，须连文件名口径一起裁（且旧名在多处 ADR/归档属历史层）；② `contracts/README.md` fp 行写「60 条」而 `contract-fp.md` 正文为 65 条。处置：随下一次契约维护一并修，不改历史层。
-- id: ISS-507
-  scope:
-  - gem5
-  - infra
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P3】`check-patch-tree` 在 master 上**基线红**（非任务引入）：gem5 段（`src/arch/dadao/node_cfx.cc`/`node_cfx.hh` 的源树本地 commit 与补丁集不一致，assertion ⑨/⑥）。**musl 段已由 `m18-infra-003` 闭合**：原 10 条（`arch/dadao/{atomic_arch.h,bits/signal.h,pthread_arch.h}`、`src/thread/dadao/syscall_cp.s`、`src/signal/dadao/restore.s`）按 `docs/Process-01` 重放源树（删源树 → `make fetch` → `apply_series.py --component musl`）后 0 problem；该漂移曾使 `sigaction.o` 不含 `SA_RESTORER`（0x04000000）⇒ 信号投递 SIGSEGV。`m15-testcases-023` 证据按「错误集与主仓基线逐行相同」判 KNOWN-RED。处置：按 `docs/Process-01` 从源树重导 gem5 补丁（或还原源树到补丁集），重导后跑 `check-patch-tree` 回绿。
-- id: ISS-509
-  scope:
-  - testcases
-  - llvm
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: '【P2】`check-unit` 的 `test-codegen` **基线红**：raw single-TU 组装 19/19 `SHT_RELA present`（`Results: 0/19 passed`）；`m16-testcases-008` 以 `git archive HEAD` 干净树逐行 diff 为空判 KNOWN-RED（非任务引入）。处置：修 `tests/unit/llvm/codegen` 的 raw 单文件产物/lit 期望（去掉不应出现的 `SHT_RELA`），恢复 `check-unit` 绿。'
 - id: ISS-510
   scope:
   - infra

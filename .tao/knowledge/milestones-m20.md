@@ -4,10 +4,10 @@
 
 > **本页只维护 M20 任务台账**：历史任务见 `.tao/archive/`；当前讨论/规划见 `.tao/knowledge/discussing.md`。
 
-> **M20 定位（用户 2026-11-20）**：**gem5 Minor 与 chipyard wuqing 一起开发、对比验证**。**golden = wuming RTL**——Minor 与 wuqing 各自先对齐 wuming，两边都稳了再做直接对比（否则谁都不成熟时无法归因）。
-> **前置**：`m17-idl-003` 的逐指令 trace 格式可用；`m16-chipyard-010`（I-Cache）完成；`m19-chipyard-001` 的资源实测反推 wuqing 参数。
-> **收口判据（草案）**：Minor 与 wuqing 各 ≥20 例与 wuming trace 逐指令一致；wuqing 规格与资源预算对账；Minor 周期重标后 `check-wuming-cycles` 仍绿。
-> **后续（未拆，见 `discussing.md`）**：Minor 周期表重标（不搬 Timing 的 264 行）；wuqing 上板（未立册方向）；随机指令流生成器（TestRIG 式，属 M17 侧产物）。
+> **M20 定位（用户 2026-11-25 重定，取代 2026-11-20 的「gem5 Minor + wuqing」）**：**把当前能修的 issue 全部修完**（清单真源 = `.tao/knowledge/issues-m20.yaml`），并给**四方差分**与**夜跑**定下基准。
+> **前置**：M16 `tests/arch` 收尾（2026-11-25/26）；M17 四方差分基线（274 例）；安装根 QEMU/内核已对齐扁平位图（`m18-linux-023`）。
+> **收口判据（草案）**：① `issues-m20.yaml` 清零（未解决项按 `MEMORY` 的规则汇总到 `issues-left`，并在收尾记明理由）；② **四方差分基准**书面化（idl/qemu/gem5/chipyard 的参与集、比对口径、已知 GAP 与裁决）且被 `check-idl`/`run_inst_tiny` 引用；③ **夜跑基准**书面化（`night-run` 成员清单、时长上限、失败判据、报告落点）并可由一条命令复现。
+> **原 M20 内容转出**：gem5 Minor 接入、wuqing 微架构规格与 generator 骨架 → 移入 `discussing.md`「未立册方向」（不占号）。
 
 本页分三张**任务表**，**表位置 = 任务状态**（不另设状态列）：
 
@@ -21,8 +21,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m20-gem5-001 | 4–6 天 | gem5 Minor 接入（`initiateAcc`/`completeAcc` + `ldm/stm` 微操作 + trace；与 wuming 对拍 ≥20 例） |
-| m20-chipyard-001 | 5–7 天 | wuqing 微架构规格 + generator 骨架（规格先行；资源与 Genesys2 预算对账） |
+| m20-infra-001 | 2–3 h | 四方差分与夜跑基准定义（参与集/比对口径/GAP 裁决/成员与时长上限；一条命令可复现） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
