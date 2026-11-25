@@ -31,9 +31,9 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m20-testcases-001 | 2026-11-25 15:18 | 1–2 h | 修 `test-codegen` raw 单 TU 的 `main` 重定位（ISS-509） |
-| m20-testcases-002 | 2026-11-25 15:18 | 1 h | `check-inst-macro-scope`/扫描器接受列 0 断言行（ISS-461） |
-| m20-llvm-001 | 2026-11-25 15:18 | 2–4 h | `llvm-objdump` 对非法 rf 组编码不崩溃（ISS-468） |
+| m20-testcases-001 | 2026-11-25 15:19 | 1–2 h | 修 `test-codegen` raw 单 TU 的 `main` 重定位（ISS-509） |
+| m20-testcases-002 | 2026-11-25 15:19 | 1 h | `check-inst-macro-scope`/扫描器接受列 0 断言行（ISS-461） |
+| m20-llvm-001 | 2026-11-25 15:19 | 2–4 h | `llvm-objdump` 对非法 rf 组编码不崩溃（ISS-468） |
 
 ## 已验证
 
