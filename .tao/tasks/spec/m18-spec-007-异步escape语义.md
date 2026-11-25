@@ -52,8 +52,9 @@
     - 更正（我此前口误）：重排后新 `rc5` = `excp cause info`，**没有空闲槽**，不存在“`rc5` 归 reserved”这回事；`rc6`/`rc7` 维持现状。
 15. **计数口径**：`escape_num` 每次 `escape` 执行 +1（同步/异步一视同仁）；`excp_async_num` 保持“每次异步进入 +1”。
 16. **`cg0`–`cg3`（各 cfx 的四个模式行）**：`<mode>_switch_run_mode` 由 `rc8` 改为 **`rc14`**；`<mode>_excp_vector` 由 `rc10` 改为 **`rc15`**（与 `cg9` 的 `rc14`/`rc15` 对齐）。
-17. **`escape` 指令格式**：改为 **`escape cfxHA`**——只有 `cfxha` 操作数，**去掉 `imms18`/`imms20`**（`+0/+4` 偏移与 `cg9` 选择位一并消失；返回地址取 `rc10`）。
-18. **版本**：本批改动并入 **0.8.0 定版**（`0.8.0-rc` → `0.8.0`，去掉 `-rc`、补发布日期），**不是**升到 0.9.0；`DADAO-12` 与 `DADAO-22` **同批**定为 0.8.0（两册头部写明“与 SEE 版本号一致”），`contract-see` 随上游册同步（`check-spec-drift` 不变量）。
+17. **空出的 `rc8`/`rc10` 归 reserved（方案 A）**：`cg0`–`cg3` 的 `rc8`/`rc10`、`cg9` 的 `rc8`/`rc10` 均标 reserved，访问 ⇒ `CFXREG`。
+18. **`escape` 指令格式**：改为 **`escape cfxHA`**——只有 `cfxha` 操作数，**去掉 `imms18`/`imms20`**（`+0/+4` 偏移与 `cg9` 选择位一并消失；返回地址取 `rc10`）。
+19. **版本**：本批改动并入 **0.8.0 定版**（`0.8.0-rc` → `0.8.0`，去掉 `-rc`、补发布日期），**不是**升到 0.9.0；`DADAO-12` 与 `DADAO-22` **同批**定为 0.8.0（两册头部写明“与 SEE 版本号一致”），`contract-see` 随上游册同步（`check-spec-drift` 不变量）。
 
 （原“增加 cg5 rc8–rc11 的提议”已逐条转为上方已确定项。）
 
@@ -72,8 +73,8 @@
 
 1. `spec/DADAO-12`：
    - `§3.6 cg5`：改为 `rc0` prev run mode / `rc1` prev cfx code / `rc2` prev ip / `rc3` prev intr mask（均只读）/ `rc4` cause id / `rc5` cause info；删除 `excp pending`；新增 `rc8`–`rc11` 出口意图（escape run mode / cfx code / ip / intr mask），进入时硬件复制、软件可写。
-   - `§4.7 cg9`：`rc0` prev run mode / `rc1` prev cfx code / `rc2` prev ip / `rc3` prev intr mask；`rc4` 本次源集合（只读）；`rc5` `async_src_pending`；`rc14` `async_switch_run_mode`；`rc15` `async_excp_vector`；其余 reserved。异步进入只写 `cg9 rc0–rc4` 与 `hart cg5 rc8–rc11`，**不写** `hart cg5 rc0–rc3`。
-   - `§3.1`–`§3.4`：四个模式行的 `<mode>_switch_run_mode` → `rc14`、`<mode>_excp_vector` → `rc15`（§5.2/§5.3/§5.4 伪码同步）。
+   - `§4.7 cg9`：`rc0` prev run mode / `rc1` prev cfx code / `rc2` prev ip / `rc3` prev intr mask；`rc4` 本次源集合（只读）；`rc5` `async_src_pending`；`rc14` `async_switch_run_mode`；`rc15` `async_excp_vector`；原 `rc8`/`rc10` 归 reserved（⇒ `CFXREG`）；其余 reserved。异步进入只写 `cg9 rc0–rc4` 与 `hart cg5 rc8–rc11`，**不写** `hart cg5 rc0–rc3`。
+   - `§3.1`–`§3.4`：四个模式行的 `<mode>_switch_run_mode` → `rc14`、`<mode>_excp_vector` → `rc15`（原 `rc8`/`rc10` 归 reserved ⇒ `CFXREG`）；`§5.2/§5.3/§5.4` 伪码同步。
    - `§5.1`/`§5.3`：`escape` 指令格式改为 `escape cfxHA`（无 `imms18`）；语义改为“按当前 cfx 的 `cg5 rc8–rc11` 返回”：`cfxha` 必须等于当前 cfx；目标 run mode 不得高于当前模式（否则 `CFXESC`）；返回地址精确取 `rc10`；`rc11` 整字写入目标模式 monitor 的 `cg8 rc1`，与切模式/切 cfx/跳转原子完成。
    - `§5.4`：异步进入的写入集合与 `cg9` 新布局；同步与异步共用同一 `escape` 出口。
 2. `spec/DADAO-22`：`cfx_uart_excp_pending` 举例改用 `cfx_uart` 自己的专用寄存器（或删除该例）；版本随 SEE 定为 0.8.0。
