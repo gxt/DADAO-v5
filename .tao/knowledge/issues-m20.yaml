@@ -51,9 +51,9 @@
   scope:
   - testcases
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: m20-testcases-002（2026-11-25：S8/用例扫描器统一 `[ \t]*`；列 0 S8 注入与列 0/Tab 扫描对照均可达 FAIL，check-inst-asm 274/274、check-case-ledger rc=0）
   title: "【P3】`check-inst-macro-scope` 的 S8（「已整例宏化的 `.S` 正文不得再有裸 `__CHECK_*`」）以**行首 `\t`** 为界，而 `llvm-mc` 实测接受**列 0 的宏调用/指令** ⇒ 列 0 的裸断言行不被 S8 抓到（`m15-testcases-004` 复核 F-a）。现存列 0 断言行 = 0，且该边界在基线扫描器同样存在（未被本任务放宽）。处置：S8 与扫描器统一改为「允许缩进或列 0」，并补一条列 0 反例注入。"
 - id: ISS-468
   scope:
