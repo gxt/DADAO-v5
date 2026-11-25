@@ -448,7 +448,7 @@
 - **`ISS-480`（2026-11-22 裁定）**：`__pycache__` 是**生成物**，`check-manifests-guard` 是**文件系统**双向集合断言（不读 `.gitignore`），故冲突真实存在；修法 = 清单新增 `ignore = ["__pycache__"]`（**数据面**声明，非代码硬编码），且条目须被 `git check-ignore` 判为忽略、不得与已登记项同名；其它游离目录仍红。
 - **执行器依据锁（2026-11-22 裁 B）**：`idl/data/exec_anchor.toml` 锁 263 个 op 正文 + `idl/lib/*.idl` 的 sha256；`check-idl-exec-anchor` 进 L1；改 `.idl` ⇒ 必须 `--update` 并在评审里说明实现是否跟改。**不**声称语义等价（`m17-idl-017`）。
 - **已知红（M17 全四方 274）**：`escape_ciii_cfx` 在 gem5 仍按旧编码返回 `rc=13`（`imms18=2` 期望 `CFXESC`），新旧二进制实测一致 ⇒ 既有缺口，归 `m18-gem5-001`（待开始）；chipyard 同例另有 `DIV-11`。
-- **页表与 ADWBFAIL（2026-11-25 用户裁定）**：页表必须放内存、PTE 一律用内存物理地址；把页表放 BootROM 的构造违反软件契约，不得作载体；**ADWBFAIL 不需要测试**，不构造用例、不登记 DIV；`m17-chipyard-001` 的「PTE 越窗 RTL CFXMEM vs QEMU exit(1)」**不登记**，由 `m17-testcases-007` 删除该测试路径。
+- **页表与 ADWBFAIL（2026-11-25 用户裁定）**：页表必须放内存、PTE 一律用内存物理地址；把页表放 BootROM 的构造违反软件契约，不得作载体；**ADWBFAIL 不需要测试**，不构造用例、不登记 DIV；`m17-chipyard-001` 的「PTE 越窗 RTL CFXMEM vs QEMU exit(1)」**不登记**，由 **`m16-testcases-023`**（已立，同口径且含 `DIV-14`/`DIV-04`/`ISS-515` 收口）删除该测试路径；M17 不另立重复任务。
 - **`opcodes.yaml` 维护约束（2026-11-25 用户确认 D1–D5）**：yaml 为编码数据真源（非语义真源）、生成器唯一写者、L1 `check-opcodes-repro` 只防漂移、D4 修改流程、16 个直接读点按跨模块处理；ADR-0063 Accepted，新开不并入 0032。
 - **权限编码扁平化（2026-11-24 用户裁 B）**：PTW 权限/访存故障只置高位位图（`[32..38]`/`[48..56]`），`CFXPERM`/`CFXMEM` 归一（分别只表示 cfx 掩码/非 PTW 访存）；**删除 `[39] NCFXPERM`、`[57] NONPTW`**；不新增 cause；PTW 的 monitor 路由与退出码属 Vast、待定。先 `m17-spec-001`（ADR-0062 + 影响清单），平台任务待 ADR 定稿后拆。
 - **cfx 权限轴（2026-11-23 裁 B）**：补 `cfxreg`/`cfxexe` 掩码 + 2 个拒绝路径载体（`CFXPERM`，272→274）；`cfxmem`（cfx SRAM/MMIO 窗口）单列不建模；平台分叉（如 `ISS-469`）只归因不改组件（`m17-idl-020`）。
