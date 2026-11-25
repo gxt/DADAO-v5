@@ -44,9 +44,9 @@ d22f518f725a591fd6ff067bac14629edf82c77c5e5966dc343e438f406add26  tests/inst/01-
 15791975499ab9ffe5893344f01149e8e483610a73f459b07ac8f23fad8a0585  tests/inst/01-load-store/stm.o_rrri_rb.S
 98277b11b7e00a298b19b60c51b5a94cf71eacac2316013eba7e07fdccd74e08  tests/inst/01-load-store/stm.o_rrri_rd.S
 18acf864107e692762e21827500ee3aa518c75a8e956bd915929249fe4b63b0b  tests/inst/01-load-store/stm.o_rrri_rf.S
-370131d5fdf0d359ee81ee1e387ff7198b60ccb5eac43449ed62db5def67f45a  tests/inst/01-load-store/stm.t_rrri_rd.S
-9ede6a04b34eab595313a09fbe6a1af7d69653ce8f03b45bbaf6add52e44a683  tests/inst/01-load-store/stm.t_rrri_rf.S
-8a29fac095ea7bad9aab17b8962c4cc0c5a3f25e92c1cc8ec209c7f2089b5135  tests/inst/01-load-store/stm.w_rrri_rd.S
+7b06c49be87256b964dde2e30fc8185a1eecd17cbabf95c32eef648b54740039  tests/inst/01-load-store/stm.t_rrri_rd.S
+1bd0a7ce90fc66c827ee873c62c76d5c360b2ede2a89a7b6f05a174188709149  tests/inst/01-load-store/stm.t_rrri_rf.S
+bc325ee14942d8e01ef16d38711267d1463b8fb6a3536c891dc89b96819d09cb  tests/inst/01-load-store/stm.w_rrri_rd.S
 db7b0b413a6bdd8400475fe3dd837034e2d7c8ded96f9c2152632109ed15e623  tests/inst/02-reg-copy/02-reg-copy.inc
 9fcc2583960304c3da94da3cf96d5952f1273f3c7d0e2dd825268d55f8f20145  tests/inst/02-reg-copy/cs.eq_rrrr_rd.S
 ee0fdd0f59fb60baac90f57db0a5e48b502c91e60674c83b58f9b64fcd132e13  tests/inst/02-reg-copy/cs.n_rrrr_rd.S
@@ -247,8 +247,8 @@ d9fffd71ac5f5c59b9d331ba9b4af02991fb4b1966fd5f0bece8339dace6a272  tests/inst/10-
 6cb14447b8f4abd7d75b6df818f45f05c8f2e12886d2f4eedb5fc36d20338092  tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S
 3e0b1a64b9eae21621c3444e290c49964932092b39a50bf18a7f2a2c0d74f05a  tests/inst/11-cfx/cfx2rc_crrr_cfx.S
 9c7057b4648c10833a53c6d3332b1101e9e92e94c1edf0002b1a3ca0196eae22  tests/inst/11-cfx/cfx2rd_crrr_cfx.S
-8dc5b7e0c44fccb7e3ef23b2f4efadc40fda3e1071fc7c1c7ea8e6f4200b6e28  tests/inst/11-cfx/cfxreg_deny_cfxperm.S
-76f7843f4652d56aa579bcfdc77bdb5a5b7cc03691ba3fce9e14b1e30541cf10  tests/inst/11-cfx/cfxtrap_deny_cfxperm.S
+6a93ff24f7aa70febe1d229027a09157208069ed37c56b66167c1d8cfa147431  tests/inst/11-cfx/cfxreg_deny_cfxperm.S
+08e0aca848bf8bbba44b84d69e228a3f6c5f664e56a0f7985b53f85fde6d1e67  tests/inst/11-cfx/cfxtrap_deny_cfxperm.S
 8c9439099e7b83782a1c30fe4f0955efa8781495b4716a590bef3742d6efcb23  tests/inst/11-cfx/escape_ciii_cfx.S
 f91db23b937c0842ac23d83ca94ebd2acb5395757bd32402b71c58cfe129e7a6  tests/inst/11-cfx/fence_ciii_cfx.S
 2a8a19d9f5988414905ac8e74a6b7717469738e6fe8c252e2ec2c8a304df6195  tests/inst/11-cfx/trap_ciii_cfx.S
