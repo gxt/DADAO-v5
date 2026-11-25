@@ -24,12 +24,12 @@
 | m20-infra-001 | 2–3 h | 四方差分与夜跑基准定义（参与集/比对口径/GAP 裁决/成员与时长上限；一条命令可复现） |
 | m20-gem5-002 | 2–3 h | gem5 SE futex 三处细节对齐（ISS-345；无泄漏/EPERM/REQUEUE 返回值） |
 | m20-gem5-004 | 4–8 h | gem5 SE 输出差异定位与修复（ISS-362 + ISS-367；`neural`/`pcompress2`） |
-| m20-testcases-003 | 1–2 h | `stm.t`/`stm.w` 补 `immu6=63` + rf0 源注释（ISS-m20-002；等 `m18-testcases-002` 释放 ledger） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m20-testcases-003 | 2026-11-25 19:54 | 1–2 h | `stm.t`/`stm.w` 补 `immu6=63` + rf0 源注释（ISS-m20-002） |
 | m20-gem5-003 | 2026-11-25 17:03 | 4–8 h | gem5 SE 长尾挂死定位与修复（ISS-361；先修 `clocale_mbfuncs` 单例） |
 
 ## 已验证
