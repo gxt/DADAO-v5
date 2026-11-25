@@ -59,9 +59,9 @@
   scope:
   - llvm
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: m20-llvm-001（2026-11-25：MC 解码器按 mreg_zero/mreg_range_overflow 拒绝越界组，非法字输出 `<unknown>`；65/65 `_rf.S` 不再崩溃，合法组零 diff，check-lit 183/183）
   title: 【P2】`llvm-objdump` 对 `rf` 寄存器组寄存器号断言崩溃（`DADAOInstPrinter::getRegisterName` 越界），`tests/inst/**/*_rf.S` 的 9 个镜像无法生成 IP→助记符表（`m16-chipyard-001` 实测；本轮改用固定布局探针 `.dd.t32` + 已知编码字补测 `ftcls`/`focls`/`rf2rf`）。影响：任何按 objdump 反汇编做周期/语义测量的工具对这 9 例都失效。处置：修 `getRegisterName` 的 rf 寄存器组映射并补 lit 用例（含 rf 寄存器组全部指令）。
 - id: ISS-471
   scope:
