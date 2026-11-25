@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
 new file mode 100644
-index 000000000..9bb5c9272
+index 000000000..7a4cffcb2
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
-@@ -0,0 +1,294 @@
+@@ -0,0 +1,391 @@
 +//===-- DADAODisassembler.cpp - DADAO Disassembler ------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -259,6 +259,92 @@ index 000000000..9bb5c9272
 +}
 +
 +//===----------------------------------------------------------------------===//
++// Architectural validity of register-group operands (ISS-468).
++//
++// contract-isa.md §15.1 (rules `mreg_zero` / `mreg_range_overflow`, shared with
++// contract-fp.md §15): a `{start:start+immu6-1}` group is ILLI when `immu6 == 0`
++// or when `start + immu6 > 64` -- no wrap, no truncation -- and both the
++// destination and the source start register are checked.  `immu6` is a 6-bit
++// field, so exactly these two combinations are expressible.
++//
++// The TableGen decoder accepts both.  `0x3EDC304A` (`ldm.o {rf55:rf64}`) then
++// reached DADAOInstPrinter::printRegGroupRange, whose `Start.id() + Count - 1`
++// is register enum 258 -- past `rf63` and past NUM_TARGET_REGS -- and tripped
++// `getRegisterName`'s `RegNo < 258` assertion (ISS-468).  The RD/RB/RA banks
++// overflow more quietly: their enum is followed by the next bank, so
++// `rd61 + {..4..}` would print `rb0`, a plausible but wrong group.  These are
++// architectural ILLI words, so reject them here; a decoded MCInst delivered to
++// the printer always carries in-bank groups, and llvm-objdump renders the word
++// as `<unknown>`.  Legal groups (including `{rf63}`, `{rf60:rf63}`) are
++// untouched: no operand is rewritten.
++//===----------------------------------------------------------------------===//
++
++static bool isInvalidRegGroup(const MCRegisterInfo &MRI, MCRegister Start,
++                              unsigned Count) {
++  return Count == 0 || MRI.getEncodingValue(Start) + Count > 64;
++}
++
++// Opcodes whose MCInst carries `{start:end}` groups sharing one `immu6` count
++// (the id lists of `mreg_zero` / `mreg_range_overflow`): the 19 rrri
++// `ldm.*`/`stm.*` forms (operand 0 is the group, operand 3 the count) and the
++// 11 orri forms -- the nine block copies plus `ftcls`/`focls` (operands 0 and 1
++// are the groups, operand 2 the count).  Everything else (ext/shl/shr/rev/...,
++// the 18 single-register format conversions, root/round where `immu6` is an
++// order or a rounding code) is not a register window and decodes as before.
++static bool hasInvalidRegGroup(const MCInst &MI, const MCRegisterInfo &MRI) {
++  auto GroupInvalid = [&](unsigned RegOp, unsigned CountOp) {
++    if (!MI.getOperand(RegOp).isReg() || !MI.getOperand(CountOp).isImm())
++      return false;
++    return isInvalidRegGroup(MRI, MI.getOperand(RegOp).getReg(),
++                             static_cast<unsigned>(
++                                 MI.getOperand(CountOp).getImm()));
++  };
++
++  switch (MI.getOpcode()) {
++  default:
++    return false;
++
++  // rrri: ldm.*/stm.* -- operand 0 is the group start, operand 3 the count.
++  case DADAO::ldm_ub_rd:
++  case DADAO::ldm_uw_rd:
++  case DADAO::ldm_ut_rd:
++  case DADAO::ldm_sb_rd:
++  case DADAO::ldm_sw_rd:
++  case DADAO::ldm_st_rd:
++  case DADAO::stm_b_rd:
++  case DADAO::stm_w_rd:
++  case DADAO::stm_t_rd:
++  case DADAO::ldm_o_rd:
++  case DADAO::stm_o_rd:
++  case DADAO::ldm_o_rb:
++  case DADAO::stm_o_rb:
++  case DADAO::ldm_o_ra:
++  case DADAO::stm_o_ra:
++  case DADAO::ldm_t_rrri_rf:
++  case DADAO::stm_t_rrri_rf:
++  case DADAO::ldm_o_rrri_rf:
++  case DADAO::stm_o_rrri_rf:
++    return GroupInvalid(0, 3);
++
++  // orri block copies (contract-isa.md §3.3.2/§3.3.3, contract-fp.md §12).
++  case DADAO::rd2rd:
++  case DADAO::rd2ra:
++  case DADAO::ra2rd:
++  case DADAO::rb2rb:
++  case DADAO::rd2rb:
++  case DADAO::rb2rd:
++  case DADAO::rd2rf_orri_rf:
++  case DADAO::rf2rd_orri_rf:
++  case DADAO::rf2rf_orri_rf:
++  // orri classify (contract-fp.md §15): two groups, RD destination window and
++  // RF source window.
++  case DADAO::ftcls_orri_rf:
++  case DADAO::focls_orri_rf:
++    return GroupInvalid(0, 2) || GroupInvalid(1, 2);
++  }
++}
++
++//===----------------------------------------------------------------------===//
 +// getInstruction: main entry point for disassembly.
 +//
 +// contract-isa.md §2.1: instructions are 4 bytes, big-endian.
@@ -280,7 +366,18 @@ index 000000000..9bb5c9272
 +  uint32_t Insn = support::endian::read32be(Bytes.data());
 +
 +  // Call the TableGen-generated decoder.
-+  return decodeInstruction(DecoderTable32, MI, Insn, Address, this, STI);
++  DecodeStatus Status =
++      decodeInstruction(DecoderTable32, MI, Insn, Address, this, STI);
++  if (Status != MCDisassembler::Success)
++    return Status;
++
++  // An illegal multi-register group is an ILLI word, not an instruction: turn
++  // it into a decode failure so the caller prints `<unknown>` instead of a
++  // group that runs off the end of its bank (ISS-468).
++  if (hasInvalidRegGroup(MI, *getContext().getRegisterInfo()))
++    return MCDisassembler::Fail;
++
++  return MCDisassembler::Success;
 +}
 +
 +//===----------------------------------------------------------------------===//

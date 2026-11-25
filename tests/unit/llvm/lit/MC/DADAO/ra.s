@@ -68,6 +68,8 @@ st.o ra63, [rb63, 0]
 @@ === Boundary: immu6=0 → ILLI, new syntax cannot express (count=0) ===
 
 @@ word = (0x3C<<24)|0 = 0x3C000000
+@@ immu6=0 ⇒ ILLI（mreg_zero）⇒ `<unknown>`，不得打印成合法的单寄存器组
+@@ OBJ: {{[0-9a-f]+:}} 3c 00 00 00{{.*}}<unknown>
 .dd.t32 0x3c000000
 
 @@ === Boundary: immu6=1 (single register) ===
@@ -90,9 +92,13 @@ rd2ra {ra0:ra62}, {rd0:rd62}
 
 @@ === Boundary: ra63 + immu6=63 ===
 
-@@ --- ra2rd {rd63:rf61}, {ra63:rb61} ---
+@@ --- ra2rd {rd63:…}, {ra63:…}, count=63 ---
 @@ op=0x40, ha=0x2E, hb=63, hc=63, hd=63
 @@ word = (0x40<<24)|(0x2E<<18)|(63<<12)|(63<<6)|63 = 0x40BBFFFF
-@@ OBJ: {{[0-9a-f]+:}} 40 bb ff ff{{.*}}ra2rd{{.*}}{rd63:rf61}, {ra63:rb61}
+@@ 起始 63 + immu6=63 = 126 > 64 ⇒ ILLI（contract-isa.md §15.1
+@@ mreg_range_overflow，不环绕：目的与源两个窗口都越界）。修复前这里打印成
+@@ 跨 bank 的 `{rd63:rf61}, {ra63:rb61}`（寄存器枚举相邻 bank 混读），现解码为
+@@ `<unknown>`（ISS-468 / m20-llvm-001）。
+@@ OBJ: {{[0-9a-f]+:}} 40 bb ff ff{{.*}}<unknown>
 @@ ASM: ra2rd {rd63:rf61}, {ra63:rb61}
 ra2rd {rd63:rf61}, {ra63:rb61}

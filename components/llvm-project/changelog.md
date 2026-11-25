@@ -582,3 +582,9 @@
 - **2026-11-23 m18-llvm-001**
   - 摘要：**`escape` 帧选择位（`imms18` bit1）的汇编/反汇编支持**（真源 `SimRISC-11 §3`/`Toolchain-01 §2.4/§5`，`m18-spec-003`）：`DADAOAsmParser` 的 escape 偏移校验由「只接受 `{0, 4}`」改为**只接受 `{0, 4, 8}`**（其它值硬报错，诊断含 `must be 0, 4 or 8`，并注明 `imms18[17:2]` SBZ、`8` 选 cg9 帧），`imms18 = imms20 >> 2 ∈ {0,1,2}`：bit0 = cg5 字节偏移 bit2（0/+4）、bit1 = 帧选择位（0 = cg5 同步帧、1 = cg9 异步现场且偏移恒 0）；`imms18 = 3` 与 `[17:2]` 非零是**架构 ILLI**，汇编器不生成。反汇编沿用规范长形 `escape cfxHA, [excp_cause_ip, imms18 << 2]`，cg5 回显 0/4、cg9 回显 8，字节级往返一致（无需改解码逻辑，仅补注释说明帧位语义）。测试：新增 `lit/MC/DADAO/cfx2-escape-frame.s`（cfx_cache/cfx_smon/cfx_hart/cfx_umon 的 0/4/8 正向 + objdump 回显 + `obj→asm→obj` 往返 + `cfx15` 数字形等价）与 `cfx2-escape-frame-err.s`（1/2/3/5/6/7/12/16/-4/524288 + 非常量 + 错基址，全部 rc≠0），更新 `cfx2-trap-escape{,-err}.s`（`8` 由负向转正向、诊断串同步）与独立 oracle `validate_cfx_vectors.py`（合法集改 `{0,4,8}`）。补丁 **2 份改**（AsmParser/MCInstPrinter，后者仅注释），`series` **99** 不变。
   - 执行者：engineer
+
+## M20
+
+- **2026-11-25 m20-llvm-001**
+  - 摘要：**`llvm-objdump` 对越界寄存器组的断言崩溃修复（ISS-468）**：`DADAODisassembler::getInstruction` 在 TableGen 解码成功后按 MC 层判据复核组编码——`contract-isa.md §15.1` / `contract-fp.md §15` 的 `mreg_zero`（`immu6 == 0`）与 `mreg_range_overflow`（`起始 + immu6 > 64`，不环绕、不截断，源与目的起始寄存器均查）命中 19 条 rrri `ldm.*`/`stm.*`（operand 0 为组首、operand 3 为 immu6）或 11 条 orri（9 条块复制 + `ftcls`/`focls`；operand 0/1 为组首、operand 2 为 immu6）时返回 `MCDisassembler::Fail`，`llvm-objdump` 输出 `<unknown>`，不再走到打印机 `printRegGroupRange` 的 `Start.id() + Count - 1`（原 `0x3EDC304A` = `rf55 + 10` 得寄存器枚举 258，撞 `getRegisterName` 断言；RD/RB/RA 同类越界此前静默打印成 `{rd61:rf0}`/`{rb61:rd0}`/`{ra61:rb0}`）。合法组（`{rf63}`、`{rf1:rf63}`、`{rf60:rf63}`、`{rf32:rf47}`、`rf2rf`、`ftcls`）与修复前逐字节一致；非组窗口 orri（`ext.so` 的移位量）不受影响。新增 lit `rf-group-range.s`（9 个 `_rf.S` 的原始字 + RD/RB/RA 越界 + classify 双窗口 + count=9 对照 + 合法边界）；订正 `ra.s` 中把 `ra2rd`(`0x40BBFFFF`, 63+63>64, ILLI) 的跨 bank 打印误当 expected 的两处（改为 `<unknown>`）。补丁 1 份改，`series` 99 不变。
+  - 执行者：engineer
