@@ -52,7 +52,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
-| m18-idl-002 | 2026-11-25 08:35 | IDL 执行器 cg9 新模型（七槽/源位 cfxha/monitor mask/整体覆盖/escape cg9 ⇒ CFXESC）；`check-idl` 274/274、self-test 68/68 |
+| m18-idl-002 | 2026-11-25 09:06 | IDL 执行器 cg9 新模型（七槽/源位 cfxha/monitor mask/整体覆盖/escape cg9 ⇒ CFXESC）；`check-idl` 274/274、self-test 68/68 |
 | m18-linux-023 | 2026-11-25 07:05 | Linux 侧异常解码适配扁平位图（K1 113/113、K2 170/170、K5 5/5；删 NCFXPERM/NONPTW；K6 残余红归 024/ISS-539） |
 | m18-linux-022 | 2026-11-25 03:40 | 内核异步新模型 R2（mask 归 monitor、src 位 cfxha、一帧多源；m45 静默死循环根因修复）；K2 170/170、K5 282/282、K6 71/71 |
 | m18-gem5-003 | 2026-11-25 02:52 | `check_tiny_hmon` 的 `CFXESC` oracle 改「当前 cfx（cfx63）」+ monitor 无写入反向断言；29 FAIL→0（213 checks） |
