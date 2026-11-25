@@ -1618,7 +1618,7 @@
   closed_in: null
   resolved_by: null
   title: "【P1·跨里程碑·裁定 B】`m17-spec-002`（ADR-0062 扁平 cause 位图）已改 `DADAO-12`，但 RTL（chipyard）仍按 ADR-0056 ⇒ RTL 上凡比较 `CAUSE_*` 的 guest 断言必红：`m16-testcases-019` 的 `arch-ptw-009 rc=47`、`arch-ptw-011 rc=54`、`arch-ptw-013 rc=3`（隔离树、master 补丁集实测）。这不是 M16 任务缺陷；闭合路径 = `m17-chipyard-001`（RTL 扁平 cause 对齐）合入后复跑。M16 收口前需用户裁定：RTL 相关 signature 暂时退回 gap，或接受 RTL 红并登记差异。 **用户 2026-11-25 裁定 B：保留 signature、接受 RTL known-red；由 `m16-testcases-022` 在 `m17-chipyard-001` 合入后修复/回归。**"
-- id: ISS-540
+- id: ISS-541
   scope:
   - infra
   - chipyard
