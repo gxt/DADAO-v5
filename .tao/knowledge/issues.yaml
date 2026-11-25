@@ -1618,3 +1618,12 @@
   closed_in: null
   resolved_by: null
   title: "【P1·跨里程碑·裁定 B】`m17-spec-002`（ADR-0062 扁平 cause 位图）已改 `DADAO-12`，但 RTL（chipyard）仍按 ADR-0056 ⇒ RTL 上凡比较 `CAUSE_*` 的 guest 断言必红：`m16-testcases-019` 的 `arch-ptw-009 rc=47`、`arch-ptw-011 rc=54`、`arch-ptw-013 rc=3`（隔离树、master 补丁集实测）。这不是 M16 任务缺陷；闭合路径 = `m17-chipyard-001`（RTL 扁平 cause 对齐）合入后复跑。M16 收口前需用户裁定：RTL 相关 signature 暂时退回 gap，或接受 RTL 红并登记差异。 **用户 2026-11-25 裁定 B：保留 signature、接受 RTL known-red；由 `m16-testcases-022` 在 `m17-chipyard-001` 合入后修复/回归。**"
+- id: ISS-540
+  scope:
+  - infra
+  - chipyard
+  milestone: M17
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】任务 worktree 内 `git reset --hard` 造成**未提交改动真实丢失**（`m17-chipyard-001` 第 2 轮复核实测）：完成区列 31 个修改文件、`git status` 仅 29——`tests/arch/cache/cfx5_regs.S`（DIV-07 放行块）与 `tests/arch/ptw/rtl-coverage.yaml`（扁平化文案）回退到 HEAD 态；前者导致探针 0/22、`check_cfx5_regs` rc=1 且**不在 `run.sh` 覆盖内**。教训：对齐基线应新建 `-verify` 临时树重放，或 `cp` 全量备份并逐文件 md5 对账；`AGENTS §8` 的禁令有实证代价。附：证据脚本应覆盖被改探针，否则「丢改动」不可见。"
