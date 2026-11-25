@@ -30,6 +30,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m18-linux-026 | 4–6 h | 内核迁移到异步 escape（去 jmon、`cg5 rc8–rc11` 出口、`escape cfx_hart`）；等 `m18-qemu-008` 合入 |
 | m18-linux-025 | 3–5 h | 用户态异步投递在 LTP 负载下自旋（≈70%，`ISS-m18-001` 族）；**等 026 内核移植后在新模型上修**（用户裁定 B） |
 | m18-qemu-007 | 2–3 h | QEMU system 移除 `cfx_jmon`（cfx1）实现（无设计、RTL 亦无）；`trap/访问` ⇒ CFXREG；**须等「异步 escape」规范与内核换帧都落地后再合入** |
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
