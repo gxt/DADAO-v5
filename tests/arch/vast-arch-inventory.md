@@ -194,6 +194,7 @@ RTL（`m16-chipyard-016/017`）均已实现 cfx5；`run_arch.py --cfx 5` 的三�
 | `arch-cache-001` `d_clean_single` | CACHE-16/20（clean 写回并保留行） |
 | `arch-cache-001` `d_flush_single` | CACHE-16/20（flush 写回；行删除由 RTL 日志断言） |
 | `arch-cache-001` `i_invalidate_single`/`i_flush_single`/`i_invalidate_range` | CACHE-17/19（I 侧 invalidate 丢弃、flush 等价；取指重取） |
+| `arch-cache-001` `id_invalidate_nodrop`/`id_flush_refetch`/`id_clean_writeback` | CACHE-21（`[15:14] = 11` 同选：操作/范围两维两侧共用 ⇒ clean/invalidate/flush 三条合法命令各一；`11\|flush` 的 I 侧丢弃 + D 侧写回 ⇒ 取新码，先 I 后 D 由 RTL 日志核） |
 | `arch-cache-001` `enable0_invalidate_noop` | CACHE-08（使能位为 0 时该侧不维护） |
 | `arch-cache-001` `mmio_noop` | CACHE-22（无行/不可缓存 PA 无效果、不报异常） |
 | `arch-cache-001` `noop_sel0`/`noop_opnone` | CACHE-09/11/12/13（判序；两处无条件 no-op 不检查范围/size） |
@@ -208,8 +209,15 @@ RTL（`m16-chipyard-016/017`）均已实现 cfx5；`run_arch.py --cfx 5` 的三�
 
 **未覆盖（显式登记，不假装全覆盖）**：
 
-- CACHE-21「两侧全选先 I 后 D」的**顺序**：两侧同时选的命令没有可观测的顺序差
-  （I/D 独立、同步完成），只用两侧各自选择的路径覆盖；顺序本身不设槽。
+- CACHE-21「两侧全选先 I 后 D」的**逐侧不同操作**（如任务书写的
+  `I|invalidate` + `D|clean`）在本编码下**不可表达**：控制字的操作（`[1:0]`）与
+  范围（`[3:2]`）两维两侧共用，`[15:14] = 11` 只多选一个侧（CACHE-09/10）。
+  同选面因此按三条合法命令覆盖（`arch-cache-001` 的 `id_*` 三槽）：
+  `11|invalidate`（两侧都丢弃、脏行不写回 ⇒ 读回内存旧值）、`11|flush`
+  （I 侧丢弃 + D 侧写回 ⇒ 取指新码；「先 I 后 D」由 RTL 缓存日志的 I 侧事件
+  不晚于 D 侧事件核）、`11|clean`（I 侧 no-op + D 侧写回）。**顺序本身在签名槽
+  上没有可观测差**（I/D 独立、同步完成），只有 RTL 日志能核 I→D；
+  QEMU/gem5 侧只判「一条命令的两侧效果都成立」。
 - CACHE-29 per-hart：本测试机单 hart，跨 hart 维护/一致性不在范围。
 - CACHE-05 组织（容量/行大小/组数/替换）：实现自由，`arch-cache-004` 之外不设
   geometry 断言；RTL 的专项探针（`cfx5_maint.S`）仍保留日志级几何检查。

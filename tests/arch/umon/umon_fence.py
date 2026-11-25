@@ -78,6 +78,7 @@ if str(_ARCH) not in sys.path:
 import node_probe_prelude as P          # noqa: E402
 import signature as _signature          # noqa: E402
 import machine_profile                   # noqa: E402
+from common import runlimit             # noqa: E402
 
 CASES = ("arch-umon-012", "arch-umon-013")
 MODES = ("hmon", "smon", "umon")
@@ -97,7 +98,7 @@ HAND_OFF = 0x1800
 SAVE_SLOT = 0x7ffb_0100
 
 ROM_BASE = P.ROM_BASE
-TIMEOUT = 60
+TIMEOUT = runlimit.DEFAULT_TIMEOUT   # 失败路径短时限（ISS-522）
 SIG = _signature.Emitter(P)     # word-builder 形态的签名机制（单一实现）
 
 # `fence` 编码（`contracts/opcodes.yaml`：opc 0x79、mask 0xFF000000、
@@ -467,10 +468,16 @@ def run_case(case_id, mode, qemu, work, timeout=TIMEOUT):
            "-semihosting-config", "enable=on,target=native,chardev=semi",
            "-chardev", "file,id=semi,path=%s" % console,
            "-d", "cpu", "-D", str(cpu_log)]
-    rc, blob, _ = _signature.run(cmd, out=str(console), timeout=timeout)
+    cmd += runlimit.dfilter(ROM_BASE, ROM_BASE + body_len)
+    res = runlimit.run(cmd, timeout=timeout, dump=cpu_log)
+    rc = res.rc
+    blob = console.read_bytes() if console.is_file() else b""
     problems = []
-    if rc == -2:
-        problems.append("模拟器超时（%ds）" % timeout)
+    if res.timed_out:
+        problems.append("模拟器超时（%ds）" % res.timeout)
+    elif res.dump_capped:
+        problems.append("`-d cpu` dump %d B 超过上限 %d B（已终止）"
+                        % (res.dump_bytes, runlimit.max_dump_bytes()))
     elif rc != 0:
         problems.append("模拟器退出码 %d（0x%x）" % (rc, rc) if rc > 0
                         else "模拟器退出码 %d" % rc)
@@ -491,6 +498,7 @@ def run_case(case_id, mode, qemu, work, timeout=TIMEOUT):
     if cpu_log.is_file():
         blocks = _parse_cpu_log(cpu_log.read_text(encoding="utf-8",
                                                   errors="replace"))
+    runlimit.finish_dump(cpu_log, res)
     body_lo, body_hi = ROM_BASE, ROM_BASE + body_len
     seen = sorted({m for pc, m in blocks if body_lo <= pc < body_hi})
     if mode_codes()[mode] not in seen:
@@ -502,6 +510,9 @@ def run_case(case_id, mode, qemu, work, timeout=TIMEOUT):
         "case": case_id,
         "mode": mode,
         "exit_code": rc,
+        "timeout_s": res.timeout,
+        "dump_bytes": res.dump_bytes,
+        "dump_capped": res.dump_capped,
         "observed_body_modes": seen,
         "signature_slots": got,
         "expected_signature": want,
@@ -631,7 +642,9 @@ def main(argv=None) -> int:
     ap.add_argument("--qemu", default=None)
     ap.add_argument("--work-dir", default=None)
     ap.add_argument("--signature-out", default=None)
-    ap.add_argument("--timeout", type=int, default=TIMEOUT)
+    ap.add_argument("--timeout", type=int, default=None,
+                    help="模拟器时限（秒）；缺省 = $DADAO_ARCH_TIMEOUT 或 %d"
+                         % TIMEOUT)
     ap.add_argument("--selfcheck", action="store_true")
     ap.add_argument("--list", action="store_true")
     # `run_arch` 的多模式 driver 契约会附带这两个参数；本载体不需要。
@@ -660,13 +673,15 @@ def main(argv=None) -> int:
         print("umon_fence: fence 用例不访问任何 cfx，不接受 --cfx-access: %r"
               % args.cfx_access, file=sys.stderr)
         return 2
+    if args.timeout is None:
+        args.timeout = runlimit.timeout()
     work = (Path(args.work_dir) if args.work_dir
             else Path(P.TMP_ROOT) / args.only / args.mode)
     work = work.resolve()
     try:
         result, blob = run_case(args.only, args.mode, args.qemu, work,
                                 timeout=args.timeout)
-    except SetupError as exc:
+    except (SetupError, runlimit.RunLimitError) as exc:
         print("umon_fence: SETUP: %s" % exc, file=sys.stderr)
         return 2
 

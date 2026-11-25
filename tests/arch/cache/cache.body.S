@@ -236,6 +236,42 @@ c_i3:
 	WCTRL	ID_NONE_RANGE
 	set.rd	rd5, W_NONE
 	SIGUPD	rd5
+
+	@@ I+D 同选（CACHE-21）：`[15:14] = 11` 的合法操作组合。控制字的
+	@@ 操作/范围两维两侧共用（CACHE-09/10）⇒ 同选面只有 clean/invalidate/
+	@@ flush 三条命令；下面逐条观测各自的可观测面。
+	@@ 1) 同选 invalidate：I 侧丢弃 + D 侧丢弃（脏行不写回）⇒ 读回内存旧值
+	ST8	A_D, M_D
+	WCTRL	D_FLUSH_ALL		@@ 内存 = M_D，D 侧无脏行
+	ST8	A_D, N_D		@@ 只脏在 cache
+	WADDR	A_D
+	WSIZE	64
+	WCTRL	ID_INVAL_LINE		@@ 两侧都丢弃
+	LD8	A_D, rd5
+	SIGUPD	rd5			@@ 期望 M_D
+
+	@@ 2) 同选 flush：I 侧丢弃（≡invalidate）+ D 侧写回后丢弃 ⇒ 取指重取新码
+	PATCH_CODE WORD_ID
+	WADDR	A_CODE
+	WSIZE	64
+	WCTRL	ID_FLUSH_LINE
+	RUN_CODE 0xc00
+
+	.org	0xc00
+c_id1:
+	or.o	rd5, rd20, rd0
+	SIGUPD	rd5			@@ 期望 IMM_ID（新立即数）
+
+	@@ 3) 同选 clean：I 侧 no-op + D 侧写回（行保留）⇒ 再失效后读回新值
+	ST8	A_D, M_D
+	WCTRL	D_FLUSH_ALL
+	ST8	A_D, N_D
+	WADDR	A_D
+	WSIZE	64
+	WCTRL	ID_CLEAN_LINE		@@ I 侧 no-op、D 侧写回
+	WCTRL	D_INVAL_LINE
+	LD8	A_D, rd5
+	SIGUPD	rd5			@@ 期望 N_D
 .endif
 
 .if	CACHE_CASE == 2

@@ -51,6 +51,7 @@ if str(_ARCH) not in sys.path:
 import machine_profile                     # noqa: E402
 import paths as _paths                     # noqa: E402
 import signature as _signature             # noqa: E402  真源
+from common import runlimit                # noqa: E402
 
 CASE_ID = "arch-umon-011"
 MODES = ("hmon", "smon", "umon")
@@ -283,10 +284,16 @@ def run_mode(mode, args, tools, work):
            "-chardev", "file,id=semi,path=" + str(console),
            "-display", "none", "-nographic",
            "-d", "cpu", "-D", str(cpu_log)]
-    rc, out = _run(cmd, args.timeout, cwd=str(work))
+    lo, hi = body_window(mode)
+    cmd += runlimit.dfilter(lo, hi)
+    res = runlimit.run(cmd, timeout=args.timeout, dump=cpu_log, cwd=str(work))
+    rc = res.rc
     problems = []
-    if rc == -2:
-        problems.append("qemu 超时（%ds）" % args.timeout)
+    if res.timed_out:
+        problems.append("qemu 超时（%ds）" % res.timeout)
+    elif res.dump_capped:
+        problems.append("`-d cpu` dump %d B 超过上限 %d B（已终止）"
+                        % (res.dump_bytes, runlimit.max_dump_bytes()))
     elif rc != 0:
         problems.append("qemu 退出码 %d（0x%x）" % (rc, rc) if rc > 0
                         else "qemu 退出码 %d" % rc)
@@ -298,7 +305,7 @@ def run_mode(mode, args, tools, work):
     if cpu_log.is_file():
         blocks = parse_cpu_log(cpu_log.read_text(encoding="utf-8",
                                                  errors="replace"))
-    lo, hi = body_window(mode)
+    runlimit.finish_dump(cpu_log, res)
     body_modes = sorted({m for pc, m in blocks if lo <= pc < hi})
     if want_mode not in body_modes:
         problems.append(
@@ -323,6 +330,9 @@ def run_mode(mode, args, tools, work):
         "expected_mode_code": want_mode,
         "observed_body_modes": body_modes,
         "exit_code": rc,
+        "timeout_s": res.timeout,
+        "dump_bytes": res.dump_bytes,
+        "dump_capped": res.dump_capped,
         "signature": str(signature),
         "signature_slots": got,
         "expected_signature": want,
@@ -416,7 +426,9 @@ def main() -> int:
     ap.add_argument("--mode", default="hmon", choices=MODES)
     ap.add_argument("--work-dir", default=None)
     ap.add_argument("--signature-out", default=None)
-    ap.add_argument("--timeout", type=int, default=60)
+    ap.add_argument("--timeout", type=int, default=None,
+                    help="模拟器时限（秒）；缺省 = $DADAO_ARCH_TIMEOUT 或 %d"
+                         % runlimit.DEFAULT_TIMEOUT)
     ap.add_argument("--cfx-access", default=None,
                     help="modes.yaml 的 cfx_access（cfxha 逗号列表）：逐 cfx 传 "
                          "--defsym ENV_CFX_ACCESS_<cfxha>=1 给环境做权限准备")
@@ -463,6 +475,8 @@ def main() -> int:
                   file=sys.stderr)
             return 2
 
+    if args.timeout is None:
+        args.timeout = runlimit.timeout()
     work = (Path(args.work_dir) if args.work_dir else
             _paths.test_artifacts_dir() / "arch" / "mode_env" / args.mode)
     work = work.resolve()          # qemu 以 work 为 cwd 运行；命令参数须为绝对路径
@@ -470,7 +484,7 @@ def main() -> int:
     try:
         tools = _toolchain(args.bootrom)
         result = run_mode(args.mode, args, tools, work)
-    except SetupError as exc:
+    except (SetupError, runlimit.RunLimitError) as exc:
         print("check_mode_env: SETUP: %s" % exc, file=sys.stderr)
         return 2
 

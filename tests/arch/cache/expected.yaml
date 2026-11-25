@@ -38,6 +38,13 @@ cases:
           无效果不报异常；sel=00 与 op=none 的无条件 no-op（CACHE-08/12/13/22）
         signature: [0xc0de000000000603, 0xc0de000000000701,
                     0xc0de000000000702, 0xc0de000000000703]
+      - label: id-combined
+        note: >-
+          I+D 同选（`[15:14] = 11`，CACHE-21）：操作/范围两维两侧共用 ⇒ 同选面
+          是 clean/invalidate/flush 三条合法命令。invalidate：两侧都丢弃、脏行
+          不写回（读回内存旧值）；flush：I 侧丢弃 + D 侧写回 ⇒ 取指重取新立即数
+          （两侧都生效才成立）；clean：I 侧 no-op + D 侧写回（行保留）
+        signature: [0xc0de000000000600, 0x9999, 0xc0de000000000601]
 
   - id: arch-cache-002
     carrier: arch/cache/check_cache.py

@@ -90,6 +90,7 @@ if str(_ARCH) not in sys.path:
 import node_probe_prelude as P          # noqa: E402
 import signature as _signature          # noqa: E402
 import machine_profile                   # noqa: E402
+from common import runlimit             # noqa: E402
 
 CASES = ("arch-power-001", "arch-power-002")
 MODES = ("hmon", "smon", "umon")
@@ -108,10 +109,9 @@ SAVE_SLOT = 0x7ffb_0100
 HAND_OFF = 0x1800
 
 ROM_BASE = P.ROM_BASE
-# 故障路径短超时（ISS-522 教训：60 s 超时 + 全量 `-d cpu` 会写满磁盘）。
-TIMEOUT = 15
-# `-d cpu` dump 上限：超过即判 harness 失败并删除（不让失败路径撑爆磁盘）。
-MAX_DUMP_BYTES = 128 << 20
+# 故障路径短超时（ISS-522）：与其它 arch 载体共用 `common/runlimit.py`
+# （默认 10 s，`DADAO_ARCH_TIMEOUT` 放宽；`-d cpu` dump 运行中即按上限截断）。
+TIMEOUT = runlimit.DEFAULT_TIMEOUT
 SIG = _signature.Emitter(P)
 
 # `cg5 rc1` 的 RW 回读哨兵（`DADAO-12 §3.6`：该字段 RW）。
@@ -699,27 +699,26 @@ def run_case(case_id, mode, engine, work, timeout=TIMEOUT):
     rom_path = work / "rom.bin"
     rom_path.write_bytes(rom)
     cmd = _rom_command(engine, rom_path, console, cpu_log, body_len)
-    rc, blob, _ = _signature.run(cmd, out=str(console), timeout=timeout)
+    res = runlimit.run(cmd, timeout=timeout, dump=cpu_log)
+    rc = res.rc
+    blob = console.read_bytes() if console.is_file() else b""
 
     problems = []
-    if rc == -2:
-        problems.append("模拟器超时（%ds）" % timeout)
+    if res.timed_out:
+        problems.append("模拟器超时（%ds）" % res.timeout)
+    elif res.dump_capped:
+        problems.append("`-d cpu` dump %d B 超过上限 %d B（已终止）"
+                        % (res.dump_bytes, runlimit.max_dump_bytes()))
     elif rc != 0:
         problems.append("模拟器退出码 %d（0x%x）" % (rc, rc) if rc > 0
                         else "模拟器退出码 %d" % rc)
 
-    # `-d cpu` 的 dump 上限：失败路径不得撑爆磁盘（ISS-522）。MODE 观测在删除
-    # 之前先读出来。
+    # MODE 观测在截断之前先读出来（失败/超限后 `finish_dump` 只留头部）。
     blocks = []
     if cpu_log.is_file():
-        dump_bytes = cpu_log.stat().st_size
-        if dump_bytes > MAX_DUMP_BYTES:
-            problems.append("`-d cpu` dump %d B 超过上限 %d B（已删除）"
-                            % (dump_bytes, MAX_DUMP_BYTES))
-            cpu_log.unlink()
-        else:
-            blocks = _parse_cpu_log(cpu_log.read_text(encoding="utf-8",
-                                                      errors="replace"))
+        blocks = _parse_cpu_log(cpu_log.read_text(encoding="utf-8",
+                                                  errors="replace"))
+    runlimit.finish_dump(cpu_log, res)
 
     want = expected_values(case_id)
     got = None
@@ -742,6 +741,9 @@ def run_case(case_id, mode, engine, work, timeout=TIMEOUT):
         "case": case_id,
         "mode": mode,
         "exit_code": rc,
+        "timeout_s": res.timeout,
+        "dump_bytes": res.dump_bytes,
+        "dump_capped": res.dump_capped,
         "observed_body_modes": seen,
         "signature_slots": got,
         "expected_signature": want,
@@ -933,7 +935,9 @@ def main(argv=None) -> int:
     ap.add_argument("--qemu", default=None)
     ap.add_argument("--work-dir", default=None)
     ap.add_argument("--signature-out", default=None)
-    ap.add_argument("--timeout", type=int, default=TIMEOUT)
+    ap.add_argument("--timeout", type=int, default=None,
+                    help="模拟器时限（秒）；缺省 = $DADAO_ARCH_TIMEOUT 或 %d"
+                         % TIMEOUT)
     ap.add_argument("--selfcheck", action="store_true")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--diagnose", action="store_true",
@@ -955,6 +959,8 @@ def main(argv=None) -> int:
         print("power_vast: 本用例的权限准备在载体内部完成（smon 的 deleg），"
               "不接受 --cfx-access: %r" % args.cfx_access, file=sys.stderr)
         return 2
+    if args.timeout is None:
+        args.timeout = runlimit.timeout()
     work_root = (Path(args.work_dir).resolve() if args.work_dir
                  else Path(P.TMP_ROOT) / "power")
     try:
@@ -975,7 +981,7 @@ def main(argv=None) -> int:
         work = work_root / args.only / args.mode
         result, blob = run_case(args.only, args.mode, args.qemu, work,
                                 timeout=args.timeout)
-    except SetupError as exc:
+    except (SetupError, runlimit.RunLimitError) as exc:
         print("power_vast: SETUP: %s" % exc, file=sys.stderr)
         return 2
 

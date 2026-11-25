@@ -4,9 +4,11 @@
 
 四条 case 共用本文件，QEMU / gem5 / RTL 三个承载共用同一份槽序与期望：
 
-  * `arch-cache-001`（hmon/smon/umon，16 槽）：寄存器面 + D 侧单行
+  * `arch-cache-001`（hmon/smon/umon，21 槽）：寄存器面 + D 侧单行
     `invalidate`/`clean`/`flush` + I 侧 `invalidate`/`flush` 后取指重取 +
-    `cache_enable=0` 的不维护 + 编码 no-op / 无行 PA 无效果；
+    `cache_enable=0` 的不维护 + 编码 no-op / 无行 PA 无效果 +
+    **I+D 同选**（`[15:14] = 11`）的 clean/invalidate/flush 三条合法命令
+    （CACHE-21；`ISS-517`）；
   * `arch-cache-002`（hmon/smon/umon，12 槽）：D 侧范围 —— `PA 单行`只碰包含
     `addr_start` 的行、`PA 区间`（相邻两行 + 区间外一行）、`all`；
   * `arch-cache-003`（只 hmon，16 槽）：拒绝面 —— 读 WO、写 RO、保留 rc、
@@ -88,6 +90,8 @@ IMM_OLD = 0x1111
 IMM_INVAL = 0x3333
 IMM_FLUSH = 0x5555
 IMM_RANGE = 0x7777
+# I+D 同选（`[15:14] = 11`）的 flush 命令写回的新立即数（CACHE-21）。
+IMM_ID = 0x9999
 
 # 见证值：no-op / 无行命令「没有把执行流带走」。
 W_MMIO = 0xC0DE_0000_0000_0701
@@ -226,6 +230,10 @@ SLOTS = {
         "mmio_noop",
         "noop_sel0",
         "noop_opnone",
+        # I+D 同选（CACHE-21）：探针在 case 1 末尾追加的三条合法命令。
+        "id_invalidate_nodrop",
+        "id_flush_refetch",
+        "id_clean_writeback",
     ),
     "arch-cache-002": (
         "d_line_containing",
@@ -315,6 +323,9 @@ def expected(case_id, root="."):
             W_MMIO,
             W_SEL0,
             W_NONE,
+            M_D,                 # I+D 同选 invalidate：脏行不写回 ⇒ 内存旧值
+            IMM_ID,              # I+D 同选 flush：I 侧丢弃 + D 侧写回 ⇒ 取新码
+            N_D,                 # I+D 同选 clean：I 侧 no-op、D 侧写回
         ]
 
     if case_id == "arch-cache-002":
@@ -398,6 +409,7 @@ def build_include(root="."):
         ("WORD_INVAL", setzw_word(f, 20, IMM_INVAL)),
         ("WORD_FLUSH", setzw_word(f, 20, IMM_FLUSH)),
         ("WORD_RANGE", setzw_word(f, 20, IMM_RANGE)),
+        ("WORD_ID", setzw_word(f, 20, IMM_ID)),
         ("WORD_JUMP", jump_back_word(f, 5)),
     ]
     # 控制字：三个维度分别生成，避免探针里出现裸位号。
@@ -415,6 +427,12 @@ def build_include(root="."):
         "I_INVAL_LINE": ("I", "invalidate", "PA 单行"),
         "I_INVAL_RANGE": ("I", "invalidate", "PA 区间"),
         "I_FLUSH_LINE": ("I", "flush", "PA 单行"),
+        # I+D 同选（`[15:14] = 11`，CACHE-21）：操作/范围两维两侧共用，
+        # 因此「同选 + 合法操作」只有 clean/invalidate/flush 三条命令
+        # （两侧各自的语义见 CACHE-19/20）。
+        "ID_CLEAN_LINE": ("ID", "clean", "PA 单行"),
+        "ID_INVAL_LINE": ("ID", "invalidate", "PA 单行"),
+        "ID_FLUSH_LINE": ("ID", "flush", "PA 单行"),
         "I_FLUSH_RANGE": ("I", "flush", "PA 区间"),
         "ID_CLEAN_RESV": ("ID", "clean", "reserved"),
         "D_CLEAN_RESV": ("D", "clean", "reserved"),

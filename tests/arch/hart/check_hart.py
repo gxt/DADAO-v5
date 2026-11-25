@@ -46,6 +46,7 @@ for _sub in (("tests", "shared"), ("tests", "arch"), ("tools", "testcases", "lib
 
 import paths as _paths                     # noqa: E402
 import check_cfx15 as oracle               # noqa: E402
+from common import runlimit                # noqa: E402
 
 CASES = {"arch-hart-001": ("hmon",), "arch-hart-002": ("smon", "umon")}
 MODE_CODE = {"hmon": 3, "smon": 2, "umon": 0}
@@ -55,7 +56,7 @@ EXITB = 0x00105800
 HMON_BASE = 0x00108000
 LDS = _HERE.with_name("cfx15_qemu.lds")
 SRC = _HERE.with_name("cfx15.S")
-TIMEOUT = 180
+TIMEOUT = runlimit.DEFAULT_TIMEOUT   # 失败路径短时限（ISS-522）
 
 
 class SetupError(RuntimeError):
@@ -141,10 +142,11 @@ def run_case(case_id, mode, args, tools, work):
     if not str(args.qemu).endswith(".py"):
         # 逐 cycle 搜索需要确定的虚拟时间（RTL 侧本来就是确定时钟）。
         cmd += ["-icount", "shift=0,align=off,sleep=off"]
-    rc, out = _run(cmd, args.timeout)
+    res = runlimit.run(cmd, timeout=args.timeout)
+    rc = res.rc
     problems = []
-    if rc == -2:
-        problems.append("模拟器超时（%ds）" % args.timeout)
+    if res.timed_out:
+        problems.append("模拟器超时（%ds）" % res.timeout)
     elif rc != 0:
         problems.append("模拟器退出码 %d" % rc)
     blob = console.read_bytes() if console.is_file() else b""
@@ -158,6 +160,7 @@ def run_case(case_id, mode, args, tools, work):
     result = {
         "case": case_id, "mode": mode, "platform": "driver",
         "engine": str(args.qemu), "elf": str(elf),
+        "timeout_s": res.timeout,
         "signature_slots": got, "problems": problems,
         "verdict": "PASS" if not problems else "FAIL",
         "command": cmd,
@@ -224,7 +227,9 @@ def main():
     # 后忽略（不静默改变语义）。
     ap.add_argument("--cfx-access", default=None)
     ap.add_argument("--cache-model", default=None)
-    ap.add_argument("--timeout", type=int, default=TIMEOUT)
+    ap.add_argument("--timeout", type=int, default=None,
+                    help="模拟器时限（秒）；缺省 = $DADAO_ARCH_TIMEOUT 或 %d"
+                         % TIMEOUT)
     ap.add_argument("--selfcheck", action="store_true")
     ap.add_argument("--list", action="store_true")
     args = ap.parse_args()
@@ -242,9 +247,12 @@ def main():
     mode = args.mode or modes[0]
     if mode not in modes:
         ap.error("%s 不允许 --mode %s（允许 %s）" % (args.only, mode, list(modes)))
+    if args.timeout is None:
+        args.timeout = runlimit.timeout()
+
     try:
         tools = _toolchain(args.bootrom)
-    except SetupError as exc:
+    except (SetupError, runlimit.RunLimitError) as exc:
         print("check_hart: SETUP: %s" % exc, file=sys.stderr)
         return 2
     work = (Path(args.work_dir) if args.work_dir

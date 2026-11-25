@@ -39,7 +39,7 @@
 	.equ	HMON_BASE, 0x0fff00000000
 
 	.if	CCASE == 1
-	.equ	CSLOTS, 18
+	.equ	CSLOTS, 21
 	.elseif	CCASE == 2
 	.equ	CSLOTS, 12
 	.else
@@ -302,6 +302,37 @@ c_body:
 	SIGUPD	rd5
 	WCTRL	ID_NONE_RANGE
 	set.rd	rd5, W_NONE
+	SIGUPD	rd5
+
+	@@ I+D 同选（CACHE-21）：`[15:14] = 11` 的合法操作组合（操作/范围两维
+	@@ 两侧共用 ⇒ 同选面只有 clean/invalidate/flush 三条命令）。
+	@@ 1) invalidate：两侧都丢弃（脏行不写回）⇒ 读回内存旧值
+	ST8	A_D, M_D
+	WCTRL	D_FLUSH_ALL
+	ST8	A_D, N_D
+	WADDR	PA_D
+	WSIZE	64
+	WCTRL	ID_INVAL_LINE
+	LD8	A_D, rd5
+	SIGUPD	rd5
+
+	@@ 2) flush：I 侧丢弃 + D 侧写回 ⇒ 取指重取新码
+	PATCH_CODE WORD_ID
+	WADDR	PA_CODE
+	WSIZE	64
+	WCTRL	ID_FLUSH_LINE
+	RUN_CODE c_id1
+	REC_CODE c_id1
+
+	@@ 3) clean：I 侧 no-op + D 侧写回 ⇒ 再失效后读回新值
+	ST8	A_D, M_D
+	WCTRL	D_FLUSH_ALL
+	ST8	A_D, N_D
+	WADDR	PA_D
+	WSIZE	64
+	WCTRL	ID_CLEAN_LINE
+	WCTRL	D_INVAL_LINE
+	LD8	A_D, rd5
 	SIGUPD	rd5
 	DUMP_AND_EXIT
 .endif

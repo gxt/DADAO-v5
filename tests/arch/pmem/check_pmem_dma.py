@@ -49,6 +49,7 @@ if str(_HERE.parent) not in sys.path:
 
 import paths as _paths                     # noqa: E402
 import pmem_oracle as oracle               # noqa: E402
+from common import runlimit                # noqa: E402
 
 CASES = {"arch-pmem-001": ("hmon",), "arch-pmem-002": ("smon", "umon")}
 MODE_CODE = {"hmon": 3, "smon": 2, "umon": 0}
@@ -57,8 +58,8 @@ SIG_BUF = 0x00105000
 EXITB = 0x00105800
 LDS = _HERE.with_name("pmem_dma_qemu.lds")
 SRC = _HERE.with_name("pmem_dma.S")
+TIMEOUT = runlimit.DEFAULT_TIMEOUT   # 失败路径短时限（ISS-522）
 SLOTS = {"arch-pmem-001": 55, "arch-pmem-002": 10}
-TIMEOUT = 180
 
 
 class SetupError(RuntimeError):
@@ -147,10 +148,11 @@ def run_case(case_id, mode, args, tools, work):
     if not str(args.qemu).endswith(".py"):
         # 逐 cycle 的 timer/DMA 竞态需要确定的虚拟时间（RTL 侧本来就是确定时钟）。
         cmd += ["-icount", "shift=0,align=off,sleep=off"]
-    rc, out = _run(cmd, args.timeout)
+    res = runlimit.run(cmd, timeout=args.timeout)
+    rc = res.rc
     problems = []
-    if rc == -2:
-        problems.append("模拟器超时（%ds）" % args.timeout)
+    if res.timed_out:
+        problems.append("模拟器超时（%ds）" % res.timeout)
     elif rc != 0:
         problems.append("模拟器退出码 %d" % rc)
     blob = console.read_bytes() if console.is_file() else b""
@@ -164,6 +166,7 @@ def run_case(case_id, mode, args, tools, work):
     result = {
         "case": case_id, "mode": mode, "platform": "driver",
         "engine": str(args.qemu), "elf": str(elf),
+        "timeout_s": res.timeout,
         "signature_slots": got, "problems": problems,
         "verdict": "PASS" if not problems else "FAIL",
         "command": cmd,
@@ -230,7 +233,9 @@ def main():
     # 权限准备（显式接受后忽略，不静默改变语义）。
     ap.add_argument("--cfx-access", default=None)
     ap.add_argument("--cache-model", default="on", choices=("on", "off"))
-    ap.add_argument("--timeout", type=int, default=TIMEOUT)
+    ap.add_argument("--timeout", type=int, default=None,
+                    help="模拟器时限（秒）；缺省 = $DADAO_ARCH_TIMEOUT 或 %d"
+                         % TIMEOUT)
     ap.add_argument("--selfcheck", action="store_true")
     ap.add_argument("--list", action="store_true")
     args = ap.parse_args()
@@ -249,9 +254,11 @@ def main():
     if mode not in modes:
         ap.error("%s 不允许 --mode %s（允许 %s）"
                  % (args.only, mode, list(modes)))
+    if args.timeout is None:
+        args.timeout = runlimit.timeout()
     try:
         tools = _toolchain(args.bootrom)
-    except SetupError as exc:
+    except (SetupError, runlimit.RunLimitError) as exc:
         print("check_pmem_dma: SETUP: %s" % exc, file=sys.stderr)
         return 2
     work = (Path(args.work_dir) if args.work_dir

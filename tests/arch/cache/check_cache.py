@@ -5,8 +5,9 @@
 四条 case 共用本驱动，与 RTL 承载（`check_cache_rtl.py`）共用**同一份**槽序与
 期望（`tests/arch/cache/cache_oracle.py`）：
 
-  * `arch-cache-001`（hmon/smon/umon，18 槽）：寄存器面 + D 单行维护 + I 侧
-    取指重取 + `enable=0` 不维护 + 编码 no-op / 无行 PA 无效果；
+  * `arch-cache-001`（hmon/smon/umon，21 槽）：寄存器面 + D 单行维护 + I 侧
+    取指重取 + `enable=0` 不维护 + 编码 no-op / 无行 PA 无效果 + I+D 同选
+    （CACHE-21，`ISS-517`）；
   * `arch-cache-002`（hmon/smon/umon，12 槽）：D 侧范围（单行边界、区间、all）；
   * `arch-cache-003`（只 hmon，16 槽）：拒绝面（`CFXREG` + 非法命令无维护动作）；
   * `arch-cache-004`（只 hmon，15 槽，`cache-model=off`，CACHE-27）。
@@ -61,11 +62,14 @@ for _sub in (("tests", "shared"), ("tools", "testcases", "lib"),
         sys.path.insert(0, _p)
 if str(_HERE.parent) not in sys.path:
     sys.path.insert(0, str(_HERE.parent))
+if str(_ARCH) not in sys.path:
+    sys.path.insert(0, str(_ARCH))
 
 import machine_profile                     # noqa: E402
 import paths as _paths                     # noqa: E402
 import signature as _signature             # noqa: E402  真源
 import cache_oracle as oracle              # noqa: E402
+from common import runlimit                # noqa: E402
 
 CASES = oracle.CASES
 MODES = oracle.MODES
@@ -89,7 +93,7 @@ PERM_OFF = 0x4000
 
 CFX_ACCESS = []
 SIG_SLOTS = 0
-TIMEOUT = 60
+TIMEOUT = runlimit.DEFAULT_TIMEOUT       # 失败路径短时限（ISS-522；env 可放宽）
 
 
 class SetupError(RuntimeError):
@@ -260,12 +264,16 @@ def run_mode(case_id, mode, args, tools, work):
            "-semihosting-config", "enable=on,target=native,chardev=semi",
            "-chardev", "file,id=semi,path=" + str(console),
            "-display", "none", "-nographic",
-           "-d", "cpu", "-D", str(cpu_log),
-           "-dfilter", "0x%x+0x%x" % (lo, hi - lo)]
-    rc, out = _run(cmd, args.timeout, cwd=str(work))
+           "-d", "cpu", "-D", str(cpu_log)]
+    cmd += runlimit.dfilter(lo, hi)
+    res = runlimit.run(cmd, timeout=args.timeout, dump=cpu_log, cwd=str(work))
+    rc = res.rc
     problems = []
-    if rc == -2:
-        problems.append("模拟器超时（%ds）" % args.timeout)
+    if res.timed_out:
+        problems.append("模拟器超时（%ds）" % res.timeout)
+    elif res.dump_capped:
+        problems.append("`-d cpu` dump %d B 超过上限 %d B（已终止）"
+                        % (res.dump_bytes, runlimit.max_dump_bytes()))
     elif rc != 0:
         problems.append("模拟器退出码 %d" % rc)
 
@@ -274,6 +282,7 @@ def run_mode(case_id, mode, args, tools, work):
     if cpu_log.is_file():
         blocks = parse_cpu_log(cpu_log.read_text(encoding="utf-8",
                                                  errors="replace"))
+    runlimit.finish_dump(cpu_log, res)
     body_modes = sorted({m for pc, m in blocks if lo <= pc < hi})
     if want_mode not in body_modes:
         problems.append(
@@ -299,6 +308,9 @@ def run_mode(case_id, mode, args, tools, work):
         "expected_mode_code": want_mode,
         "observed_body_modes": body_modes,
         "exit_code": rc,
+        "timeout_s": res.timeout,
+        "dump_bytes": res.dump_bytes,
+        "dump_capped": res.dump_capped,
         "signature": str(signature),
         "signature_slots": got,
         "expected_signature": expected,
@@ -446,7 +458,9 @@ def main() -> int:
     ap.add_argument("--mode", default="hmon", choices=MODES)
     ap.add_argument("--work-dir", default=None)
     ap.add_argument("--signature-out", default=None)
-    ap.add_argument("--timeout", type=int, default=TIMEOUT)
+    ap.add_argument("--timeout", type=int, default=None,
+                    help="模拟器时限（秒）；缺省 = $DADAO_ARCH_TIMEOUT 或 %d"
+                         % TIMEOUT)
     ap.add_argument("--cfx-access", default=None,
                     help="modes.yaml 的 cfx_access（cfxha 逗号列表）")
     ap.add_argument("--bootrom", default=None,
@@ -484,6 +498,8 @@ def main() -> int:
         return 2
     # 引擎以 work 为 cwd 启动 ⇒ 相对路径会解析到别处：统一成绝对路径。
     args.qemu = str(Path(args.qemu).resolve())
+    if args.timeout is None:
+        args.timeout = runlimit.timeout()
     expected = oracle.expected(case_id, _REPO)
     SIG_SLOTS = len(expected)
 
@@ -511,6 +527,9 @@ def main() -> int:
         tools = _toolchain(args.bootrom)
         result = run_mode(case_id, args.mode, args, tools, work)
     except SetupError as exc:
+        print("check_cache: SETUP: %s" % exc, file=sys.stderr)
+        return 2
+    except runlimit.RunLimitError as exc:
         print("check_cache: SETUP: %s" % exc, file=sys.stderr)
         return 2
 

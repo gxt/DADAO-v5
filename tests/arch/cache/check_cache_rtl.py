@@ -268,6 +268,22 @@ def check_log(case_id, events):
             fails.append("the no-line invalidate did not reach the dcache")
         elif mmio[0][2].get("miss") != 1:
             fails.append("the no-line invalidate was not reported as a miss")
+        # 6. I+D 同选（CACHE-21）：`[15:14] = 11` 的一条命令两侧都生效，
+        #    且先 I 后 D 在日志里可观测（`11|flush`：I 侧丢弃 + D 侧写回）。
+        d_flush_code = _find(events, "dcache", "cmd", op=3, scope=1,
+                             line=pa_code, wb=1)
+        i_side_code = [e for e in _find(events, "icache", "cmd", scope=1,
+                                        line=pa_code)
+                       if e[2].get("op") in (2, 3)]
+        if not d_flush_code:
+            fails.append("I+D 同选 flush 的 D 侧没写回代码行")
+        if not i_side_code:
+            fails.append("I+D 同选 flush 的 I 侧没丢弃代码行")
+        if d_flush_code and i_side_code:
+            last_i = max(i_side_code, key=_cyc)
+            if _cyc(last_i) > _cyc(d_flush_code[0]):
+                fails.append("I+D 同选 flush 里 D 侧早于 I 侧"
+                             "（CACHE-21 要求先 I 后 D）")
 
     if case_id == "arch-cache-002":
         pa_r0, pa_r1 = oracle.RTL_PA_R0, oracle.RTL_PA_R1

@@ -68,6 +68,10 @@ import paths as _dadao_paths  # noqa: E402
 import writer_guard  # noqa: E402
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
 import machine_profile  # noqa: E402
+# arch 载体的失败形态上限（`-d cpu` dump 上限 + 短时限）：与 `tests/arch` 的
+# 驱动共用同一份机制（ISS-522）。
+sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "arch"))
+from common import runlimit  # noqa: E402
 
 _TOOLCHAIN_BIN = str(_dadao_paths.host_toolchain_bin())
 _TEST_ARTIFACTS = _dadao_paths.test_artifacts_dir()
@@ -95,7 +99,7 @@ DEFAULT_BOOTROM_VAST = str(_TEST_ARTIFACTS / "bootrom" / "step5" / "bootrom_step
 DEFAULT_VECTORS_DIR = "tests/arch/umon"
 DEFAULT_EXPECTED = "tests/arch/umon/expected.yaml"
 DEFAULT_WORK_DIR = str(_TEST_ARTIFACTS / "arch" / "m5-e2e")
-DEFAULT_TIMEOUT = 30
+DEFAULT_TIMEOUT = runlimit.DEFAULT_TIMEOUT
 
 # Geometry is selected from contracts/machine.yaml + tests/ee-<env>/runtime.yaml
 # (through machine_profile) in main().
@@ -310,10 +314,17 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
         "-D", cpu_log,
     ]
     res.cmdline = " ".join(cmd)
-    rc, _out, err, timed = _run(cmd, timeout=timeout, cwd=work_dir)
-    if timed:
-        res.reason = f"qemu timeout after {timeout}s"
+    guarded = runlimit.run(cmd, timeout=timeout, dump=cpu_log, cwd=work_dir)
+    if guarded.timed_out:
+        res.reason = f"qemu timeout after {guarded.timeout}s"
+        runlimit.finish_dump(cpu_log, guarded)
         return res
+    if guarded.dump_capped:
+        res.reason = (f"`-d cpu` dump {guarded.dump_bytes} B > "
+                      f"{runlimit.max_dump_bytes()} B (terminated)")
+        runlimit.finish_dump(cpu_log, guarded)
+        return res
+    rc = guarded.rc
     res.actual = rc
     if rc is None:
         res.reason = "qemu did not return an exit code"
@@ -446,7 +457,9 @@ def main():
     ap.add_argument("--vectors-dir", default=DEFAULT_VECTORS_DIR)
     ap.add_argument("--expected", default=DEFAULT_EXPECTED)
     ap.add_argument("--work-dir", default=DEFAULT_WORK_DIR)
-    ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
+    ap.add_argument("--timeout", type=int, default=None,
+                    help="qemu 时限（秒）；缺省 = $DADAO_ARCH_TIMEOUT 或 %d"
+                         % DEFAULT_TIMEOUT)
     ap.add_argument("--only", default=None, help="run a single case by name")
     ap.add_argument("--profile",
                     default=os.environ.get("DADAO_TEST_PROFILE") or "vast",
@@ -463,6 +476,12 @@ def main():
                          "restore and re-run the whole suite for green")
     writer_guard.add_arguments(ap)
     args = ap.parse_args()
+    if args.timeout is None:
+        try:
+            args.timeout = runlimit.timeout()
+        except runlimit.RunLimitError as exc:
+            sys.stderr.write("ERROR: %s\n" % exc)
+            return 2
 
     try:
         prof = set_profile(args.profile)

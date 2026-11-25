@@ -43,7 +43,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))
 
 for _sub in (("tools", "testcases", "lib"), ("tools", "infra"),
-             ("tests", "shared")):
+             ("tests", "shared"), ("tests", "arch")):
     _p = os.path.join(_REPO, *_sub)
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -51,6 +51,7 @@ for _sub in (("tools", "testcases", "lib"), ("tools", "infra"),
 import machine_profile as _machine_profile  # noqa: E402
 import paths as _paths  # noqa: E402
 import signature  # noqa: E402  (signature 流机制：单一实现)
+from common import runlimit  # noqa: E402  (失败形态上限：ISS-522)
 
 PROFILE = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "vast")
 if not PROFILE.get("ptw") or not PROFILE.get("hmon"):
@@ -89,7 +90,11 @@ QEMU = DEFAULT_QEMU
 # (INFRA-146t).  Never under /tmp: an L1 gate flags non-active /tmp/opencode
 # directories older than 2 h, while this root is only refreshed by L2/L3.
 TMP_ROOT = str(_paths.test_artifacts_dir() / "arch" / "probes")
-TIMEOUT = 10
+try:
+    # 失败路径短时限（ISS-522）：缺省 10 s，`DADAO_ARCH_TIMEOUT` 放宽。
+    TIMEOUT = runlimit.timeout()
+except runlimit.RunLimitError as _exc:      # 非法 env：显式失败，不静默回退
+    raise SystemExit("node_probe_prelude: %s" % _exc)
 
 # Semihosting SYS_EXIT (ADR-0020 D8): trap immu18[17:8] == 0x3FF.
 SEMIHOST_TAG = 0x3FF00
@@ -492,16 +497,33 @@ def run(rom, workdir=None, qemu=None, timeout=TIMEOUT, dump=True,
     if console_out is not None:
         cmd[-1] += ",chardev=semi"
         cmd += ["-chardev", "file,id=semi,path=%s" % console_out]
+    if console_out is not None:
+        try:
+            os.remove(console_out)
+        except OSError:
+            pass
     if dump:
         cmd += ["-d", "cpu", "-D", lp]
-    rc, blob, _ = signature.run(cmd, out=console_out, timeout=timeout)
-    if rc == -2:
-        return (None, "TIMEOUT", b"") if console_out is not None else (None, "TIMEOUT")
+    res = runlimit.run(cmd, timeout=timeout, dump=(lp if dump else None))
+    if console_out is not None:
+        blob = b""
+        if os.path.isfile(console_out):
+            with open(console_out, "rb") as f:
+                blob = f.read()
+    else:
+        blob = res.output
+    rc = res.rc
+    if res.timed_out or res.dump_capped:
+        # 失败路径：超时/dump 超上限 ⇒ 截断 dump 并显式报原因（不是 guest 退出码）。
+        runlimit.finish_dump(lp if dump else None, res)
+        reason = "TIMEOUT" if res.timed_out else "DUMP-CAPPED"
+        return ((None, reason, b"") if console_out is not None
+                else (None, reason))
     if rc >= 0:
         rc &= 0xFF
     log = ""
     if dump and os.path.isfile(lp):
-        with open(lp) as f:
+        with open(lp, encoding="utf-8", errors="replace") as f:
             log = f.read()
     if console_out is not None:
         return rc, log, blob

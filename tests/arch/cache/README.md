@@ -47,7 +47,7 @@ case、同一槽序**；期望值由 `cache_oracle.py` 现场从 `contract-cache
 
 | case | 内容 | 模式 | 槽 | 来源条款 |
 | --- | --- | --- | --- | --- |
-| `arch-cache-001` | 寄存器面（exist/enable/ctrl/addr_start/addr_size）+ D 单行 invalidate/clean/flush + I 侧 invalidate/flush 后取指重取 + `enable=0` 不维护 + 编码 no-op/无行 PA 无效果 | hmon/smon/umon | 18 | CACHE-03/06/07/08/12/13/14/15/16/18/19/20/22/27 |
+| `arch-cache-001` | 寄存器面（exist/enable/ctrl/addr_start/addr_size）+ D 单行 invalidate/clean/flush + I 侧 invalidate/flush 后取指重取 + `enable=0` 不维护 + 编码 no-op/无行 PA 无效果 + **I+D 同选**（`[15:14] = 11`）的 clean/invalidate/flush | hmon/smon/umon | 21 | CACHE-03/06/07/08/12/13/14/15/16/18/19/20/21/22/27 |
 | `arch-cache-002` | D 侧范围：PA 单行边界、PA 区间（相邻两行 + 区间外一行）、all | hmon/smon/umon | 12 | CACHE-15/16/17/20 |
 | `arch-cache-003` | 拒绝面：读 WO、写 RO、保留 rc、非法编码 ⇒ `CFXREG`，且非法命令不产生维护动作；`enable=0` 不抑制编码校验 | hmon | 16 | CACHE-03/04/08/11/14/25/27 |
 | `arch-cache-004` | `cache-model=off`（CACHE-27）：cfx5 存在、`exist=0`、寄存器可访问、合法命令接受无效果、非法编码仍 ⇒ `CFXREG` | hmon（`cache_model: "off"`） | 15 | CACHE-27 |
@@ -61,6 +61,19 @@ case、同一槽序**；期望值由 `cache_oracle.py` 现场从 `contract-cache
 | `check_cache_rtl.py` | RTL 驱动（同一槽序 + `+verbose` 模式观测 + 缓存日志断言）；`arch-cache-001/002` 的 hmon/smon/umon 三种模式都跑（`m16-chipyard-027` 起 cfx5 开 `commonRows`），只有 `arch-cache-004` 记 GAP |
 | `expected.yaml` | 签名流登记（与 `cache_oracle` 双向核对） |
 | `rtl-coverage.yaml` | RTL 覆盖/缺口（`arch-cache-004` = `cache-model=off` 无 RTL 开关 ⇒ gap） |
+
+**I+D 同选（`ISS-517`，CACHE-21）**：控制字的**操作（`[1:0]`）与范围（`[3:2]`）
+两维由两侧共用**，`[15:14] = 11` 只多选了一个侧，不会让两侧各带一套操作
+（`contract-cache` CACHE-09/10）⇒ 「同选 + 合法操作」只有三条命令：
+
+- `11|invalidate`：I 侧丢弃 + D 侧丢弃（含脏行，不写回）⇒ 读回**内存旧值**；
+- `11|flush`：I 侧丢弃（≡invalidate）+ D 侧写回后丢弃 ⇒ 取指重取**新码**
+  （两侧都生效才成立；「先 I 后 D」由 RTL 缓存日志核）；
+- `11|clean`：I 侧 no-op（CACHE-19）+ D 侧写回（行保留）⇒ 再失效后读回新值。
+
+任务书写的「`I|invalidate` + `D|clean`」这种**逐侧不同操作**的组合在本编码下
+不可表达（操作是单一字段）；`11|flush` 的 D 侧正是「写回（clean 的可观测效果）
++ 丢弃」，同选项因此按上面三条覆盖。
 
 **已知三方口径**：
 

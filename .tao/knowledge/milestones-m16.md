@@ -29,12 +29,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-testcases-020 | 2026-11-25 08:14 | 2–3 h | `tests/arch` 收尾（cfx5 I+D 同选 + 失败时限/日志；ISS-517/522） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-testcases-020 | 2026-11-25 10:02 | `tests/arch` 收尾（cfx5 I+D 同选 21 槽；`runlimit` 10 s/128 MiB/1 MiB；未装载监视器 17 KB） |
 | m16-testcases-019 | 2026-11-25 08:13 | PTW S/U 覆盖 + `arch-ptw-013` signature（QEMU+gem5 三模式；RTL known-red 待 022） |
 | m16-infra-002 | 2026-11-25 05:57 | `chipyard_engine` 可选 `+verbose` + L1 门控 `check-arch-self-test`（spec 任务收尾） |
 | m16-chipyard-027 | 2026-11-25 05:23 | RTL 缺面补齐（power `cg4/cg6`、cfx5 S/U 可达、`addr_start` 56 位；DIV-13/16 删除） |
