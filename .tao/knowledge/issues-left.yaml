@@ -203,3 +203,13 @@
   title: 【P2】LLVM DADAO **CodeGen 侧** `DADAORegisterInfo.cpp` 仍以 `DADAO::RBSP`（= SP）作 RA 寄存器，与 MC 侧（`ra63`，DWARF 255）不一致；当前无消费者（grep 证实），但形态上是同一口径两处真源。建议后续统一并补断言。
 
 
+
+- id: ISS-left-001
+  scope:
+  - infra
+  - gem5
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`tools/gem5/check_converge.py` 的 `PASS_BASELINE` 已过期（改前即红）：改前源码树实测 b1=2196 / b6=1414 / b7=2960，表内 2156/1384/2955；b5 因 `m16-gem5-027` 新增环形断言 1292→1316。该脚本未挂 Makefile 门控，属潜伏红。处置：现场重算七项基线后重冻（复核给出参考 2196/1160/4318/3696/1316/1414/2960）并更新文件头重冻日期注释。

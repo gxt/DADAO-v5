@@ -28,13 +28,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-gem5-027 | 2026-11-25 23:51 | 2–4 h | gem5 RegRAS 改环形缓冲（去搬移，`SimRISC-00 §2.4.3`；同 QEMU `ra_phys()` 约定） |
 | m16-testcases-024 | 2026-11-25 23:36 | 1–1.5 h | `tests/arch` 收尾二：临时目录清理 + `check_ptw_rtl --mode` + 单平台假不一致 + GEM5 ELF 校验 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-gem5-027 | 2026-11-26 01:05 | gem5 RegRAS 改环形缓冲（去搬移；同 QEMU `ra_phys()` 约定；15/15 RAS 探针） |
 | m16-testcases-023 | 2026-11-25 23:36 | 删除 ADWBFAIL 用例（007 4→2 槽、014 整条删；15→14 case；DIV-14 删、DIV-04 wont-fix） |
 | m16-testcases-022 | 2026-11-25 22:06 | PTW RTL 扁平 cause 回归（009/011/013 转绿；`ISS-m16-006` 关闭；case13 SIGUPD 修复） |
 | m16-gem5-025 | 2026-11-25 20:56 | gem5 `cfx_pmem` 面 + `cfx_power_ctrl` 副作用（bit0 关机/1、2 复位）+ rc6 对齐 + Tiny 掩码面；DIV-06/18 删除 |
