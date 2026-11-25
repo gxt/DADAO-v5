@@ -1820,7 +1820,7 @@ _locked-check-arch-smoke: install-host build-bootrom
 	  tail -n 4 $(ARCH_PROBE_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (service coverage rc=$$rc)"; exit $$rc; fi
 	@echo "check-arch-smoke: [3/3] cfx4 PTW/TLB carrier (15 cases; Vast profile)"; \
-	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_PTW_CARRIER) --qemu $(QEMU_BIN) > $(ARCH_CARRIER_LOG) 2>&1; \
+	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_PTW_CARRIER) --qemu $(QEMU_BIN) --mode hmon --cfx-access 0,2,4,32,63 > $(ARCH_CARRIER_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -n 4 $(ARCH_CARRIER_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (ptw_carrier_tlb rc=$$rc)"; exit $$rc; fi
