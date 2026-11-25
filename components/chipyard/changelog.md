@@ -24,6 +24,10 @@
 
 ## M16
 
+- **2026-11-25 `m16-chipyard-028`**
+  - 摘要：**RTL `cfx_hart cg9 rc6` 对齐 `m18-spec-006`（RW、复位 2、异步进入取该值）**（`DADAO-12 §4.7/§5.4`、`ISS-540`）。`GewuFile` 的 `cg9 rc6`（`async_switch_run_mode`）由「无状态、写忽略、读回恒 2」改为 2 位寄存器 `asyncSwitch`：复位 2（supv）、写 `wdata[1:0]` 落地并读回；异步进入的 `runMode` 取该寄存器当前值（不再硬编码 `2.U`），入口目标/`curCfx` 仍固定 `cfx_hart`。Tiny 无 `cfx_hart` ⇒ 无新增状态/端口。**sim 重建**：`make verilog CONFIG=WumingVastConfig -j32` + `make CONFIG=WumingVastConfig -j32`（`JOBS=32`，组件源 `.conda-env` 的 PATH+RISCV，295 s）⇒ md5 `309d119b39f088afbccfcc7957219506`，elaboration `%Error`=0。**验证**：同一份 `tests/arch/hart/cfx15.S`（与 QEMU 共用）在 RTL 侧 `arch-hart-001` 89 槽、`arch-hart-002` S/U 各 40 槽逐槽绿；`run_arch --platforms qemu,chipyard` 三模式 PASS（gem5 待 `m16-gem5-025`），`DIV-18` 收窄为只剩 gem5。**注入**：① 读侧恢复 `Mux(isAsyncSwitch, 2.U, …)` ⇒ 写后读槽 18–20 与进入读数槽 84 红；② 异步进入恢复 `runMode := 2.U` ⇒ 槽 86（rc6=0 进 user 的下一次 `prev_run_mode`）红；两路均 `cp`+md5 还原并强制重建（287 s / 292 s / 284 s）后回绿，sim md5 回到 `309d119b…`。**不回归**：cfx15/pmem/time/cache/ptw RTL 代表集、`mode_entry` H/S/U 两轴判权、Tiny `11-cfx` 4/5（`DIV-11` 既有）与 `01-load-store` 38/38；`check-patch-tree` chipyard 段 0 problem / `--source-state` OK（HEAD=6ee049f，base+1）/ `make_patch` 幂等 / index-blobs / tests-index / component-changelog / no-residue / `run_arch --self-test` 全绿。
+  - 执行者：engineer
+
 - **2026-11-25 `m16-chipyard-027`**
   - 摘要：**RTL 缺面补齐（ISS-524/ISS-534、DIV-13/DIV-16）**。`cfx_power` 在 Vast 打开 `commonRows`（`cg4` 的 `cfx_id=63`/计数、`cg6` scratch ≥2，`DADAO-12 §3.5/§3.7`；Tiny 保持旧寄存器面）；`cfx_cache`（cfx5）打开 `commonRows`（`cg0`–`cg3` 模式行 + `cg3 rc12` deleg + cg4/cg5/cg6 共享面），U/S 在两轴判权下可达、`cg8` 维护命令语义不变；`WumingCache` 的 tag/行地址从 48 位改为完整 56 位 PA（`CACHE-18`），维护范围比较不再截断。验证：`arch-power-001` 35 槽（含 cg4/cg6）RTL + QEMU/gem5 三模式全绿；`arch-cache-001/002` 的 hmon/smon/umon 全部由 RTL 承载（`cache_rtl.S` 在 hypv 只清源 cfx 位并打开 cfx5 deleg，再经 cfx_smon/umon 降模式）；`cfx5_maint` 新增 56 位 `addr_start` 向量（`PA_HIGH = 0x0001_0000_0004_5000`，低 48 位别名 A_D）与日志断言；注入「关掉 power/cfx5 common face」「tag 截回 48 位」均红，`cp`+md5 还原并强制重建后回绿；`check-patch-tree` chipyard 段 0 problem、`make_patch` 幂等、index-blobs/tests-index/component-changelog/no-residue/`run_arch --self-test` 全绿。
   - 执行者：engineer

@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..4f0e710
+index 0000000..91d4c15
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,2016 @@
+@@ -0,0 +1,2023 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -104,7 +104,8 @@ index 0000000..4f0e710
 +//   cg9 rc0-rc2  async_prev_run_mode / _prev_cfx_code / _cause_ip (HW/RW)
 +//   cg9 rc3/rc4  async_src_frame / _src_pending (HW/RO; software writes are
 +//                ignored without an exception)
-+//   cg9 rc5/rc6  async_excp_vector (RW, 4-byte aligned) / fixed supv switch
++//   cg9 rc5/rc6  async_excp_vector (RW, 4-byte aligned) / async_switch_run_mode
++//                (RW 2-bit, reset 2 = supv; entry takes the current value)
 +//   cg9 rc7-15   reserved ⇒ CFXREG
 +//
 +// `cfx_time` (cfx34 on `Kaiwu-Vast`; absent on `Kaiwu-Tiny`, where its rows are
@@ -884,8 +885,9 @@ index 0000000..4f0e710
 +    val asyncSrcFrame = RegInit(0.U(gp.dataBits.W))   // rc3 HW/RO
 +    val asyncSrcPending = RegInit(0.U(gp.dataBits.W)) // rc4 HW/RO
 +    val asyncVector = RegInit(0.U(gp.dataBits.W))     // rc5 RW
-+    // rc6 `async_switch_run_mode` is fixed supv (`D1`): no state, writes are
-+    // accepted and ignored, reads return the entry mode.
++    /** rc6 `async_switch_run_mode`: RW 2-bit, reset 2 = supv (`§4.7`,
++      * `m18-spec-006`); an asynchronous entry switches to this value. */
++    val asyncSwitch = RegInit(2.U(gp.modeBits.W))
 +  }
 +
 +  private val hartRegs: Option[HartRegs] = hartId.map(_ => new HartRegs)
@@ -1097,8 +1099,8 @@ index 0000000..4f0e710
 +    val isAsyncVector: Bool,
 +    val isAsyncSwitch: Bool) {
 +    // cg8 rc0/2/3 are RO; `timer_cmp`/`timer_ctrl` are RW.  cg9 rc0-rc2 and
-+    // rc5/rc6 are RW, rc6 accepting-and-ignoring its write; the two bitmaps
-+    // rc3/rc4 are HW/RO — their write is *ignored without an exception*
++    // rc5/rc6 are RW; the two bitmaps rc3/rc4 are HW/RO — their write is
++    // *ignored without an exception*
 +    // (`§4.7`, `ADR-0061` D4), so they stay in the write set.
 +    val anyRead = isHartId || isCycle || isInsn || isTimerCmp || isTimerCtrl ||
 +      isAsyncPrevMode || isAsyncPrevCfx || isAsyncCauseIp || isAsyncSrcFrame ||
@@ -1305,7 +1307,7 @@ index 0000000..4f0e710
 +  // back `ENABLE | IMASK << 1 | ISTATUS << 2`, where ISTATUS is the live
 +  // compare condition (`{time} >= timer_cmp && ENABLE`, §4.7).  `cg9` is the
 +  // seven-slot frame: rc3/rc4 are the two HW-written bitmaps (read-only seen
-+  // from software), rc6 is the fixed supv entry mode.
++  // from software), rc6 is the RW entry-mode register (reset 2 = supv).
 +  private val hartTime: UInt =
 +    io.hart.map(_.timeValue).getOrElse(0.U(gp.dataBits.W))
 +  private val timerIstatus: Bool =
@@ -1330,7 +1332,8 @@ index 0000000..4f0e710
 +                    Mux(rows.isAsyncSrcFrame, regs.asyncSrcFrame,
 +                      Mux(rows.isAsyncSrcPending, regs.asyncSrcPending,
 +                        Mux(rows.isAsyncVector, regs.asyncVector,
-+                          Mux(rows.isAsyncSwitch, 2.U(gp.dataBits.W),
++                          Mux(rows.isAsyncSwitch,
++                            regs.asyncSwitch.pad(gp.dataBits),
 +                            0.U(gp.dataBits.W)))))))))))))
 +  }
 +
@@ -1560,12 +1563,14 @@ index 0000000..4f0e710
 +        // 48-bit core address, 4-byte aligned (`§4.7`).
 +        regs.asyncVector := Cat(0.U((gp.dataBits - 48).W),
 +          io.wdata(47, 2), 0.U(2.W))
++      }.elsewhen(rows.isAsyncSwitch) {
++        // `async_switch_run_mode` (rc6): RW 2-bit, the written value lands and
++        // reads back (`§4.7`, `m18-spec-006`).
++        regs.asyncSwitch := io.wdata(gp.modeBits - 1, 0)
 +      }
 +      // `async_src_frame`/`async_src_pending` (rc3/rc4) are HW/RO: the write is
 +      // accepted and ignored, the value reads back unchanged and no exception
 +      // is raised (`§4.7`, `ADR-0061` D4).
-+      // `async_switch_run_mode` (rc6) is fixed supv (`D1`): accepted, ignored,
-+      // reads return 2.
 +    }
 +    // Retired instruction counter (`§4.7 insn`).
 +    when(io.hart.get.retire) { regs.insn := regs.insn + 1.U }
@@ -1972,6 +1977,8 @@ index 0000000..4f0e710
 +  // supv entry.  Every entry overwrites all `cg9` slots; a non-zero
 +  // `src_frame` from the previous entry is just the old snapshot and never
 +  // blocks this one (`DADAO-12 §5.4(三)`, no frame phase, no `frame_valid`).
++  // The entry mode is the current `cg9 rc6` value (reset 2 = supv), not a
++  // hard-wired supv (`m18-spec-006`).
 +  when(io.intr.ack && io.intr.valid) {
 +    for (r <- hartOpt) {
 +      r.asyncPrevMode := runMode
@@ -1979,7 +1986,7 @@ index 0000000..4f0e710
 +      r.asyncCauseIp := Cat(0.U((gp.dataBits - 48).W),
 +        io.intr.causeIp(47, 2), 0.U(2.W))
 +      r.asyncSrcFrame := asyncAllowed
-+      runMode := 2.U
++      runMode := r.asyncSwitch
 +      curCfx := gp.hart.get.cfxId.U(6.W)
 +    }
 +  }
