@@ -83,14 +83,6 @@
   closed_in: M17
   resolved_by: won't fix（m15-idl-003 证据脚本在归档运行期，不在仓；已由复审记录覆盖）
   title: 【P3】`m15-idl-003` 证据脚本的「散文零改动」断言取 `HEAD` 作基线 ⇒ 提交后恒真（`m15-idl-003` 复核查出）：`run.sh` 用 `git diff HEAD -- spec/SimRISC-03` 判 0 deletions，而换入 `HEAD` 的正是本任务自己的改动 ⇒ 无论散文改没改都绿。本轮由 reviewer 用 `git diff <merge-base> -- spec/SimRISC-03`（0 deletions）独立闭合。处置：IDL 类任务的证据脚本统一把散文基线锚到 **merge-base / master**（与 `DD-Y003`「提交后仍须回绿」同源）。
-- id: ISS-476
-  scope:
-  - idl
-  milestone: M17
-  status: closed
-  closed_in: M15
-  resolved_by: m15-idl-019（裁定 A：改调 ft_scale）
-  title: 【P2】`ftsclb_orrr_rf` 的临时写法在指数极值处会下溢（合 §2.1/IEEE 应为溢出）：`e64 = off + n` 以 64 位有符号视图越过 2^63 变负 ⇒ 命中 `< -2000` 饱和。分叉区间 = `n ∈ [2^63-260, 2^63-1]`（src 有限非零、5 档舍入全中）：临时写法给 `±0`/`±1` + `UF|NX`，库 `ft_scale` 给 `±Inf`/`±最大有限` + `OF|NX`。仓内 spec-exact oracle `tools/chipyard/fp_ref.py::sclb_exact` 与库侧 0 失配、与临时写法全反；f64 兄弟 `fosclb` 早已直调 `fo_scale` ⇒ f32/f64 口径不一致。修法见 `m15-idl-019`（待裁定 A/B）。
 - id: ISS-479
   scope:
   - idl
