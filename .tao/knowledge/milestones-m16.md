@@ -29,7 +29,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-testcases-024 | 2026-11-25 23:37 | 1–1.5 h | `tests/arch` 收尾二：临时目录清理 + `check_ptw_rtl --mode` + 单平台假不一致 + GEM5 ELF 校验 |
+| m16-testcases-024 | 2026-11-25 23:36 | 1–1.5 h | `tests/arch` 收尾二：临时目录清理 + `check_ptw_rtl --mode` + 单平台假不一致 + GEM5 ELF 校验 |
 
 ## 已验证
 
