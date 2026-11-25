@@ -316,14 +316,17 @@ builtin function cfx_frame_valid {
 builtin function cfx_escape_enter {
   arguments Bits<6> cfxha, Bits<64> imm
   description {
-    同步异常退出（`escape`）：按 SEE 的异常退出流程恢复运行模式（`inner_run_mode`）与
-    当前核芯功能扩展（`inner_cfx_code`），`escape_num` 递增，控制转到 `cg5` 同步异常帧的
-    返回地址 `excp_cause_ip + imm`（`imm` 为**字节**偏移，合法值 0 或 4）。`escape`
-    **不保存、不恢复**任何中断来源掩码（来源掩码是策略，不是现场）。
-    异步没有 `escape` 返回路径：`cfx_hart cg9` 只是异步进入瞬间的捕获缓冲（每次进入覆盖，
-    无有效位），由软件在关中断窗口搬运到任务现场后进入 `cfx_smon`，返回走 smon/umon
-    正常路径。`imms18[1] = 1`（`imm = 0` 的 `cg9` 帧选择）编码仍合法，但执行时
-    `cg9` 不是返回帧 ⇒ 当前 cfx 的 `CFXESC`（不改变 cfx/运行模式/`cg9`）。
+    同步异常退出（`escape`，仅 `cg5` 同步帧）：按 SEE 的异常退出流程恢复运行模式
+    （`inner_run_mode`）与当前核芯功能扩展（`inner_cfx_code`），`escape_num` 递增，
+    控制转到 `cg5` 同步异常帧的返回地址 `excp_cause_ip + imm`（`imm` 为**字节**偏移，
+    合法值 0 或 4）。`escape` **不保存、不恢复**任何中断来源掩码（来源掩码是策略，
+    不是现场）。
+    异步没有 `escape` 返回路径：`cfx_hart cg9` 只是异步进入瞬间的捕获缓冲（七槽，
+    每次进入整体覆盖，`rc3`/`rc4` 两个位图 HW/RO，无有效位、无 `frame_valid`），
+    由软件在关中断窗口搬运到任务现场后进入 `cfx_smon`，返回走 smon/umon 正常路径。
+    `imms18[1] = 1`（`cg9` 帧选择）编码仍合法，但恒判所选帧无效 ⇒ 当前 cfx 的
+    `CFXESC`：**不改变** cfx/运行模式/`cg9`（不清 `async_src_frame`、不递增
+    `escape_num`，`cfxha` 可以是 `cfx_hart` 本身）。
     目标是否为保留编号、`cfxha == inner_cfx_code`、所选同步帧是否有效（`cg5` 帧
     `excp_cause_id != 0`）、SBZ 是否为零、`imms18 = 3`（帧选择位 1 且偏移 +4）
     是否出现，均由 operation 先判定再调用本函数。
@@ -357,6 +360,14 @@ builtin function cfx_fence {
   }
 }
 ```
+
+**异步捕获（`cfx_hart cg9`，见 `spec/DADAO-12 §4.7`/`§5.4`）**——硬件行为，不新增库函数：
+
+- **源身份 = 源 cfxha**：`TIMER` = 15、`PMEM_DMA` = 32；异步源**不占** `excp_cause_id`，不存在按旧宏 cause 编号（17/18）编址的来源位。
+- **`cg9` 七槽**：`rc0` `async_prev_run_mode`（HW/RW）、`rc1` `async_prev_cfx_code`（HW/RW）、`rc2` `async_cause_ip`（HW/RW，已提交指令之后的 `rb0`）、`rc3` `async_src_frame`（HW/RO）、`rc4` `async_src_pending`（HW/RO）、`rc5` `async_excp_vector`（RW）、`rc6` `async_switch_run_mode`（RW，supv）；`rc7`–`rc15` reserved（访问 ⇒ `CFXREG`）。`rc3`/`rc4` 的位索引 = 源 cfxha，软件写忽略。
+- **来源掩码在 monitor**：当前运行模式 monitor（`cfx0`–`cfx3`）的 `cg8 rc1`（`cfx_<monitor>_async_intr_mask`），位 = 源 cfxha、`0` = 允许、`1` = 屏蔽、复位全 1；投递时**按当前运行模式**取该行求值。掩码不随帧保存/恢复。
+- **一帧多源**：同一指令边界上所有 pending 且被放行的源**一次性**进入同一捕获——`rc3` = 这些位的并集、`rc4` 扣除这些位、`excp_async_num` 每次进入 +1（与源个数无关）。
+- **捕获缓冲**：每次进入**整体覆盖** `rc0`–`rc3`；不因 `rc3 != 0` 拒绝进入或只置 pending，没有"帧活动期"、没有 `frame_valid`、没有软件清 `rc3`。
 
 ### 4.7 浮点原语（`idl/lib/fp.idl`）
 
@@ -461,7 +472,7 @@ UDB 本身若干转写错误（溢出判据、无符号比较、qNaN 置 NV、�
 - **控制流写回**：`jump` 把 `target` 的**完整 64 位**写回 `rb0`（`[63:48]` 保留进位、不强制清 0），取指取低 48 位；`ip()` 不再假定高 16 位为 0（与 `SimRISC-06 §1/§2` 及三执行机一致）。
 - **浮点库**：新增 `idl/lib/fp.idl`（ft/binary32 族，§4.7）；`render.py` 的「已声明函数」扫描面加 `idl/lib/*.idl`（含 `?` 后缀的函数名）。fo/binary64 族同库追加：位操作底座 + 64 位整型转换 + `fo_to_ft`/`ft_to_fo` + `is_dp_*` 谓词；算术 `fo_add`/`fo_sub`/`fo_mul`/`fo_div`/`fo_muladd`/`fo_sqrt`、取整/缩放、以及 `ft_rem`/`fo_rem` 取余；§4.7 指针同步扩到两族 + 取余。
 - **ft 族补正**：f32 舍入原语的 tininess 改「舍入后」检测（IEEE 754-2019 §7.5）；`ft_sqrt`/`round_ft_to_integral` 的类型层缺陷修掉（函数体 type_check 0 例外）；补 `i32_to_fo`/`ui32_to_fo`（精确转换）与 `ft_scale`（scaleB）。
-- **异常退出的帧选择**：§4.6 `cfx_escape_enter` 的 `imm` 只表示 `cg5` 同步异常帧的字节偏移（0/4）；`cfx_hart cg9` 异步现场偏移恒 0、返回地址取 `async_cause_ip`，并恢复异步现场的运行模式、核芯功能扩展与保存的全局中断掩码；`cfx_frame_valid` 明确只判同步帧，异步现场有效性（`async_cause_id != 0`）由 operation 判定。
+- **异常退出的帧选择**：§4.6 `cfx_escape_enter` 的 `imm` 只表示 `cg5` 同步异常帧的字节偏移（0/4）；`cfx_hart cg9` 是异步进入瞬间的**捕获缓冲**（七槽，`rc3`/`rc4` 位图 HW/RO），不是返回帧 ⇒ `imms18[1] = 1` 恒判所选帧无效、报当前 cfx 的 `CFXESC`（不改变 cfx/运行模式/`cg9`、不清 `async_src_frame`）；`cfx_frame_valid` 只判同步帧。§4.6 增「异步捕获」口径：源身份 = 源 cfxha（15/32）、来源掩码在当前运行模式 monitor 的 `cg8 rc1`、一帧多源、每次进入整体覆盖。
 
 ### 0.1.0（初版后修订）
 
