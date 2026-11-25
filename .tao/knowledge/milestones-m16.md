@@ -20,6 +20,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-031 | 1–2 h | RTL `cfx_power_ctrl` 写侧（写接受 + `§4.12` 副作用；ISS-525 RTL 部分） |
 | m16-testcases-024 | 1–1.5 h | `tests/arch` 收尾二：临时目录清理 + `check_ptw_rtl --mode` + 单平台假不一致（ISS-m16-007/010） |
 | m16-chipyard-030 | 2–4 h | `cfx15.S` 偶发挂死（flake）定位（ISS-m16-011） |
 | m16-testcases-023 | 1–2 h | 删除 ADWBFAIL 用例（页表必须在内存；`DIV-14` 删除、`DIV-04`/`ISS-515` 收口） |
