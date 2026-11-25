@@ -131,3 +131,81 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`Makefile` 的 `_locked-build-builtins` 前置只有 `manifest-check build-mc`，recipe 却断言 `.work/build/llvm/bin/ld.lld` 存在 ⇒ 冷树上 `make -jN install-host`（其前置含 `build-builtins` 与 `build-lld`，`-jN` 下并发）会先跑 builtins 再报 `ld.lld not found`（`zzx-NF5280` 首次引导实测，`m16-infra-001`）。已在 `bootstrap_node.sh` 里按「先 build-lld 再 build-builtins」显式排序绕开；建议把 `build-lld` 加入该目标前置，或在 recipe 里显式构建。
+- id: ISS-407
+  scope:
+  - qemu
+  milestone: M13
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】**覆盖声明与探针状态不一致**（`m13-qemu-004`）：完成区称「另加 sNaN 在右（ft/fo）」两例，但 reviewer 用探针 dump 证明两例机器状态**完全相同**（`set.w` 是 wyde 部分写、写序可交换），NaN 实际都在左操作数 ⇒ 代码无缺陷，但**覆盖声明不实**、向量 notes 也写成「`ftqcmp(1.0, sNaN)`」。教训：凡声明「左右/先后/边界」的用例，必须由探针 dump 证明两侧状态确实不同，否则只是同一用例跑两遍。
+- id: ISS-418
+  scope:
+  - qemu
+  milestone: M13
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m13-qemu-006` 证据脚本的 `8/8`（CFXMEM/guest FAIL 数）是**字面期望**而非现场计数 ⇒ 若日后设计变更（例如新增非法例）会**假红**（不会假绿）。建议改为按集合比对或现场派生。
+- id: ISS-426
+  scope:
+  - qemu
+  - gem5
+  - testcases
+  milestone: M13
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`ld.o ra0`/`rd2ra {ra0}` 未丢弃 `[63:54]` 的 SBZ 位：`SimRISC-00 §2.4` 规定 `ra0 = {SBZ(10),RACNT(6),MRPTR(48)}` 且 `[63:54]` 写无效（读回恒 0）；chipyard `WumingRegFile.writeRa` 合规，QEMU `trans_ld_o_rrii_ra → store_ra(0,val)` 写全 64 位、gem5 RA 写口未掩码（只有 RAS 头更新用 `kRasSbzMask`）。现场：写 `0xFFFF000000000000` 读回原值、期望 `0x003F000000000000`；`m13-testcases-031` 链例点 20 在 QEMU/gem5 红（按 spec 未放宽）。修法：两平台 RA 写口对 `[63:54]` 置 0。
+- id: ISS-433
+  scope:
+  - chipyard
+  milestone: M13
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`trap cfx_power` 三平台不一致：QEMU/gem5 进 power 向量、**chipyard 报 ILLI**。`m13-testcases-027` 实测；属 chipyard RTL 与 spec/另两平台的语义分歧，需定位是 RTL 缺实现还是 spec 未明。
+- id: ISS-448
+  scope:
+  - chipyard
+  - spec
+  milestone: M13
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`WumingDecoder` 的 `rfRows[2]`/`rfRows[3]` 为 `0x7F`，而 `contracts/opcodes.yaml` 同两行为 `0xFF`（`ftsgnj`/`fosgnj` 格）：`m13-chipyard-003` 复核发现，命中的两格在 `WumingDecoder` 里有独立 switch 分支 ⇒ **行为无差异**，属位图与契约的表述不一致。处置：以契约为准核对该两格是否真已定义、统一位图（或反向修正 contracts），并加一条 RTL 位图 ↔ `opcodes.yaml` 的机械对账（`check-gem5-decode` 只对 gem5 侧做过同类对账）。
+- id: ISS-469
+  scope:
+  - qemu
+  - gem5
+  milestone: M13
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】QEMU 的 `cfx2rd`/`cfxtrap` 掩码拒绝时 `CFXPERM` 的 `cause_info` 给的是**指令编码**，而 `contract-see §6.1` / `DADAO-12 §4.1` 要求 = **触发指令地址**（与 `excp_cause_ip` 同值）。影响：三平台 `CFXPERM` 的 `cause_info` 不一致（gem5/chipyard 按契约给地址），内核诊断打印的单位会错。来源：`m14-testcases-006` 固件复核时发现（非本任务范围）。处置建议：单立 qemu 任务修 `helper.c` 的拒绝路径 + 补探针（负例断言 `cause_info == excp_cause_ip`）。备注：`m17-idl-020` 实测 gem5 同样给指令编码（原正文称 gem5 正确）；且 2026-11-24 起按扁平位图改造，修法需按 ADR-0062 执行。
+- id: ISS-504
+  scope:
+  - testcases
+  - picolibc
+  milestone: M15
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】picolibc 自测 harness `run_picolibc_tests_tiny.py` 的 `.done` 复用键在 qemu 引擎下 `sim_md5` 恒为 `None`（`obs` 只在 chipyard 分支产生），`info.get("sim_md5") == sim_md5` 退化为 `None == None` ⇒ **换库/换 lds 后仍复用旧判决**（`m15-infra-009` 报 `pass=6` 即此因）。处置：把被测输入指纹（`libc.a` + 安装版 lds + 工具链）纳入 key，或给 harness 加 `--force`/`--no-reuse`；在此之前证据脚本须先删运行期 `run/` 目录。
+- id: ISS-505
+  scope:
+  - testcases
+  - picolibc
+  milestone: M15
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m15-infra-009` 完成区记录的 `check-picolibc-tests fast pass=6` 是 `.done` 缓存复用导致的假绿（真实为 18/20 加载期红：安装版 lds 漏 `KEEP(*(.text.start))`，`.text.unlikely.*` 抢段首使 `e_entry` 偏 `+0x40`）。修复已在 `m15-infra-010` 落地；本条只记 009 的证据失实，供台账/复盘引用。
+- id: ISS-506
+  scope:
+  - picolibc
+  milestone: M15
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m15-infra-010` 修好 `times()` 后，`sysconf(_SC_CLK_TCK)` 仍返回 `SYS_TICKFREQ`（1e9），与 `times()` 的 `CLOCKS_PER_SEC`（1e6）单位不一致（ADR-0058 D2 第 2 条后半未落地）。处置：`sysconf(_SC_CLK_TCK)` 改回 `CLOCKS_PER_SEC`，随下次触碰 picolibc semihost 时修。
