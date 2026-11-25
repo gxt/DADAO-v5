@@ -41,20 +41,38 @@ guest 内断言（非零退出 = 该镜像内第 N 条断言失败）。
 ## 覆盖与缺口（不假装全覆盖）
 
 `rtl-coverage.yaml` 是机器可读清单，`check_ptw_rtl.py --selfcheck` 与
-`tests/arch.yaml` 的 15 条双向核对。当前：`signature` 3 条、`guest` 9 条、
-`gap` 3 条（013/014/015，原因与 `close_when` 在清单里）。`gap` 返回 77
+`tests/arch.yaml` 的 15 条双向核对。当前：`signature` 4 条（002/006/007/**013**）、
+`guest` 9 条、`gap` 2 条（014/015，原因与 `close_when` 在清单里）。`gap` 返回 77
 （`GAP`），不当作通过；`run_arch` 只对清单登记过的 gap 放行。
 
-## H/S/U（J 不测）
+**013 从 gap 提升为 signature**（`m16-testcases-019`）：`m16-chipyard-022` 补齐
+RTL 的 `cfx_pmem` SRAM 窗口后，`ptw_sig.S` 加 `PTW_CASE=13`（页表整表清零仍能
+写/读 cfx_pmem SRAM；保留 cfx 的普通 ld ⇒ `CFXMEM`，`cause_info` = 访问地址），
+签名流 3 槽 `[写后回读, cause_id, cause_info]`，与 QEMU/gem5 同一组值。
 
-RTL 的固定 BootROM（`spec/Kaiwu §6.2`）把测试体交付为 `cfx_hmon` + `hypv`，
-PTE 的 `H=1` 是运行前提；`H=0` ⇒ `NHPERM` 由 `PTW_CASE=11` 覆盖。
+## H/S/U（J 不测；`m16-testcases-019`）
 
-- `H/S/U` **三模式**：`modes.yaml` 对 15 条 ptw case 登记 `[hmon]`，`smon`/
-  `umon` 的排除原因逐条写明（QEMU/gem5 载体固定 `cfx_hmon`/hypv；RTL 的 step5
-  测试路径没有 smon/umon 进入链，`tests/ee-vast/README.md`）。`--mode smon`
-  会显式 `rc=2` + 原因，不静默按 hmon 跑。
-- PTE 的 `S`/`U` 位在 **hypv** 下不改变判定（与 QEMU/gem5 的 `pte_leaf(hsju=…)`
-  同口径）；S/U **运行模式**下的权限矩阵是缺口，随模式迁移任务补齐（不写进判据）。
-- `R/W/X`：`W=0` ⇒ `NWPERM`、`R=0` ⇒ `NRPERM`、`X=0` ⇒ `NXPERM`（`PTW_CASE=11`），
-  全开（`R=W=X=1`）由其余 case 覆盖；`J` 位按用户 2026-11-22 裁定不测。
+15 条 case 在 **hmon/smon/umon** 各跑一次（`modes.yaml` 的 `modes:
+[hmon, smon, umon]`）。镜像由「载体的固件段（power→hmon→PTW on）+ **共享**
+`common/env-<mode>/env.S` + 本 case 的 body」组成：进入/退出、异常向量、签名
+输出与 cfx 权限准备全部来自共享环境，不在本目录重写；body 仍留在载体自己的
+4 MiB ROM 里（007/014 要**只读页表**、015 要**只读内存窗口**，step5 固件的 ROM
+内容固定，造不出这些向量 —— 实测）。
+
+- 测试页 PTE 的 `HSJU = H|S|U`（`0xD`，J 不测）：`DADAO-12 §2.2.5` 只查当前
+  模式那一位 ⇒ 同一页在三种模式下都允许，**签名流与运行模式无关**，三方逐槽
+  不必按模式分叉。
+- **PTE 的 S/U 轴**（`arch-ptw-011` 的 `checks_by_mode`）：supv 下 `S=0`（H|U）
+  ⇒ `NSPERM[34]`、`S=1` 即使 `U=1` 也允许（无「S 排除 U」）；user 下 `U=0`
+  （H|S）⇒ `NUPERM[32]`、`U=1` 即使 `S=1` 也允许；两组都带 `R/W/X` 组合
+  （`W=0`⇒`NWPERM` 等）与优先级（HSJU 先于 `R/W/X`：缺 S 且 `W=0` ⇒ `NSPERM`）。
+  hypv 的 H 轴（`NHPERM`）保留。
+- `cfx_access: [umon, smon, ptw, pmem, power]`：body 访问 `cfx_ptw`
+  （PTBR/`ptw_enable`/TLB 命令）、`cfx_pmem`（013 的 SRAM 窗口）、`cfx_power`
+  （ROM 取指与 015 的 ROM store）；smon/umon 下**同步故障处理程序**在**当前模式
+  监视器**（cfx_smon/cfx_umon）名下、**触发模式**里运行（读自身 `cg5`、`escape`
+  回原指令之后），所以还要声明 `smon`/`umon`（写它们的异常向量、读它们的帧）。
+- 环境的两个按需开关（缺省不变）：`ENV_PERM_ALLOW`（打开时同时清监视器 cfx 的
+  源位）、`ENV_TLB_INVALIDATE`（改过 L1[3] 的 U 位后丢掉旧转换），见
+  `common/env-README.md`。
+- `R/W/X` 与 HSJU 正交；`J` 位按用户 2026-11-22 裁定不测。

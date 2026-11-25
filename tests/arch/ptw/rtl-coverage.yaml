@@ -78,9 +78,9 @@ cases:
     note: "改 PTE 不失效仍读旧页；invalid+VA 后才生效"
 
   arch-ptw-013:
-    status: gap
-    reason: "cfx 空间旁路（`VA[47:42]≠0` 的 cfx_pmem SRAM 访问 + 保留 cfx ⇒ CFXMEM[57]）在 RTL 上不成立：运行期证据目录的 `diag-013`（临时诊断镜像）实测 hmon 读 `cfx_pmem SRAM`（`PMEM_BASE+0x1000`）得到 `CFXMEM` + `[57] NONPTW`、`cause_info` = 该地址（`0x83ff_0000_1000`，记录 `0200000000000002` / `000083ff00001000`），即 RTL 不把该窗口当 cfx 旁路；保留 cfx 的 `NONPTW` 侧与 QEMU 同形，但正向用例缺承载。本任务只做判据与承载接线，不顺手改实现或权限面。"
-    close_when: "RTL 的 hmon→cfx_pmem SRAM 访问面确认可用（或在探针里用公开的 SRAM 窗口），并把该场景加入 `ptw_sig.S` 的 PTW_CASE=13"
+    status: signature
+    rtl_case: 13
+    note: "cfx 空间旁路：PTE 全零时 cfx_pmem SRAM 写/读回 + 保留 cfx ⇒ CFXMEM（3 槽与 QEMU/gem5 相同；`m16-chipyard-022` 补齐 SRAM 窗口后由 `m16-testcases-019` 从 gap 提升）"
 
   arch-ptw-014:
     status: gap

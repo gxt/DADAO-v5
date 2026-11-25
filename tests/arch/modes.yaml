@@ -87,95 +87,73 @@ cases:
       smon: "step5 BootROM 只在 hypv 交付 body；判据依赖 cfx_hmon 的故障记录槽，supv 故障走未装载的 cfx_smon ⇒ 未迁移到 common/env-*"
       umon: "body 需读写 RAM（签名区/故障记录槽）；step5 页表 HSJU=0xC（U=0）⇒ user 不可访存；未迁移到 common/env-*"
 
+  # cfx4（TLB/PTW，`m16-testcases-019`）：H/S/U 各跑一次。镜像 = 载体的
+  # 固件段（power→hmon→PTW on）+ **共享** `common/env-<mode>` + 本 case 的
+  # body；body 留在载体自己的 ROM 里（007/014 的判据要只读页表、015 要只读内存
+  # 窗口，step5 固件的 ROM 内容固定，构造不出这些向量 —— 实测）。
+  # cfx_access：body 访问 cfx_ptw（PTBR/ptw_enable/TLB 命令）、cfx_pmem
+  # （013 的 SRAM 旁路窗口）、cfx_power（ROM 取指与 015 的 ROM store）；
+  # smon/umon 下处理程序在**当前模式监视器**名下运行，还要写它的异常向量并读
+  # 它的 cg5 帧 ⇒ 再声明 smon(2)/umon(0)。三种模式共用同一份声明。
   arch-ptw-001:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-002:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-003:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-004:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-005:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-006:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-007:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-008:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-009:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-010:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-011:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-012:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-013:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-014:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-ptw-015:
-    modes: [hmon]
-    reasons:
-      smon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；RTL 的 step5 测试路径也只交付 hmon/hypv、无 smon 进入链（tests/ee-vast/README.md）⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
-      umon: "QEMU/gem5 载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位。RTL 无 umon SRAM/进入链 ⇒ 未迁移到 common/env-*，三模式各跑一次留给模式迁移任务"
+    modes: [hmon, smon, umon]
+    cfx_access: [umon, smon, ptw, pmem, power]
 
   arch-umon-011:
     modes: [hmon, smon, umon]

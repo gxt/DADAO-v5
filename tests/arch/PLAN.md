@@ -52,7 +52,8 @@ python3 tests/arch/run_arch.py \
   --cfx 4[,5,...] \
   --platforms qemu,gem5,chipyard \
   --cache-model on \
-  [--case arch-ptw-001] [--work-dir <运行期目录>] [--self-test] [--list]
+  [--case arch-ptw-001] [--mode hmon|smon|umon] \
+  [--work-dir <运行期目录>] [--self-test] [--list]
 ```
 
 - `--cfx <0|2|3|4|5|15|32|34|63>`：可逗号分隔；缺省 = 全部 9 个。非法值 ⇒ 退出码 2。

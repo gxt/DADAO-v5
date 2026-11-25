@@ -60,6 +60,15 @@ VA_BASE = 0x200_0000_0000    # VA = PA + 2 TiB（VA[47:42] = 0）
 
 ROM_PTE_PA = 0xFFFF_FFFF_FFF8     # QEMU：RESET_PC + 0x1FFF*8（ROM 里的叶 PTE）
 
+# 013 的两个地址（各承载的同一组值）：
+#   cfx_pmem SRAM 窗口 = cfx32 内部偏移 0x3ff_0000_0000 + 0x1000（`DADAO-12 §4.9`）
+#   保留 cfx 的普通 ld：cfxha 6..14 / 16..31 / 35..61（`DADAO-12 §1`）
+PMEM_SRAM = (32 << 42) | 0x3FF_0000_1000
+RESERVED_CFX = (6 << 42) | 0x40
+
+# 三种运行模式共用的 HSJU（H|S|U；J 不测）
+HSJU_ALL = 0xD
+
 # RTL 上运行期**观测不到**的槽：{case: {slot: 观测值}}（登记在
 # `tests/arch/expected-divergences.yaml`，`--selfcheck` 双向核对）。
 RTL_DIVERGED_SLOTS = {7: {2: 0, 3: 0}}
@@ -79,9 +88,13 @@ OP_NONE, OP_CLEAN, OP_INVALID, OP_FLUSH = 0, 1, 2, 3
 SCOPE_ALL, SCOPE_VA, SCOPE_RANGE, SCOPE_RESERVED = 0, 1, 2, 3
 
 
-def pte_leaf(pa, hsju=0x8, r=True, w=True, x=True, g=False, a=False, d=False,
-             frags=0xFF):
-    """64 KiB 叶 PTE（`spec/DADAO-12 §2.2.4`；hypv 运行模式 H=1）。"""
+def pte_leaf(pa, hsju=HSJU_ALL, r=True, w=True, x=True, g=False, a=False,
+             d=False, frags=0xFF):
+    """64 KiB 叶 PTE（`spec/DADAO-12 §2.2.4`）。
+
+    `HSJU_ALL` = H|S|U：与 QEMU 载体同一组值（同一页在 H/S/U 下都允许，
+    所以三方逐槽比较与运行模式无关；J 不测，用户 2026-11-22 裁定）。
+    """
     v = ((hsju & 0xF) << 60) | (pa & PPN_MASK) | ((frags & 0xFF) << 8)
     if r:
         v |= PTE_R
@@ -103,7 +116,7 @@ def pte_table(pa):
     return (pa & PPN_MASK) | PTE_P
 
 
-def pte_super(pa, hsju=0x8, frags=0xFF):
+def pte_super(pa, hsju=HSJU_ALL, frags=0xFF):
     """512 MiB 超页（`spec/DADAO-12 §2.2.3`）。"""
     return (((hsju & 0xF) << 60) | (pa & SPPN_MASK) | ((frags & 0xFF) << 8)
             | PTE_R | PTE_W | PTE_X | PTE_SP | PTE_P)
@@ -141,6 +154,7 @@ L2_INIT = {
     10: {},                                           # 未映射（P=0）
     11: {0: PTE_DA_A0D0},
     12: {0: PTE_DA_A0D0},
+    13: {},                                           # cfx 空间旁路：空表 + 保留 cfx
 }
 
 CASES = tuple(sorted(L2_INIT))
@@ -149,7 +163,14 @@ CASES = tuple(sorted(L2_INIT))
 # ---------------------------------------------------------------------------
 # 期望槽（几何独立算出；`--selfcheck` 与 expected.yaml 双向核对）
 # ---------------------------------------------------------------------------
+def _cause_value(name):
+    return 1 << load_checker().bit_table(_REPO)["class"][name]
+
+
 def expected_slots(case: int) -> list:
+    if case == 13:
+        # [旁路窗口写后回读, 保留 cfx 的 cause_id（CFXMEM）, cause_info（= 访问地址）]
+        return [M1, _cause_value("CFXMEM"), RESERVED_CFX]
     if case == 2:
         # [填充读到的值, 命中读到的值, 被改写后的叶 PTE]
         return [M1, M1, pte_leaf(DB)]
@@ -166,7 +187,7 @@ def expected_slots(case: int) -> list:
 
 
 def signature_cases() -> dict:
-    return {c: expected_slots(c) for c in (2, 6, 7)}
+    return {c: expected_slots(c) for c in (2, 6, 7, 13)}
 
 
 def rtl_slots(case: int) -> list:
@@ -210,6 +231,8 @@ def emit_inc() -> str:
         _equ("M2", M2),
         _equ("M3", M3),
         _equ("M4", M4),
+        _equ("PMEM_SRAM", PMEM_SRAM),
+        _equ("RESERVED_CFX", RESERVED_CFX),
         _equ("PTE_DA_A0D0", PTE_DA_A0D0),
         _equ("PTE_DA_A1D1", PTE_DA_A1D1),
         _equ("PTE_DB_A1D1", pte_leaf(DB, a=True, d=True)),
@@ -303,7 +326,7 @@ def selfcheck() -> int:
         if sig:
             declared[entry.get("id")] = sig
     live = {}
-    for case in (2, 6, 7):
+    for case in (2, 6, 7, 13):
         cid = "arch-ptw-%03d" % case
         live[cid] = expected_slots(case)
         if live[cid] != declared.get(cid):
@@ -360,7 +383,8 @@ def main() -> int:
     if args.selfcheck:
         return selfcheck()
     if args.expected:
-        cases = [args.case] if args.case is not None else [2, 6, 7]
+        cases = ([args.case] if args.case is not None
+                 else [2, 6, 7, 13])
         for case in cases:
             print("case %d: %s" % (case, ", ".join("%#x" % v
                                                   for v in expected_slots(case))))

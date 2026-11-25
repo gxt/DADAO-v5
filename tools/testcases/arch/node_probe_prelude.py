@@ -313,11 +313,15 @@ def power_segment(extra=None):
     return ins
 
 
-def hmon_segment(hmon_extra=None):
+def hmon_segment(hmon_extra=None, entry=None):
     """hmon (cfx3/hypv): clear power masks, identity PT via PMEM DMA, PTW on.
 
     `hmon_extra` are probe-specific hmon-mode setup words (vectors/masks); they
     run last, so the registers they set stay live when the body starts.
+    `entry` overrides the hand-off target (byte offset relative to RESET_PC);
+    the default `BODY_OFF` is the probe body of `build_rom`.  A caller that
+    hosts the body elsewhere (e.g. a shared `tests/arch/common/env-*` entry
+    inside the same ROM) passes its own address.
     """
     ins = []
     # 1. former `bootstrap_stage`, narrowed to the fetch axis: cfx_power
@@ -394,19 +398,22 @@ def hmon_segment(hmon_extra=None):
         ins[idx] = br_nz(11, imm) if kind == "nz" else br_z(11, imm)
     ins[ok] = jump_rel(after_fail - ok)
     ins[fail + len(fail_seq)] = jump_rel(0)           # self loop
-    ins[body_jump] = jump_rel(BODY_OFF // 4 - H_OFF // 4 - body_jump)
+    ins[body_jump] = jump_rel((BODY_OFF if entry is None else entry) // 4
+                              - H_OFF // 4 - body_jump)
     return ins
 
 
 def build_rom(prog, handlers=None, words_at=None, hmon_extra=None,
-              image_at=None, power_extra=None):
+              image_at=None, power_extra=None, entry=None):
     """Return the full 4 MiB bootrom image.
 
     `prog` is the body at ROM_BASE (RESET_PC + BODY_OFF); `handlers` and
     `words_at` map body-relative byte offsets to word lists (handlers first,
     then extra data; neither may overlap earlier content).  `hmon_extra` runs
     inside the prelude's hmon segment; `power_extra` runs in power before the
-    trap into hmon (see `power_segment`).
+    trap into hmon (see `power_segment`).  `entry` (byte offset from RESET_PC)
+    overrides the prelude's hand-off address and defaults to `BODY_OFF`; with a
+    custom `entry` the caller places the body/handlers itself.
     """
     body = bytearray(words_to_bytes(prog))
     for table in (handlers or {}, words_at or {}):
@@ -420,7 +427,7 @@ def build_rom(prog, handlers=None, words_at=None, hmon_extra=None,
         body += words_to_bytes([swym()])
 
     prelude_off = H_OFF // 4
-    hmon = hmon_segment(hmon_extra)
+    hmon = hmon_segment(hmon_extra, entry)
     power = power_segment(power_extra)
     if len(power) > prelude_off:
         raise ValueError("power segment does not fit before hmon (0x%x words)"

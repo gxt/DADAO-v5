@@ -89,6 +89,7 @@ Exit code: 0 iff every requested check passed.
 import argparse
 import os
 import re
+import subprocess
 import sys
 
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
@@ -98,9 +99,12 @@ if _ARCH_SHARED not in sys.path:
     sys.path.insert(0, _ARCH_SHARED)      # `node_probe_prelude.py`（跨 scope 共享）
 if os.path.join(_REPO, "tools", "testcases", "lib") not in sys.path:
     sys.path.insert(0, os.path.join(_REPO, "tools", "testcases", "lib"))
+if os.path.join(_REPO, "tools", "infra") not in sys.path:
+    sys.path.insert(0, os.path.join(_REPO, "tools", "infra"))
 if os.path.join(_REPO, "tests", "shared") not in sys.path:
     sys.path.insert(0, os.path.join(_REPO, "tests", "shared"))
 import node_probe_prelude as P  # noqa: E402
+import paths as _paths  # noqa: E402
 import signature  # noqa: E402  (签名流机制：解析/比对/word-builder 发射器，单一实现)
 
 DEFAULT_QEMU = P.default_qemu()
@@ -117,6 +121,15 @@ SIG_PREFILL = 8
 SIG = signature.Emitter(P)
 
 ROM_BASE = P.ROM_BASE
+
+# env 契约里的栈（L1[3] 内；umon 也以 U 允许的同一超页）：与
+# `common/env-README.md` 的缺省值相同。
+ENV_STACK = 0x61FF_F000
+
+# 该用例在目标模式下需要访问的 cfx（`modes.yaml` 的 `cfx_access`，由驱动传入
+# `--cfx-access`；缺省为空 = 不声明、不做权限准备，与 `m16-testcases-017` 前
+# 的 hmon 形态一致，hmon 下默认掩码本就允许源 cfx_hmon）。
+CFX_ACCESS = []
 
 # ---------------------------------------------------------------------------
 # Expectations parsed from the contracts
@@ -229,7 +242,6 @@ TLB_CG = 12
 TLB_CONTROL_RC, TLB_ASID_RC, TLB_START_RC, TLB_SIZE_RC = 0, 1, 2, 3
 CAUSE_ID_RC, CAUSE_IP_RC, CAUSE_INFO_RC = 2, 3, 4
 EXCP_VECTOR_RC, SWITCH_MODE_RC = 10, 8
-HMON_HA, HYPV_ROW = 3, 3
 
 # `cfx_ptw_tlb_control` (`TLB-19`): op[1:0], scope[3:2], bit4 = ASID_ANY
 OP_NONE, OP_CLEAN, OP_INVALID, OP_FLUSH = 0, 1, 2, 3
@@ -246,7 +258,52 @@ SCRATCH, WORK, CREG = 15, 16, 17
 RD_CID, RD_INFO, RD_IP, RD_BASE, RD_FAULTS = 10, 11, 12, 13, 14
 
 HAND_OFF = 0x2000                # handler slot, body-relative
-ROM_PTE_OFF = 0xEFF8             # ROM page-table leaf slot (reset window tail)
+
+# ---------------------------------------------------------------------------
+# Run modes (`m16-testcases-019`; `tests/arch/modes.yaml` 的允许集由 run_arch 判)
+#
+# hmon/smon/umon = hypv/supv/user 的当前模式监视器。进入/退出/权限准备**不**
+# 在本文件重写：镜像里放的是共享 `tests/arch/common/env-{hmon,smon,umon}/env.S`
+# 汇编出来的 `.env`/`.envtail`/`.envperm` 三段（同一 `env.lds` 布局），载体只
+# 负责「固件段（power→hmon→PTW on）+ 本 case 的 body」。
+#
+# 为什么 body 仍在 ROM 而不在 RAM（与 cache/time/hart/pmem 的 asm body 不同）：
+# 本载体的 15 条检查里，007/014 的判据是**只读页表**（A/D 回写失败，`TLB-37`）、
+# 015 的判据是**只读内存窗口**的 `ILLI`，都需要一份由载体自己生成、运行期只读的
+# ROM 内容；step5 固件的 ROM 内容固定，构造不出这些向量（`m16-testcases-019`
+# 实测）。故本载体的 4 MiB 镜像同时承担「固件 + env + body」，ROM 仍是只读面。
+# ---------------------------------------------------------------------------
+MODES = ("hmon", "smon", "umon")
+MODE = "hmon"                    # 由 `--mode` 设定（`main()`）
+MODE_ROW = {"hmon": 3, "smon": 2, "umon": 0}       # `DADAO-12 §3.1`–`§3.4`
+MONITOR_HA = {"hmon": 3, "smon": 2, "umon": 0}      # `§5.2`：当前模式监视器
+MODE_CODE = {"hmon": 3, "smon": 2, "umon": 0}       # `spec/Kaiwu §7.1`
+
+# 测试页 PTE 的 HSJU：H|S|U（`0xD`，J 不测 —— 用户 2026-11-22 裁定）。
+# 三种运行模式各自只查自己那位（`DADAO-12 §2.2.5`），同一页在 H/S/U 下都允许
+# ⇒ 页表项数值与运行模式无关，签名流三方逐槽比较不必按模式分叉；HSJU 的**拒绝**
+# 面（谁缺谁拒）由 `arch-ptw-011` 逐模式单独构造。
+HSJU_ALL = 0xD
+
+ENV_DIRS = {mode: os.path.join(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))), "common", "env-%s" % mode) for mode in MODES}
+ENV_INC = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))), "common", "env")
+ENV_LDS = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))), "common", "env.lds")
+
+# 镜像布局（ROM 内的偏移，`RESET_PC` 相对；env.lds 的四段由 defsym 现场传入）：
+#   ENV_BASE + 0x0000 .env     共享环境入口（进入目标模式）
+#   ENV_BASE + 0x1000 .body    本 case 的 body（含 handler，HAND_OFF 起）
+#   ENV_BASE + 0x4000 .envtail 退出与签名输出
+#   ENV_BASE + 0x5000 .envperm 权限准备/还原（只在 hypv 跑）
+# body/handler 区 = [0x1000, 0x4000)，即 body 主体 ≤ 0x2000 B、handler ≤ 0x1000 B。
+ENV_BASE = P.BOOTROM_BASE + 0x200000
+ENV_BODY_OFF = 0x1000
+ENV_TAIL_OFF = 0x4000
+ENV_PERM_OFF = 0x5000
+BODY_BASE = ENV_BASE + ENV_BODY_OFF
+ENV_OFF = ENV_BASE - P.RESET_PC          # 预置段 `jump` 的目标（相对 RESET_PC）
 
 # A guest FAIL code is the assertion's ordinal **inside its own image**
 # (`0x01`–`0x7F`): every check is a separate boot-ROM image and the driver
@@ -256,9 +313,14 @@ ROM_PTE_OFF = 0xEFF8             # ROM page-table leaf slot (reset window tail)
 MAX_FAIL_CODE = 0x7F
 
 
-def pte_leaf(pa, hsju=0x8, r=True, w=True, x=True, g=False, a=False, d=False,
-             frags=0xFF):
-    """64 KiB leaf PTE (`spec/DADAO-12 §2.2.4`) for the hypv run mode."""
+def pte_leaf(pa, hsju=HSJU_ALL, r=True, w=True, x=True, g=False, a=False,
+             d=False, frags=0xFF):
+    """64 KiB leaf PTE (`spec/DADAO-12 §2.2.4`).
+
+    `hsju` defaults to `H|S|U` so the same test page is allowed in all three
+    run modes (`§2.2.5`: only the current mode's bit is consulted); the
+    per-mode *denial* vectors pass an explicit mask.
+    """
     v = ((hsju & 0xF) << 60) | (pa & PPN_MASK) | ((frags & 0xFF) << 8)
     if r:
         v |= PTE_R
@@ -280,7 +342,7 @@ def pte_table(pa):
     return (pa & PPN_MASK) | PTE_P
 
 
-def pte_super(pa, hsju=0x8, frags=0xFF):
+def pte_super(pa, hsju=HSJU_ALL, frags=0xFF):
     """512 MiB identity superpage (`spec/DADAO-12 §2.2.3`)."""
     return (((hsju & 0xF) << 60) | (pa & SPPN_MASK) | ((frags & 0xFF) << 8)
             | PTE_R | PTE_W | PTE_X | PTE_SP | PTE_P)
@@ -332,6 +394,7 @@ class Check:
         self.handlers = None
         self.words_at = None
         self.image_at = None     # ROM image offsets (read-only page tables)
+        self.rom_at = None       # 复位窗口尾部等 prelude 之外的 ROM 偏移
         self.hmon_extra = None   # words run inside the prelude hmon segment
         self.expect = None       # (low cause name or None, bitmap bit name or None)
         self.sig_want = []       # 签名流期望（每个 `sig_obs` 一项；空 = 不接线）
@@ -348,9 +411,162 @@ class Check:
         self._n += 1
         return "%s_%d" % (stem, self._n)
 
-    def rom(self):
-        return P.build_rom(self.s.resolve(), self.handlers, self.words_at,
-                           image_at=self.image_at, hmon_extra=self.hmon_extra)
+    def body(self):
+        """Body words + handlers, padded to the ROM layout's body window."""
+        blob = bytearray(P.words_to_bytes(self.s.resolve()))
+        for table in (self.handlers or {}, self.words_at or {}):
+            for off in sorted(table):
+                if off < len(blob):
+                    raise SystemExit("ptw_carrier_tlb: %s/%s: offset 0x%x "
+                                     "overlaps the body" % (self.case_id,
+                                                            self.label, off))
+                while len(blob) < off:
+                    blob += P.words_to_bytes([P.swym()])
+                blob += P.words_to_bytes(table[off])
+        window = ENV_TAIL_OFF - ENV_BODY_OFF
+        if len(blob) > window:
+            raise SystemExit("ptw_carrier_tlb: %s/%s: body+handlers %d B exceed "
+                             "the %d B body window"
+                             % (self.case_id, self.label, len(blob), window))
+        return bytes(blob)
+
+
+# ---------------------------------------------------------------------------
+# Image build: prelude (power -> hmon -> PTW on) + shared env + body
+# ---------------------------------------------------------------------------
+class SetupError(RuntimeError):
+    """缺件/工具链/布局错误（退出码 2，不当作判据失败）。"""
+
+
+TOOL_NAMES = ("llvm-mc", "ld.lld", "llvm-objcopy")
+
+
+def toolchain(bin_dir=None):
+    bin_dir = os.path.abspath(bin_dir) if bin_dir else _paths.host_toolchain_bin()
+    tools = {name: os.path.join(bin_dir, name) for name in TOOL_NAMES}
+    for name, path in tools.items():
+        if not os.path.isfile(path):
+            raise SetupError("缺 %s: %s（make install-host）" % (name, path))
+    for path in (ENV_LDS, os.path.join(ENV_INC, "cfx_perm.inc")):
+        if not os.path.isfile(path):
+            raise SetupError("缺件 %s（common/env 环境）" % path)
+    return tools
+
+
+def _run(cmd, timeout=120):
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, timeout=timeout,
+                          stdin=subprocess.DEVNULL)
+    return proc.returncode, proc.stdout
+
+
+def assemble_env(mode, tools, work, sig_slots):
+    """Assemble `common/env-<mode>/env.S` at `ENV_BASE`; return the flat bytes.
+
+    The environment is the shared one: entry/exit/exception-vector/permission
+    preparation are **not** re-implemented here.  Only the addresses the body
+    contract names are passed in (signature buffer/slots, body source, tail,
+    plus the umon overrides for a ROM-resident body: no copy, tail in ROM, and
+    the L1 entry that is reached through this carrier's PTBR).
+    """
+    obj = os.path.join(work, "env_%s.o" % mode)
+    elf = os.path.join(work, "env_%s.elf" % mode)
+    image = os.path.join(work, "env_%s.bin" % mode)
+    cmd = [tools["llvm-mc"], "--triple=dadao-unknown-elf", "-filetype=obj",
+           "-I", os.path.join(_REPO, "tests", "shared", "asm"),
+           "-I", ENV_INC,
+           "--defsym", "ENV_SIG_BUF=%#x" % SIG_BUF,
+           "--defsym", "ENV_SIG_SLOTS=%d" % sig_slots,
+           "--defsym", "ENV_STACK=%#x" % ENV_STACK,
+           "--defsym", "ENV_BODY_SRC=%#x" % BODY_BASE,
+           "--defsym", "ENV_TAIL=%#x" % (ENV_BASE + ENV_TAIL_OFF)]
+    for cfx in CFX_ACCESS:
+        cmd += ["--defsym", "ENV_CFX_ACCESS_%d=1" % cfx]
+    if MODE != "hmon" and CFX_ACCESS:
+        # 同步故障处理程序在「当前模式监视器」名下运行：它对声明的 cfx 的访问
+        # 源是 cfx_smon(2)/cfx_umon(0)，环境必须同时清这两位的源掩码
+        # （`DADAO-12 §3`：位索引 = 源 cfx、0 = 允许）。
+        allow = 0xFFFF_FFFF_FFFF_FFF7 & ~(1 << monitor_cfx())
+        if allow >= 1 << 63:            # llvm-mc 只收 64 位有符号整数
+            allow -= 1 << 64
+        cmd += ["--defsym", "ENV_PERM_ALLOW=%d" % allow]
+    if mode == "umon":
+        # body 已在 ROM：U 页不需要拷贝；tail 也在 ROM；L1[3] 的 U 位写进本载体
+        # 的 L1（PTBR = PT_L1），不是 step5 固件的 PA 0 表。
+        cmd += ["--defsym", "ENV_COPY_OCTAS=0",
+                "--defsym", "ENV_UENTRY=%#x" % BODY_BASE,
+                "--defsym", "ENV_UTAIL=%#x" % (ENV_BASE + ENV_TAIL_OFF),
+                "--defsym", "ENV_UPAGE_PTE_PA=%#x" % (PT_L1 + 3 * 8),
+                "--defsym", "ENV_TLB_INVALIDATE=1"]
+    rc, out = _run(cmd + [os.path.join(ENV_DIRS[mode], "env.S"), "-o", obj])
+    if rc != 0:
+        raise SetupError("llvm-mc env-%s rc=%d: %s"
+                         % (mode, rc, out.decode("utf-8", "replace")[-600:]))
+    rc, out = _run([tools["ld.lld"], "-T", ENV_LDS,
+                    "--defsym", "ENTRY=%#x" % ENV_BASE,
+                    "--defsym", "ENV_BODY_OFF=%#x" % ENV_BODY_OFF,
+                    "--defsym", "ENV_TAIL_OFF=%#x" % ENV_TAIL_OFF,
+                    "--defsym", "ENV_PERM_OFF=%#x" % ENV_PERM_OFF,
+                    obj, "-o", elf])
+    if rc != 0:
+        raise SetupError("ld.lld env-%s rc=%d: %s"
+                         % (mode, rc, out.decode("utf-8", "replace")[-600:]))
+    # 只取三段各自的实际字节（`-O binary` 的整段产物把 4 KiB 对齐空洞也算进去，
+    # 会把 body 窗口盖住）；再由 `build_image` 按 env.lds 的偏移逐段放置。
+    sections = {}
+    # 输出段名（`env.lds` 的 `.env : { *(.envcode) }` 等）；三个 env 相同。
+    for name, off, limit in ((".env", 0, ENV_BODY_OFF),
+                             (".envtail", ENV_TAIL_OFF,
+                              ENV_PERM_OFF - ENV_TAIL_OFF),
+                             (".envperm", ENV_PERM_OFF,
+                              P.BOOTROM_SIZE - ENV_PERM_OFF)):
+        out_bin = image + name
+        rc, out = _run([tools["llvm-objcopy"], "-O", "binary",
+                        "--only-section=" + name, elf, out_bin])
+        if rc != 0:
+            raise SetupError("llvm-objcopy env-%s %s rc=%d: %s"
+                             % (mode, name, rc,
+                                out.decode("utf-8", "replace")[-600:]))
+        with open(out_bin, "rb") as f:
+            blob = f.read()
+        if len(blob) > limit:
+            raise SetupError("env-%s %s 段 %d B 越过窗口（%d B）"
+                             % (mode, name, len(blob), limit))
+        sections[name] = (off, blob)
+    return sections
+
+
+def build_image(chk, tools, work):
+    """Full 4 MiB boot ROM: prelude + shared env + this check's body."""
+    blob = chk.body()
+    sections = assemble_env(MODE, tools, work, len(chk.sig_want))
+    rom = bytearray(P.build_rom([], image_at=chk.image_at,
+                                hmon_extra=chk.hmon_extra, entry=ENV_OFF))
+    env_off = ENV_BASE - P.BOOTROM_BASE
+    body_off = env_off + ENV_BODY_OFF
+    spans = [("body", body_off, body_off + len(blob))]
+    for name, (off, section) in sorted(sections.items()):
+        spans.append((name, env_off + off, env_off + off + len(section)))
+        rom[env_off + off:env_off + off + len(section)] = section
+    if body_off + len(blob) > env_off + ENV_TAIL_OFF:
+        raise SetupError("body %d B 越过 tail 起点（layout 冲突）" % len(blob))
+    rom[body_off:body_off + len(blob)] = blob
+    prelude = (P.RESET_PC - P.BOOTROM_BASE,
+               P.RESET_PC - P.BOOTROM_BASE + P.BODY_OFF)
+    for label, start, end in spans + [("prelude",) + prelude]:
+        for off in sorted(chk.image_at or {}):
+            span = len(P.words_to_bytes((chk.image_at or {})[off]))
+            if start < off + span and off < end:
+                raise SetupError("%s 段与 image_at 0x%x 重叠" % (label, off))
+    for off in sorted(chk.rom_at or {}):
+        words = P.words_to_bytes(chk.rom_at[off])
+        if off + len(words) > P.BOOTROM_SIZE:
+            raise SetupError("rom_at 0x%x 越过 ROM 末尾" % off)
+        for label, start, end in spans + [("prelude",) + prelude]:
+            if start < off + len(words) and off < end:
+                raise SetupError("rom_at 0x%x 与 %s 段重叠" % (off, label))
+        rom[off:off + len(words)] = words
+    return bytes(rom)
 
 
 def _restore_identity(seq):
@@ -467,20 +683,26 @@ def set_asid(chk, value):
     chk.s.e(P.cfx2rc(PTW_HA, TLB_CG, TLB_ASID_RC, CREG))
 
 
+def monitor_cfx():
+    """`DADAO-12 §5.2`: the current run mode's monitor cfx (U→0, S→2, H→3)."""
+    return MONITOR_HA[MODE]
+
+
 def read_cause(chk, rd=None):
     rd = RD_CID if rd is None else rd
-    chk.s.e(P.cfx2rd(HMON_HA, 5, CAUSE_ID_RC, rd))
+    chk.s.e(P.cfx2rd(monitor_cfx(), 5, CAUSE_ID_RC, rd))
 
 
 def record_baseline(chk):
-    """Snapshot the pre-existing `cfx_hmon` cause frame (the prelude's `trap`).
+    """Snapshot the monitor's pre-existing cause frame before the check runs.
 
-    Success-path checks then only have to prove that no *new* frame appeared:
-    the snapshot's `[63:32]` and every reserved bit are asserted to be 0, which
-    is the `contract-see §6.1` + `ADR-0062 D1` "a low cause carries no bitmap
-    bit" statement.
+    `hmon`: the prelude's `trap cfx_hmon` frame; `smon`/`umon`: the monitor's
+    frame is untouched (0).  Success-path checks then only have to prove that
+    no *new* frame appeared: the snapshot's `[63:32]` and every reserved bit
+    are asserted to be 0, which is the `contract-see §6.1` + `ADR-0062 D1`
+    "a low cause carries no bitmap bit" statement.
     """
-    chk.s.e(P.cfx2rd(HMON_HA, 5, CAUSE_ID_RC, RD_BASE))
+    chk.s.e(P.cfx2rd(monitor_cfx(), 5, CAUSE_ID_RC, RD_BASE))
     a_masked(chk, chk.s, RD_BASE, HIGH32 | RESERVED, 0,
              "baseline cause_id carries no bitmap bit and no reserved bit")
 
@@ -518,8 +740,22 @@ def a_fault_count(chk, n):
 
 
 def set_handler(chk, words):
-    chk.s.e(*load_rd(22, ROM_BASE + HAND_OFF))
-    chk.s.e(P.cfx2rc(HMON_HA, HYPV_ROW, EXCP_VECTOR_RC, 22))
+    """Install this check's handler as the current run mode monitor's vector.
+
+    `hmon`: `cfx_hmon`'s hypv row (unchanged shape).  `smon`/`umon`: the
+    monitor's **own mode row** (`cg2` supv / `cg0` user) plus
+    `switch_run_mode = hypv`, so the synchronous exception entered from
+    supv/user runs the handler in hypv as that monitor (`DADAO-12 §5.2`
+    steps 5-6; same shape as `common/env-umon`'s fail-closed vector).  The
+    handler then reads its own `cg5` (self) and resumes with `escape`.
+    """
+    chk.s.e(*load_rd(22, BODY_BASE + HAND_OFF))
+    chk.s.e(P.cfx2rc(monitor_cfx(), MODE_ROW[MODE], EXCP_VECTOR_RC, 22))
+    if MODE != "hmon":
+        # 处理程序留在**触发模式**（supv/user）：这样它用到的 cfx 掩码/委派与
+        # body 完全相同（环境已按该模式行打开），不需要 hypv 行的额外授权。
+        chk.s.e(*load_rd(23, MODE_CODE[MODE]))
+        chk.s.e(P.cfx2rc(monitor_cfx(), MODE_ROW[MODE], SWITCH_MODE_RC, 23))
     chk.handlers = {HAND_OFF: words}
 
 
@@ -557,9 +793,9 @@ def fault_handler(chk, cls, sub, info=None, resume=True, post=None):
             raise SystemExit("ptw_carrier_tlb: %s is a reserved bit" % sub)
     h = P.Seq()
     h.e(P.add_si(RD_FAULTS, 1))         # entry counter (asserted by the body)
-    h.e(P.cfx2rd(HMON_HA, 5, CAUSE_ID_RC, RD_CID))
-    h.e(P.cfx2rd(HMON_HA, 5, CAUSE_INFO_RC, RD_INFO))
-    h.e(P.cfx2rd(HMON_HA, 5, CAUSE_IP_RC, RD_IP))
+    h.e(P.cfx2rd(monitor_cfx(), 5, CAUSE_ID_RC, RD_CID))
+    h.e(P.cfx2rd(monitor_cfx(), 5, CAUSE_INFO_RC, RD_INFO))
+    h.e(P.cfx2rd(monitor_cfx(), 5, CAUSE_IP_RC, RD_IP))
     if sub is None:
         a_masked(chk, h, RD_CID, HIGH32, 0,
                  "%s: [63:32] bitmap is 0" % cls)
@@ -574,7 +810,7 @@ def fault_handler(chk, cls, sub, info=None, resume=True, post=None):
     if post:
         h.e(*post)
     if resume:
-        h.e(P.escape(HMON_HA, 1))       # [cause_ip, +4]
+        h.e(P.escape(monitor_cfx(), 1))  # [cause_ip, +4]
     else:
         _fail_exit(chk, h, 0)           # verdict reached: restore, then pass
     return h.resolve()
@@ -932,8 +1168,12 @@ def _c007(no, cid):
     # (b) write-back failure: the leaf PTE lives in the read-only BootROM
     c = _new(no, cid, "flush_adwbfail", "ROM page table: CFXMEM + [56] ADWBFAIL")
     sig_begin(c)
-    c.words_at = {ROM_PTE_OFF: list(_ROM_PTE_WORDS)}
+    c.rom_at = {_ROM_PTE_IMAGE_OFF: list(_ROM_PTE_WORDS)}
     set_handler(c, fault_handler(c, None, "ADWBFAIL", info=_ROM_PTE_PA))
+    # PA 0x40 要经 512 MiB 恒等超页写；user 模式下该超页必须也允许 U
+    # （HSJU=H|S|U，`DADAO-12 §2.2.5`），否则写侧先吃 `[32] NUPERM`。
+    st64(c, PT_L1 + 0 * 8, pte_super(0))
+    tlb_cmd(c, OP_INVALID, SCOPE_ALL, asid_any=True)
     st64(c, 0x40, M1)                          # PA 0x40 (identity table)
     tlb_cmd(c, OP_INVALID, SCOPE_ALL, asid_any=True)
     set_ptbr(c, P.RESET_PC)                    # the ROM-resident page table
@@ -958,6 +1198,7 @@ def _c007(no, cid):
 _ROM_L1_IDX = 0x1FFF
 _ROM_VA = (_ROM_L1_IDX << 29) | 0x40
 _ROM_PTE_PA = P.RESET_PC + _ROM_L1_IDX * 8
+_ROM_PTE_IMAGE_OFF = P.RESET_PC - P.BOOTROM_BASE + _ROM_L1_IDX * 8
 _ROM_PTE = pte_super(0)
 _ROM_PTE_WORDS = [(_ROM_PTE >> 32) & 0xFFFFFFFF, _ROM_PTE & 0xFFFFFFFF]
 
@@ -1069,46 +1310,104 @@ def _c010(no, cid):
 
 # -- 011: page permission failures => permission bitmap bits -------------
 @case(11, "arch-ptw-011", "perm_denied_cfxperm",
-      "W=0/R=0/X=0 and HSJU H=0 give CFXPERM + [37]/[36]/[38]/[35]")
+      "HSJU / R / W / X: each missing bit gives its own bitmap sub-cause")
 def _c011(no, cid):
+    """Permission vectors, one check per mode-specific page-access rule.
+
+    `DADAO-12 §2.2.5/§2.2.6`: only the **current run mode's** HSJU bit is
+    required (no implicit H-covers-S / S-covers-U widening), and R/W/X are
+    orthogonal; when both are violated the HSJU bit wins.  The H axis
+    (`NHPERM`) is what hypv needs; supv adds the S axis (`NSPERM`) and user the
+    U axis (`NUPERM`), each combined with R/W/X.  Jail is out of scope (user
+    ruling 2026-11-22).
+    """
     out = []
 
-    c = _new(no, cid, "nwperm", "store to a W=0 page")
-    st64(c, DA, M1)
-    install_table(c, {0: pte_leaf(DA, w=False)})
-    set_handler(c, fault_handler(c, None, "NWPERM", info=VA0))
-    arm_fault(c)
-    st_va(c, VA0, M2)
-    a_fault_count(c, 1)
-    out.append(_finish(c))
+    def deny(label, desc, sub, pte, access):
+        """One denied access: handler asserts the sub-cause, body counts it."""
+        c = _new(no, cid, label, desc)
+        st64(c, DA, M1)
+        install_table(c, {0: pte})
+        if access == "fetch":
+            set_handler(c, fault_handler(c, None, sub, info=VA0, resume=False))
+            jump_va(c, VA0)
+            _fail_exit(c, c.s, c.code("the fetch must fault"))
+            out.append(c)
+            return
+        set_handler(c, fault_handler(c, None, sub, info=VA0))
+        arm_fault(c)
+        if access == "store":
+            st_va(c, VA0, M2)
+        else:
+            ld_va(c, VA0, rd=5)
+        a_fault_count(c, 1)
+        out.append(_finish(c))
 
-    c = _new(no, cid, "nrperm", "load from an R=0 page")
-    st64(c, DA, M1)
-    install_table(c, {0: pte_leaf(DA, r=False)})
-    set_handler(c, fault_handler(c, None, "NRPERM", info=VA0))
-    arm_fault(c)
-    ld_va(c, VA0, rd=5)
-    a_fault_count(c, 1)
-    out.append(_finish(c))
+    def allow(label, desc, pte):
+        """One allowed access: proves the mask is not over-restrictive."""
+        c = _new(no, cid, label, desc)
+        st64(c, DA, M1)
+        install_table(c, {0: pte})
+        set_handler(c, unexpected_fault(c))
+        ld_va(c, VA0, rd=5)
+        a_eq(c, c.s, 5, M1, desc)
+        assert_no_new_fault(c)
+        out.append(_finish(c))
 
-    c = _new(no, cid, "nxperm", "fetch from an X=0 page")
-    st64(c, DA, M1)
-    install_table(c, {0: pte_leaf(DA, x=False)})
-    set_handler(c, fault_handler(c, None, "NXPERM", info=VA0,
-                                resume=False))
-    jump_va(c, VA0)
-    _fail_exit(c, c.s, c.code("the fetch must fault"))
-    out.append(c)
-
-    # HSJU: the H bit is cleared, the probe runs in hypv (`TLB-34` bit [35]).
-    c = _new(no, cid, "nhperm", "load from a page whose HSJU has no H bit")
-    st64(c, DA, M1)
-    install_table(c, {0: pte_leaf(DA, hsju=0x0)})
-    set_handler(c, fault_handler(c, None, "NHPERM", info=VA0))
-    arm_fault(c)
-    ld_va(c, VA0, rd=5)
-    a_fault_count(c, 1)
-    out.append(_finish(c))
+    if MODE == "hmon":
+        # hypv: H is the required bit (`[35] NHPERM`); HSJU wins over R/W/X.
+        deny("nwperm", "store to a W=0 page", "NWPERM",
+             pte_leaf(DA, w=False), "store")
+        deny("nrperm", "load from an R=0 page", "NRPERM",
+             pte_leaf(DA, r=False), "load")
+        deny("nxperm", "fetch from an X=0 page", "NXPERM",
+             pte_leaf(DA, x=False), "fetch")
+        deny("nhperm", "load from a page whose HSJU has no H bit", "NHPERM",
+             pte_leaf(DA, hsju=0x0), "load")
+        deny("nhperm_before_nwperm",
+             "W=0 page without H: HSJU is checked before R/W/X", "NHPERM",
+             pte_leaf(DA, hsju=0x0, w=False), "store")
+    elif MODE == "smon":
+        # supv: S is the required bit (`[34] NSPERM`).  H is not required
+        # outside hypv; S and U may both be set (the hardware adds no
+        # "S excludes U" rule).
+        deny("nwperm", "store to a W=0 page (S allowed)", "NWPERM",
+             pte_leaf(DA, w=False), "store")
+        deny("nrperm", "load from an R=0 page (S allowed)", "NRPERM",
+             pte_leaf(DA, r=False), "load")
+        deny("nxperm", "fetch from an X=0 page (S allowed)", "NXPERM",
+             pte_leaf(DA, x=False), "fetch")
+        deny("nsperm", "load from a page whose HSJU has S=0 (H|U only)",
+             "NSPERM", pte_leaf(DA, hsju=0x9), "load")
+        deny("nsperm_before_nwperm",
+             "W=0 page without S: HSJU is checked before R/W/X", "NSPERM",
+             pte_leaf(DA, hsju=0x9, w=False), "store")
+        allow("s_plus_u_allowed",
+              "S=1 and U=1: supv reads a page that also grants user",
+              pte_leaf(DA, hsju=HSJU_ALL))
+        allow("s_only_allowed",
+              "S=1 without H: hypv's H bit is not required in supv",
+              pte_leaf(DA, hsju=0x4))
+    else:                                            # umon
+        # user: U is the required bit (`[32] NUPERM`).  H is not required
+        # outside hypv; a kernel page (H|S) must not be reachable from user.
+        deny("nwperm", "store to a W=0 page (U allowed)", "NWPERM",
+             pte_leaf(DA, w=False), "store")
+        deny("nrperm", "load from an R=0 page (U allowed)", "NRPERM",
+             pte_leaf(DA, r=False), "load")
+        deny("nxperm", "fetch from an X=0 page (U allowed)", "NXPERM",
+             pte_leaf(DA, x=False), "fetch")
+        deny("nuperm", "load from a page whose HSJU has U=0 (H|S only)",
+             "NUPERM", pte_leaf(DA, hsju=0xC), "load")
+        deny("nuperm_before_nxperm",
+             "X=0 page without U: HSJU is checked before R/W/X", "NUPERM",
+             pte_leaf(DA, hsju=0xC, x=False), "fetch")
+        allow("u_plus_s_allowed",
+              "U=1 and S=1: user reads a page that also grants supv",
+              pte_leaf(DA, hsju=HSJU_ALL))
+        allow("u_only_allowed",
+              "U=1 without H/S: only the current mode's bit is required",
+              pte_leaf(DA, hsju=0x1))
     return out
 
 
@@ -1142,7 +1441,9 @@ def _c013(no, cid):
 
     # (a) positive: cfx_pmem SRAM with PTW on and an all-zero page table
     c = _new(no, cid, "pmem_bypass", "ld/st to cfx_pmem SRAM, L1 all zero")
+    sig_begin(c)
     record_baseline(c)
+    st64(c, DA, M1)
     set_handler(c, unexpected_fault(c))
     for idx in range(4):
         st64(c, L1B + idx * 8, 0)
@@ -1154,18 +1455,28 @@ def _c013(no, cid):
     ld64(c, PMEM_SRAM, rd=6)
     a_eq(c, c.s, 6, M1, "cfx_pmem SRAM write/read-back with an all-zero page table")
     assert_no_new_fault(c)
-    set_ptbr(c, PT_L1)
+    set_ptbr(c, PT_L1)                     # 签名区/退出块要靠恒等表
     tlb_cmd(c, OP_INVALID, SCOPE_ALL, asid_any=True)
+    sig_obs(c, 6, M1)                       # 旁路窗口写入后回读（与 RTL 同一值）
     out.append(_finish(c))
 
-    # (b) negative with PTW on: reserved cfx => CFXMEM (no bitmap bit)
+    # (b) negative with PTW on: reserved cfx => CFXMEM (no bitmap bit).
+    # The handler resumes (`+4`), so the frame can be read back and recorded in
+    # the signature stream (three-way: the RTL carrier records the same two
+    # values from its `cfx_hmon cg5` frame through the fixed ROM slots).
     c = _new(no, cid, "reserved_cfx_ptw_on", "ld from a reserved cfx (PTW on)")
-    set_handler(c, fault_handler(c, "CFXMEM", None, info=RESERVED_CFX,
-                                resume=False))
+    sig_begin(c)
+    record_baseline(c)
+    st64(c, DA, M1)
+    set_handler(c, fault_handler(c, "CFXMEM", None, info=RESERVED_CFX))
     arm_fault(c)
     ld_va(c, RESERVED_CFX, rd=5)
-    _fail_exit(c, c.s, c.code("the reserved-cfx access must fault"))
-    out.append(c)
+    a_fault_count(c, 1)
+    read_cause(c, rd=5)
+    sig_obs(c, 5, CAUSE["CFXMEM"])           # 低位 cause：CFXMEM
+    c.s.e(P.cfx2rd(monitor_cfx(), 5, CAUSE_INFO_RC, rd=6))
+    sig_obs(c, 6, RESERVED_CFX)              # cause_info = 访问地址
+    out.append(_finish(c))
 
     # (c) negative with PTW off: identical semantics
     c = _new(no, cid, "reserved_cfx_ptw_off", "ld from a reserved cfx (PTW off)")
@@ -1339,8 +1650,10 @@ def decode_fail(check, rc):
             % (rc, len(check.fields)))
 
 
-def run_check(check, qemu):
-    rc, _log, blob = P.run(check.rom(), WORKDIR, qemu=qemu, timeout=TIMEOUT,
+def run_check(check, qemu, tools=None):
+    """Build the mode's image (prelude + env + body), run it, judge the check."""
+    image = build_image(check, tools or toolchain(), WORKDIR)
+    rc, _log, blob = P.run(image, WORKDIR, qemu=qemu, timeout=TIMEOUT,
                            dump=False, console_out=SIG_OUT)
     if rc is None:
         return False, "TIMEOUT", b""
@@ -1381,6 +1694,7 @@ def selected(only):
 
 def selfcheck():
     """Cross-source contract tables + expected.yaml ↔ driver consistency."""
+    global MODE
     problems = []
     names = ["NUPERM", "NJPERM", "NSPERM", "NHPERM", "NRPERM", "NWPERM",
              "NXPERM", "IGPTRAP", "ISPTRAP", "IGPFTRAP",
@@ -1407,25 +1721,13 @@ def selfcheck():
         if cls not in CAUSE:
             problems.append("contract-see §6.1 has no %s" % cls)
 
-    cases = build_all()
-    if len(cases) != 15:
-        problems.append("driver defines %d cases, expected 15" % len(cases))
-    ids = [cid for _n, cid, _name, _d, _c in cases]
-    if len(set(ids)) != len(ids):
-        problems.append("duplicate case ids: %r" % (sorted(ids),))
-    for no, cid, name, desc, checks in cases:
-        if no != int(cid.rsplit("-", 1)[1]):
-            problems.append("%s: case number %d does not match the id" % (cid, no))
-        for chk in checks:
-            if len(chk.fields) == 0:
-                problems.append("%s/%s has no assertion" % (cid, chk.label))
-            if chk.expect is None:
-                problems.append("%s/%s declares no expectation" % (cid, chk.label))
-            if len(chk.sig_want) > SIG_PREFILL:
-                problems.append("%s/%s has %d signature slots > prefill %d"
-                                % (cid, chk.label, len(chk.sig_want), SIG_PREFILL))
+    # env 段必须齐（三段共用一份布局；缺一份则该模式根本构建不出来）。
+    for mode in MODES:
+        for path in (os.path.join(ENV_DIRS[mode], "env.S"), ENV_LDS,
+                     os.path.join(ENV_INC, "cfx_perm.inc")):
+            if not os.path.isfile(path):
+                problems.append("缺 env 件（%s）: %s" % (mode, path))
 
-    # expected.yaml must describe exactly these cases/checks.
     try:
         import yaml
         with open(EXPECTED_YAML, encoding="utf-8") as f:
@@ -1433,28 +1735,65 @@ def selfcheck():
     except Exception as exc:            # noqa: BLE001 — report, do not mask
         problems.append("cannot read %s: %s" % (EXPECTED_YAML, exc))
         doc = None
-    if doc is not None:
-        declared = {}
-        for entry in doc.get("cases", []):
-            declared[entry.get("id")] = entry
+    declared = {}
+    for entry in (doc or {}).get("cases", []) or []:
+        declared[entry.get("id")] = entry
+
+    for mode in MODES:
+        MODE = mode
+        cases = build_all()
+        if len(cases) != 15:
+            problems.append("[%s] driver defines %d cases, expected 15"
+                            % (mode, len(cases)))
+        ids = [cid for _n, cid, _name, _d, _c in cases]
+        if len(set(ids)) != len(ids):
+            problems.append("[%s] duplicate case ids: %r"
+                            % (mode, sorted(ids)))
+        for no, cid, name, _desc, checks in cases:
+            if no != int(cid.rsplit("-", 1)[1]):
+                problems.append("[%s] %s: case number %d does not match the id"
+                                % (mode, cid, no))
+            labels = [chk.label for chk in checks]
+            if len(set(labels)) != len(labels):
+                problems.append("[%s] %s: duplicate check labels %r"
+                                % (mode, cid, labels))
+            for chk in checks:
+                if len(chk.fields) == 0:
+                    problems.append("[%s] %s/%s has no assertion"
+                                    % (mode, cid, chk.label))
+                if chk.expect is None:
+                    problems.append("[%s] %s/%s declares no expectation"
+                                    % (mode, cid, chk.label))
+                if len(chk.sig_want) > SIG_PREFILL:
+                    problems.append("[%s] %s/%s has %d signature slots > "
+                                    "prefill %d" % (mode, cid, chk.label,
+                                                    len(chk.sig_want),
+                                                    SIG_PREFILL))
+        if doc is None:
+            continue
         live = {cid: (name, checks) for _n, cid, name, _d, checks in cases}
         for cid in sorted(set(live) - set(declared)):
-            problems.append("expected.yaml misses %s" % cid)
+            problems.append("[%s] expected.yaml misses %s" % (mode, cid))
         for cid in sorted(set(declared) - set(live)):
-            problems.append("expected.yaml declares an unknown case %s" % cid)
+            problems.append("[%s] expected.yaml declares an unknown case %s"
+                            % (mode, cid))
         for cid, (name, checks) in sorted(live.items()):
             entry = declared.get(cid)
             if not entry:
                 continue
             if entry.get("only") != name:
-                problems.append("%s: expected.yaml only=%r, driver name=%r"
-                                % (cid, entry.get("only"), name))
+                problems.append("[%s] %s: expected.yaml only=%r, driver name=%r"
+                                % (mode, cid, entry.get("only"), name))
+            # `checks_by_mode.<mode>` 覆盖 `checks`（缺省 = 三种模式同一份）；
+            # 运行模式改变的只有**各模式自己的权限位**（011 的 S/U 轴）。
+            items = ((entry.get("checks_by_mode") or {}).get(mode)
+                     or entry.get("checks") or [])
             def norm(exp):
                 return None if exp is None or exp[0] == "none" else exp
 
             got = {c.label: norm(c.expect) for c in checks}
             want = {}
-            for item in entry.get("checks", []):
+            for item in items:
                 cause = item.get("cause")
                 sub = item.get("subcause")
                 if cause in (None, "none") and sub is None:
@@ -1465,37 +1804,66 @@ def selfcheck():
                     want[item.get("label")] = (
                         None if cause in (None, "none") else cause, sub)
             if got != want:
-                problems.append("%s: checks differ (driver %r vs yaml %r)"
-                                % (cid, got, want))
+                problems.append("[%s] %s: checks differ (driver %r vs yaml %r)"
+                                % (mode, cid, got, want))
             # 签名流期望：yaml 只是登记（数值真源仍是驱动里的合约派生值），
             # 双向核对 ⇒ 驱动接线与清单不许漂移（m16-testcases-002）。
-            sig_decl = {item.get("label"): [int(v) for v in item.get("signature") or []]
-                        for item in entry.get("checks", [])}
+            sig_decl = {item.get("label"): [int(v)
+                                            for v in item.get("signature") or []]
+                        for item in items}
             for c in checks:
                 want_sig = sig_decl.get(c.label, [])
                 if c.sig_want != want_sig:
-                    problems.append("%s/%s: signature differs (driver %r vs yaml %r)"
-                                    % (cid, c.label, c.sig_want, want_sig))
+                    problems.append("[%s] %s/%s: signature differs (driver %r "
+                                    "vs yaml %r)" % (mode, cid, c.label,
+                                                     c.sig_want, want_sig))
+    MODE = "hmon"
     if problems:
         for p in problems:
             print("selfcheck: FAIL %s" % p)
         return 1
+    cases = build_all()
     print("selfcheck: PASS (contract-see §6.1.1 == spec/DADAO-12 §3.6; "
-          "%d sub-causes, %d causes; %d cases, %d checks)"
-          % (len(SUB_BIT), len(CAUSE), len(cases),
-             sum(len(c) for *_x, c in cases)))
+          "%d sub-causes, %d causes; %d cases × %d modes)"
+          % (len(SUB_BIT), len(CAUSE), len(cases), len(MODES)))
     return 0
 
 
 def main():
-    global QEMU
+    global QEMU, MODE, CFX_ACCESS
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--only", default=None,
                     help="case id, case name, or <case id>/<check label>")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--selfcheck", action="store_true")
     ap.add_argument("--qemu", default=None)
+    ap.add_argument("--mode", default="hmon", choices=list(MODES),
+                    help="运行模式（hmon=hypv / smon=supv / umon=user）")
+    ap.add_argument("--cfx-access", default=None,
+                    help="modes.yaml 的 cfx_access（逗号分隔的 cfxha 十进制；"
+                         "环境据此做权限准备）")
+    ap.add_argument("--toolchain-bin", default=None,
+                    help="llvm-mc/ld.lld/llvm-objcopy 所在目录（缺省 = 安装根）")
+    # `run_arch` 的 env 载体参数：本载体的镜像自带 prelude（等价于固件段），
+    # 不使用 step5 BootROM，也不测 cache 时序 ⇒ `--bootrom`/`--cache-model`
+    # 显式接受后不使用（不静默改变语义）。
+    ap.add_argument("--bootrom", default=None)
+    ap.add_argument("--cache-model", default=None)
     args = ap.parse_args()
+
+    MODE = args.mode
+    if args.cfx_access:
+        try:
+            CFX_ACCESS = [int(x, 0) for x in args.cfx_access.split(",") if x]
+        except ValueError:
+            print("ptw_carrier_tlb: --cfx-access 需为十进制 cfxha 列表",
+                  file=sys.stderr)
+            return 2
+        if any(not 0 <= c <= 63 for c in CFX_ACCESS) or \
+                len(set(CFX_ACCESS)) != len(CFX_ACCESS):
+            print("ptw_carrier_tlb: --cfx-access 非法/重复: %r" % (CFX_ACCESS,),
+                  file=sys.stderr)
+            return 2
 
     if args.selfcheck:
         return selfcheck()
@@ -1515,21 +1883,30 @@ def main():
     if not os.access(QEMU, os.X_OK):
         print("ptw_carrier_tlb: ERROR: qemu not executable: %s" % QEMU)
         return 2
+    try:
+        tools = toolchain(args.toolchain_bin)
+    except SetupError as exc:
+        print("ptw_carrier_tlb: SETUP: %s" % exc, file=sys.stderr)
+        return 2
 
     results = selected(args.only)
     npass = nfail = 0
     sig_blobs = []
-    for no, cid, name, chk in results:
-        ok, detail, blob = run_check(chk, QEMU)
-        print("%s %s/%-22s rc=%s %s"
-              % ("PASS" if ok else "FAIL", cid, chk.label,
-                 "0x00" if ok else detail, chk.desc if ok else ""))
-        if ok:
-            npass += 1
-            if blob:
-                sig_blobs.append(blob)
-        else:
-            nfail += 1
+    try:
+        for no, cid, name, chk in results:
+            ok, detail, blob = run_check(chk, QEMU, tools)
+            print("%s %s/%-22s rc=%s %s"
+                  % ("PASS" if ok else "FAIL", cid, chk.label,
+                     "0x00" if ok else detail, chk.desc if ok else ""))
+            if ok:
+                npass += 1
+                if blob:
+                    sig_blobs.append(blob)
+            else:
+                nfail += 1
+    except SetupError as exc:
+        print("ptw_carrier_tlb: SETUP: %s" % exc, file=sys.stderr)
+        return 2
     total = npass + nfail
     if total == 0:
         print("ptw_carrier_tlb: no check matched --only %r" % (args.only,))

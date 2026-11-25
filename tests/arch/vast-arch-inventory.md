@@ -117,6 +117,11 @@
 > （`kind: driver`、`machine: vast`、`platforms: [system]`）；QEMU 与 gem5（shim）
 > 逐条 29/29 检查通过，`arch-ptw-002/006/007` 的 10 个签名槽逐槽相同。RTL 侧
 > 仍由 `m16-chipyard-018` 接。下方 QEMU 行的旧路径注记保留为盘点基线。
+>
+> **S/U 运行模式注（`m16-testcases-019`，2026-11-25）**：同一 15 条在
+> hmon/smon/umon 各跑一次（共享 `common/env-*`；测试页 PTE 的 HSJU = H|S|U），
+> PTE 的 S/U 轴在 `arch-ptw-011` 的 `checks_by_mode` 里逐模式构造；`arch-ptw-013`
+> 提升为 RTL `signature`（`PTW_CASE=13`，3 槽）。
 
 ### cfx4 ptw — QEMU
 

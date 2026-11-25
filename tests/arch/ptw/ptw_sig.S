@@ -22,8 +22,8 @@
 @@   DA/DB/DC/DD = 0x6000_0000/0x6100_0000/0x6200_0000/0x6300_0000
 @@   数据由探针在运行期经 VA = PA + 2 TiB 写入（超页 L1[0x1003]）。
 @@
-@@ 用例选择：`llvm-mc --defsym PTW_CASE=<n>`（1/2/3/4/5/6/7/8/9/10/11/12）。
-@@ 只有 002/006/007 写签名流（与 QEMU/gem5 逐槽比较）；其余 case 由
+@@ 用例选择：`llvm-mc --defsym PTW_CASE=<n>`（1..13）。
+@@ 只有 002/006/007/013 写签名流（与 QEMU/gem5 逐槽比较）；其余 case 由
 @@ guest 内断言判（`SYS_EXIT(点号)` ⇒ 红），签名流为 0 槽（与 QEMU 的空流一致）。
 @@
 @@ 故障观察：chipyard 的固定 BootROM 是 Tiny 固件（`tests/ee-tiny/
@@ -433,6 +433,51 @@ c11d_ok:
 	__VERIFY_RD	60, rd6, M2
 	__EXIT	0
 
+.elseif PTW_CASE == 13
+	@@ ---- 013：cfx 空间旁路（cfx_pmem SRAM 窗口）+ 保留 cfx ⇒ CFXMEM ----
+	@@ 判据（`DADAO-12 §2.1/§2.2.1`、`TLB-40`）：`addr[47:42] != 0` 的 cfx 内部
+	@@ 空间不经 PTW/TLB ⇒ 页表全零也能访问 `cfx_pmem` 的 SRAM 窗口；保留 cfx
+	@@ 的普通 ld 只置 `CFXMEM`（低位 cause），`cause_info` = 访问地址。
+	@@ 与 QEMU 载体 `arch-ptw-013` 的签名流同序：窗口写后回读、cause_id、cause_info。
+	SIG_BEGIN	TEST_BUF, 3
+
+	@@ 页表整表清零（PT_L1B）后 PTBR 指过去：PTW 开着也没有任何映射
+	set.rb	rb6, VA_BASE + PT_L1B
+	set.rd	rd7, 0
+	st.o	rd7, [rb6, 0]
+	st.o	rd7, [rb6, 8]
+	st.o	rd7, [rb6, 16]
+	st.o	rd7, [rb6, 24]
+	INVAL_ALL
+	set.rd	rd6, PT_L1B
+	cfx2rc	cfx_ptw, cg9, rc0, rd6
+
+	@@ cfx_pmem SRAM 窗口：写 M1、读回（不经页表）
+	set.rd	rd5, M1
+	STV	rd5, PMEM_SRAM
+	LDV	rd6, PMEM_SRAM
+	__VERIFY_RD	2, rd6, M1
+
+	@@ 还原恒等表：签名区/后续访存都靠它
+	set.rd	rd6, PT_L1
+	cfx2rc	cfx_ptw, cg9, rc0, rd6
+	INVAL_ALL
+	SIGUPD	rd6
+
+	@@ 保留 cfx 的普通 ld ⇒ CFXMEM（低位 cause 1<<1），cause_info = 访问地址
+	ARM_FAULT	c13_ok
+c13_fault:
+	LDV	rd5, RESERVED_CFX
+c13_ok:
+	READ_CAUSE	rd5
+	__VERIFY_RD	3, rd5, CAUSE_NONPTW
+	SIGUPD	rd5
+	READ_INFO	rd6
+	__VERIFY_RD	4, rd6, RESERVED_CFX
+	SIGUPD	rd6
+	SIG_DUMP	TEST_BUF, 3
+	__EXIT	0
+
 .else
-	.error	"PTW_CASE must be 1..12"
+	.error	"PTW_CASE must be 1..13"
 .endif

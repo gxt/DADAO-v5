@@ -32,7 +32,12 @@
 @@
 @@ 交付契约（驱动侧）：声明了 cfx<N> ⇒ `--defsym ENV_CFX_ACCESS_<N>=1`。
 
+	@@ 打开时清哪些源位：缺省只清 cfx_hmon(3)。`ENV_PERM_ALLOW` 可由驱动覆写
+	@@ （`m16-testcases-019`：cfx4 载体的同步故障处理程序在**当前模式监视器**
+	@@ 名下运行 ⇒ 它对声明的 cfx 的访问源是 cfx_smon(2)/cfx_umon(0)，也要允许）。
+	.ifndef	ENV_PERM_ALLOW
 	.equ	ENV_PERM_ALLOW, 0xFFFFFFFFFFFFFFF7	@@ 打开：只清源 cfx（cfx_hmon）位
+	.endif
 	.equ	ENV_PERM_DENY,  0x0000000000000008	@@ 收窄：把源 cfx 位 1
 	.equ	ENV_PERM_DELEG, 0x0000000000000008	@@ deleg 整组开放（唯一置位为恒 1 的 bit3）
 	.equ	ENV_PERM_SENT,  0xDEADBEEF0BADF00D	@@ 回读哨兵（读被拒时保留）

@@ -9,6 +9,10 @@
 
 - `arch-umon-011` — body `tests/arch/umon/umon_mode_regs.body.S`；hmon/smon/umon
   三模式均通过，签名逐槽一致（驱动 `tests/arch/common/check_mode_env.py`）。
+- `arch-ptw-001`…`015`（cfx4）— `m16-testcases-019`：载体 `ptw_carrier_tlb.py`
+  用共享 `common/env-{hmon,smon,umon}` 进入/退出（`--mode`），`modes.yaml`
+  三条模式全开；body 留在载体自己的 ROM（007/014/015 需要只读页表/内存窗口），
+  故障处理程序装在**当前模式监视器**的 `<mode>` 行、在触发模式里运行。
 
 ## 待迁移（按载体分组）
 
@@ -24,17 +28,9 @@
 - 阻塞点：`asm` 载体仍未接 `--mode`（`run_arch.py` 的 asm 路径显式 fail-closed）；
   需要按 `kind: driver` 或给 asm 载体加环境选择。
 
-### `tests/arch/ptw/` — `arch-ptw-001`…`015`（15 条 driver）
+### `tests/arch/umon/` 的 asm 载体（001–010）仍待迁移
 
-载体 `ptw_carrier_tlb.py` 自带 4 MiB BootROM，body 固定在 `cfx_hmon`（hypv），
-用 `cfx_hmon` 的 `cg5` 现场与自装 `cfx_hmon` 向量。
-
-- 迁移方式：把「BootROM 段 / 向量 / 签名区」抽到 `common/env-*`，body 只留 TLB
-  检查；运行模式由 env 决定。
-- 阻塞点：`cfx_ptw`/`cfx_pmem` 的寄存器与 TLB 命令权限按**源模式行**判定；
-  supv/user 下需按目标模式重新配置 `cfx_ptw` 的 `cg2`/`cg0` 行（缺省掩码全屏蔽），
-  且 `cfx2rd` 在 supv 还受 `cg_reg_deleg` 约束。属于「迁移一件一议」的权限配置，
-  不在本任务范围。
+见上一节：`asm` 载体仍未接 `--mode`（`run_arch.py` 的 asm 路径显式 fail-closed）。
 
 ### `tests/arch/cache/` — `cfx5_regs.S`（未登记 `tests/arch.yaml`）
 

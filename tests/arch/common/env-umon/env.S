@@ -48,9 +48,23 @@
 	.ifndef	ENV_COPY_OCTAS
 	.equ	ENV_COPY_OCTAS, 512
 	.endif
+	.ifndef	ENV_UCOPY
 	.equ	ENV_UCOPY,     0x60000000
+	.endif
+	.ifndef	ENV_UTAIL
 	.equ	ENV_UTAIL,     0x60001000
+	.endif
+	@@ 进 user 的跳转目标（缺省 = 拷贝到 U 页的 body 起点）；body 本来就在
+	@@ user 可达处（cfx4 载体的 ROM）时由驱动覆写成 body 的真实地址。
+	.ifndef	ENV_UENTRY
+	.equ	ENV_UENTRY,    ENV_UCOPY
+	.endif
 	.equ	ENV_UPAGE_PTE, 0xF00000006000FFEF
+	@@ L1[3] 的 U 位写进哪张表：缺省 PA 0x18（step5 固件 PTBR=0 的表）；
+	@@ 表在别处时由驱动传（`m16-testcases-019`：cfx4 载体的 L1 在 0x7ff0_0000）。
+	.ifndef	ENV_UPAGE_PTE_PA
+	.equ	ENV_UPAGE_PTE_PA, 0x18
+	.endif
 
 	@@ 权限准备 / 收窄的宏与失败处理（依赖上面的 ENV_SIG_* 与 `-I` 传的 env 目录）
 	.include "cfx_perm.inc"
@@ -60,15 +74,27 @@
 _start:
 	set.rb	rb1, ENV_STACK
 
-	@@ 打开 L1[3] 的 U 位：写 PA 0 处的 PTE3（VA 0 + 24，PTBR=0）
-	set.rb	rb4, 0
+	@@ 打开 L1[3] 的 U 位：写该表 L1[3] 处（缺省 PA 0x18，即 PTBR=0 的表）
+	set.rb	rb4, ENV_UPAGE_PTE_PA - 24
 	set.rd	rd6, ENV_UPAGE_PTE
 	st.o	rd6, [rb4, 24]
 
-	@@ 把 body + .envtail 拷进 U 页（源 = 紧随 env 之后的镜像区间）
+	@@ 改过页表项 ⇒ 丢掉旧转换：hypv 阶段的访存可能已经按旧 HSJU（0xC）填过该页
+	@@ 的条目，user 下命中会按条目里的 HSJU 判 ⇒ `[32] NUPERM`。缺省不做（本环境
+	@@ 的原始假设是「user 之前没人访问过该页」）；镜像在 hypv 阶段访问过该超页
+	@@ 时由驱动传 `ENV_TLB_INVALIDATE=1`（`m16-testcases-019` 的 cfx4 载体）。
+	.ifdef	ENV_TLB_INVALIDATE
+	set.rd	rd6, 2			@@ op=invalid、scope=all、ASID_ANY=1
+	cfx2rc	cfx_ptw, cg12, rc0, rd6
+	.endif
+
+	@@ 把 body + .envtail 拷进 U 页（源 = 紧随 env 之后的镜像区间）。
+	@@ `ENV_COPY_OCTAS = 0` 表示 body 已在 U 可达处（cfx4 载体的 body 在 ROM，
+	@@ `m16-testcases-019`）⇒ 跳过拷贝（原循环是 do-while，0 会下溢成死循环）。
 	set.rb	rb4, ENV_BODY_SRC
 	set.rb	rb5, ENV_UCOPY
 	set.rd	rd6, ENV_COPY_OCTAS
+	br.z	{rd6}?, [rb0, umon_copy_done]
 umon_copy:
 	ld.o	rd7, [rb4, 0]
 	st.o	rd7, [rb5, 0]
@@ -76,6 +102,7 @@ umon_copy:
 	add.si	rb5, 8
 	add.si	rd6, -1
 	br.nz	{rd6}?, [rb0, umon_copy]
+umon_copy_done:
 
 	@@ `cache-model=on`：上面的拷贝是**数据写**，落在 D-cache 的脏行里；user 的
 	@@ 取指走真实内存（QEMU/gem5 的取指不经影子/写回），会读到旧内容（0 字 ⇒
@@ -107,9 +134,9 @@ umon_vectors:
 	set.rd	rd6, 3
 	cfx2rc	cfx_hmon, cg0, rc8, rd6
 
-	@@ hypv -> user：cfx_hmon 的 hypv 行 switch_run_mode = 0、向量 = ENV_UCOPY
+	@@ hypv -> user：cfx_hmon 的 hypv 行 switch_run_mode = 0、向量 = ENV_UENTRY
 	set.rb	rb6, ENV_UTAIL
-	set.rd	rd6, ENV_UCOPY
+	set.rd	rd6, ENV_UENTRY
 	cfx2rc	cfx_hmon, cg3, rc10, rd6
 	set.rd	rd6, 0
 	cfx2rc	cfx_hmon, cg3, rc8, rd6

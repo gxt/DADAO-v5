@@ -30,12 +30,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-testcases-019 | 2026-11-25 05:24 | 3–4 h | PTW S/U 覆盖 + `arch-ptw-013` 提升为 signature |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-testcases-019 | 2026-11-25 08:13 | PTW S/U 覆盖 + `arch-ptw-013` signature（QEMU+gem5 三模式；RTL known-red 待 022） |
 | m16-infra-002 | 2026-11-25 05:57 | `chipyard_engine` 可选 `+verbose` + L1 门控 `check-arch-self-test`（spec 任务收尾） |
 | m16-chipyard-027 | 2026-11-25 05:23 | RTL 缺面补齐（power `cg4/cg6`、cfx5 S/U 可达、`addr_start` 56 位；DIV-13/16 删除） |
 | m16-testcases-014 | 2026-11-25 02:15 | cfx32 pmem 完成中断 + 同界多源（R2：55/10 槽、一次进入并集；QEMU+RTL 两方，DIV-17） |

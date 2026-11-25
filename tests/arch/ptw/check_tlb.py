@@ -51,6 +51,13 @@ def main() -> int:
                     help="运行期工作目录（缺省 = 探针默认）")
     ap.add_argument("--signature-out", default=None,
                     help="签名流文件（缺省 = 工作目录/signature.out）")
+    # 运行模式 / env 载体参数（`m16-testcases-019`）：mode 决定用哪份
+    # `common/env-*`；`cfx-access` 交给环境的权限准备；其余由载体显式接受。
+    ap.add_argument("--mode", default=None)
+    ap.add_argument("--cfx-access", default=None)
+    ap.add_argument("--toolchain-bin", default=None)
+    ap.add_argument("--bootrom", default=None)
+    ap.add_argument("--cache-model", default=None)
     ap.add_argument("--selfcheck", action="store_true")
     ap.add_argument("--list", action="store_true")
     args = ap.parse_args()
@@ -71,6 +78,11 @@ def main() -> int:
         argv += ["--only", args.only]
     if args.qemu:
         argv += ["--qemu", args.qemu]
+    for flag in ("mode", "cfx_access", "toolchain_bin", "bootrom",
+                 "cache_model"):
+        value = getattr(args, flag)
+        if value is not None:
+            argv += ["--" + flag.replace("_", "-"), str(value)]
     if args.selfcheck:
         argv += ["--selfcheck"]
     if args.list:

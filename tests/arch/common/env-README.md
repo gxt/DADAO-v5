@@ -98,6 +98,22 @@ supv 全拒）；self 只绕过 cfx 轴，不绕过模式轴。
 `ENV_PERM_RESTORE_PREP <row>, <deleg>`）。`run_arch --self-test` 机械校验
 「三份 env 都 include、无人再内联」。
 
+## 按需开关（缺省不变；`m16-testcases-019`）
+
+有的载体不能把 body 放在 `ENTRY + 0x1000` 的 RAM 镜像里（cfx4 的 `tests/arch/ptw/`
+需要运行期只读的页表/内存窗口，故 body 留在载体自己的 4 MiB ROM；镜像 = 载体
+固件段 + env 三段 + body）。这类载体给环境传以下 `--defsym`（缺省行为与原来
+完全一致）：
+
+| defsym | 缺省 | 作用 |
+|---|---|---|
+| `ENV_PERM_ALLOW` | `0xFFFF_FFFF_FFFF_FFF7` | 「打开」时清哪些源 cfx 位。缺省只清 `cfx_hmon(3)`；cfx4 的同步故障处理程序在**当前模式监视器**（cfx_smon/cfx_umon）名下运行，它对声明的 cfx 的访问源是 2/0，故传 `…F3`/`…F6`（再清那位） |
+| `ENV_TLB_INVALIDATE` | 未定义 | 定义后，umon 在改完 L1[3] 的 U 位时整侧 `invalid|all`：hypv 阶段若已按旧 HSJU（0xC）填过该页，user 命中会按条目判 `[32] NUPERM` |
+| `ENV_UENTRY` | `ENV_UCOPY` | 进 user 的跳转目标（body 不在 U 页拷贝区时传 body 的真实地址） |
+| `ENV_UTAIL` | `0x6000_1000` | 收尾段地址（body 在 ROM 时传 ROM 里的 `.envtail`） |
+| `ENV_UPAGE_PTE_PA` | `0x18` | 写 L1[3] 的 U 位的那张表的物理地址（L1 不在 PA 0 时传，如 cfx4 的 `0x7ff0_0018`） |
+| `ENV_COPY_OCTAS` | 512 | umon 的 body 拷贝长度；`0` = 不拷贝（body 已在 user 可达处） |
+
 ## 已知语义边界（实测登记，不静默降级）
 
 - **`cfx_cache`（cfx5）的三模式准入依赖 `m16-qemu-005`**：该任务前 cfx5 只实现
@@ -157,6 +173,10 @@ python3 tests/arch/run_arch.py --case arch-umon-011 --mode umon --platforms qemu
 - **代表用例只接 QEMU 承载**：`check_mode_env.py` 需要 `-kernel` flat bin +
   `-d cpu` 的 `MODE:` 观测；gem5 shim / chipyard 由驱动显式失败（run_arch 记
   FAIL，不静默跑成别的语义）。
+- **cfx4 的 body 在 ROM**（`m16-testcases-019`）：env 只负责进入/退出与权限
+  准备，body 由载体的固件段交付；因此 smon/umon 的「body 必须落在 L1[3] 且
+  ≤ 0x1000 窗口」与「umon 要拷贝」两条限制对它不适用（ROM 取指走 cfx 空间，
+  `cfx_power` 的 `<mode>_cfxexe` 要声明）。
 
 ## 未迁移用例
 
