@@ -209,3 +209,21 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`m15-infra-010` 修好 `times()` 后，`sysconf(_SC_CLK_TCK)` 仍返回 `SYS_TICKFREQ`（1e9），与 `times()` 的 `CLOCKS_PER_SEC`（1e6）单位不一致（ADR-0058 D2 第 2 条后半未落地）。处置：`sysconf(_SC_CLK_TCK)` 改回 `CLOCKS_PER_SEC`，随下次触碰 picolibc semihost 时修。
+
+- id: ISS-425
+  scope:
+  - llvm
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】LLVM DADAO **CodeGen 侧** `DADAORegisterInfo.cpp` 仍以 `DADAO::RBSP`（= SP）作 RA 寄存器，与 MC 侧（`ra63`，DWARF 255）不一致；当前无消费者（grep 证实），但形态上是同一口径两处真源。建议后续统一并补断言。
+
+- id: ISS-430
+  scope:
+  - llvm
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`m14-llvm-005` 后 `.set VD, L1-L0` 再 `set.zw rbX, wpN, VD` 由「静默 0」变为**报错**（`VD` 是 Absolute 符号、本可编码 4）。禁静默是对的，但把「已由 `.set` 固化为绝对符号」的操作数也一并拒了，属表达能力回退；诊断文案还把它称作 symbol difference（其实是单符号操作数）。建议：对 `.set` 定义的 Absolute 符号放行，或至少改文案 + lit 固化。

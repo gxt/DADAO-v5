@@ -178,22 +178,8 @@
   closed_in: M17
   resolved_by: m17-spec-005（ADR-0009 D5/README 指针化；ADR-0004/0020 rev 段与 QEMU 注释另列）
   title: 【P2】**需用户裁定**：`m13-spec-001` 只授权就地修订 `ADR-0004`，但两处活正文仍写旧 guest 分区——`ADR-0009 D5`（decision 正文，非修订节）与 `components/chipyard/README.md:44`。选项：① 就地修订这两处（需用户逐条确认 ADR-0009 的 decision 变更）；② 改为指针引用 `spec/Kaiwu §7.1`（ADR 不承载规范正文）。
-- id: ISS-425
-  scope:
-  - llvm
-  milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】LLVM DADAO **CodeGen 侧** `DADAORegisterInfo.cpp` 仍以 `DADAO::RBSP`（= SP）作 RA 寄存器，与 MC 侧（`ra63`，DWARF 255）不一致；当前无消费者（grep 证实），但形态上是同一口径两处真源。建议后续统一并补断言。
-- id: ISS-430
-  scope:
-  - llvm
-  milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】`m14-llvm-005` 后 `.set VD, L1-L0` 再 `set.zw rbX, wpN, VD` 由「静默 0」变为**报错**（`VD` 是 Absolute 符号、本可编码 4）。禁静默是对的，但把「已由 `.set` 固化为绝对符号」的操作数也一并拒了，属表达能力回退；诊断文案还把它称作 symbol difference（其实是单符号操作数）。建议：对 `.set` 定义的 Absolute 符号放行，或至少改文案 + lit 固化。
+
+
 - id: ISS-459
   scope:
   - spec
