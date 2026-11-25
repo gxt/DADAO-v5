@@ -16,9 +16,10 @@
 @@ cfx2rd/cfx2rc 的 `cfx_<cfxname>_<regname>` 简写展开为 `cfxHA, cgHB, rcHC`；
 @@ 反汇编优先打印**名字**（运行时表 contracts/cfx-aliases.txt；LLVM-135t），
 @@ 无名字（reserved cfx / 未知 cg-rc 组合）回退 `cfx<HA>, cgN, rcN`。
-@@ escape 汇编层 `imms20`（字节，合法值 0/4/8）⇔ 编码 `imms18 = bytes >> 2`
-@@ ∈ {0,1,2}（Toolchain-01 §2.4/§5；反汇编还原 `<<2`；8 = cg9 帧，
-@@ 帧选择位/round-trip 见 cfx2-escape-frame.s）。
+@@ `escape` 汇编格式为 `escape cfxHA`（m18-spec-007）：只提供 cfxha，
+@@ 机器码 `imms18` 是 SBZ 必须为 0（contracts/opcodes.yaml
+@@ `escape_ciii_cfx` legality `imms18 == 0`）；反汇编只回显 cfxHA，
+@@ 不再打印偏移/帧选择（旧的 0/4/8 偏移与 cg9 帧选择位已作废）。
 @@
 @@ `@enc` 为独立派生的期望编码；同目录 oracle 从 opcodes.yaml + 别名表重算并比对。
 
@@ -33,31 +34,47 @@ trap cfx_smon, 1                        @@ @enc 7f080001
 @@ ASM: trap cfx_power, 0
 trap cfx63, 0                           @@ @enc 7ffc0000
 
-@@ --- escape（ciii）：cfxha + [excp_cause_ip, imms20]（字节偏移 >>2） ---
-@@ escape cfx_umon, [excp_cause_ip, 4] : cfxha=0, imms18=1 -> 7e 00 00 01
-@@ OBJ: {{[0-9a-f]+:}} 7e 00 00 01{{.*}}escape cfx_umon, [excp_cause_ip, 4]
-@@ ASM: escape cfx_umon, [excp_cause_ip, 4]
-escape cfx_umon, [excp_cause_ip, 4]     @@ @enc 7e000001
+@@ --- escape（ciii）：cfxha（imms18 = 0，SBZ） ---
+@@ escape cfx_umon : cfxha=0, imms18=0 -> 7e 00 00 00
+@@ OBJ: {{[0-9a-f]+:}} 7e 00 00 00{{.*}}escape cfx_umon
+@@ ASM: escape cfx_umon
+escape cfx_umon                         @@ @enc 7e000000
 
-@@ escape cfx0, [excp_cause_ip, 0] : imms18=0 -> 7e 00 00 00
-@@ OBJ: {{[0-9a-f]+:}} 7e 00 00 00{{.*}}escape cfx_umon, [excp_cause_ip, 0]
-@@ ASM: escape cfx_umon, [excp_cause_ip, 0]
-escape cfx0, [excp_cause_ip, 0]         @@ @enc 7e000000
+@@ escape cfx0 : 数字形等价（imms18 = 0）
+@@ OBJ: {{[0-9a-f]+:}} 7e 00 00 00{{.*}}escape cfx_umon
+@@ ASM: escape cfx_umon
+escape cfx0                             @@ @enc 7e000000
 
-@@ escape cfx0, [excp_cause_ip, 4] : imms18=1 -> 7e 00 00 01
-@@ OBJ: {{[0-9a-f]+:}} 7e 00 00 01{{.*}}escape cfx_umon, [excp_cause_ip, 4]
-@@ ASM: escape cfx_umon, [excp_cause_ip, 4]
-escape cfx0, [excp_cause_ip, 4]         @@ @enc 7e000001
+@@ escape cfx_power : cfxha=63, imms18=0 -> 7e fc 00 00
+@@ OBJ: {{[0-9a-f]+:}} 7e fc 00 00{{.*}}escape cfx_power
+@@ ASM: escape cfx_power
+escape cfx_power                        @@ @enc 7efc0000
+
+@@ --- escape imms18 != 0：手工编码是架构 ILLI，解码为 <unknown> ---
+@@ SimRISC-11 §3 / DADAO-12 §5.1：imms18 是 SBZ，非 0 ⇒ ILLI
+@@ （contracts/legality_rules.yaml `encode_sbz`）。汇编器无法生成该形态
+@@ （见 cfx2-escape-frame-err.s），这里用原始字钉住 MC 解码判据。
+@@ word = 0x7E000000 | imms18
+@@ OBJ: {{[0-9a-f]+:}} 7e 00 00 01{{.*}}<unknown>
+	.dd.t32 0x7E000001
+@@ OBJ: {{[0-9a-f]+:}} 7e 00 00 02{{.*}}<unknown>
+	.dd.t32 0x7E000002
+@@ OBJ: {{[0-9a-f]+:}} 7e 00 00 03{{.*}}<unknown>
+	.dd.t32 0x7E000003
+@@ OBJ: {{[0-9a-f]+:}} 7e 00 00 04{{.*}}<unknown>
+	.dd.t32 0x7E000004
+@@ OBJ: {{[0-9a-f]+:}} 7e ff ff ff{{.*}}<unknown>
+	.dd.t32 0x7EFFFFFF
 
 @@ --- cfx2rd（crrr）：cfx_<cfxname>_<regname> 简写 ---
-@@ cfx2rd cfx_umon_excp_cause_ip, rd2 : (cfxha=0, cg=5, rc=3), rd=2
-@@   -> 0x7A | 0<<18 | 5<<12 | 3<<6 | 2 = 7a 00 50 c2
-@@ OBJ: {{[0-9a-f]+:}} 7a 00 50 c2{{.*}}cfx2rd cfx_umon_excp_cause_ip, rd2
+@@ cfx2rd cfx_umon_excp_cause_ip, rd2 : (cfxha=0, cg=5, rc=2), rd=2
+@@   -> 0x7A | 0<<18 | 5<<12 | 2<<6 | 2 = 7a 00 50 82
+@@ OBJ: {{[0-9a-f]+:}} 7a 00 50 82{{.*}}cfx2rd cfx_umon_excp_cause_ip, rd2
 @@ ASM: cfx2rd cfx_umon_excp_cause_ip, rd2
-cfx2rd cfx_umon_excp_cause_ip, rd2      @@ @enc 7a0050c2
+cfx2rd cfx_umon_excp_cause_ip, rd2      @@ @enc 7a005082
 
-@@ 等价规范长形（cfx_umon, cg5, rc3 -> 同一元组）
-cfx2rd cfx_umon, cg5, rc3, rd2          @@ @enc 7a0050c2
+@@ 等价规范长形（cfx_umon, cg5, rc2 -> 同一元组）
+cfx2rd cfx_umon, cg5, rc2, rd2          @@ @enc 7a005082
 
 @@ --- cfx2rc（crrr）：cfx_<cfxname>_<regname> 简写 ---
 @@ cfx2rc cfx_power_ctrl, rd2 : (cfxha=63, cg=8, rc=1), rd=2

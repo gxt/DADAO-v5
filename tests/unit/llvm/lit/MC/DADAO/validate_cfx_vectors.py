@@ -250,18 +250,12 @@ def derive(code: str, opcodes, scalar, generic, specific) -> str:
         assigns = {"cfxha": resolve_scalar(ops[0], scalar),
                    "immu18": eval_expr(ops[1])}
     elif mnem == "escape":
-        if len(ops) != 2 or not ops[1].startswith("["):
-            raise ValueError("escape arity: %r" % code)
-        inner = split_top(ops[1][1:-1])
-        if len(inner) != 2 or inner[0] != "excp_cause_ip":
-            raise ValueError("escape base must be excp_cause_ip: %r" % code)
-        bytes_ = eval_expr(inner[1])
-        if bytes_ not in (0, 4, 8):
-            # Toolchain-01 §2.4/§5: assembly imms20 ∈ {0, 4, 8}
-            # (imms18 = imms20 >> 2 ∈ {0, 1, 2}; 8 = cg9 frame, offset 0).
-            raise ValueError("escape offset not in {0,4,8}: %r" % code)
+        # m18-spec-007 / SimRISC-11 §3: `escape cfxHA` has exactly one operand;
+        # the encoded imms18 field is SBZ and must be 0.
+        if len(ops) != 1:
+            raise ValueError("escape arity (expected 'escape cfxHA'): %r" % code)
         assigns = {"cfxha": resolve_scalar(ops[0], scalar),
-                   "imms18": bytes_ >> 2}
+                   "imms18": 0}
     else:
         raise ValueError("mnemonic not covered by this oracle: %r" % mnem)
 

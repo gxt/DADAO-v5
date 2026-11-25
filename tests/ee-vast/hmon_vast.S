@@ -26,8 +26,10 @@
 @@     * every policy first records the fault in the profile's fault-record
 @@       slot (FAULT_RECORD: +0 cause, +8 excp_cause_ip) so the test body can
 @@       read the cause instead of relying on cross-cfx register reads;
-@@     * HMON_FAULT_POLICY=0 (resume, bootrom_step5.bin): `escape cfx_hmon, 1`
-@@       returns to excp_cause_ip + 4 and the vector self-checks;
+@@     * HMON_FAULT_POLICY=0 (resume, bootrom_step5.bin): `escape cfx_hmon`
+@@       returns through `cg5 rc10`; the old imms18=1 (+4 byte offset) form is
+@@       gone in m18-spec-007 -- the +4 resume point migration belongs to
+@@       m18-testcases-004 (slot migration), not to the LLVM MC layer;
 @@     * HMON_FAULT_POLICY=1 (exit, bootrom_step5_inst.bin): exit code =
 @@       monitor segment 0xC0 | (run_mode << 4) | cause_bit_index
 @@       (spec/Kaiwu §7.1) so the inst harness observes the machine fault
@@ -100,7 +102,7 @@ hmon_dma_poll:
 	@@   `inner_cfx_code` 置为 3，跳转不改 cfx/ha ⇒ 测试镜像以 **cfx_hmon** 运行
 	@@   （m16-testcases-017 的执行环境起点）。cfx_hmon 的 hypv 向量保持本固件
 	@@   入口 ⇒ body 的同步异常仍走 `hmon_fault`（FAULT_RECORD + `escape` 回
-	@@   `cause_ip + 4`），fault policy 与交付前完全一致。
+	@@   `cg5 rc10`；旧 `cause_ip + 4` 的槽位迁移见 m18-testcases-004。
 	set.rb	rb2, ENTRY
 	jump	[rb2, rd0, 0]
 	swym	0
@@ -116,7 +118,7 @@ hmon_fault:
 	st.o	rd7, [rb4, 8]			@@ fault-record[1] = cause ip
 	.if HMON_FAULT_POLICY == 0
 	@@ resume: back to the instruction after the faulting one
-	escape	cfx_hmon, [excp_cause_ip, 4]
+	escape	cfx_hmon				@@ 0x28（imms18 = 0；返回点见 cg5 rc10）
 	swym	0
 	.else
 	@@ exit: explicit cause -> spec/Kaiwu §7.1 monitor code.

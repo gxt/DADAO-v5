@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..45c31c197
+index 000000000..e0651ac5b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2791 @@
+@@ -0,0 +1,2769 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1234,49 +1234,27 @@ index 000000000..45c31c197
 +          getParser().Lex();
 +      }
 +    } else if (Name == "escape") {
-+      // escape cfxHA, [excp_cause_ip, imms20]
-+      // The base `excp_cause_ip` is NOT encoded (like rb0 for jump-iiii), so it
-+      // is written explicitly and dropped here; the byte offset is shifted
-+      // right by 2 into the 18-bit encoding field (Toolchain-01 §3.2/§5):
-+      // `imms18 = imms20 >> 2 ∈ {0, 1, 2}`.  Bit 0 is the cg5 byte offset
-+      // bit2; bit 1 is the frame selector (0 = cg5 sync frame, 1 = cg9 async
-+      // frame, offset fixed 0), so the assembly-level byte offsets are
-+      // exactly {0, 4, 8} (8 => imms18 = 2).
++      // escape cfxHA
++      //
++      // SimRISC-11 §3 / DADAO-12 §5.1 (m18-spec-007): the assembly form takes
++      // ONLY the cfxHA operand.  The machine field `imms18` is retained in the
++      // encoding but is SBZ -- it must be 0 (non-zero => ILLI; contracts/
++      // opcodes.yaml `escape_ciii_cfx` legality `imms18 == 0`).  The old
++      // `escape cfxHA, [excp_cause_ip, 0/4/8]` offset/frame-selector form is
++      // gone: returning to a chosen point is now done by writing `cg5 rc10`
++      // before executing `escape`.
 +      if (parseOperand(Operands))
 +        return true;
-+      if (getParser().getTok().isNot(AsmToken::Comma))
++      if (getParser().getTok().is(AsmToken::Comma))
 +        return Error(getParser().getTok().getLoc(),
-+                     "expected ',' in 'escape cfxHA, [excp_cause_ip, imms20]'");
-+      getParser().Lex(); // consume ','
-+      if (getParser().getTok().isNot(AsmToken::LBrac))
++                     "escape takes no second operand; use 'escape cfxHA' and "
++                     "set the return point with 'cg5 rc10' (imms18 is SBZ)");
++      if (getParser().getTok().isNot(AsmToken::EndOfStatement))
 +        return Error(getParser().getTok().getLoc(),
-+                     "expected '[' in 'escape cfxHA, [excp_cause_ip, imms20]'");
-+      getParser().Lex(); // consume '['
-+      if (getParser().getTok().isNot(AsmToken::Identifier) ||
-+          getParser().getTok().getString() != "excp_cause_ip")
-+        return Error(getParser().getTok().getLoc(),
-+                     "escape base must be 'excp_cause_ip'");
-+      getParser().Lex(); // consume 'excp_cause_ip'
-+      if (getParser().getTok().isNot(AsmToken::Comma))
-+        return Error(getParser().getTok().getLoc(),
-+                     "expected ',' after 'excp_cause_ip'");
-+      getParser().Lex(); // consume ','
-+      SMLoc OffStart = getParser().getTok().getLoc();
-+      const MCExpr *OffExpr;
-+      SMLoc OffEnd;
-+      if (getParser().parseExpression(OffExpr, OffEnd))
-+        return true;
-+      int64_t Bytes;
-+      if (!OffExpr->evaluateAsAbsolute(Bytes))
-+        return Error(OffStart, "escape offset must be a constant (imms20)");
-+      if (Bytes != 0 && Bytes != 4 && Bytes != 8)
-+        return Error(OffStart,
-+                     "escape offset must be 0, 4 or 8 (imms20; imms18[17:2] is "
-+                     "SBZ; 8 selects the cg9 frame at offset 0)");
-+      if (getParser().getTok().isNot(AsmToken::RBrac))
-+        return Error(getParser().getTok().getLoc(), "expected ']'");
-+      getParser().Lex(); // consume ']'
-+      Operands.push_back(DADAOOperand::createImm(Bytes >> 2, OffStart, OffEnd));
++                     "unexpected token after 'escape cfxHA'");
++      // Keep the SBZ operand in the MCInst so the .td layout and the generated
++      // decoder stay unchanged; the assembler can only emit 0.
++      Operands.push_back(DADAOOperand::createImm(0, NameLoc, NameLoc));
 +    } else {
 +      // Normal instruction: parse operands sequentially.
 +      if (parseOperand(Operands)) {

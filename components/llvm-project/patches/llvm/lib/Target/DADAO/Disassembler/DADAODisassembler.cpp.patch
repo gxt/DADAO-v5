@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
 new file mode 100644
-index 000000000..7a4cffcb2
+index 000000000..3f65560e6
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
-@@ -0,0 +1,391 @@
+@@ -0,0 +1,412 @@
 +//===-- DADAODisassembler.cpp - DADAO Disassembler ------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -345,6 +345,23 @@ index 000000000..7a4cffcb2
 +}
 +
 +//===----------------------------------------------------------------------===//
++// Architectural validity of `escape`'s SBZ field (m18-spec-007).
++//
++// SimRISC-11 §3 / DADAO-12 §5.1: the `escape` encoding keeps `imms18` but the
++// field is SBZ -- non-zero is an ILLI word (contracts/opcodes.yaml
++// `escape_ciii_cfx` legality `imms18 == 0`).  The assembly form only has the
++// cfxHA operand and can never produce a non-zero field; a hand-crafted word
++// must render as `<unknown>` like the register-group ILLI words above rather
++// than as a printable `escape cfxHA`.
++//===----------------------------------------------------------------------===//
++
++static bool hasInvalidEscapeImm(const MCInst &MI) {
++  if (MI.getOpcode() != DADAO::escape_ciii)
++    return false;
++  return !MI.getOperand(1).isImm() || MI.getOperand(1).getImm() != 0;
++}
++
++//===----------------------------------------------------------------------===//
 +// getInstruction: main entry point for disassembly.
 +//
 +// contract-isa.md §2.1: instructions are 4 bytes, big-endian.
@@ -375,6 +392,10 @@ index 000000000..7a4cffcb2
 +  // it into a decode failure so the caller prints `<unknown>` instead of a
 +  // group that runs off the end of its bank (ISS-468).
 +  if (hasInvalidRegGroup(MI, *getContext().getRegisterInfo()))
++    return MCDisassembler::Fail;
++
++  // `escape`'s imms18 is SBZ: non-zero is an architectural ILLI word.
++  if (hasInvalidEscapeImm(MI))
 +    return MCDisassembler::Fail;
 +
 +  return MCDisassembler::Success;

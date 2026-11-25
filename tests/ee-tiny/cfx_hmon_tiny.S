@@ -24,7 +24,7 @@
 @@ 主处理代码（无任何策略判断）：
 @@   读 cg5 rc2/rc3/rc4（cause_id / cause_ip / cause_info）存 0xE0/0xE8/0xF0；
 @@   从 0xF8 取返回地址写入 excp_cause_ip；从 0xD8 恢复 rd63；
-@@   `escape cfx_hmon, [excp_cause_ip, 0]`。
+@@   `escape cfx_hmon`（m18-spec-007：只提供 cfxHA，返回点写 `cg5 rc10`）。
 @@ 退出码与旧的分派策略都不在这里——它们是测试框架（应用）的职责。
 
 	.include "tests/shared/asm/machine-tiny.inc"
@@ -49,4 +49,4 @@ _start:
 	ld.o	rd63, [rb0, HMON_SLOT_RETURN - 0x1c]		@@ 0x1c <- 0xF8
 	cfx2rc	cfx_hmon, cg5, rc3, rd63			@@ 0x20 cause_ip <- 返回地址
 	ld.o	rd63, [rb0, HMON_SLOT_RD63 - 0x24]		@@ 0x24 <- 0xD8（恢复）
-	escape	cfx_hmon, [excp_cause_ip, 0]			@@ 0x28
+	escape	cfx_hmon					@@ 0x28

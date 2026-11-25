@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 new file mode 100644
-index 000000000..fbef19977
+index 000000000..6d270f3ca
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
-@@ -0,0 +1,472 @@
+@@ -0,0 +1,466 @@
 +//===-- DADAOMCInstPrinter.cpp - DADAO MCInst Printer ---------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -423,12 +423,11 @@ index 000000000..fbef19977
 +  }
 +
 +  case FK_ciii: {
-+    // ciii: trap/fence — cfxHA, immu18 ; escape — cfxHA, [excp_cause_ip, imms20]
-+    // MCInst order: cfxha, imm18 (escape stores `imms18 = imms20 >> 2`, whose
-+    // bit 1 is the frame selector: 0 = cg5 sync frame at byte offset
-+    // `imms18[0] << 2`, 1 = cg9 async frame at offset 0).  Printing
-+    // `imms18 << 2` therefore renders 0/4 for cg5 and 8 for cg9, which is the
-+    // canonical long form of Toolchain-01 §5 and round-trips byte-identically.
++    // ciii: trap/fence — cfxHA, immu18 ; escape — cfxHA (only).
++    // MCInst order: cfxha, imm18.  For `escape` the imm18 field is SBZ
++    // (SimRISC-11 §3 / DADAO-12 §5.1, m18-spec-007): the assembly form has no
++    // offset/frame selector any more, and the decoder rejects non-zero imms18
++    // as an ILLI word (DADAODisassembler), so only the cfx operand is printed.
 +    unsigned Cfxha = MI->getOperand(0).getImm();
 +    StringRef ScalarName = getCfxScalarName(Cfxha);
 +    O << " ";
@@ -436,13 +435,8 @@ index 000000000..fbef19977
 +      O << "cfx" << Cfxha;
 +    else
 +      O << ScalarName;
-+    if (Mnem == "escape") {
-+      O << ", [excp_cause_ip, ";
-+      O << (MI->getOperand(1).getImm() << 2);
-+      O << "]";
-+    } else {
++    if (Mnem != "escape")
 +      O << ", " << MI->getOperand(1).getImm();
-+    }
 +    break;
 +  }
 +
