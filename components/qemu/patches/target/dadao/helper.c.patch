@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..82193b3
+index 0000000..9174a9d
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3851 @@
+@@ -0,0 +1,3982 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -2630,6 +2630,51 @@ index 0000000..82193b3
 +              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + DADAO_PMEM_DMA_DELAY_NS);
 +}
 +
++/*
++ * cfx_pmem descriptor face (DADAO-12 §4.9): cg8 rc0 `pmem_exist` (RO) and
++ * cg12/13/14 rc0..63 start/size/attr (RW).  The machine implements all 64
++ * regions, so `pmem_exist` reads all ones (the test-machine convention used
++ * by the RTL face too); every other rc of cg8, and every other cg, is
++ * reserved and must stay CFXREG.  Descriptors are plain 64-bit storage.
++ */
++static bool dadao_pmem_reg_read(CPUDADAOState *env, uint32_t cg, uint32_t rc,
++                                uint64_t *val)
++{
++    if (cg == 8) {
++        if (rc != 0) {
++            return false;               /* reserved rc => CFXREG */
++        }
++        *val = (DADAO_PMEM_REGIONS == 64)
++               ? ~0ULL : ((1ULL << DADAO_PMEM_REGIONS) - 1);
++        return true;
++    }
++    if (rc >= DADAO_PMEM_REGIONS) {
++        return false;
++    }
++    switch (cg) {
++    case 12: *val = env->pmem_start[rc]; return true;
++    case 13: *val = env->pmem_size[rc]; return true;
++    case 14: *val = env->pmem_attr[rc]; return true;
++    default: return false;              /* cg15 is the DMA face */
++    }
++}
++
++/* cfx_pmem descriptor writes: cg8 rc0 is RO (write => CFXREG); cg12/13/14
++ * rc0..63 store the full 64-bit value. */
++static bool dadao_pmem_reg_write(CPUDADAOState *env, uint32_t cg, uint32_t rc,
++                                 uint64_t val)
++{
++    if (cg == 8 || rc >= DADAO_PMEM_REGIONS) {
++        return false;                   /* pmem_exist RO / reserved rc */
++    }
++    switch (cg) {
++    case 12: env->pmem_start[rc] = val; return true;
++    case 13: env->pmem_size[rc] = val; return true;
++    case 14: env->pmem_attr[rc] = val; return true;
++    default: return false;              /* cg15 is the DMA face */
++    }
++}
++
 +/* cfx_pmem cg15 read (rc0..rc4).  Returns false for a reserved rc (CFXREG). */
 +static bool dadao_pmem_dma_reg_read(CPUDADAOState *env, uint32_t rc,
 +                                    uint64_t *val)
@@ -2754,6 +2799,20 @@ index 0000000..82193b3
 +{
 +    (void)env; (void)rc; (void)val;
 +    return false;
++}
++
++static bool dadao_pmem_reg_read(CPUDADAOState *env, uint32_t cg, uint32_t rc,
++                                uint64_t *val)
++{
++    (void)env; (void)cg; (void)rc; (void)val;
++    return false;                       /* user build: CFXREG, no stub */
++}
++
++static bool dadao_pmem_reg_write(CPUDADAOState *env, uint32_t cg, uint32_t rc,
++                                 uint64_t val)
++{
++    (void)env; (void)cg; (void)rc; (void)val;
++    return false;                       /* user build: CFXREG, no stub */
 +}
 +
 +#endif /* !CONFIG_USER_ONLY */
@@ -3210,9 +3269,10 @@ index 0000000..82193b3
 +    a->prev_run_mode = entry_mode & 0x3;
 +    a->prev_cfx_code = env->inner_cfx_code & 0x3F;
 +    a->cause_ip = cause_ip & 0x0000FFFFFFFFFFFFULL & ~0x3ULL;  /* 48-bit, aligned */
-+    /* Switch to cfx_hart's supv async mode/vector (ADR-0061 D1). */
++    /* Switch to cfx_hart's supv async mode/vector (ADR-0061 D1; §4.7 rc6 is
++     * fixed supv, software writes to it are accepted and ignored). */
 +    dadao_soft_tlb_flush(env);
-+    env->inner_run_mode = a->switch_run_mode & 0x3;
++    env->inner_run_mode = DADAO_MODE_SUPV;
 +    if (!DADAO_PROFILE(env)->user_mode) {
 +        env->inner_run_mode = DADAO_MODE_HYPV;
 +    }
@@ -3387,7 +3447,7 @@ index 0000000..82193b3
 +    case 4: *val = a->src_pending;
 +        return true;    /* HW/RO */
 +    case 5: *val = a->excp_vector & DADAO_ASYNC_ADDR_MASK; return true;
-+    case 6: *val = a->switch_run_mode & 0x3; return true;
++    case 6: *val = DADAO_MODE_SUPV; return true;   /* fixed supv (§4.7) */
 +    default:                            /* rc7-rc15 reserved => CFXREG */
 +        return false;
 +    }
@@ -3413,7 +3473,8 @@ index 0000000..82193b3
 +    case 5:                             /* 48-bit, low 2 bits ignored */
 +        a->excp_vector = val & DADAO_ASYNC_ADDR_MASK & ~0x3ULL;
 +        return true;
-+    case 6: a->switch_run_mode = val & 0x3; return true;
++    case 6:                             /* fixed supv: accepted, ignored */
++        return true;                    /* read stays 2, delivery stays supv */
 +    default:                            /* rc7-rc15 reserved => CFXREG */
 +        return false;
 +    }
@@ -3543,6 +3604,35 @@ index 0000000..82193b3
 +    }
 +}
 +
++/*
++ * cfx_power_ctrl (cg8 rc1, cfx_power) write side (DADAO-12 §4.12;
++ * m16-qemu-006).  The register is WO: the write is always accepted (reads are
++ * CFXREG), and the defined action bits are latched into QEMU's run state:
++ * bit0 = power off, bit1 = hard reset, bit2 = soft reset.  QEMU models one
++ * guest reset, so hard and soft reset both request it; a write of 0 is the
++ * ordinary "accepted, no action" case the arch probe exercises.
++ */
++static void dadao_power_ctrl_write(CPUDADAOState *env, uint64_t val)
++{
++#ifndef CONFIG_USER_ONLY
++    if (val & 0x1) {
++        qemu_system_shutdown_request(SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
++    }
++    if (val & 0x2) {
++        qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
++    }
++    if (val & 0x4) {
++        qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
++    }
++    if (val & 0x7) {
++        cpu_exit(env_cpu(env));
++    }
++#else
++    (void)env;
++    (void)val;
++#endif
++}
++
 +/* cfx2rd cfxha, cghb, rchc, rdhd */
 +void helper_cfx2rd(CPUDADAOState *env, uint32_t cfxha, uint32_t cg,
 +                   uint32_t rc, uint32_t rd, uint64_t pc)
@@ -3574,6 +3664,23 @@ index 0000000..82193b3
 +     * is hardware-fixed 1, so a supv cg3 access is always CFXPERM. */
 +    if (cfx_deleg_denied(env, ci, cg)) {
 +        cfx_raise_perm(env, pc);
++        return;
++    }
++    /* cfx_pmem descriptor face: cg8 rc0 / cg12/13/14 (DADAO-12 §4.9;
++     * m16-qemu-006). */
++    if (dadao_cfxha_map[ci] == DADAO_CFXHA_PMEM &&
++        (cg == 8 || cg == 12 || cg == 13 || cg == 14)) {
++        uint64_t v;
++
++        if (!dadao_pmem_reg_read(env, cg, rc, &v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++            return;
++        }
++        if (rd != 0) {
++            env->rd[rd] = v;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
 +        return;
 +    }
 +    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */
@@ -3703,6 +3810,30 @@ index 0000000..82193b3
 +     * is hardware-fixed 1, so a supv cg3 access is always CFXPERM. */
 +    if (cfx_deleg_denied(env, ci, cg)) {
 +        cfx_raise_perm(env, pc);
++        return;
++    }
++    /* cfx_pmem descriptor face: cg8 rc0 / cg12/13/14 (DADAO-12 §4.9;
++     * m16-qemu-006).  cg8 rc0 is RO; a write there stays CFXREG. */
++    if (dadao_cfxha_map[ci] == DADAO_CFXHA_PMEM &&
++        (cg == 8 || cg == 12 || cg == 13 || cg == 14)) {
++        uint64_t v = (rd == 0) ? 0 : env->rd[rd];
++
++        if (!dadao_pmem_reg_write(env, cg, rc, v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++            return;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
++    /* cfx_power_ctrl (cg8 rc1): WO, write accepted, read stays CFXREG
++     * (DADAO-12 §4.12; m16-qemu-006).  Kaiwu-Tiny does not implement the
++     * register (spec/Kaiwu §3) => fall through to the generic path (CFXREG). */
++    if (cg == 8 && dadao_cfxha_map[ci] == DADAO_CFXHA_POWER && rc == 1 &&
++        DADAO_PROFILE(env)->power_ctrl) {
++        dadao_power_ctrl_write(env, (rd == 0) ? 0 : env->rd[rd]);
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
 +        return;
 +    }
 +    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */

@@ -15,7 +15,7 @@ DMA 与 D-cache **不保证硬件一致**（`§4.9` 的 A 口径）：软件在 
 | `check_pmem_dma.py` | QEMU/gem5 驱动（`run_arch.py` 的 driver 承载）：flat bin `ENTRY=0x0010_0000`，`-icount shift=0`；过 oracle 后写归一化签名（每槽 1） |
 | `check_pmem_rtl.py` | RTL 驱动（chipyard 后端按 `check_<cfx_dir>_rtl.py` 发现）：`+loadmem` 同一 ELF 到 `0xffff_ff01_0100`；过同一 oracle 后写归一化签名 |
 | `expected.yaml` | 归一化签名登记（**不是判据**）：001 = 55 槽、002 = 10 槽，全 1 |
-| `pmem.S` + `pmem.lds` + `check_pmem.py` | **RTL 寄存器面探针**（`m16-chipyard-022`，不进索引）：`pmem_exist`（RO）、`pmem_start/size/attr[0..63]`（RW）、`cg15` 寄存器面全量、BUSY 期写忽略、四类 setup 错误 —— QEMU/gem5 只实现 `cg15`（`ISS-533`、`DIV-06`），故这些槽不进 `arch-pmem-*` |
+| `pmem.S` + `pmem.lds` + `check_pmem.py` | **RTL 寄存器面探针**（`m16-chipyard-022`，不进索引）：`pmem_exist`（RO）、`pmem_start/size/attr[0..63]`（RW）、`cg15` 寄存器面全量、BUSY 期写忽略、四类 setup 错误 —— QEMU 已在 `m16-qemu-006` 补齐 `cg8/12/13/14`；gem5 仍只实现 `cg15`（`ISS-533`），故这些槽暂不进 `arch-pmem-*`，待 gem5 补齐后由 `DIV-06` 收口 |
 
 ## 用例
 

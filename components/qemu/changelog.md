@@ -436,6 +436,10 @@
   - 摘要：**cfx5 的 `cg0`–`cg7` 走 `cfx_reg_ptr` 通用共有寄存器表（`contract-see §3`；`spec/DADAO-12 §3`）**。`target/dadao/helper.c`：删除 `cfx2rd`/`cfx2rc` 对 cfx5 的「非 `cg8` ⇒ `CFXREG`」特判（两条对称路径），使 cfx5 的 `cg0`–`cg2`（四类同步 mask/`cfx_intr_mask`/`switch_run_mode`/`excp_vector`）、`cg3`（hypv 行 + `rc12` `hypv_cg_reg_deleg`，复位全 1、RW、bit3 硬连线 1）、`cg4`（`cfx_id`/`version`/计数/`scratch_regs_num`，只读）、`cg5`（异常现场）、`cg6`（scratch，`rc >= scratch_regs_num ⇒ CFXREG`）、`cg7`（只读空间描述，cfx5 无内部空间 ⇒ 全 0、写 ⇒ `CFXREG`）由通用路径应答；`cg8` 的 CACHE-03/04/27 专属语义不变（off/on 两模型都存在）。`cg3 rc12` 的既有通用实现（写或 bit3、`supv` 按目标 cfx 位图判定、未开放 ⇒ `CFXPERM`）即满足 cfx5 的 deleg 要求，未改语义。订正 cfx5 cg8 注释中「只实现 cg8」的过时表述。补丁 1 份改（`target/dadao/helper.c`）。
   - 执行者：engineer
 
+- **2026-11-25 `m16-qemu-006`**
+  - 摘要：**`cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧 + `cfx_hart cg9 rc6` 写忽略（`ISS-533/525/536`；`spec/DADAO-12 §4.9/§4.12/§4.7`）**。`target/dadao/{cpu.h,cpu.c}`：`CPUDADAOState` 增 `pmem_start/size/attr[64]`（`DADAO_PMEM_REGIONS=64`，复位 0）；`DadaoHartAsync` 删 `switch_run_mode` 存储。`target/dadao/helper.c`：新增 `dadao_pmem_reg_{read,write}()`——`cg8 rc0 pmem_exist` 读全 1（测试机约定 64 区域全存在）、写 ⇒ `CFXREG`；`cg12/13/14 rc0..63` 为 64 位 RW 存储，其余 cg8 rc ⇒ `CFXREG`；`cfx2rd/rc` 在 cg15 前接线该面；`cfx_power cg8 rc1` 写被接受（按 `§4.12` bit0 关机 / bit1 硬复位 / bit2 软复位落 QEMU run state；写 0 无动作），读仍 ⇒ `CFXREG`；**写分支按 profile 门控**：`DadaoProfile.power_ctrl`（Vast true / Tiny false），Tiny 按 `spec/Kaiwu §3` 落回通用路径 ⇒ `CFXREG`（不设静默桩）；`cg9 rc6` 读回恒 supv(2)、写被接受且不生效，`dadao_async_enter()` 固定投递 supv。`tests/arch/{pmem,power}` 与 `expected-divergences.yaml DIV-06` 同步 QEMU 侧现状（gem5 仍未补齐，close_when 收窄不删除）。补丁 3 份改（`target/dadao/{cpu.c,cpu.h,helper.c}`）。
+  - 执行者：engineer
+
 ## M17
 
 - **2026-11-24 `m17-qemu-001`**

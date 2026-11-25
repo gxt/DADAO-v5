@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..508b9fa
+index 0000000..693a312
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,679 @@
+@@ -0,0 +1,683 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -72,6 +72,7 @@ index 0000000..508b9fa
 +    .bootrom_required = false,      /* legacy ELF path (M4) has no firmware */
 +    .fixed_kernel_entry = false,
 +    .switch_run_mode_write_ignored = false,
++    .power_ctrl = true,         /* cfx_power_ctrl implemented (spec/Kaiwu §3) */
 +    .ram_alias = false,         /* Vast RAM already lives at PA 0 */
 +    .hmon_sram = true,
 +    .smon_sram = true,
@@ -103,6 +104,7 @@ index 0000000..508b9fa
 +    .bootrom_required = true,       /* spec/Kaiwu §6: fixed firmware + app */
 +    .fixed_kernel_entry = true,     /* e_entry must be 0xffff_ff01_0100 */
 +    .switch_run_mode_write_ignored = true,
++    .power_ctrl = false,        /* Tiny: cfx_power_ctrl not implemented => CFXREG */
 +    .ram_alias = false,
 +    .hmon_sram = true,          /* cfx3 hmon SRAM (spec/Kaiwu §1.1) */
 +    .smon_sram = false,         /* Tiny implements no smon */
@@ -227,6 +229,9 @@ index 0000000..508b9fa
 +    /* cfx_pmem SRAM/DMA reset values (DADAO-12 §4.9; ADR-0042): all zero,
 +     * no transfer in flight.  The PMEM_DMA pending bit lives in the target
 +     * cfx (cfx_pmem cg5 rc5) and is cleared by the per-cfx reset loop above. */
++    memset(env->pmem_start, 0, sizeof(env->pmem_start));
++    memset(env->pmem_size, 0, sizeof(env->pmem_size));
++    memset(env->pmem_attr, 0, sizeof(env->pmem_attr));
 +#ifndef CONFIG_USER_ONLY
 +    dadao_pmem_dma_reset(env);
 +    /* cfx_time epoch + single-hart timer (DADAO-12 §4.7/§4.10). */
@@ -349,9 +354,8 @@ index 0000000..508b9fa
 +        r->cause_info = 0;                    /* cg5 rc4 */
 +        r->pending = 0;                       /* cg5 rc5 */
 +        /* cfx_hart cg9 (DADAO-12 §4.7; ADR-0061 D7): 7 slots; the frame and
-+         * both bitmaps start 0 (no live frame, no pending source) and the
-+         * async entry mode is fixed supv.  Only cfx_hart answers cg9. */
-+        r->async.switch_run_mode = DADAO_MODE_SUPV;    /* rc6 */
++         * both bitmaps start 0 (no live frame, no pending source).  rc6 is
++         * fixed supv and has no state (m16-qemu-006). */
 +        /* cg6 scratch[]/cg7 left 0 (scratch undefined at reset) */
 +    }
 +

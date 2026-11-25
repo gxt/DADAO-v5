@@ -61,7 +61,7 @@ python3 tests/arch/run_arch.py --list
 | `cache/` | `cfx5`（cache） | **三方用例**（`m16-testcases-009`，`arch-cache-001` 于 `m16-testcases-020` 补 I+D 同选 21 槽）：`arch-cache-001/002/003` 由 `check_cache.py`（QEMU/gem5，env 三模式）与 `check_cache_rtl.py`（RTL，`cache_rtl.S`）跑同一槽序；`arch-cache-004` 是 `cache-model=off` 分支（QEMU/gem5；RTL 记 `rtl-coverage.yaml` 的 gap）。唯一期望源 `cache_oracle.py` + `expected.yaml`。另有 RTL 专项探针 `cfx5_regs.S`/`check_cfx5_regs.py`（`m16-chipyard-016`）与 `cfx5_maint.S`/`gen_cfx5_maint_tables.py`/`check_cfx5_maint.py`（`m16-chipyard-017`，缓存日志时序），不登记进索引 |
 | `hart/` | `cfx15`（cfx_hart） | cg8 管理寄存器 + cg9 七槽捕获缓冲（R2：每次进入整体覆盖）+ 源位图/掩码/TIMER 投递 + jump 目标精确点；`arch-hart-001`（hmon，80 槽）/ `arch-hart-002`（smon/umon，40 槽），同一份 `cfx15.S`；QEMU + RTL 两方逐槽（归一化签名），gem5 fail-closed（`DIV-17`）；驱动 `check_hart.py` / `check_hart_rtl.py`（`m16-testcases-013`） |
 | `power/` | `cfx63`（power） | 寄存器面（`cg7` BootROM 块）+ power→hmon 移交：`arch-power-001`（hmon/smon/umon 各一次，28 槽）+ `arch-power-002`（属性拒绝面，只 hmon，3 槽）；载体/驱动 `power_vast.py` / `check_power.py`，RTL 承载 `gen_power_rtl.py` / `check_power_rtl.py`（`power_rtl.lds`） |
-| `pmem/` | `cfx32`（cfx_pmem） | **DMA 完成中断 + 同界多源**（`m16-testcases-014`）：`arch-pmem-001`（hmon，55 槽：DMA/状态/一致性 clean+invalidate（A）/ILLI/捕获/`escape imms18=2 ⇒ CFXESC`/同界 TIMER+DMA 一次进入/ack/覆盖）+ `arch-pmem-002`（smon/umon，10 槽：完成落在目标模式、各写自己 monitor 掩码）；载体 `pmem_dma.S` + 驱动 `check_pmem_dma.py`（QEMU/gem5）与 `check_pmem_rtl.py`（RTL），判据 `pmem_oracle.py`，QEMU+RTL 两方逐槽（gem5 fail-closed，`DIV-17`）。另有 RTL 寄存器面探针 `pmem.S` + `check_pmem.py`（`m16-chipyard-022`），不进索引（`DIV-06`） |
+| `pmem/` | `cfx32`（cfx_pmem） | **DMA 完成中断 + 同界多源**（`m16-testcases-014`）：`arch-pmem-001`（hmon，55 槽：DMA/状态/一致性 clean+invalidate（A）/ILLI/捕获/`escape imms18=2 ⇒ CFXESC`/同界 TIMER+DMA 一次进入/ack/覆盖）+ `arch-pmem-002`（smon/umon，10 槽：完成落在目标模式、各写自己 monitor 掩码）；载体 `pmem_dma.S` + 驱动 `check_pmem_dma.py`（QEMU/gem5）与 `check_pmem_rtl.py`（RTL），判据 `pmem_oracle.py`，QEMU+RTL 两方逐槽（gem5 fail-closed，`DIV-17`）。另有 RTL 寄存器面探针 `pmem.S` + `check_pmem.py`（`m16-chipyard-022`），不进索引（`DIV-06`；QEMU 侧寄存器面已由 `m16-qemu-006` 补齐，gem5 未） |
 
 | `time/` | `cfx34`（cfx_time） | **per-system 全局时间计数器**（只读、**无中断**）：`arch-time-001`（`time_freq` 与 RO 再读、`time_value` 的单调/严格递增/增量有界/epoch、与 `cfx_hart cycle` 同基准；hmon/smon/umon 各一次，7 槽）+ `arch-time-002`（`cg10 rc2/rc63` 保留 rc、`rc0/rc1` 的 RO 写 ⇒ `CFXREG`；只 hmon，6 槽）；载体 `time{,_reject}.body.S` + 驱动 `check_time.py`，判据只有一份（`time_oracle.py`），RTL 承载 `time_rtl.S` + `check_time_rtl.py`（`m16-chipyard-023`：**三平台同一 case 逐槽比较**） |
 其余 cfx 按已有用例增建（`smon/`、`hmon/`、`cache/`、`hart/`、`pmem/`、`time/`、
@@ -190,9 +190,10 @@ QEMU 与 gem5 跑**同一份 4 MiB BootROM 字节**。
 
 **未覆盖项（显式登记，不假装全覆盖）**：
 
-1. `cfx_power_ctrl` 的**写侧**：规范为 WO（写 0 应被接受），但 QEMU/gem5/RTL
-   当前都没有该寄存器（写 0 收 `CFXREG`）⇒ 不写进判据（不拿实现现状当期望），
-   `--diagnose` 逐方报告（三方一致 = `CFXREG`，与规范不符，需修实现）。
+1. `cfx_power_ctrl` 的**写侧**：规范为 WO（写 0 应被接受）。QEMU 已在
+   `m16-qemu-006` 实现（Vast 接受写、Tiny 按 `spec/Kaiwu §3` 仍 `CFXREG`）；
+   gem5/RTL 仍未实现 ⇒ 三方未齐前不写进判据（不拿实现现状当期望），
+   `--diagnose` 逐方报告并登记差异。
 2. 电源语义本身（`bit0/1/2` = 关机/硬复位/软复位）：写入即停机/复位，没有
    「执行后仍可观测」的判据（任务书「不做」第 1 条）。
 3. `cfx_power` 的 `cg3` 行（hypv 向量/switch 模式）不复位断言：`DADAO-12 §3.4`

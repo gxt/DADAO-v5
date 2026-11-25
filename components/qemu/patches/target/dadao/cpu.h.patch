@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..373f1cf
+index 0000000..9acc859
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,802 @@
+@@ -0,0 +1,817 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -177,6 +177,10 @@ index 0000000..373f1cf
 +     * writes are ignored; the register keeps its saved value (3 = hypv) and
 +     * reads it back. */
 +    bool switch_run_mode_write_ignored;
++    /* cfx_power_ctrl (cfx_power cg8 rc1) exists and accepts writes.  Vast
++     * implements it; Kaiwu-Tiny does not (spec/Kaiwu §3: access => CFXREG,
++     * no silent stub), so the write branch is profile-gated. */
++    bool power_ctrl;
 +    bool ram_alias;             /* add a PA-0 alias for the first page table */
 +    bool hmon_sram;             /* cfx3 hmon 64 KiB SRAM (both profiles) */
 +    bool smon_sram;             /* cfx2 smon 64 KiB SRAM (Vast only) */
@@ -449,6 +453,7 @@ index 0000000..373f1cf
 + * dma_status: bit0 BUSY (RO), bit1 DONE (W1C), bit2 ERROR (W1C),
 + * bits[15:3] ERR_CODE (one-hot, RO). */
 +#define DADAO_PMEM_SRAM_SIZE    (64 * 1024)
++#define DADAO_PMEM_REGIONS      64   /* cg12/13/14 rc0..63 (§4.9) */
 +#define DADAO_PMEM_SRAM_CFX_OFFSET 0x3FF00000000ULL
 +#define DADAO_PMEM_SRAM_HOST_BASE  0x0100000000000000ULL
 +
@@ -555,7 +560,9 @@ index 0000000..373f1cf
 +    uint64_t src_frame;              /* rc3 HW/RO (bit = source cfxha) */
 +    uint64_t src_pending;            /* rc4 HW/RO (bit = source cfxha) */
 +    uint64_t excp_vector;            /* rc5 (48-bit, 4-byte aligned) */
-+    uint64_t switch_run_mode;        /* rc6 (2 bits; 2 = supv) */
++    /* rc6 async_switch_run_mode is fixed supv (2): writes are accepted and
++     * ignored, reads return 2, and delivery always enters supv, so it has no
++     * state (`DADAO-12 §4.7`; m16-qemu-006). */
 +} DadaoHartAsync;
 +
 +/* Per-cfx cg4..cg6 (config / exception frame / scratch).  cg7 (internal
@@ -656,6 +663,14 @@ index 0000000..373f1cf
 +    uint64_t tlb_start;
 +    uint64_t tlb_size;
 +    uint64_t tlb_control;   /* write-only command latch (never read back) */
++
++    /* ── cfx_pmem PM-region descriptors (DADAO-12 §4.9) ──
++     * cg12/13/14 rc0..63: start/size/attr.  The test machine populates all 64
++     * regions (`pmem_exist` = all ones) but leaves every descriptor at its
++     * reset value 0; software writes them like ordinary RW registers. */
++    uint64_t pmem_start[DADAO_PMEM_REGIONS];
++    uint64_t pmem_size[DADAO_PMEM_REGIONS];
++    uint64_t pmem_attr[DADAO_PMEM_REGIONS];
 +
 +    /* ── cfx_pmem SRAM/DMA (DADAO-12 §4.9; ADR-0042; single hart) ──
 +     * cg15 registers plus the latched transfer description captured at START.

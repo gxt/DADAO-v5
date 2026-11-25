@@ -20,8 +20,9 @@
 #   * `escape imms18 = 2` ⇒ 当前 cfx 的 `CFXESC`（不是异步返回）：`§5.1`；
 #   * 同步 cause 位号：`contract-see §6.1`。
 #
-# 寄存器面（`cg8 pmem_exist` / `cg12/13/14`）不在本 case：QEMU/gem5 只实现
-# `cg15`（`ISS-533`、`DIV-06`），寄存器面留在 RTL 探针 `pmem.S`。
+# 寄存器面（`cg8 pmem_exist` / `cg12/13/14`）不在本 case：QEMU 已在
+# `m16-qemu-006` 补齐该面，gem5 仍只实现 `cg15`（`ISS-533`）；三承载逐槽比
+# 待 gem5 补齐，寄存器面判据当前留在 RTL 探针 `pmem.S`（`DIV-06`）。
 schema: 1
 cases:
   - id: arch-pmem-001
