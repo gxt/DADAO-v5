@@ -30,7 +30,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m18-llvm-002 | 2–3 h | **链①** LLVM/opcodes `escape cfxHA`（汇编/反汇编/legality/生成物；等 `m20-llvm-003` 释放 LLVM 写者） |
 | m18-testcases-004 | 3–4 h | **链②** 异步 escape 出口帧向量与探针（cg5/cg9 新布局、escape 五类判据；依赖 ①） |
 | m18-chipyard-002 | 4–6 h | **链④** RTL 异步 escape 出口（依赖 ①②；等 M16 chipyard 写者窗口） |
 | m18-gem5-004 | 3–4 h | **链⑤** gem5 异步 escape 出口（依赖 ①②） |
@@ -53,6 +52,7 @@
 | m18-qemu-008 | 2026-11-26 06:33 | 3–5 h | QEMU 实现异步 escape 出口（cg5 rc8–rc11、cg9 新布局、`escape cfxHA`；进入自动填、rc11 整字恢复掩码） |
 | m18-infra-004 | 2026-11-25 09:05 | 2–3 h | `issues.yaml` 按里程碑分册（left + m16…m19）；存量旧号冻结、新增 `ISS-<file>-NNN`；多文件读取器与消费方改造 |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
+| m18-llvm-002 | 2026-11-26 06:37 | 2–3 h | **链①** LLVM/opcodes `escape cfxHA`（汇编/反汇编/legality/生成物） |
 
 ## 已验证
 
