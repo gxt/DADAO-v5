@@ -1415,7 +1415,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】`tests/arch` 的 smon/umon 异常路径失败形态过重（`m16-testcases-012` 复核发现）：载体未装载当前模式监视器时只能等 60 s 超时，且 carrier 开 `-d cpu`，实测单次失败写约 11.7 GB 日志（tmpfs 16 G 被打满）。建议：失败路径短 timeout（如 5 s）+ 关闭或截断 `-d cpu` dump，并让超时判据在写满磁盘前终止；另核其它 driver 是否有同类形态。"
+  title: "【P2·部分已修】`tests/arch` 的 smon/umon 异常路径失败形态过重（`m16-testcases-012` 复核发现）：载体未装载当前模式监视器时只能等 60 s 超时，且 carrier 开 `-d cpu`，实测单次失败写约 11.7 GB 日志（tmpfs 16 G 被打满）。建议：失败路径短 timeout（如 5 s）+ 关闭或截断 `-d cpu` dump，并让超时判据在写满磁盘前终止；另核其它 driver 是否有同类形态。 **2026-11-25 `m16-testcases-020` 已加 `runlimit`（10 s/128 MiB/1 MiB，未装载监视器 17 KB）；残余=外部强杀驱动留下的孤儿 QEMU（会写满磁盘），由证据脚本 `ulimit -f` + 显式 kill 兜底，`m16-testcases-021` 复核。**"
 - id: ISS-523
   scope:
   - chipyard

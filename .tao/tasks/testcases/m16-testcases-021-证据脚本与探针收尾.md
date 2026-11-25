@@ -24,6 +24,8 @@
    - `integ042t` 的 `_MACH` 默认 tiny 与 `node_probe_prelude` 默认 vast 不一致 ⇒ 统一默认 profile（或强制显式），漏设时给具名错误而非对称假红。
 3. **探针写反（ISS-519②）**：`m16-qemu-001` 探针的 `SEL_I`/`SEL_D` 与 `cache_ctrl[15:14]`（2=I、1=D）写反 ⇒ 补正，并在该例加一条能暴露的断言。
 4. **挂死 fail 路径（ISS-473）**：`tests/inst/11-cfx/escape_ciii_cfx.S` 链例 12 的注释与实测不符（第 3 次到达是双 lane 挂死，不是具名判红）⇒ 让 probe 在计数超限时走具名 `__EXIT`（或按实际改注释并登记该例不可用于回归）。
+4. **`ptw_carrier_tlb` 缺参超时（`m16-testcases-020` 复核发现）**：`run_arch --cfx 4` 15/15 rc=0，但载体在缺 `--cfx-access` 时 20 s TIMEOUT（不走 `runlimit` env）；补齐调用参数或让缺参给具名 SETUP 错误，别表现为 20 s 超时。
+5. **孤儿 QEMU（ISS-522 残余）**：外部强杀驱动会留下孤儿 QEMU 写满磁盘；证据脚本统一 `ulimit -f` + 显式 `killpg` 兜底（`runlimit` 已覆盖自身超时/超限）。
 5. **写入证据**：每条改动在 `run.sh` 里配一条可达 FAIL（注入回退 ⇒ 红；`cp`+md5 还原回绿）。
 6. **不改**被检语义、不改 `tests/arch` 的 cfx5 I+D/时限（属 `m16-testcases-020`）。
 
