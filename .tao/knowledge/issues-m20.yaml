@@ -126,9 +126,9 @@
   - testcases
   - picolibc
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: m20-testcases-005（2026-11-25：`.done` 键改为输入指纹；旧 .done 失效、同输入复用、异输入/--force 重跑；runner 独立验证 3 轮 ALL PASS/FAIL/回绿）
   title: '【P2】picolibc 自测 harness `run_picolibc_tests_tiny.py` 的 `.done` 复用键在 qemu 引擎下 `sim_md5` 恒为 `None`（`obs` 只在 chipyard 分支产生），`info.get("sim_md5") == sim_md5` 退化为 `None == None` ⇒ **换库/换 lds 后仍复用旧判决**（`m15-infra-009` 报 `pass=6` 即此因）。处置：把被测输入指纹（`libc.a` + 安装版 lds + 工具链）纳入 key，或给 harness 加 `--force`/`--no-reuse`；在此之前证据脚本须先删运行期 `run/` 目录。'
 - id: ISS-510
   scope:
