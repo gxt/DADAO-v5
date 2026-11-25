@@ -26,9 +26,9 @@
   - gem5
   - testcases
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: m20-gem5-004（2026-11-25：当前 gem5 两路输出逐字节匹配；历史差异来自旧驱动 `095453ed` 把 stdout+stderr 按 stdout 在前拼接，单流参考为 stderr 在前；非 FP/格式化/gem5 缺陷）
   title: 【P1】gem5 SE（dynamic）`MultiSource/Benchmarks/FreeBench/neural` **oracle mismatch**： 输出长度相同（358 B vs 358 B）但内容不同，qemu 侧同例通过（输出 == reference）。 首行 `Matrix size is 20x28` 一致 ⇒ 差异在后段，疑浮点舍入/格式化（与 M13 FP 差分同源）。 证据：`m13-testcases-002` 全量（93 例）结果，`tests/data/m13-002-dynamic-3600s-full.json`。 建议：M13 FP 差分任务（`m13-integ-002`）把它作为首个定位样本；先 `cmp` 逐字节定位差异列。
 - id: ISS-363
   scope:
@@ -43,9 +43,9 @@
   - gem5
   - testcases
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: m20-gem5-004（2026-11-25：当前 gem5 两路输出逐字节匹配；历史差异来自旧驱动通道拼接顺序，非 FP/格式化/gem5 缺陷）
   title: 【P1】gem5 SE（static）`MultiSource/Benchmarks/FreeBench/pcompress2` oracle mismatch：gem5 跑完（4408 s，exit=0）但输出与参考不同，qemu 通过；比值 404×。与 `ISS-362`（dynamic `neural`）同类，疑浮点/格式化。证据：`m13-testcases-003` A 组 static 结果（`split/A/static/ratio-static-llvm-ts.json`）。建议：与 `ISS-362` 合并为「gem5 输出差异」样本集，交 `m13-integ-002` 定位。
 - id: ISS-461
   scope:
