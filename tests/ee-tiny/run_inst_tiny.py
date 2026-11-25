@@ -83,47 +83,50 @@ FAULT_CODE = {"CFXMEM": 0xF1, "CFXREG": 0xF2, "ILLI": 0xF8,
 # `iter_code_lines` 跳过，故宏内的 `__CHECK_*` 不进计数；「一行 = 一个检查点」由
 # `check_inst_macro_scope` 的 S6/S7/S8 静态判据保证（宏体恰 1 处断言、点号引用 `\pt`、
 # 正文不得留裸 `__CHECK_*`），本文件只负责按点号字面量校验连续性（`pts_ok`，语义不变）。
-CHAIN_CASE_RE = re.compile(r"^\t(TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
+# 行首前缀（ISS-461）：`llvm-mc` 接受**列 0** 的指令/宏调用，故用例行识别统一为
+# 「允许 `\t` 缩进或列 0」（`^[ \t]*`）。只认 `^\t` 会让列 0 的用例行被静默漏计
+# ⇒ 检查点数偏小（签名流长度断言放松）、点号连续性失效。
+CHAIN_CASE_RE = re.compile(r"^[ \t]*(TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
                            r"TEST_WI\w*|TEST_AR\w*|TEST_BR\w*|TEST_FP\w*|"
                            r"__CHECK_(?:RD|MEM)\w*|__PT_\w*)\b")
 # 链例行**写下的点号字面量**（断言用：点号必须等于它在文件里的序号，不能只靠计数器自增）
-CHAIN_PT_RE = re.compile(r"^\t(?:TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
+CHAIN_PT_RE = re.compile(r"^[ \t]*(?:TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
                          r"TEST_WI\w*|TEST_AR\w*|TEST_BR\w*|TEST_FP\w*|"
                          r"__CHECK_(?:RD|MEM)\w*)\s+(\d+),")
 # `__PT_*` 用例行的点号 = **第一个实参**；该宏允许只有点号一个实参
 # （如 `__PT_RF_COPY_N31 9` 这类形状固定、无需其它操作数的用例）⇒ 行尾逗号可省。
-CHAIN_PT_PT_RE = re.compile(r"^\t__PT_\w*\s+(\d+)\s*(?:,|$)")
-FAULT_RE = re.compile(r"^\tTEST_FAULT(?:_MOV|_CS2|_CS|_M|_WI)?\s+(\d+),\s*(\S+?),\s*(\S+?),\s*"
+CHAIN_PT_PT_RE = re.compile(r"^[ \t]*__PT_\w*\s+(\d+)\s*(?:,|$)")
+FAULT_RE = re.compile(r"^[ \t]*TEST_FAULT(?:_MOV|_CS2|_CS|_M|_WI)?\s+(\d+),\s*(\S+?),\s*(\S+?),\s*"
                       r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
-FAULT_ENC_RE = re.compile(r"^\tTEST_FAULT_ENC\s+(\d+),\s*"
+FAULT_ENC_RE = re.compile(r"^[ \t]*TEST_FAULT_ENC\s+(\d+),\s*"
                           r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
 # 06-control-flow 的故障宏：`TEST_FAULT_CF(pt, 故障名, 编码字)` 与
 #   `TEST_FAULT_RAS(pt, 故障名, call/ret 全文)` / `TEST_FAULT_RASUF_MEM(pt, ret 全文)`
-FAULT_CF_RE = re.compile(r"^\tTEST_FAULT_CF\s+(\d+),\s*"
+FAULT_CF_RE = re.compile(r"^[ \t]*TEST_FAULT_CF\s+(\d+),\s*"
                          r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
 # `TEST_FAULT_CF1(pt, 寄存器, 值, 故障名, 编码字)`：故障名前还有两个参数
-FAULT_CF1_RE = re.compile(r"^\tTEST_FAULT_CF1\s+(\d+),\s*\S+,\s*\S+?,\s*"
+FAULT_CF1_RE = re.compile(r"^[ \t]*TEST_FAULT_CF1\s+(\d+),\s*\S+,\s*\S+?,\s*"
                           r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
-FAULT_RAS_RE = re.compile(r"^\tTEST_FAULT_RAS\s+(\d+),\s*"
+FAULT_RAS_RE = re.compile(r"^[ \t]*TEST_FAULT_RAS\s+(\d+),\s*"
                           r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
 # `TEST_FAULT_RASUF_MEM(pt, ret 全文)`：MemRAS 条目计数 0 ⇒ 固定 RASUF
-FAULT_RASUF_MEM_RE = re.compile(r"^\tTEST_FAULT_RASUF_MEM\s+(\d+),")
+FAULT_RASUF_MEM_RE = re.compile(r"^[ \t]*TEST_FAULT_RASUF_MEM\s+(\d+),")
 # `TEST_FAULT_BR{1,2}(pt, 助记符, …, 故障名, 目标)`：故障名在目标之前
-FAULT_BR_RE = re.compile(r"^\tTEST_FAULT_BR[12]\s+(\d+),.*,\s*"
+FAULT_BR_RE = re.compile(r"^[ \t]*TEST_FAULT_BR[12]\s+(\d+),.*,\s*"
                          r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
 # `TEST_FAULT_ADDR0(pt, 助记符, 故障名)`：rrii 跳转/调用的目标地址 0 ⇒ CFXMEM
-FAULT_ADDR0_RE = re.compile(r"^\tTEST_FAULT_ADDR0\s+(\d+),\s*\S+,\s*"
+FAULT_ADDR0_RE = re.compile(r"^[ \t]*TEST_FAULT_ADDR0\s+(\d+),\s*\S+,\s*"
                             r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
 # 04-arith-logic-octa 算术/逻辑族与 05-arith-addr 的故障宏
 # （`TEST_FAULT_{DUAL,ALU3,ALU_ORRI,ALU_SI,ALU_CMPI}` = 04 族；
 #   `TEST_FAULT_{BBD,DBB,RB_SI}` = 05 族，参数 = 检查点, 助记符, 故障名, …）
-FAULT_AR_RE = re.compile(r"^\tTEST_FAULT_(?:DUAL|ALU3|ALU_ORRI|ALU_SI|ALU_CMPI|BBD|DBB|RB_SI)"
+FAULT_AR_RE = re.compile(r"^[ \t]*TEST_FAULT_(?:DUAL|ALU3|ALU_ORRI|ALU_SI|ALU_CMPI|BBD|DBB|RB_SI)"
                          r"\s+(\d+),\s*"
                          r"(\S+?),\s*(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
 # 07-floating-point 的原始编码故障例（目的 rf0 / root 的 n≠2 ⇒ ILLI）
-FAULT_FP_RE = re.compile(r"^\tTEST_FAULT_FP\s+(\d+),\s*"
+FAULT_FP_RE = re.compile(r"^[ \t]*TEST_FAULT_FP\s+(\d+),\s*"
                          r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
-END_RE = re.compile(r"^\t__TEST_END\b")
+END_RE = re.compile(r"^[ \t]*__TEST_END\b")
 # `.S` 内可以定义**文件专用宏**（m15-testcases-002：宏作用域下沉），宏体里出现的
 # `__CHECK_*`/`TEST_*` 行**不是**用例行 ⇒ 扫描（本文件与 `check_case_ledger`）一律
 # 跳过 `.macro`..`.endm` 之间的行，否则检查点数/用例身份会被宏体污染。
@@ -163,6 +166,7 @@ def scan_source(path: Path) -> dict:
     点号不变式（任务书验收 2）：**链例点号 1..N、故障例续 N+1..N+M，无跳号/重号**；
     即「失败点号 = 用例序号」。链例点号取**行内写下的字面量**（而非计数器），
     字面量与序号不符 / 解析不出 ⇒ `pts_ok = False`（fail-closed）。
+    用例行允许 `\t` 缩进或列 0（`llvm-mc` 接受列 0；ISS-461）。
     """
     checks = 0
     faults = []

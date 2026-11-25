@@ -23,7 +23,9 @@ r"""check_inst_macro_scope.py — 汇编宏**作用域**门控（L1；m15-testca
      恰产出 1 个检查点（`__CHECK_*` 计 1；`TEST_*` 宏调用计 1，不深入其分支体）；
   S8 **正文不得留裸断言**：凡正文出现 `__PT_*` 调用行的 `.S`（= 已整例宏化的文件），
      正文（宏体之外）不得再有 `__CHECK_RD*`/`__CHECK_MEM*` 行 —— 否则同一用例的
-     检查点计数在「扫描器口径」与「宏展开口径」下分叉。
+     检查点计数在「扫描器口径」与「宏展开口径」下分叉。行首**允许 `\t` 缩进或列 0**
+     （`llvm-mc` 接受列 0 的指令/宏调用；只认 `\t` 会让列 0 的裸断言绕过本判据，
+     ISS-461；与 `run_inst_tiny` 扫描器同一前缀口径）。
 
 2 行级结构重复（m15-testcases-005；用户 2026-11-16 裁定 B「判据 = 净收益 > 0」）：
 
@@ -41,7 +43,7 @@ r"""check_inst_macro_scope.py — 汇编宏**作用域**门控（L1；m15-testca
     python3 tools/testcases/check_inst_macro_scope.py              # 门控（默认）
     python3 tools/testcases/check_inst_macro_scope.py --root DIR   # 检查另一棵树
     python3 tools/testcases/check_inst_macro_scope.py --strict     # 净收益≤0 也判红
-    python3 tools/testcases/check_inst_macro_scope.py --selfcheck  # 干净基线 + 12 类注入
+    python3 tools/testcases/check_inst_macro_scope.py --selfcheck  # 干净基线 + 各类注入
 """
 from __future__ import annotations
 
@@ -66,10 +68,13 @@ TMP_ROOT = Path(tempfile.gettempdir()) / "opencode" / "m15-testcases-002"
 # 整例宏化（S6/S7/S8）：`__PT_*` = 一行一条用例的宏；宏体里**占检查点**的行是
 # `__CHECK_*` 与 `TEST_*`（与扫描器 `run_asm_suite.CHAIN_CASE_RE` 同一口径）。
 PT_MACRO_RE = re.compile(r"^__PT_")
-PT_CASE_LINE_RE = re.compile(r"^\t(__PT_\w*)(?:\s|$)")
-COUNTING_ASSERT_RE = re.compile(r"^\s+(__CHECK_\w*|TEST_\w+)\s+(\S.*)$")
-ANY_ASSERT_RE = re.compile(r"^\s+(__CHECK_\w*|TEST_\w+|__VERIFY_\w*)\s+(\S.*)$")
-BARE_CHECK_RE = re.compile(r"^\t(__CHECK_(?:RD|MEM)\w*)\b")
+# 行首前缀 `[ \t]*`（ISS-461）：`llvm-mc` 接受列 0 的指令/宏调用，故断言/用例行
+# 的识别统一为「允许 `\t` 缩进或列 0」；只认 `^\t` 会让列 0 的断言绕过 S6/S7/S8/S9
+# 与本文件与扫描器（`run_inst_tiny.CHAIN_CASE_RE` 等）的计数。
+PT_CASE_LINE_RE = re.compile(r"^[ \t]*(__PT_\w*)(?:\s|$)")
+COUNTING_ASSERT_RE = re.compile(r"^[ \t]*(__CHECK_\w*|TEST_\w+)\s+(\S.*)$")
+ANY_ASSERT_RE = re.compile(r"^[ \t]*(__CHECK_\w*|TEST_\w+|__VERIFY_\w*)\s+(\S.*)$")
+BARE_CHECK_RE = re.compile(r"^[ \t]*(__CHECK_(?:RD|MEM)\w*)\b")
 PARAM_REF_RE = re.compile(r"^\\\w+")
 # 2 行级结构重复（S9；m15-testcases-005）：判据 = **净收益 > 0**，
 # 净收益 = k×n − (n+2+k)（n = 模式行数、k = 展开次数、2 = `.macro`/`.endm`）。
@@ -602,14 +607,53 @@ def _write_tree(root: Path, files: dict[str, str]) -> None:
         p.write_text(text, encoding="utf-8")
 
 
+def _selfcheck_col0_scan(tmp: Path) -> bool:
+    """列 0 与 Tab 缩进的同一份用例，`scan_source` 现场统计必须一致（ISS-461）。
+
+    `llvm-mc` 接受列 0 的指令/宏调用 ⇒ 扫描器若只认 `\\t`，列 0 的用例会被**静默漏计**
+    （检查点数偏小 ⇒ 签名流长度断言放松、点号连续性失效）。反例：把
+    `CHAIN_CASE_RE` / `FAULT_*` / `END_RE` 的前缀改回 `^\\t` ⇒ 两份统计分叉 ⇒ 本项 FAIL。
+    """
+    lines = [
+        "TEST_LD 1, rd5, rb6, 0x0",                       # 链例
+        "TEST_ST 2, rd5, rb6, 0x0",                       # 链例
+        "__PT_CASE 3, rd5",                               # 一行用例的宏调用（只带点号）
+        "TEST_FAULT 4, ld.o, rd0, ILLI, rb3, TEST_DATA, 0x0",   # 故障例
+        "__TEST_END",                                     # 链例段结束：其后不再计链例
+        "TEST_LD 9, rd5, rb6, 0x0",                       # END 之后 ⇒ 不计
+    ]
+    col0 = tmp / "scan-col0.S"
+    tab = tmp / "scan-tab.S"
+    col0.write_text("".join(ln + "\n" for ln in lines), encoding="utf-8")
+    tab.write_text("".join("\t" + ln + "\n" for ln in lines), encoding="utf-8")
+    a = run_asm_suite.scan_source(col0)
+    b = run_asm_suite.scan_source(tab)
+    # 防止用例本身空转：列 0 副本的用例行必须真的在列 0，且统计不能是 0
+    col0_real = all(not ln[:1].isspace() for ln in lines)
+    good = (col0_real and a["checks"] > 0
+            and (a["checks"], a["faults"], a["pts_ok"])
+            == (b["checks"], b["faults"], b["pts_ok"]))
+    print(f"  [selfcheck] 列 0 扫描 == Tab 扫描: 列 0 checks={a['checks']} "
+          f"faults={len(a['faults'])} pts_ok={a['pts_ok']} / Tab checks={b['checks']} "
+          f"faults={len(b['faults'])} pts_ok={b['pts_ok']} → "
+          f"{'PASS' if good else 'FAIL'}")
+    if not good:
+        print(f"      列 0 用例行确在列 0={col0_real}；"
+              f"列 0 副本={a['checks']} checks / {len(a['faults'])} faults；"
+              f"Tab 副本={b['checks']} checks / {len(b['faults'])} faults")
+    return good
+
+
 def selfcheck() -> int:
-    """干净基线 = 0 违规；8 类注入各自必须红，且命中对应判据。"""
+    """干净基线 = 0 违规；各类注入各自必须红，且命中对应判据。"""
     TMP_ROOT.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.mkdtemp(prefix="inst-macro-scope-", dir=TMP_ROOT))
     ok = True
+    nrun = 0
 
     def run(name: str, mutate, expect: str) -> None:
-        nonlocal ok
+        nonlocal ok, nrun
+        nrun += 1
         files = dict(FIXTURE)
         mutate(files)
         _write_tree(tmp / "t", files)
@@ -628,7 +672,8 @@ def selfcheck() -> int:
 
     def run9(name: str, mutate, macro: str, expect_warn: bool) -> None:
         """S9 净收益：该宏必须/必须不出现告警；且 `--strict` 的 rc 与告警非空等价。"""
-        nonlocal ok
+        nonlocal ok, nrun
+        nrun += 1
         files = dict(FIXTURE)
         mutate(files)
         _write_tree(tmp / "t", files)
@@ -682,6 +727,16 @@ def selfcheck() -> int:
     def bare_check_in_body(files):
         files["tests/inst/aa/one.S"] += "\t__CHECK_MEM 4, A0, 0, 0x0\n"
 
+    def pt_case_col0(files):
+        """列 0 的 `__PT_*` 用例行仍是用例行（合法，不得判红）。"""
+        files["tests/inst/aa/one.S"] = files["tests/inst/aa/one.S"].replace(
+            "\t__PT_CASE 4, rd5\n", "__PT_CASE 4, rd5\n")
+
+    def bare_check_col0(files):
+        """列 0 的裸断言行 + 列 0 的 `__PT_*` 用例行 ⇒ S8 必须抓到（ISS-461）。"""
+        pt_case_col0(files)
+        files["tests/inst/aa/one.S"] += "__CHECK_MEM 4, A0, 0, 0x0\n"
+
     def rf_pair_few_calls(files):
         files["tests/inst/aa/one.S"] = files["tests/inst/aa/one.S"].replace(
             "\t__PREP_PAIR 7, 8\n\t__PREP_PAIR 9, 10\n", "", 1)
@@ -716,6 +771,8 @@ def selfcheck() -> int:
     run("用例宏点号写常量", pt_body_constant_point, "[S6]")
     run("用例宏体塞两条断言", pt_body_two_checks, "[S7]")
     run("正文留裸 __CHECK_MEM", bare_check_in_body, "[S8]")
+    run("列 0 的 __PT_* 用例行（合法，不判红）", pt_case_col0, "")
+    run("正文列 0 的裸 __CHECK_MEM（ISS-461）", bare_check_col0, "[S8]")
     run9("S9 净收益为负：2 行宏 k=3（净收益 −1，做了不如不做）",
          rf_pair_few_calls, "__PREP_PAIR", True)
     run9("S9 净收益为正：2 行宏 k=7（净收益 3）不告警",
@@ -726,8 +783,11 @@ def selfcheck() -> int:
         same_point_twice, "")
     run("S9 `.ifc` 互斥分支各一条检查点（同点号，合法）",
         ifc_branch_checks, "")
+    nrun += 1
+    if not _selfcheck_col0_scan(tmp):
+        ok = False
     shutil.rmtree(tmp, ignore_errors=True)
-    print(f"check-inst-macro-scope: selfcheck {'PASS' if ok else 'FAIL'}")
+    print(f"check-inst-macro-scope: selfcheck {'PASS' if ok else 'FAIL'}（{nrun} 项）")
     return 0 if ok else 1
 
 
@@ -737,7 +797,7 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", type=Path, default=None, help="检查另一棵树（默认仓库根）")
     ap.add_argument("--selfcheck", action="store_true",
-                    help="干净基线 + 12 类注入自检（含 S9 两路）")
+                    help="干净基线 + 各类注入自检（含 S9 两路 / 列 0 断言与扫描）")
     ap.add_argument("--strict", action="store_true",
                     help="S9 净收益≤0 的宏化也判红（默认只告警）")
     args = ap.parse_args()
