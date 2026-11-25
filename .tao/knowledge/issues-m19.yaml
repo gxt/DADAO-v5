@@ -42,3 +42,12 @@
   closed_in: null
   resolved_by: null
   title: '【P3】chipyard 构建必须用 chipyard 自带 conda 环境（`components/chipyard/README.md:197` 已写明，我未照做，连续失败 4 次）：① 系统 `java` 是 **21**，`sbt 1.8.2`+`Scala 2.12.17` 读不了 Java 21 的 class 版本 ⇒ `bad constant pool index: 0` / `NoClassDefFoundError: sbt.internal.parser.SbtParser$`；② 换系统 JDK 17 能过 sbt，但 `make verilog` 报 **`Error: firtool not found in PATH`** —— `firtool`/`verilator`/`riscv-tools` 都在 `.work/source/chipyard/.conda-env/` 里。**正确口径**：`export PATH=<chipyard>/.conda-env/bin:$PATH` + `export RISCV=<chipyard>/.conda-env/riscv-tools`，直接用它自带的 java 20（实测 `make verilog` rc=0），无需系统 JDK 17。另：`nohup ... &` 起的构建会随工具壳层退出被回收（日志停在 `[info] done compiling`、无进程），须用 harness 后台任务。'
+- id: ISS-512
+  scope:
+  - linux
+  - infra
+  milestone: M19
+  status: closed
+  closed_in: M19
+  resolved_by: m19-infra-001：节点装宿主 clang 后 check-linux-toolchain PASS；宿主依赖记 nodes.md §5
+  title: 【P3】`check-linux-toolchain` 的「宿主 x86 对照」行依赖宿主 `clang`，却参与报告逐字比对（`VOLATILE_RE` 只豁免「生成时间/机器指纹」）⇒ 宿主无 `clang` 的节点（`zzx-NF5280` 实测）在报告行写成「宿主 clang 不可用」后该门控恒红，与节点环境无关。临时处置：节点 `apt install clang`（18.1.3）后即 PASS。建议：把该行并入 `VOLATILE_RE`，或让比较只针对 target 侧矩阵行。

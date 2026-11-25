@@ -366,7 +366,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2·裁定①】`cfx_hart cg9 rc6` 口径：`m18-spec-006`（用户 2026-11-25）定为 RW、复位 2、异步进入取 rc6；QEMU 的 `m16-qemu-006` 曾按旧理解改成「写忽略、恒 2」，需 `m16-qemu-007` 回归；RTL 恒 supv 由 `m16-chipyard-028` 对齐；`DIV-18` 待两者合入 + 用例断言后关闭。"
+  title: 【P2·裁定①】`cfx_hart cg9 rc6` 口径：`m18-spec-006`（用户 2026-11-25）定为 RW、复位 2、异步进入取 rc6；QEMU 的 `m16-qemu-006` 曾按旧理解改成「写忽略、恒 2」，需 `m16-qemu-007` 回归；RTL 恒 supv 由 `m16-chipyard-028` 对齐；`DIV-18` 待两者合入 + 用例断言后关闭。
 - id: ISS-m16-004
   scope:
   - gem5
@@ -400,4 +400,139 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】`m16-testcases-021` 证据脚本的 `checks.py` 中 `a5`/`a8` 用 `tempfile.mkdtemp(dir=TMP)` 且从不清理：每次 `run.sh` 在运行期临时目录遗留约 300 MB（A8 注入态 `flood.bin`），4 次全量后目录涨到 952 MB（`/tmp` 曾 82%）。建议在注入/断言后 `rm -rf` 该子目录（与 ISS-522 防写满磁盘同源）。"
+  title: 【P3】`m16-testcases-021` 证据脚本的 `checks.py` 中 `a5`/`a8` 用 `tempfile.mkdtemp(dir=TMP)` 且从不清理：每次 `run.sh` 在运行期临时目录遗留约 300 MB（A8 注入态 `flood.bin`），4 次全量后目录涨到 952 MB（`/tmp` 曾 82%）。建议在注入/断言后 `rm -rf` 该子目录（与 ISS-522 防写满磁盘同源）。
+- id: ISS-377
+  scope:
+  - infra
+  - gem5
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P1】**任务收尾未做「修改文件 ↔ git 对账」导致交付文件丢失**：`m13-gem5-005` 完成区声明新增 4 个文件（`tests/arch/hmon/tiny_hmon_handler.{S,lds}`、`tiny_hmon_layout.inc`、`tools/gem5/check_tiny_hmon.py` 改动），但从未进入任何 commit、磁盘亦不存在 ⇒ `check_tiny_hmon.py` 现 `exit=2`，gem5 hmon 门控失效。根因：architect 收口时只看工作树 `git status`，未按完成区「修改文件」逐项 `git show --stat` 对账。建议：收口检查固定加一条「完成区修改文件数 == 提交 stat 文件数，逐项列名」；reviewer 也要核此项。
+- id: ISS-393
+  scope:
+  - testcases
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P2】**把「仍在跑」写成「全部跑完」**：`m13-testcases-009` 收口时依据 3 份 ratio JSON 判定 A 组长尾「48 h 内全部跑完」，但 runner（pid 522444）仍存活 23 h19 m、`regression/raise-race` 正在执行、`ratio-static-libc-test.json` 尚未落盘（reviewer 第 1 轮判 Needs Revision）。另：验证脚本的 `static+dynamic == total` 属同源恒真，无法发现「从真实名单删一例」的静默缩水。教训：① 收口判据必须是「名单逐项三态齐全 + runner 已退出 + EXIT 文件存在」，不能只数已有 JSON；② 覆盖类断言必须与**独立名单源**比对，不能与自身派生量比。
+- id: ISS-395
+  scope:
+  - infra
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P2】**并发派单事故：改变差分参照的任务与使用该参照验收的任务并行**。`m13-qemu-003`（改 QEMU 比较族 NV 语义）与 `m12-chipyard-013`（以 QEMU 为对照验收）并发，导致 013 验收块从 `211/0` 变成 `209/2`、`check-patch-tree` 因 qemu 源树未导出补丁而红。规则建议：派单前标出「本任务是否改变其它任务的差分/基线参照」；若是，要么串行，要么在该任务任务书里冻结参照版本（写 commit/md5）。
+- id: ISS-408
+  scope:
+  - testcases
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P3】`m13-testcases-011` 文档级：① 完成区「L1 4 红」实为 **5 红**、`check-patch-tree` 实为 **6 条**（chipyard 4 + qemu 2）；② 完成区未记 `UNIT_BIN` 路径/md5 ⇒ C3 那条红不可复现；③ `gen_block.py` 只在 gitignored 的 `.work` ⇒ 建议随产物落 `tools/testcases/`，或在本册写明「手维护」。
+- id: ISS-411
+  scope:
+  - testcases
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P3】`tests/inst` 汇编重构**仅剩 1 项遗留**：`st.o rb0`（源 = 被测指令自身地址）未覆盖 —— 宏层拿不到该地址，`tests/inst/MIGRATION.md §6` 记「期望值随链接布局变化」故不造例（属**已知限制**，非缺口待补）。①「新 `.S` 未入门控」已由 `m13-testcases-043` 解决（`check-inst` 退役、`check-inst-asm` 265 id/901 镜像直接派生 `.S`）；③「`ld.o ra0`」已由 `tests/inst/01-load-store/ld.o_rrii_ra.S` 覆盖。
+- id: ISS-412
+  scope:
+  - testcases
+  - spec
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P3】`m13-testcases-012` 文档级：① **encoding 类实为「寄存器字段极值 + 语义」而非 mask/value 校验**（审阅记录曾声称「已在 §2 与文件头写明口径」，grep 0 命中，声明与盘上不符）；② 完成区「故障例 1–4（合计 15–19）」实为 2–4（16–19）；③ `spec/SimRISC-01` 附录 B `excp_malign` 列 24 条但漏 4 个 rf 形式，与同册「对齐要求」口径不一致。
+- id: ISS-415
+  scope:
+  - spec
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P3】`m13-spec-004` 完成区用「根 `README` 在研列未变」佐证 `DADAO-12 0.7.3-rc` 未发布，但 README 该列实为 `0.7.2-rc`（与册头滞后，属 `SPEC-177t` 既有问题）⇒ 措辞不准；未发布的结论由附录 rc 段独立成立。建议：随下次 spec 任务订正 README 在研列与册头一致性，或改完成区措辞。
+- id: ISS-417
+  scope:
+  - spec
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P3】`m13-spec-005` 的残留扫描面偏窄：`checks.py` 的 S11–S13 只扫 `spec/` 与 `contracts/`，不含 `docs/DDLN/` ⇒ DDLN A006 里的旧口径（「`ldm`/`stm` 可重叠」）测不到，靠 reviewer 人工 grep 才发现。建议把 `docs/DDLN/` 纳入「旧口径残留」扫描（它是讲义、不是判据，但会误导读者）。另：`run.sh` 头注「5 路注入」实为 6 路（笔误）。
+- id: ISS-442
+  scope:
+  - testcases
+  - infra
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P3】`inst_sweep`/`bit_sweep`/`ctrl_sweep`/`fp_sweep` 退役后，`sweep_expect.bin` 的 md5 `2d4d94651346ef673c5a855e024c1489`（273 例）**不再是任何门控的判据**，但 10+ 个历史任务书的证据里仍以它作回归钉。处置：历史任务书不改写（历史事实），但**新任务不得再引用该 md5**；若将来需要等价覆盖，用 `check-inst-asm`（265 id/900 镜像）与三平台差分。
+- id: ISS-445
+  scope:
+  - chipyard
+  - infra
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P3】子代理异常取消（`Task cancelled`）：`m12-chipyard-017` 第 1 次运行时被取消，落盘状态 = 4 个脚本已在工作树落位（`tools/testcases/parity/engine_parity_{report,pending}.py`、`engine_parity_{collect,run}.sh`）+ README 改动，但任务书仍 `待开始`、无完成区、未做 `--check` 逐字节复现与注入验证。处置：已把该状态提交为 WIP（可审计、不丢进度），按「子代理返回异常处理」重试原任务（第 1/3 次）。
+- id: ISS-446
+  scope:
+  - testcases
+  - infra
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P3】picolibc 的 long-double 阻塞仍引用**已关闭**的 `ISS-193`：`ISS-193` 已于 M9 归档（`.tao/archive/M9/issues-closed.md`，处置为「重枚举并清零过滤表」），但 M12 的 parity 报告、`QEMU_BASELINE_GAPS`、根 `README.md` 的 M12 小节仍把 `test-ceil`/`test-long-double`/`test-math-funcs`/`test-math-errhandling` 记作 `ISS-193 long-double libcall`。现状是**当前仍阻塞**（4 例 blocked）而引用的是历史已闭号 ⇒ 要么复现并重新立号，要么把这 4 例的 blocked 归因改指向真实现状（并说明 `ISS-193` 已闭）。影响：报告可审计性（引用已闭号会让人误判为『历史遗留、不再跟踪』）。
+- id: ISS-458
+  scope:
+  - infra
+  - testcases
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P3】证据脚本的「改前基线」若取 `git archive HEAD`（或任何指向**当前**提交的引用），**提交后重跑就变成自比假绿**：`m15-testcases-002` 复核发现其 `run.sh` D 项的基线是 `HEAD`，开工时（HEAD 尚未含本任务提交）有效，提交后重跑则新旧两侧同源 ⇒ 必然相等。复核因此改用钉死的 `8da8c985` 独立补证。处置：证据脚本的基线一律**钉死 commit**（或 `git archive <base-commit>`），并在脚本里断言「base != HEAD」；可并入 engineer/reviewer 的「一键证据脚本」规范。
+- id: ISS-466
+  scope:
+  - infra
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P3】子代理 session 因 provider 报 `Invalid API Key` 连续 3 次失败（`m16-gem5-009` 复核，session `ses_e19ef9868ffeKGPge77MIcsrEb`）：初始 + 2 次重试**原 session** 均即时返回该错误，同批其它 reviewer session（`m14-qemu-005`）正常 ⇒ 疑为该 session 绑定失效而非全局故障。处置：按「子代理返回异常处理」判定原 session 不可恢复，**新建 reviewer session** 并在此登记原因；建议后续在派单脚本里对 `Invalid API Key` 做「换 session 而非原地重试」的自动判定。（2026-11-17 根因实测定案：① `~/.local/share/opencode/auth.json` 里**只有** `deepseek` 与 `opencode-go` 两个 provider，`xiaomi-token-plan` **无凭据** ⇒ `Invalid API Key`；② `opencode-go` 的 key 报 `Invalid credential`；③ 仓内**唯一可用 provider = `deepseek`**；④ 改 `.opencode/agents/reviewer.md` 的 model **在会话内不生效**（agent 配置在会话启动时加载）⇒ 必须用 subagent 的 `model` 参数显式指定。处置：reviewer 改用 `deepseek/deepseek-v4-pro`（与 engineer 的 `deepseek-flash` 区分型号）。）
+- id: ISS-478
+  scope:
+  - infra
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P3】子代理 provider 阻断：`m17-idl-001` 第 1 轮 reviewer session 返回 `Provider blocked the response`（第 1/3 次）。落盘核对：工作树 `git status` 空、任务书未写审阅记录 ⇒ 无残留。按「子代理返回异常处理」重试原 session 并计数；连续 3 次才拆分任务。
+- id: ISS-483
+  scope:
+  - testcases
+  - infra
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 见 .tao/knowledge/lessons.md（事故/流程/文档级，不再单独跟踪）
+  title: 【P3】证据脚本「固定基线」写法的三个共性坑（`m15-spec-008` 两轮复核实测）：① 基线取「分支分叉点」时，若 `master` 不可见（新 clone 只有 `origin/master`），脚本会静默回退 `HEAD~1` ⇒ 改动面断言假红、正文比对退化为恒真；② `git diff --name-only` 输出依赖 `core.quotepath=false`，新 clone 未配则非 ASCII 路径被 C 转义 ⇒ 改动面假红；③ 任务书里的「当前即 HEAD~1」这类描述会随追加提交过时。处置建议：证据脚本统一 `_git() { git -c core.quotepath=false ...; }`；分叉点解析失败时 `origin/master` 兜底，仍失败则**报错退出**而不是回退 `HEAD~1`；基线写成变量并在输出首行打印；④ 只按 `$BASE..HEAD` 判「变更集」在交付**未提交**时假红（`m14-linux-046` 第 2 轮复核实测：契约撤回未提交 ⇒ `git diff $BASE HEAD` 非空），只按工作树判则在**提交后**假红 ⇒ 统一「未提交 ∪ `$BASE..HEAD`」，判「净效果为零」时对**工作树比 `$BASE`**（无 `HEAD`，已写入 `AGENTS.md §4`）。
+- id: ISS-495
+  scope:
+  - infra
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: 主会话补完 M14 归档簿记（manifests 删条目 + README 归档段）
+  title: 【P3】`m14-integ-001` 归档收尾遗漏两处簿记：① `.tao/knowledge/.manifests.toml` 仍登记已删除的 `milestones-m14.md` ⇒ `check-manifests-guard` 红（主会话已补删条目）；② 根 `README.md` 归档行曾写「含 1 册 `已退役`」，回退第三态后措辞不符（已改为「1 册带 `> **已退役**` 注记」）。处置：归档检查清单（`Process-04`）补一条「manifest/README 指针随归档同笔更新」，避免下次里程碑重犯。

@@ -6,6 +6,9 @@ recursive = false
 [files."MEMORY.md"]
 owner = "main-session"
 
+[files."lessons.md"]
+owner = "main-session"
+
 [files."discussing.md"]
 owner = "main-session"
 

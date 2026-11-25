@@ -36,6 +36,7 @@
 | 代码模型 / 打包规范（REL26 边 ≤ 32 MiB；单 DSO 可执行区跨度 < 30 MiB） | `.tao/adr/adr-0036-code-model.md` §D4/D7 + `make check-code-range` |
 | 构建 / 测试节点（机型 / 组网 / 软件包 / 就绪判据） | `.tao/knowledge/nodes.md` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
+| 已关闭 issue 的教训 | `.tao/knowledge/lessons.md` |
 | issue / 待裁定口径 | `.tao/knowledge/issues-{left,m16…m19}.yaml`（按里程碑分册，各自会话独占写）/ `discussing.md` |
 | M14 内核与主流 ISA 差异盘点（八份 / 195 条 / 七根因） | `components/linux/kernel-diff-vs-mainstream-isa.md`（索引）→ 各任务书「盘点结论」段 |
 | 历史归档 | `.tao/archive/M*/`（M1–M15） |
