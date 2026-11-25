@@ -70,12 +70,24 @@ Exit status: 0 = no failures *and* nothing blocked; 1 = one or more ``fail``
 or ``blocked``; 2 = setup error.  ``--inject`` corrupts one test's expected
 exit status so the ``fail`` path is reachable (used by the evidence script).
 
+Reuse key
+---------
+A finished case's ``.done`` verdict is reused **only** when the content
+fingerprint of every input that can change it matches (``libc.a``,
+``libsemihost.a``, the installed ``picolibc_noflash.ld``, both crt0 variants,
+the compiler/linker/assembler binaries, the BootROM and, for ``chipyard``, the
+simulator).  Both engines use the same fingerprint; a field that cannot be read
+carries a stable placeholder and is printed in the run header.  A ``.done``
+written before this key existed has no fingerprint and is always stale.
+``--force`` / ``--no-reuse`` re-runs every selected case regardless.
+
 Counting is always live (no hard-coded totals).
 """
 from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hashlib
 import json
 import os
 import re
@@ -344,24 +356,70 @@ def _case_dir(out_dir, name):
     return Path(out_dir) / "run" / name
 
 
-def claim_case(out_dir, name, sim_md5):
+def input_fingerprint(engine, sim_md5, guard=None):
+    """Content fingerprint of every input that can change a test verdict.
+
+    The ``.done`` reuse key is this digest -- *not* the simulator md5 alone
+    (ISS-504: under ``qemu`` the simulator md5 was always ``None``, so a
+    changed ``libc.a`` / installed ``picolibc_noflash.ld`` still reused the old
+    verdict).  Both engines call this same function; an unreadable field keeps
+    the stable ``writer_guard.md5_of`` placeholder (``missing`` /
+    ``unreadable:<errno>``) and the simulator slot says ``n/a (engine=qemu)``,
+    so the report always states what the key was built from.
+    """
+    def fp(path):
+        key = str(path)
+        if guard is not None and key in guard.before:
+            return guard.before[key]  # the read guard already hashed it
+        return writer_guard.md5_of(path)
+
+    inputs = {
+        "engine": engine,
+        "libc.a": fp(SYSROOT / "lib" / "libc.a"),
+        "libsemihost.a": fp(SYSROOT / "lib" / "libsemihost.a"),
+        "picolibc.ld": fp(PICOLIBC_LDS),
+        "crt0-semihost.o": fp(SYSROOT / "lib" / "crt0-semihost.o"),
+        "crt0-minimal.o": fp(SYSROOT / "lib" / "crt0-minimal.o"),
+        "crt0 stub": fp(CRT0_STUB),
+        "clang": fp(CLANG),
+        "ld.lld": fp(LLD),
+        "llvm-mc": fp(LLVM_MC),
+        "llvm-objcopy": fp(LLVM_OBJCOPY),
+        "bootrom": (fp(TINY_BOOTROM) if engine == "qemu"
+                    else "n/a (engine=chipyard)"),
+        "qemu": (fp(QEMU) if engine == "qemu"
+                 else "n/a (engine=chipyard)"),
+        "simulator": ("md5:" + sim_md5 if sim_md5
+                      else "n/a (engine=%s)" % engine),
+    }
+    digest = hashlib.sha256(
+        json.dumps(inputs, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {"digest": digest, "inputs": inputs}
+
+
+def claim_case(out_dir, name, fingerprint, force=False):
     """Atomically take a case, so several runner processes can share a queue.
 
-    * ``.done`` written by whoever judged the case (with the simulator md5 it
-      ran against) ⇒ **reuse** the stored verdict instead of re-running;
+    * a ``.done`` written for the *same input fingerprint* ⇒ **reuse** the
+      stored verdict instead of re-running.  A ``.done`` without a fingerprint
+      (written before ISS-504) or with a different one is stale, never reused;
+    * ``--force`` ignores ``.done`` and a stale ``.claim``, so the case is
+      re-run even when its inputs are unchanged (a *live* simulator is still
+      rejected below -- two writers must not share one ``+semiout``);
     * otherwise ``os.open(..., O_CREAT|O_EXCL)`` on ``.claim`` ⇒ **ok** (we own
       it); a second pool hitting the same case gets ``FileExistsError`` and
-      reports ``skipped`` -- so two pools never write the same ``+semiout``.
+      reports ``skipped``.
     """
     d = _case_dir(out_dir, name)
     d.mkdir(parents=True, exist_ok=True)
     done = d / ".done"
-    if done.is_file():
+    if done.is_file() and not force:
         try:
             info = json.loads(done.read_text())
         except (OSError, ValueError):
             info = {}
-        if (info.get("sim_md5") == sim_md5
+        if (info.get("fingerprint") == fingerprint
                 and info.get("status") in ("pass", "fail", "blocked",
                                            "excluded")):
             return "reused", info
@@ -369,14 +427,21 @@ def claim_case(out_dir, name, sim_md5):
     # simulator process itself is the evidence that the case is in flight.
     if _elf_running(Path(out_dir) / (name + ".elf")):
         return "claimed", None
-    # ... and a finished `sim.log` (SYS_EXIT seen) means the other pool already
-    # judged it: its verdict is in that pool's JSON / progress log, so this
-    # process reports `skipped` and the report unions the two pools.
-    log = d / "sim.log"
-    if log.is_file():
+    if not force:
+        # ... and a finished `sim.log` (SYS_EXIT seen) means the other pool
+        # already judged it: its verdict is in that pool's JSON / progress log,
+        # so this process reports `skipped` and the report unions the two pools.
+        log = d / "sim.log"
+        if log.is_file():
+            try:
+                if "SYS_EXIT(" in log.read_text(errors="replace"):
+                    return "finished", None
+            except OSError:
+                pass
+    else:
+        # A leftover claim from a crashed run must not hide the forced re-run.
         try:
-            if "SYS_EXIT(" in log.read_text(errors="replace"):
-                return "finished", None
+            (d / ".claim").unlink()
         except OSError:
             pass
     claim = d / ".claim"
@@ -407,11 +472,12 @@ def _elf_running(elf):
     return False
 
 
-def finish_case(out_dir, name, row, sim_md5):
+def finish_case(out_dir, name, row, fingerprint):
     """Publish the verdict (``.done``) and drop the claim."""
     d = _case_dir(out_dir, name)
     info = {"status": row.get("status"), "rc": row.get("rc"),
-            "cycles": row.get("cycles"), "sim_md5": sim_md5,
+            "cycles": row.get("cycles"), "fingerprint": fingerprint,
+            "sim_md5": row.get("sim_md5"),
             "reason": (row.get("reason") or "")[:200]}
     tmp = d / ".done.tmp"
     try:
@@ -461,7 +527,7 @@ def _match(text):
 
 
 def classify_test(entry, targets, out_dir, preludes, env, inject_name,
-                  engine_cfg=None, sim_md5=None):
+                  engine_cfg=None, fingerprint=None, force=False):
     name = entry["name"]
     engine_cfg = engine_cfg or {"engine": "qemu", "scale": 1.0}
     should_fail = name in SHOULD_FAIL
@@ -495,7 +561,7 @@ def classify_test(entry, targets, out_dir, preludes, env, inject_name,
         return {"name": name, "suite": entry["suite"], "status": "excluded",
                 "reason": EXCLUDED[name]}
 
-    claimed_state, done_info = claim_case(out_dir, name, sim_md5)
+    claimed_state, done_info = claim_case(out_dir, name, fingerprint, force)
     if claimed_state in ("claimed", "finished"):
         return {"name": name, "suite": entry["suite"], "status": "skipped",
                 "reason": ("in flight in another runner pool"
@@ -504,7 +570,8 @@ def classify_test(entry, targets, out_dir, preludes, env, inject_name,
     if claimed_state == "reused":
         return {"name": name, "suite": entry["suite"],
                 "status": done_info.get("status", "pass"),
-                "reason": "reused (same sim md5): "
+                "reason": "reused (same input fingerprint %s): "
+                          % fingerprint[:12]
                           + (done_info.get("reason") or "")[:80],
                 "rc": done_info.get("rc"),
                 "cycles": done_info.get("cycles")}
@@ -559,7 +626,7 @@ def classify_test(entry, targets, out_dir, preludes, env, inject_name,
                    sim_md5=obs["md5"],
                    semi_out=os.path.join(str(case_dir), "semi.out"),
                    sim_log=os.path.join(str(case_dir), "sim.log"))
-    finish_case(out_dir, name, row, sim_md5)
+    finish_case(out_dir, name, row, fingerprint)
     return row
 
 
@@ -618,6 +685,9 @@ def main() -> int:
     ap.add_argument("--skip", default=None,
                     help="comma-separated test names to leave out of this run")
     ap.add_argument("--json", default=None, help="write full per-test report JSON here")
+    ap.add_argument("--force", "--no-reuse", dest="force", action="store_true",
+                    help="re-run selected cases even when a .done verdict with "
+                         "the same input fingerprint exists (alias --no-reuse)")
     ap.add_argument("--inject", action="store_true",
                     help="corrupt one expectation to make the FAIL path reachable")
     ap.add_argument("--inject-test", default="basename")
@@ -650,10 +720,22 @@ def main() -> int:
         return 2
 
     # ISS-373: refuse on an active writer, then hash what we read at both ends.
+    sim_md5 = chipyard_engine.md5_of(sim) if args.engine == "chipyard" else None
+    if args.engine == "chipyard" and sim_md5 is None:
+        print(f"picolibc-tests: ERROR: cannot read the chipyard simulator: {sim}",
+              file=sys.stderr)
+        return 2
     guard = writer_guard.start_guard(
         args, [str(CLANG), str(CLANGXX), str(LLVM_MC), str(LLVM_OBJCOPY),
                str(LLD), str(QEMU), str(TINY_BOOTROM),
-               str(SYSROOT / "lib" / "libc.a")], label="picolibc_tests")
+               str(SYSROOT / "lib" / "libc.a"), str(PICOLIBC_LDS),
+               str(SYSROOT / "lib" / "libsemihost.a"),
+               str(SYSROOT / "lib" / "crt0-semihost.o"),
+               str(SYSROOT / "lib" / "crt0-minimal.o")],
+        label="picolibc_tests")
+    # ISS-504: the `.done` reuse key is the input fingerprint, identical for
+    # both engines; reuse the read guard's hashes (clang is 4 GiB).
+    fingerprint = input_fingerprint(args.engine, sim_md5, guard)
 
     env = dict(os.environ)
     env["PATH"] = str(TOOLCHAIN_BIN) + os.pathsep + env.get("PATH", "")
@@ -677,11 +759,6 @@ def main() -> int:
         reps = set(representative_names(inv))
         inv = [e for e in inv if e["name"] in reps]
 
-    sim_md5 = chipyard_engine.md5_of(sim) if args.engine == "chipyard" else None
-    if args.engine == "chipyard" and sim_md5 is None:
-        print(f"picolibc-tests: ERROR: cannot read the chipyard simulator: {sim}",
-              file=sys.stderr)
-        return 2
     scale = args.timeout_scale
     if scale is None:
         scale = DEFAULT_TIMEOUT_SCALE if args.engine == "chipyard" else 1.0
@@ -691,12 +768,16 @@ def main() -> int:
           f"timeout-scale={scale:g}"
           + (f" sim={sim} md5={sim_md5} max-cycles={args.max_cycles}"
              if args.engine == "chipyard" else ""))
+    print("picolibc-tests: input-fingerprint=%s %s"
+          % (fingerprint["digest"],
+             " ".join(f"{k}={v}" for k, v in sorted(fingerprint["inputs"].items()))))
 
     inject_name = args.inject_test if args.inject else None
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as ex:
         futs = {ex.submit(classify_test, e, targets, out_dir, preludes, env,
-                          inject_name, engine_cfg, sim_md5): e
+                          inject_name, engine_cfg, fingerprint["digest"],
+                          args.force): e
                 for e in inv}
         done = 0
         for fut in concurrent.futures.as_completed(futs):
@@ -740,6 +821,8 @@ def main() -> int:
         Path(args.json).write_text(json.dumps(
             {"stage": args.stage, "engine": args.engine, "counts": counts,
              "total": len(results), "inject": bool(args.inject),
+             "force": bool(args.force),
+             "input_fingerprint": fingerprint,
              "sim_md5": sim_md5, "max_cycles": args.max_cycles,
              "results": results}, indent=1))
 
