@@ -20,6 +20,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m16-qemu-007 | 1–1.5 h | QEMU `cg9 rc6` 回归 spec-006（写落地、进入取 rc6；修 qemu-006 的相反实现） |
 | m16-chipyard-028 | 2–3 h | RTL `cg9 rc6`（switch_run_mode）对齐：RW、复位 2、异步进入取该值（`ISS-540`；等 `m16-gem5-026` 交还 `tests/arch`） |
 | m16-testcases-022 | 1–2 h | PTW 的 RTL 面在扁平 cause 对齐后修复/回归（ISS-m16-006；依赖 m17-chipyard-001） |
 | m16-gem5-025 | 2–3 h | gem5 `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧（ISS-533/525） |

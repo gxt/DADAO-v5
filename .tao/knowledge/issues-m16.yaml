@@ -366,7 +366,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P2】QEMU 的 `cfx_hart cg9 rc6`（`async_switch_run_mode`）写被接受并**生效**（投递时 `inner_run_mode = 写入值`；写 0 ⇒ 异步入 user），而 `§4.7` 要求固定 supv(2)、`§5.4` 要求入口 supv 单向量；RTL 为「写接受、忽略」。另：`§4.7` 只对 `rc3/rc4` 明文写「写忽略」，`rc6` 未明写 ⇒ 建议 spec 补一行。归属：QEMU 修复 + spec 措辞（M18 会话，承接 `m18-qemu-006`；对应 `DIV-18` 的 `close_when`）。
+  title: "【P2·裁定①】`cfx_hart cg9 rc6` 口径：`m18-spec-006`（用户 2026-11-25）定为 RW、复位 2、异步进入取 rc6；QEMU 的 `m16-qemu-006` 曾按旧理解改成「写忽略、恒 2」，需 `m16-qemu-007` 回归；RTL 恒 supv 由 `m16-chipyard-028` 对齐；`DIV-18` 待两者合入 + 用例断言后关闭。"
 - id: ISS-m16-004
   scope:
   - gem5

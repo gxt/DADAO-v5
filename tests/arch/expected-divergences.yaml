@@ -116,9 +116,10 @@ divergences:
 
   - id: DIV-18
     kind: temporary
-    scope: [qemu]
-    impact: "`cfx_hart cg9 rc6`（async switch run mode）规范为固定 supv（2）。QEMU 已在 `m16-qemu-006` 改为「写接受、忽略；读回恒 2；投递固定 supv」（`ISS-m16-003`），与 RTL（`m16-chipyard-024/026`）一致；但 `arch-hart-001` 尚未恢复「写 0 ⇒ 读 2」断言，该行为仍未进入三方逐槽比较面。"
-    reason: "RTL 按规范忽略写；QEMU 原 `dadao_hart_async_reg_write` 的 rc6 分支写 `val & 3`，已由 `m16-qemu-006` 修正。剩余缺口在测试侧：`m16-testcases-013` 的 `arch-hart-001` 未覆盖该写忽略，故条目保留到用例补上断言，避免把「未比较」误报为已覆盖。"
-    user_ruling: "待用户裁定（2026-11-25 实测登记；同日 QEMU 实现已修，用例断言待 testcases 任务补）"
+    scope: [chipyard, qemu]
+    impact: "`cfx_hart cg9 rc6`（`async_switch_run_mode`）实现与 `spec/DADAO-12 §4.7/§5.4`（复位 2、异步进入取 rc6）不一致：RTL 恒 supv（写忽略），QEMU 在 `m16-qemu-006` 被改成「写忽略、恒 2」。"
+    reason: "`m18-spec-006`（用户 2026-11-25 裁定①）已把口径定为 RW、复位 2、进入取 rc6；RTL 对齐由 `m16-chipyard-028`，QEMU 回归由 `m16-qemu-007`。"
+    user_ruling: "2026-11-25（`m18-spec-006` 裁定①：改 spec 措辞，实现向 spec 对齐）"
     status: active
-    close_when: "QEMU 修 `cg9 rc6` 写入忽略（固定 2）并在 `arch-hart-001` 恢复写 0 断言"
+    close_when: "`m16-qemu-007` 与 `m16-chipyard-028` 合入 + `arch-hart-001` 补「写 rc6=0/1/3 读回」「异步进入按 rc6」断言"
+
