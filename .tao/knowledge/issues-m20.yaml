@@ -93,9 +93,9 @@
   - testcases
   - llvm
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: m20-testcases-001（2026-11-25：raw 单 TU 局部化 TU 内 global；build-only 19/19、完整 QEMU 19/19、注入只局部化 main 回 11/19）
   title: '【P2】`check-unit` 的 `test-codegen` **基线红**：raw single-TU 组装 19/19 `SHT_RELA present`（`Results: 0/19 passed`）；`m16-testcases-008` 以 `git archive HEAD` 干净树逐行 diff 为空判 KNOWN-RED（非任务引入）。处置：修 `tests/unit/llvm/codegen` 的 raw 单文件产物/lit 期望（去掉不应出现的 `SHT_RELA`），恢复 `check-unit` 绿。'
 - id: ISS-m20-001
   scope:
