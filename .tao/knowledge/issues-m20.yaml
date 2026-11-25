@@ -75,9 +75,9 @@
   scope:
   - gem5
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: m16-gem5-026 + m20-gem5-001（2026-11-25：026 按 spec 删除 Node 全局掩码保存/恢复；001 新增 `check_node_escape_intr.py` 探针，同步帧 escape 前后 cfx3/cfx0 `cg8 rc1` 逐位不变，负控可达 FAIL）
   title: 【P3】gem5 `nodeEscape` 缺 QEMU 的 `saved_intr_mask_valid` 守卫（`m16-gem5-013` 复核查出）：从**同步异常帧** `escape` 时，gem5 会把 `cfx0.global_cfx_intr_mask` 写成 0，而 QEMU（`helper.c:2889`）有 `saved_intr_mask_valid` 判定、不写。影响：同步帧 escape 后两引擎的中断屏蔽状态分叉（当前探针不触发该路径，故未暴露）。处置建议：gem5 补同形守卫 + 一条探针断言（同步帧 escape 后 `global_cfx_intr_mask` 不变）。
 - id: ISS-507
   scope:
