@@ -50,7 +50,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
-| m18-linux-015 | 2026-11-25 16:05 | `mlock2`/`MLOCK_ONFAULT` 复核：无内核缺陷；5/5 绿（15/15）、`timers-nanosleep` 亦转 PASS；基线 SIGNAL→PASS；hole⇒ENOMEM 实测 3/3 |
+| m18-linux-015 | 2026-11-25 16:53 | `mlock2`/`MLOCK_ONFAULT` 复核：无内核缺陷；5/5 绿（15/15）、`timers-nanosleep` 亦转 PASS；基线 SIGNAL→PASS；hole⇒ENOMEM 实测 3/3 |
 | m18-linux-024 | 2026-11-25 15:18 | 异步返程改 `cfx_jmon` 帧（窗口 0/4800、K2 170/K5 285/K6 82；3 例非窗口红登记 `ISS-m18-001`） |
 | m18-chipyard-001 | 2026-11-25 12:29 | **作废**（ADR-0061 R2 取代）：`imms18[1]=1` ⇒ 当前 cfx `CFXESC`；RTL 语义由 `m16-chipyard-021/024/026` 交付，rc6 残余另立 `m16-chipyard-028` |
 | m18-spec-006 | 2026-11-25 12:02 | `cg9 rc6` 口径统一（复位 2、进入取 rc6；用户裁定①）+ `check_cfx15` 兼容新旧措辞；27/27、注入 49/49 |
