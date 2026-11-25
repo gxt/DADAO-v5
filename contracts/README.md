@@ -9,7 +9,7 @@
 | `opcodes.yaml` | 每条指令的编码字段、mask、value、变体 | `contract-isa.md`（`SPEC-003t`）；**生成物**：只由 `tools/spec/generate_opcodes.py` 产出（`make check-opcodes-repro` 逐字节守漂移，禁手改；`ISS-416`） |
 | `abi.yaml` | 参数寄存器编号、callee-saved 列表、DataLayout | `contract-abi.md`（`SPEC-004t`） |
 | `legality_rules.yaml` | 非法编码组合、非对齐访问规则 | `contract-isa.md` 异常条款（`SPEC-008t`） |
-| `fp_semantics.yaml` | FP（`scope: fp`，60 条）语义投影：FCSR 环境、12 族、`id→family→spec_cite→semantics_ref→legality_refs`（不含编码、不含期望值） | `contract-fp.md`（`SPEC-087t`） |
+| `fp_semantics.yaml` | FP（`scope: fp`）语义投影：FCSR 环境、12 族、`id→family→spec_cite→semantics_ref→legality_refs`（不含编码、不含期望值；条数以 `contract-fp.md`/`opcodes.yaml` 为准） | `contract-fp.md`（`SPEC-087t`） |
 | `linux-boot.yaml` | 启动 ABI 投影：boot info 15 字段（偏移/宽度/`kind`）、内存分区、进入状态、装载规则；与 `Kaiwu §6.3` 逐字段一致 | `contract-linux-boot.md`（`m14-spec-001`） |
 | `wuming-cycles.yaml` | **chipyard ↔ gem5 的周期对照源**：263 条指令 → 类 / 周期 / 动态参数（`ld`/`st`/`ldm`/`stm` 分行给值），gem5 时序模型与对标脚手架共用 | `docs/core-wuming-cycle-model.md` + `opcodes.yaml`（`m16-gem5-002`；生成器 `tools/gem5/gen_wuming_cycles.py`，`make check-wuming-cycles` 守漂移） |
 

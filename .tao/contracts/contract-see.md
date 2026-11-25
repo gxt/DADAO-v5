@@ -2,7 +2,7 @@
 
 > **版本：0.8.0-rc** [DADAO-12 §1. 运行模式与核芯功能扩展][DADAO-22 §1. 调用约定]
 >
-> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.8.0-rc）、`spec/DADAO-13-HEE-超管系统运行环境.md`（0.1.4-rc）、`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.8.0-rc）、`spec/DADAO-23-HBI-超管系统二进制接口.md`（0.1.4-rc）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/SimRISC-11-其它.md`（0.5.4）；测试机运行环境正文 `spec/Kaiwu-测试机运行环境.md`（v5 自定）；决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted）与 `.tao/adr/adr-0004-test-machine.md`（`ADR-0004`，Accepted，rev. 2026-10-07 `R1`/`R3`）。
+> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`、`spec/DADAO-13-HEE-超管系统运行环境.md`、`spec/DADAO-22-SBI-主管系统二进制接口.md`、`spec/DADAO-23-HBI-超管系统二进制接口.md`、`spec/DADAO-21-ABI-应用程序二进制接口.md`、`spec/SimRISC-11`（核芯功能扩展）；测试机运行环境正文 `spec/Kaiwu-测试机运行环境.md`（v5 自定）；决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted）与 `.tao/adr/adr-0004-test-machine.md`（`ADR-0004`，Accepted，rev. 2026-10-07 `R1`/`R3`）。
 >
 > **范围**：M5 SEE/HEE 运行环境——运行模式、核内地址空间与复位、cfx 与权限、`trap`/`escape` 与异常进入/退出、SBI 调用约定；**M14 K2 起**增内核侧异常/中断口径（§6）。semihosting 的服务表/调用约定见 `contract-semihosting.md`。
 >
