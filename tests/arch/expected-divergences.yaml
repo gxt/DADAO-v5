@@ -119,7 +119,7 @@ divergences:
     scope: [gem5]
     impact: "`arch-hart-001/002`（cfx_hart TIMER R2 捕获缓冲）与 `arch-pmem-001/002`（cfx_pmem DMA 完成中断 + 同界多源）不参与 gem5 逐槽：gem5 仍是 `ADR-0061` R2 前模型（无 `cfx_hart cg9`、来源掩码仍为旧 `cfx_intr_mask`/`global_cfx_intr_mask` 两级），这些用例在 gem5 上 fail-closed（rc=1），不进三方比较；QEMU+RTL 两方逐槽。"
     reason: "`m16-testcases-013`/`014` 的载体按 `spec/DADAO-12 §4.7/§5.4` R2 写（cg9 捕获缓冲、monitor `cg8 rc1` 掩码）；gem5 侧没有对应实现（`tests/arch/vast-arch-inventory.md` cfx15-gem5 / cfx32-gem5 段标「R2 前口径」）——`arch-pmem-001` 在 gem5 上从槽 16（`cfx_hart cg9` 读）起读回指令字并 rc=1（`m16-testcases-014` 实测），且没有已立的 gem5 迁移任务。"
-    user_ruling: "2026-11-25 用户裁定 B：给 gem5 补 R2 异步面（立 `m18-gem5-004`「gem5 异步捕获缓冲（ADR-0061 R2）」），合入后删除本条"
+    user_ruling: "2026-11-25 用户裁定 B：给 gem5 补 R2 异步面（立 `m16-gem5-026`「gem5 异步捕获缓冲（ADR-0061 R2）」），合入后删除本条"
     status: active
     close_when: "gem5 实现 `cfx_hart cg9` 七槽 + R2 捕获缓冲（每次进入覆盖）/monitor `cg8 rc1` 掩码迁移（新立 gem5 任务）"
 
