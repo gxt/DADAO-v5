@@ -92,13 +92,14 @@ rd2ra {ra0:ra62}, {rd0:rd62}
 
 @@ === Boundary: ra63 + immu6=63 ===
 
-@@ --- ra2rd {rd63:…}, {ra63:…}, count=63 ---
+@@ --- ra2rd 双侧越界字，count=63 ---
 @@ op=0x40, ha=0x2E, hb=63, hc=63, hd=63
 @@ word = (0x40<<24)|(0x2E<<18)|(63<<12)|(63<<6)|63 = 0x40BBFFFF
 @@ 起始 63 + immu6=63 = 126 > 64 ⇒ ILLI（contract-isa.md §15.1
 @@ mreg_range_overflow，不环绕：目的与源两个窗口都越界）。修复前这里打印成
 @@ 跨 bank 的 `{rd63:rf61}, {ra63:rb61}`（寄存器枚举相邻 bank 混读），现解码为
-@@ `<unknown>`（ISS-468 / m20-llvm-001）。
+@@ `<unknown>`（ISS-468 / m20-llvm-001）。该文本组已被汇编期 bank 判据拒绝
+@@ （`ra2rd {rd63:rf61}, {ra63:rb61}` 无法再汇编，见 reg-group-bank.s /
+@@ ISS-m20-001），故此处用原始字钉住解码行为。
 @@ OBJ: {{[0-9a-f]+:}} 40 bb ff ff{{.*}}<unknown>
-@@ ASM: ra2rd {rd63:rf61}, {ra63:rb61}
-ra2rd {rd63:rf61}, {ra63:rb61}
+	.dd.t32	0x40BBFFFF

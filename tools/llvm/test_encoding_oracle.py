@@ -125,8 +125,9 @@ TESTS = [
     # orrr format: add.st rd8, rd0, rd0 (op=0x41, ha=0x21)
     ("add.st rd8, rd0, rd0", encode_orrr(0x41, 0x21, 8, 0, 0)),
     
-    # orri format: ext.uo rd8, rd0, 1 (op=0x40, ha=0x18)
-    ("ext.uo rd8, rd0, 1", encode_orri(0x40, 0x18, 8, 0, 1)),
+    # orri format: ext.uo rd8, rd0, 1 (op=0x40, ha=0x28; contracts/opcodes.yaml
+    # id ext.uo_orri_rd, value 0x40A00000)
+    ("ext.uo rd8, rd0, 1", encode_orri(0x40, 0x28, 8, 0, 1)),
     # orri format: rd2rd {rd8}, {rd0} (op=0x40, ha=0x2C)
     ("rd2rd {rd8}, {rd0}", encode_orri(0x40, 0x2C, 8, 0, 1)),
     
@@ -216,8 +217,14 @@ TESTS = [
     ("ldm.o {ra0}, [rb0, rd0]", encode_rrri(0x3C, 0, 0, 0, 1)),
     # Boundary: rd2ra {ra0:ra62}, {rd0:rd62} (op=0x40, ha=0x2D, hb=0, hc=0, hd=63)
     ("rd2ra {ra0:ra62}, {rd0:rd62}", encode_orri(0x40, 0x2D, 0, 0, 63)),
-    # Boundary: ra2rd {rd63:rf61}, {ra63:rb61} (op=0x40, ha=0x2E, hb=63, hc=63, hd=63)
-    ("ra2rd {rd63:rf61}, {ra63:rb61}", encode_orri(0x40, 0x2E, 63, 63, 63)),
+    # Boundary: ra2rd {rd0:rd62}, {ra1:ra63}, count=63 on both sides
+    # (op=0x40, ha=0x2E, hb=0, hc=1, hd=63; contract-isa.md §3.3.2 valid range
+    # 1..63, start + count <= 64).  The old case here was the ILLI text
+    # `ra2rd {rd63:rf61}, {ra63:rb61}`: start 63 + 63 > 64 and the two ends sit
+    # in different register banks (mreg_range_overflow, ISS-m20-001), so the
+    # assembler must reject it -- an illegal word is pinned as `.dd.t32` in the
+    # lit tests (ra.s / reg-group-bank.s), never derived from illegal text.
+    ("ra2rd {rd0:rd62}, {ra1:ra63}", encode_orri(0x40, 0x2E, 0, 1, 63)),
 
     # === FP instructions (LLVM-029t, scope: fp; 60 unique cases) ===
     # Expected words are derived from contracts/opcodes.yaml op/ha/field
@@ -231,8 +238,11 @@ TESTS = [
     ("ldm.o {rf12:rf14}, [rb6, rd7]", encode_rrri(0x3E, 12, 6, 7, 3)),
     ("stm.o {rf16:rf18}, [rb8, rd9]", encode_rrri(0x3F, 16, 8, 9, 3)),
     ("set.w rf4, wp0, 0x1234", encode_rwii(0x4F, 4, 0, 0x1234)),
-    ("cs.eq {rd8, rd0}?, rf4, rf6", encode_rrrr(0x5E, 8, 0, 4, 6)),
-    ("cs.ne {rd10, rd2}?, rf8, rf10", encode_rrrr(0x5F, 10, 2, 8, 10)),
+    # cs.eq/cs.ne lost their `_rrrr_rf` forms (contract-isa.md §2 note: the two
+    # records were deleted); the RD forms are op 0x66/0x67
+    # (contracts/opcodes.yaml id cs.eq_rrrr_rd / cs.ne_rrrr_rd).
+    ("cs.eq {rd8, rd9}?, rd10, rd11", encode_rrrr(0x66, 8, 9, 10, 11)),
+    ("cs.ne {rd10, rd11}?, rd12, rd13", encode_rrrr(0x67, 10, 11, 12, 13)),
     ("cs.n {rd12}?, rf4, rf6, rf8", encode_rrrr(0x61, 12, 4, 6, 8)),
     ("cs.z {rd14}?, rf10, rf12, rf14", encode_rrrr(0x63, 14, 10, 12, 14)),
     ("cs.p {rd16}?, rf16, rf18, rf20", encode_rrrr(0x65, 16, 16, 18, 20)),
@@ -241,7 +251,9 @@ TESTS = [
     ("ftmul rf4, rf6, rf8", encode_orrr(0x44, 0x12, 4, 6, 8)),
     ("ftdiv rf4, rf6, rf8", encode_orrr(0x44, 0x13, 4, 6, 8)),
     ("ftrem rf4, rf6, rf8", encode_orrr(0x44, 0x14, 4, 6, 8)),
-    ("ftsclb rf4, rf6, rf8", encode_orrr(0x44, 0x15, 4, 6, 8)),
+    # ftsclb's third operand is rdhd (RD bank; contracts/opcodes.yaml id
+    # ftsclb_orrr_rf), not rfhd -- unlike the plain ft* forms above.
+    ("ftsclb rf4, rf6, rd8", encode_orrr(0x44, 0x15, 4, 6, 8)),
     ("ftsgnn rf4, rf6, rf8", encode_orrr(0x44, 0x16, 4, 6, 8)),
     ("ftsgnj rf4, rf6, rf8", encode_orrr(0x44, 0x17, 4, 6, 8)),
     ("foadd rf4, rf6, rf8", encode_orrr(0x44, 0x18, 4, 6, 8)),
@@ -249,7 +261,9 @@ TESTS = [
     ("fomul rf4, rf6, rf8", encode_orrr(0x44, 0x1A, 4, 6, 8)),
     ("fodiv rf4, rf6, rf8", encode_orrr(0x44, 0x1B, 4, 6, 8)),
     ("forem rf4, rf6, rf8", encode_orrr(0x44, 0x1C, 4, 6, 8)),
-    ("fosclb rf4, rf6, rf8", encode_orrr(0x44, 0x1D, 4, 6, 8)),
+    # fosclb's third operand is rdhd (RD bank; contracts/opcodes.yaml id
+    # fosclb_orrr_rf), not rfhd -- unlike the plain fo* forms above.
+    ("fosclb rf4, rf6, rd8", encode_orrr(0x44, 0x1D, 4, 6, 8)),
     ("fosgnn rf4, rf6, rf8", encode_orrr(0x44, 0x1E, 4, 6, 8)),
     ("fosgnj rf4, rf6, rf8", encode_orrr(0x44, 0x1F, 4, 6, 8)),
     ("ftqcmp rd4, rf6, rf8", encode_orrr(0x44, 0x20, 4, 6, 8)),

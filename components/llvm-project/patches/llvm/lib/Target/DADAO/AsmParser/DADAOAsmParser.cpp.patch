@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..4b5f962ff
+index 000000000..45c31c197
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2753 @@
+@@ -0,0 +1,2791 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -759,6 +759,36 @@ index 000000000..4b5f962ff
 +  return 0;
 +}
 +
++// True iff the register belongs to the RF bank (rf0..rf63).
++static bool isRFRegister(MCRegister R) {
++  return R.id() >= DADAO::rf0 && R.id() <= DADAO::rf63;
++}
++
++// Register-bank predicates used by pseudo-instruction expansion.
++static bool isGPRDRegister(MCRegister R) {
++  return R.id() >= DADAO::rd0 && R.id() <= DADAO::rd63;
++}
++static bool isGPRBRegister(MCRegister R) {
++  return R.id() >= DADAO::rb0 && R.id() <= DADAO::rb63;
++}
++static bool isGPRARegister(MCRegister R) {
++  return R.id() >= DADAO::ra0 && R.id() <= DADAO::ra63;
++}
++
++// Register bank (寄存器组) of a DADAO register, or -1 for anything else.  A
++// `{start:end}` group must name consecutive registers of exactly one bank.
++static int regGroupBank(MCRegister R) {
++  if (isGPRDRegister(R))
++    return 0;
++  if (isRFRegister(R))
++    return 1;
++  if (isGPRARegister(R))
++    return 2;
++  if (isGPRBRegister(R))
++    return 3;
++  return -1;
++}
++
 +//===----------------------------------------------------------------------===//
 +// Register group parsing: {reg}, {r1:r2}, {r1, r2}, {r1, r2}?
 +//
@@ -811,15 +841,39 @@ index 000000000..4b5f962ff
 +                   "expected '}' to close register group");
 +    getParser().Lex(); // consume '}'
 +
-+    // Compute count from range.
-+    unsigned StartIdx = First.id() - DADAO::rd0;
-+    unsigned EndIdx = Last.id() - DADAO::rd0;
-+    // All register banks are contiguous, so the difference works for any bank.
++    // Compute count from the range, within one bank (contract-isa.md §15.1 /
++    // contract-fp.md §15, rule `mreg_range_overflow`): a `{start:end}` group
++    // names `count` consecutive registers of a single bank and must satisfy
++    // `start + count <= 64` -- no wrap, no truncation.  The register *enum*
++    // lays the four banks out back to back, so an enum-id difference is only
++    // meaningful inside one bank: measuring `{rd63:rf61}` that way yields 63
++    // merely because rf0 follows rd63 in the enum, and the group is accepted
++    // and encoded as `0x40BBFFFF` (ISS-m20-001).  Measure the in-bank
++    // hardware encoding (0..63 for every bank) instead, and reject a group
++    // whose ends belong to different banks.  (`mreg_zero`, count 0, is not
++    // expressible in assembly text: a range has end >= start, and a single
++    // register is count 1; it is enforced on the decode side, ISS-468.)
++    const int StartBank = regGroupBank(First);
++    const int EndBank = regGroupBank(Last);
++    if (StartBank < 0 || EndBank < 0)
++      return Error(RStart, "expected a register name in register group");
++    if (StartBank != EndBank)
++      return Error(RStart,
++                   "invalid register range (mreg_range_overflow): the start "
++                   "and end registers are in different register banks; a "
++                   "register group must stay within one bank");
++    const MCRegisterInfo *MRI = getContext().getRegisterInfo();
++    if (!MRI)
++      return Error(RStart, "register range: register info unavailable");
++    unsigned StartIdx = MRI->getEncodingValue(First);
++    unsigned EndIdx = MRI->getEncodingValue(Last);
 +    if (EndIdx < StartIdx)
 +      return Error(RStart, "invalid register range: end < start");
 +    unsigned Count = EndIdx - StartIdx + 1;
-+    if (Count > 64)
-+      return Error(RStart, "register range too large");
++    if (StartIdx + Count > 64)
++      return Error(RStart,
++                   "invalid register range (mreg_range_overflow): start + "
++                   "count exceeds the 64-register bank");
 +
 +    SMLoc EndLoc = getParser().getTok().getLoc();
 +    Operands.push_back(
@@ -1568,22 +1622,6 @@ index 000000000..4b5f962ff
 +  if (Op->Kind == DADAOOperand::kRegGroup && !Op->getRegList().empty())
 +    return Op->getRegList()[0];
 +  return MCRegister();
-+}
-+
-+// True iff the register belongs to the RF bank (rf0..rf63).
-+static bool isRFRegister(MCRegister R) {
-+  return R.id() >= DADAO::rf0 && R.id() <= DADAO::rf63;
-+}
-+
-+// Register-bank predicates used by pseudo-instruction expansion.
-+static bool isGPRDRegister(MCRegister R) {
-+  return R.id() >= DADAO::rd0 && R.id() <= DADAO::rd63;
-+}
-+static bool isGPRBRegister(MCRegister R) {
-+  return R.id() >= DADAO::rb0 && R.id() <= DADAO::rb63;
-+}
-+static bool isGPRARegister(MCRegister R) {
-+  return R.id() >= DADAO::ra0 && R.id() <= DADAO::ra63;
 +}
 +
 +// Build a single-register `{r}` group operand (range of length 1).  The pseudo
