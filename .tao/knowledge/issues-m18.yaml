@@ -5,6 +5,14 @@
 # `ISS-m18-NNN`（NNN 从 001 起，取本文件内未用最小号）。跨文件修改须用户同意；
 # 里程碑收尾时本文件应清空，未解决条目汇总到 `issues-left.yaml`。
 #
+- id: ISS-m18-002
+  scope:
+  - infra
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`issues-*.yaml` 删掉一条 open 条目不会触发任何常驻门控（`m18-infra-004` 船后补验实测：删一条 open 分册条目，`check_issues`/`check-knowledge-refs`/`check-milestones-fresh` 全 rc=0）。`check_issues` 只校验形状/重复/文件-里程碑一致与计数行，无「条目总数/各册 open 数」基线。处置：在 `check_issues` 增总条数与分册计数期望（或 `issues.yaml` 侧加 `--expect` 计数文件），删除/迁移条目必须同步计数；由后续 infra 任务承接。"
 - id: ISS-444
   scope:
   - linux
