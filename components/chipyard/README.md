@@ -103,7 +103,7 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
   - `SYS_WRITEC`/`SYS_WRITE0` 逐字节写 stdout（不截断、不重编码）；无定义返回值按 gem5/QEMU 约定写 `0xdeadbeef`。
   - `SYS_WRITE` 读参数块〔句柄, 缓冲区指针, 字节数〕；**本阶段未实现 `SYS_OPEN`**，故句柄 `1`=stdout、`2`=stderr 是本 harness 的约定（非 spec 断言），其它句柄返回 `-1` 并告警。
   - `SYS_CLOCK` = 自进程启动的宿主 CPU 百分秒（与 QEMU `clock()/(CLOCKS_PER_SEC/100)` 同式），返回值单调不减（实现内做下界钳制）。
-  - `SYS_EXIT` 读参数块〔原因码, 子码〕：原因码 `0x20026` 时宿主退出码 = 子码（`spec §7.1` guest `0x00–0x3F`=PASS、`0x40–0x7F`=FAIL），否则为 1；以进程退出实现**有界停机**，不依赖 TestDriver 超时。
+  - `SYS_EXIT` 读参数块〔原因码, 子码〕：原因码 `0x20026` 时宿主退出码 = 子码（分段与位域以 `spec/Kaiwu §7.1` 为准，本 harness 不复述），否则为 1；以进程退出实现**有界停机**，不依赖 TestDriver 超时。
   - **未实现服务号 ⇒ 明确报错并给出服务号（十六进制）后以非零退出**，不静默返回 0。
 - **三平台**：`tests/shared/bootrom/semihost_smoke.S` 的同一 ELF 在 QEMU `kaiwu-tiny`、gem5 FS `tiny` 与本 harness 上 stdout 逐字节一致、退出码一致；`semihost_fail.elf` 验证 guest FAIL 段映射，`semihost_unimpl.elf` 验证未实现服务号报错，`semihost_write.elf` 覆盖 `SYS_WRITE`（QEMU/gem5 的 raw stdout 句柄语义不同——gem5 未 `SYS_OPEN` 时 `files[1]` 越界崩溃、QEMU 需先开 `:tt`——故 `SYS_WRITE` 单独成像，不进入三平台比对集）。
 

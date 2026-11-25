@@ -52,12 +52,7 @@ M1 的 QEMU 语义测试需要一个 harness 来构建测试二进制、运行 Q
 
 ### D5 退出码协议对齐 ADR-0004
 
-- guest：`0x00`–`0x3F` = PASS，`0x40`–`0x7F` = FAIL（细分码见 `QEMU-015t`）
-- 其它 cfx：`0x80`–`0xBF`（`bit5:0` = cfxHA）
-- monitor：`0xC0`–`0xFF`（`bit5:4` = 运行模式，`bit3:0` = DADAO 异常位索引）
-- 完整分段/位域见 `spec/Kaiwu §7.1`。
-
-判定只看 `$?`。
+退出码的分段与位域以 `spec/Kaiwu §7.1` 为准，本 ADR 不复述；判定只看 `$?`。
 
 **状态**：Accepted（用户确认 2026-09-19；rev. 2026-11-05：退出码分段同步 `spec/Kaiwu §7.1`）
 
