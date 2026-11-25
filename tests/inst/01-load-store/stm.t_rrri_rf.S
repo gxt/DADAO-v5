@@ -94,7 +94,7 @@ __rb0p_ck:
 	@@ ---- boundary：immu6=63（最大合法个数）整组存储（MUNI 同值数据单元，63 个 32 位元素）----
 	@@   源组 = RF 的 63 个元素（ldm.t 预装：只写低 32 位；数据单元内两元素 0x0F1E2D3C/0x4B5A6978 交替）
 	@@   首 0x000 / 中 0x080 / 尾 0x0F8（高 4 B = 第 63 个元素、低 4 B 保持 MSTORE 模式）
-	@@   0x100 = 第 64 个元素，未写 ⇒ 保持 MSTORE 模式 0xC0DE0000000000C0
+	@@   0x100 = 第 65 个元素（i=64），未写 ⇒ 保持 MSTORE 模式 0xC0DE0000000000C0
 	set.rb rb3, MUNI
 	ldm.t	{rf1:rf63}, [rb3, rd0]
 	set.rb rb4, MSTORE

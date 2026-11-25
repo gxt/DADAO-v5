@@ -44,9 +44,9 @@ d22f518f725a591fd6ff067bac14629edf82c77c5e5966dc343e438f406add26  tests/inst/01-
 15791975499ab9ffe5893344f01149e8e483610a73f459b07ac8f23fad8a0585  tests/inst/01-load-store/stm.o_rrri_rb.S
 98277b11b7e00a298b19b60c51b5a94cf71eacac2316013eba7e07fdccd74e08  tests/inst/01-load-store/stm.o_rrri_rd.S
 18acf864107e692762e21827500ee3aa518c75a8e956bd915929249fe4b63b0b  tests/inst/01-load-store/stm.o_rrri_rf.S
-7b06c49be87256b964dde2e30fc8185a1eecd17cbabf95c32eef648b54740039  tests/inst/01-load-store/stm.t_rrri_rd.S
-1bd0a7ce90fc66c827ee873c62c76d5c360b2ede2a89a7b6f05a174188709149  tests/inst/01-load-store/stm.t_rrri_rf.S
-bc325ee14942d8e01ef16d38711267d1463b8fb6a3536c891dc89b96819d09cb  tests/inst/01-load-store/stm.w_rrri_rd.S
+628eeb1bb54a15a7ab01442298a1aad996e25c39213d9761b27788c754887400  tests/inst/01-load-store/stm.t_rrri_rd.S
+972a44762bf49fff0c5118035cdf884fde053d2be55f39ca2c319224307d019b  tests/inst/01-load-store/stm.t_rrri_rf.S
+aa75bb1ef549f13d5e21542623f2b9e887416495905e73fc34cf569aa91fc542  tests/inst/01-load-store/stm.w_rrri_rd.S
 db7b0b413a6bdd8400475fe3dd837034e2d7c8ded96f9c2152632109ed15e623  tests/inst/02-reg-copy/02-reg-copy.inc
 9fcc2583960304c3da94da3cf96d5952f1273f3c7d0e2dd825268d55f8f20145  tests/inst/02-reg-copy/cs.eq_rrrr_rd.S
 ee0fdd0f59fb60baac90f57db0a5e48b502c91e60674c83b58f9b64fcd132e13  tests/inst/02-reg-copy/cs.n_rrrr_rd.S
