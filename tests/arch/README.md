@@ -33,6 +33,8 @@ python3 tests/arch/run_arch.py --list
   fail-closed）；没有 RTL
   承载的 cfx **fail-closed**（`PlatformError` ⇒ 非零退出），禁止静默降级为
   「其余平台通过」。`rtl-coverage.yaml` 登记的 `gap` 记 `GAP`（不当作通过）。
+  只给**一个平台**时进入**单平台模式**：结果只与该 case 的 `expected.yaml`
+  对照，不做跨平台比较（不把未跑的腿判成「不一致」）；多平台仍逐槽/逐检查比较。
 - `--cache-model`：缺省 `on`；传 `off` 退出 2。**唯一例外**是 `modes.yaml` 显式
   写 `cache_model: "off"` 的用例（`arch-cache-004` 的 CACHE-27 off 分支）：
   `run_arch` 按该字段覆盖全局值，RTL 无开关时由 `cache/rtl-coverage.yaml` 记 gap。
@@ -41,11 +43,16 @@ python3 tests/arch/run_arch.py --list
   （hypv/supv/user）。用例的允许集（`tests/arch/modes.yaml`）不含该模式 ⇒ 打印 `N/A` + 原因；
   全部被排除 ⇒ 退出 2（fail-closed）。只有声明多模式的 `kind: driver` 才接
   `--mode`；`kind: asm` 收到非 `hmon` 时**显式**报错，不静默按 hmon 跑。
+  RTL 承载同收 `--mode`：cfx4 在 Vast 上没有 `<mode>` 行（`DIV-09`，U/S ⇒
+  `CFXPERM`）⇒ `check_ptw_rtl.py` 只出 hmon，smon/umon 返回 `GAP`（77）并打印
+  原因，不静默按 hmon 跑。
 - `--self-test`：不启动模拟器，只校验索引的 `machine/kind`、各 `expected.yaml` 的
   签名流结构、驱动的 `--selfcheck`，以及 gem5 承载与 chipyard 的 fail-closed 探针。
 - `--list`：打印 `cfx × case × platform` 计划表，不执行。
 - 产物：运行期证据目录下每 case × 平台一份 `signature.bin` + `run.json`
   （进程命令、rc、stdout/stderr 日志路径）；不写固定绝对路径。
+- 运行期证据脚本：`mkdtemp` 造的临时工作目录在断言/注入还原后清理（异常路径也清）；
+  需要保留失败现场时设 `KEEP_TMP=1`（脚本会打印保留路径），看完自行清理。
 
 退出码：`0` 全通过；`1` 任一用例/平台失败或 SKIP；`2` 用法/配置错误。
 
@@ -138,7 +145,13 @@ RTL（chipyard `WumingVastConfig`）接入 `m16-testcases-010` 的同一组 case
   测试页 PTE 的 HSJU 取 `H|S|U` ⇒ 签名流与模式无关，三方逐槽同一组值。
   PTE 的 S/U 轴在 `arch-ptw-011` 的 `checks_by_mode` 里逐模式构造。RTL 的
   step5 测试路径仍只交付 hmon/hypv（`tests/ee-vast/README.md`），故 RTL 承载
-  只跑 hmon 一次。
+  只出 hmon 镜像。
+- **RTL 的 `--mode`（`m16-testcases-024`）**：`check_ptw_rtl.py` 与
+  `check_cache_rtl.py`/`check_hart_rtl.py` 同接口收 `--mode`，允许集从
+  `modes.yaml` 现场读；cfx4 在 Vast 上没有 `<mode>` 行（U/S 访问 fail-closed ⇒
+  `CFXPERM`，`expected-divergences.yaml` 的 `DIV-09`）⇒ smon/umon 返回 77
+  （`GAP`）并打印原因，**不**静默按 hmon 跑。`run_arch --platforms chipyard`
+  因此不再因未知 `--mode` 参数 rc=2。
 - **RTL 差异**：`expected-divergences.yaml` 的 `slots`（scope 含 chipyard、
   `close_when` 必填）；QEMU/gem5 侧仍按规范值判，RTL 侧按登记值判；例外被修好
   时 RTL 承载判红，提示删除条目。当前 cfx4 **无**逐槽例外（`DIV-14` 已随

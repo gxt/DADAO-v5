@@ -87,3 +87,11 @@ RTL 的 `cfx_pmem` SRAM 窗口后，`ptw_sig.S` 加 `PTW_CASE=13`（页表整表
   源位）、`ENV_TLB_INVALIDATE`（改过 L1[3] 的 U 位后丢掉旧转换），见
   `common/env-README.md`。
 - `R/W/X` 与 HSJU 正交；`J` 位按用户 2026-11-22 裁定不测。
+- **RTL 侧只出 hmon**（`m16-testcases-024`）：`check_ptw_rtl.py` 收
+  `--mode hmon|smon|umon`（与 `check_cache_rtl.py`/`check_hart_rtl.py` 同接口），
+  允许集从 `modes.yaml` 现场取；cfx4 在 Vast 上没有 `<mode>` 行（U/S ⇒
+  `CFXPERM`，`expected-divergences.yaml` 的 `DIV-09`）⇒ smon/umon 返回 77
+  （`GAP`）并打印 DIV-09 原因，不静默按 hmon 跑；`run_arch --platforms
+  chipyard` 因此不再因未知 `--mode` 参数 rc=2。`modes.yaml` 的 `cfx_access`
+  是 QEMU/gem5 环境做权限准备的输入（RTL cfx4 没有 env 载体，U/S 访问本来就
+  被 DIV-09 排除），RTL 侧只核对声明与允许集一致，不放宽掩码。

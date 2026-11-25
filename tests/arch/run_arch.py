@@ -5,6 +5,8 @@
   * **只测 Kaiwu-Vast**（`system`；cfx 0/2/3/4/5/15/32/34/63）；
   * QEMU/gem5/chipyard 是同一 scope 的三种承载；未实现的后端 **fail-closed**
     （记 SKIP 并非零退出，禁止静默降级为「其余平台通过」）；
+  * 只给**一个** `--platforms` ⇒ 单平台模式：结果只对照各 case 的
+    `expected.yaml`，不做跨平台一致性比较（不把未跑的腿当「不一致」）；
   * `chipyard` 的 cfx4 由 `check_ptw_rtl.py` 接（`m16-chipyard-018`）；
     `rtl-coverage.yaml` 登记的 `gap` 记 `GAP`（退出码 77，不是 PASS）；
   * 用例/脚本/数据都在 `tests/arch/` 内；签名机制真源在 `tests/shared/`。
@@ -439,6 +441,7 @@ def run(args) -> int:
     platforms = (_split_csv(args.platforms, PLATFORMS, "--platforms")
                  if args.platforms else list(PLATFORMS))
     cases = select_level(load_index(), args.level)
+    single_platform = len(platforms) == 1
     if args.case:
         cases = [c for c in cases if c["id"] == args.case]
         if not cases:
@@ -490,6 +493,10 @@ def run(args) -> int:
           % (args.level, cfx, platforms, args.cache_model, args.mode,
              len(cases)))
     print("work=%s" % work)
+    if single_platform:
+        print("单平台模式：只跑 %s，结果仅与 expected.yaml 对照；"
+              "不做跨平台一致性比较（不把未跑的腿当「不一致」）"
+              % platforms[0])
     print("=" * 72)
 
     results = []
@@ -541,6 +548,29 @@ def run(args) -> int:
     case_by_id = {c["id"]: c for c in cases}
     cross = {}
     for case_id, per in sorted(by_case.items()):
+        if single_platform:
+            # 显式单平台模式（`m16-testcases-024`）：结果已在后端按
+            # expected.yaml / 驱动自检判过；这里只记「仅本平台」，
+            # 不把未跑的腿当「跨平台不一致」。
+            only = platforms[0]
+            res = per.get(only)
+            if res is None:
+                continue
+            sig = Path(res["signature"])
+            nslots = (sig.stat().st_size // 8) if sig.is_file() else 0
+            cross[case_id] = {
+                "platforms": [only], "single_platform": True,
+                "verdict": res["verdict"], "signature_slots": nslots,
+                "gap": res["verdict"] == "GAP",
+                "ok": res["verdict"] in ("PASS", "GAP"),
+            }
+            if res["verdict"] == "GAP":
+                print("  GAP   %-22s 单平台 %s：登记缺口（%s）"
+                      % (case_id, only, res.get("reason", "")))
+            else:
+                print("  PASS  %-22s 单平台 %s：仅对照 expected（%d 槽）"
+                      % (case_id, only, nslots))
+            continue
         gaps = sorted(name for name, res in per.items()
                       if res["verdict"] == "GAP")
         if gaps:
@@ -552,10 +582,15 @@ def run(args) -> int:
             for name, res in ref.items():
                 path = Path(res["signature"])
                 ref_blobs[name] = path.read_bytes() if path.is_file() else b""
-            ref_ok = (len(ref_verdicts) == 1
-                      and len({blob for blob in ref_blobs.values()}) == 1
-                      and len({tuple(_observed_checks(res))
-                               for res in ref.values()}) <= 1)
+            if ref:
+                ref_ok = (len(ref_verdicts) == 1
+                          and len({blob for blob in ref_blobs.values()}) == 1
+                          and len({tuple(_observed_checks(res))
+                                   for res in ref.values()}) <= 1)
+            else:
+                # 多平台下所有腿都是登记缺口（如只剩 chipyard 且 gap）：
+                # 没有可比的「其余平台」，不构成本条失败。
+                ref_ok = True
             entry = {"platforms": sorted(per), "gap": True,
                      "gap_platforms": gaps, "ref_ok": ref_ok,
                      "gap_reasons": {name: per[name].get("reason", "")

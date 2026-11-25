@@ -125,7 +125,7 @@
 >
 > **ADWBFAIL 收口注（`m16-testcases-023`，2026-11-25）**：用户裁定**页表必须放内存**
 > （PTE 一律用内存物理地址，不得放 BootROM/只读镜像）且**不构建 ADWBFAIL 用例** ⇒
-> `arch-ptw-007` 删除 `flush_adwbfail` 子项（签名槽 10 → 8，只留 `flush_ok` 2 槽），
+> `arch-ptw-007` 删除 `flush_adwbfail` 子项（签名槽 13 → 11，`007` 只留 `flush_ok` 2 槽），
 > **`arch-ptw-014` 整条删除**（同类 ADWBFAIL 构造，case 数 15 → 14，RTL 的 gap 只剩
 > `015`）、`DIV-14` 删除、`DIV-04` 关闭（`wont-fix`）。RTL 的 `ptw_walk`（`CASE_ADWB`）/
 > `ptw_tlb`（`CASE_OR`）注入镜像仅为实现层内部证据，**不构成用例覆盖**。

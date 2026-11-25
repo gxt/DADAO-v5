@@ -319,9 +319,9 @@
   scope:
   - testcases
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: "m16-testcases-024（mkdtemp 走 finally 清理，4 次全量 0 B/0 目录）"
   title: 【P3】`m16-testcases-021` 证据脚本的 `checks.py` 中 `a5`/`a8` 用 `tempfile.mkdtemp(dir=TMP)` 且从不清理：每次 `run.sh` 在运行期临时目录遗留约 300 MB（A8 注入态 `flood.bin`），4 次全量后目录涨到 952 MB（`/tmp` 曾 82%）。建议在注入/断言后 `rm -rf` 该子目录（与 ISS-522 防写满磁盘同源）。
 - id: ISS-377
   scope:
@@ -481,9 +481,9 @@
   - testcases
   - chipyard
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: "m16-testcases-024（`check_ptw_rtl --mode` + 单平台模式）"
   title: "【P2】`tests/arch/ptw/check_ptw_rtl.py` 缺 `--mode` 支持，而 `modes.yaml` 声明 ptw 三模式 ⇒ `run_arch --cfx 4 --platforms chipyard` rc=1（driver rc=2）；在 `b9622776`（m17 前）同样存在 ⇒ 基线红。另：单平台 `run_arch`（只给 `--platforms chipyard`）会对未跑的 QEMU/gem5 腿报假「跨平台不一致」，单平台回归应直调 `check_*_rtl.py` 或让 `run_arch` 识别单平台。`m16-chipyard-029` 复核发现。"
 - id: ISS-m16-011
   scope:

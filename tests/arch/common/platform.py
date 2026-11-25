@@ -258,8 +258,9 @@ def _run_chipyard(case, ctx) -> dict:
            "--signature-out", str(signature),
            "--timeout", str(ctx.timeout)]
     # 运行模式（与 qemu/gem5 同一门槛）：只有**声明了多个允许模式**的 driver 才收
-    # `--mode`，单模式 RTL 承载（如 `check_ptw_rtl.py`）的命令行因此不变
-    # （`m16-chipyard-023`：`arch-time-001` 的 RTL 承载要出三个镜像）。
+    # `--mode`，单模式 RTL 承载的命令行因此不变。cfx4 的 RTL 承载收 `--mode` 但
+    # 只出 hmon（`DIV-09` ⇒ smon/umon 记 GAP），见 `check_ptw_rtl.py`
+    # （`m16-testcases-024`）。
     modes = case.get("modes") or ["hmon"]
     if len(modes) > 1:
         cmd += ["--mode", getattr(ctx, "mode", "hmon")]

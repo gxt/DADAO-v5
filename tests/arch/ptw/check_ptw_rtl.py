@@ -20,11 +20,18 @@
 `expected.yaml` 双向核对；cause 编码来自 `contract-see §6.1/§6.1.1`。
 
 用法（`run_arch.py` 的 chipyard 后端按此契约调用）：
-  check_ptw_rtl.py --only arch-ptw-002 --sim PATH --work-dir DIR \
+  check_ptw_rtl.py --only arch-ptw-002 --sim PATH --mode hmon --work-dir DIR \
       --signature-out PATH
   check_ptw_rtl.py --selfcheck
   check_ptw_rtl.py --list
-退出码：0 通过；1 判据失败；2 用法/缺件/配置错误；77 已登记的 RTL 缺口。
+退出码：0 通过；1 判据失败；2 用法/缺件/配置错误；77 已登记的 RTL 缺口
+（`rtl-coverage.yaml` 的 `gap`，或 `--mode` 不在 RTL 支持集）。
+
+运行模式（`m16-testcases-024`）：与 `check_cache_rtl.py`/`check_hart_rtl.py`
+同接口收 `--mode hmon|smon|umon`，允许集从 `tests/arch/modes.yaml` 现场取。
+cfx4 在 Vast 上没有 `<mode>` 行（U/S 访问 fail-closed ⇒ `CFXPERM`，
+`expected-divergences.yaml` 的 `DIV-09`）⇒ 本承载只出 hmon 镜像；
+smon/umon 返回 77 并打印 DIV-09 原因，**不**静默按 hmon 跑。
 """
 from __future__ import annotations
 
@@ -55,6 +62,13 @@ LDS = _HERE.with_name("ptw_sig.lds")
 COVERAGE = _HERE.with_name("rtl-coverage.yaml")
 EXPECTED = _HERE.with_name("expected.yaml")
 DIVERGENCES = _ARCH / "expected-divergences.yaml"
+MODES_YAML = _ARCH / "modes.yaml"
+MODES = ("hmon", "smon", "umon")
+# cfx4 的 `<mode>` 行在 Vast 上未落地（`DIV-09`）：只有 hypv 能访问 cfx4，
+# U/S 一律 `CFXPERM`。因此 RTL 承载只出 hmon 镜像；其余允许模式按 DIV-09
+# 记 GAP（本文件退出码 77），不静默按 hmon 跑。
+RTL_MODES = ("hmon",)
+MODE_GAP_DIV = "DIV-09"
 GAP_RC = 77
 DEFAULT_SIM = (_REPO / ".work" / "source" / "chipyard" / "sims" / "verilator"
                / "simulator-chipyard.harness-WumingVastConfig")
@@ -119,6 +133,43 @@ def declared_divergences(case_id: str) -> dict:
         raise SetupError(str(exc))
 
 
+def load_modes() -> dict:
+    """`tests/arch/modes.yaml` 的 `cases` 段（唯一真源，不另写允许集）。"""
+    import yaml
+
+    if not MODES_YAML.is_file():
+        raise SetupError("缺件 %s（模式清单）" % MODES_YAML)
+    try:
+        doc = yaml.safe_load(MODES_YAML.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise SetupError("modes.yaml 解析失败: %s" % exc)
+    cases = (doc or {}).get("cases")
+    if not isinstance(cases, dict):
+        raise SetupError("modes.yaml: 顶层必须是 {cases: {<id>: {...}}}")
+    return cases
+
+
+def declared_modes(case_id: str) -> list:
+    """该 case 在 `modes.yaml` 的允许模式；缺失/非法 ⇒ SetupError（fail-closed）。"""
+    entry = load_modes().get(case_id)
+    if not isinstance(entry, dict):
+        raise SetupError("%s 不在 modes.yaml（fail-closed）" % case_id)
+    modes = entry.get("modes")
+    if not isinstance(modes, list) or not modes:
+        raise SetupError("%s: modes.yaml 的 `modes` 必须是非空列表" % case_id)
+    for mode in modes:
+        if mode not in MODES:
+            raise SetupError("%s: modes.yaml 含非法模式 %r" % (case_id, mode))
+    return modes
+
+
+def mode_gap_reason() -> str:
+    """cfx4 的 S/U 模式缺口：按 `DIV-09` 显式排除（不是静默不跑）。"""
+    return ("RTL cfx4 只出 hmon 镜像：Vast 的 cfx4 没有 `<mode>` 行，"
+            "U/S 访问 fail-closed ⇒ CFXPERM（expected-divergences.yaml %s）"
+            % MODE_GAP_DIV)
+
+
 # ---------------------------------------------------------------------------
 # 构建
 # ---------------------------------------------------------------------------
@@ -162,15 +213,24 @@ def build(case_no: int, work: Path, bin_dir: Path = None) -> Path:
 # 判据
 # ---------------------------------------------------------------------------
 def run_case(case_id: str, sim: Path, work: Path, timeout: int,
-             bin_dir: Path = None) -> tuple:
-    """返回 (rc, blob, detail)。rc=0 通过、1 失败、77 已登记缺口。"""
+             bin_dir: Path = None, mode: str = "hmon") -> tuple:
+    """返回 (rc, blob, detail)。rc=0 通过、1 失败、77 已登记缺口/模式缺口。"""
     table = coverage()
     if case_id not in table:
         raise SetupError("%s 不在 rtl-coverage.yaml（fail-closed）" % case_id)
     entry = table[case_id]
+    declared = declared_modes(case_id)
+    if mode not in declared:
+        raise SetupError("%s 不允许 --mode %s（modes.yaml 只有 %r）"
+                         % (case_id, mode, declared))
     if entry["status"] == "gap":
         print("  GAP   rtl        %-22s %s" % (case_id, entry["reason"]))
         return GAP_RC, b"", entry["reason"]
+    if mode not in RTL_MODES:
+        reason = mode_gap_reason()
+        print("  GAP   rtl        %-22s --mode %s: %s"
+              % (case_id, mode, reason))
+        return GAP_RC, b"", reason
     if not sim.is_file():
         raise SetupError("缺 RTL 仿真器: %s（--sim 或 chipyard Vast 构建）" % sim)
     case_no = int(entry["rtl_case"])
@@ -310,6 +370,52 @@ def selfcheck() -> int:
         if e["status"] in ("gap", "partial"):
             print("  DECL  %-22s %-9s %s" % (cid, e["status"], e["reason"]))
 
+    # 5) 运行模式：允许集取 modes.yaml；RTL 不出的模式必须由 DIV-09 显式登记
+    #    （`m16-testcases-024`）——不允许「RTL 只 hmon」而 modes.yaml 沉默。
+    mode_before = len(problems)
+    excluded = set()
+    for cid in sorted(table):
+        try:
+            declared = declared_modes(cid)
+        except SetupError as exc:
+            problems.append(str(exc))
+            continue
+        missing = sorted(set(RTL_MODES) - set(declared))
+        if missing:
+            problems.append("%s: modes.yaml 未声明 RTL 支持模式 %r（声明 %r）"
+                            % (cid, missing, declared))
+        excluded.update(m for m in declared if m not in RTL_MODES)
+    if excluded:
+        try:
+            doc = yaml.safe_load(DIVERGENCES.read_text(encoding="utf-8"))
+            by_id = {d["id"]: d for d in (doc or {}).get("divergences") or []}
+        except (OSError, yaml.YAMLError) as exc:
+            problems.append("读 expected-divergences.yaml 失败: %s" % exc)
+        else:
+            entry = by_id.get(MODE_GAP_DIV)
+            if not isinstance(entry, dict):
+                problems.append("RTL 不出的模式 %r 缺 `%s` 登记"
+                                % (sorted(excluded), MODE_GAP_DIV))
+            else:
+                if entry.get("status") != "active":
+                    problems.append("%s 状态 %r（应是 active）"
+                                    % (MODE_GAP_DIV, entry.get("status")))
+                if "chipyard" not in (entry.get("scope") or []):
+                    problems.append("%s 的 scope 必须含 chipyard" % MODE_GAP_DIV)
+                if "CFXPERM" not in (entry.get("impact") or ""):
+                    problems.append("%s 的 impact 必须写明 CFXPERM 原因"
+                                    % MODE_GAP_DIV)
+    if len(problems) == mode_before:
+        if excluded:
+            print("  PASS  --mode: RTL 支持 %r；%s 按 %s 记 GAP（modes.yaml 现场取）"
+                  % (list(RTL_MODES), sorted(excluded), MODE_GAP_DIV))
+        else:
+            print("  PASS  --mode: RTL 支持 %r（modes.yaml 无额外模式）"
+                  % list(RTL_MODES))
+    else:
+        print("  FAIL  --mode: 模式/登记核对有 %d 项问题"
+              % (len(problems) - mode_before))
+
     print("-" * 72)
     if problems:
         for p in problems:
@@ -322,8 +428,13 @@ def selfcheck() -> int:
 
 def list_plan() -> int:
     for cid, e in sorted(coverage().items()):
-        print("%-22s %-9s rtl_case=%s %s"
-              % (cid, e["status"], e.get("rtl_case"), e.get("reason", "")))
+        if e["status"] == "gap":
+            print("%-22s %-9s %s" % (cid, e["status"], e.get("reason", "")))
+            continue
+        gaps = [m for m in declared_modes(cid) if m not in RTL_MODES]
+        print("%-22s %-9s rtl_case=%s modes=%s gap_modes=%s"
+              % (cid, e["status"], e.get("rtl_case"), ",".join(RTL_MODES),
+                 ",".join(gaps) or "-"))
     return 0
 
 
@@ -332,6 +443,9 @@ def main(argv=None) -> int:
     ap.add_argument("--only", default=None)
     ap.add_argument("--sim", default=None,
                     help="chipyard Vast Verilator 仿真器（缺省 = 构建树）")
+    ap.add_argument("--mode", default="hmon", choices=MODES,
+                    help="运行模式（与 check_cache_rtl/check_hart_rtl 同接口）；"
+                         "cfx4 在 Vast 上只有 hmon，其余模式按 DIV-09 记 GAP")
     ap.add_argument("--work-dir", default=None)
     ap.add_argument("--signature-out", default=None)
     ap.add_argument("--timeout", type=int, default=TIMEOUT)
@@ -355,7 +469,7 @@ def main(argv=None) -> int:
         bin_dir = (Path(args.toolchain_bin) if args.toolchain_bin
                    else _paths.host_toolchain_bin())
         rc, blob, detail = run_case(args.only, sim.resolve(), work.resolve(),
-                                    args.timeout, bin_dir)
+                                    args.timeout, bin_dir, mode=args.mode)
     except SetupError as exc:
         print("check_ptw_rtl: SETUP: %s" % exc, file=sys.stderr)
         return 2
@@ -363,7 +477,7 @@ def main(argv=None) -> int:
     sig_out.parent.mkdir(parents=True, exist_ok=True)
     sig_out.write_bytes(blob if rc == 0 else b"")
     (work / "run.json").write_text(json.dumps(
-        {"case": args.only, "rc": rc, "detail": detail,
+        {"case": args.only, "mode": args.mode, "rc": rc, "detail": detail,
          "signature_bytes": len(blob), "sim": str(sim)},
         ensure_ascii=False, indent=2), encoding="utf-8")
     if rc == GAP_RC:
