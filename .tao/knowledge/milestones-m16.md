@@ -22,13 +22,13 @@
 | --- | --- | --- |
 | m16-chipyard-031 | 1–2 h | RTL `cfx_power_ctrl` 写侧（写接受 + `§4.12` 副作用；ISS-525 RTL 部分） |
 | m16-chipyard-030 | 2–4 h | `cfx15.S` 偶发挂死（flake）定位（ISS-m16-011） |
-| m16-gem5-027 | 2–4 h | gem5 RegRAS 改环形缓冲（去搬移，`SimRISC-00 §2.4.3`；等 `m20-gem5-003` 释放写者） |
 | m16-chipyard-033 | 4–8 h | RTL `WumingRegFile` RegRAS 改环形缓冲（去搬移；等用户 `escape` 修复合入） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-gem5-027 | 2026-11-25 23:51 | 2–4 h | gem5 RegRAS 改环形缓冲（去搬移，`SimRISC-00 §2.4.3`；同 QEMU `ra_phys()` 约定） |
 | m16-testcases-024 | 2026-11-25 23:36 | 1–1.5 h | `tests/arch` 收尾二：临时目录清理 + `check_ptw_rtl --mode` + 单平台假不一致 + GEM5 ELF 校验 |
 
 ## 已验证
