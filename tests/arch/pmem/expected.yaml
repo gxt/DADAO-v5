@@ -6,8 +6,8 @@
 # `contracts/opcodes.yaml`）；两个承载（`check_pmem_dma.py` / `check_pmem_rtl.py`）
 # 在通过本平台 oracle 后写**归一化**签名：每槽 1 = 该槽通过。QEMU 的
 # `cause_ip`（0x0010_00xx）与 RTL 的（0xffff_ff01_01xx）不同，不能直接逐槽比；
-# 归一化后 `run_arch.py` 的两方（QEMU+RTL）逐槽比较才有意义（gem5 仍是 R2 前
-# 模型 ⇒ fail-closed，登记 `DIV-17`）。
+# 归一化后 `run_arch.py` 的三方（QEMU+gem5+RTL）逐槽比较才有意义（gem5 的
+# R2 异步面由 `m16-gem5-026` 补齐）。
 #
 # 判据来源：
 #   * `cfx_pmem`（cfxha 32）的 cg15 / SRAM / ERR_CODE：`DADAO-12 §4.9`、

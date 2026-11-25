@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..3000875
+index 0000000..fab7c20
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,488 @@
+@@ -0,0 +1,497 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -418,21 +418,30 @@ index 0000000..3000875
 +            const NodeCfxMode &mr = r.mode[m];
 +            std::fprintf(f, "CFX%02d M%d SWMODE:%016llx "
 +                         "VEC:%016llx TRAPMASK:%016llx MEMMASK:%016llx "
-+                         "REGMASK:%016llx EXEMASK:%016llx INTRMASK:%016llx\n",
++                         "REGMASK:%016llx EXEMASK:%016llx\n",
 +                         ha, m,
 +                         static_cast<unsigned long long>(mr.switchRunMode),
 +                         static_cast<unsigned long long>(mr.excpVector),
 +                         static_cast<unsigned long long>(mr.cfxtrap),
 +                         static_cast<unsigned long long>(mr.cfxmem),
 +                         static_cast<unsigned long long>(mr.cfxreg),
-+                         static_cast<unsigned long long>(mr.cfxexe),
-+                         static_cast<unsigned long long>(mr.cfxIntrMask));
++                         static_cast<unsigned long long>(mr.cfxexe));
 +        }
 +        for (int j = 0; j < 4; ++j) {
 +            std::fprintf(f, "CFX%02d SCR%d:%016llx\n", ha, j,
 +                         static_cast<unsigned long long>(r.scratch[j]));
 +        }
 +    }
++    // cfx_hart cg9 async capture buffer (spec/DADAO-12 §4.7).
++    std::fprintf(f, "ASYNC PREVM:%016llx PREVCFX:%016llx CIP:%016llx "
++                 "FRAME:%016llx PEND:%016llx VEC:%016llx SWM:%016llx\n",
++                 static_cast<unsigned long long>(node.asyncPrevRunMode),
++                 static_cast<unsigned long long>(node.asyncPrevCfxCode),
++                 static_cast<unsigned long long>(node.asyncCauseIp),
++                 static_cast<unsigned long long>(node.asyncSrcFrame),
++                 static_cast<unsigned long long>(node.asyncSrcPending),
++                 static_cast<unsigned long long>(node.asyncExcpVector),
++                 static_cast<unsigned long long>(node.asyncSwitchRunMode));
 +    std::fprintf(f, "\n");
 +    std::fflush(f);
 +}

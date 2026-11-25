@@ -539,13 +539,20 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 - **cfx_pmem DMA**：cg15 rc0–rc4（`src`/`dst`/`size`/`ctrl`/`status`），
   DIR 0=CFX→PA / 1=PA→CFX，BUSY 期间写被忽略、DONE/ERROR W1C；
   ERR_CODE 一组一热 `status[15:3]`（SIZE/CFX_RANGE/PA_RANGE/PA_FAULT）；
-  `IRQ_EN=1` 时置 `cfx_pmem` pending（`1<<8`）；完成事件在 START 后 1 µs
-  （`AtomicSimpleCPU` 指令边界可观测 BUSY）。**hmon 的页表模板必须经 DMA
-  写到 PA 0**，平台不代写。
-- **时间/中断**：`cfx_time` 1 GHz、64 位，`= (curTick-reset)/1000` ns；
-  `cfx_hart` rc2 `cycle` 同源、rc3 `insn` 每指令递增；TIMER 一次性
-  （cmp/ctrl，ISTATUS 只读位）；异步源按 cfxha 升序（hart 15 → pmem 17），
-  每次最多投递一个，mask/pending 保留与释放补投按 spec。
+  `IRQ_EN=1` 的完成置 `cfx_hart cg9 rc4` 的源位 32、`dma_status` W1C 落位；
+  完成事件在 START 后 1 µs（`AtomicSimpleCPU` 指令边界可观测 BUSY）。
+  **hmon 的页表模板必须经 DMA 写到 PA 0**，平台不代写。
+- **时间/中断（ADR-0061 R2，`m16-gem5-026`）**：`cfx_time` 1 GHz、64 位，
+  `= (curTick-reset)/1000` ns；`cfx_hart` rc2 `cycle` 同源、rc3 `insn`
+  每指令递增；TIMER 一次性（cmp/ctrl，ISTATUS 只读位，`IMASK` 为源本地
+  gate、解除即重踢）。异步源身份 = 源 cfxha（TIMER 15、PMEM_DMA 32），
+  **不占 `excp_cause_id`**；掩码 = **当前运行模式 monitor** 的 `cg8 rc1`
+  （复位全 1），pending = `cfx_hart cg9 rc4`；每个指令边界把
+  `pending & ~mask` **一次性**并入一次捕获（`cg9 rc3` 并集、`rc4` 扣除、
+  `excp_async_num` 每次进入 +1），**每次进入整体覆盖** `cg9`（无
+  `frame_valid`、无帧门控）；入口 = `cg9 rc5` 的 supv 单向量（`rc6` 固定 2），
+  `cause_ip` = 已提交指令之后的 `rb0`；`escape imms18 = 2` ⇒ 当前 cfx 的
+  `CFXESC`（`cg9` 不是返回帧）。
 - **CLI**：`--profile {tiny,vast}`（默认 tiny）、`--kernel`（Vast 可选）、
   `--bootrom`（Vast 必需，恰好 4 MiB）、`--trace-cpu <path>`（QEMU `-d cpu`
   兼容：`PC:` / `RD[nn]` / `RB[nn]` / `RF[nn]` / `RA[nn]` / `MODE:` / `CFX..`

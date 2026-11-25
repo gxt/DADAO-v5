@@ -247,11 +247,11 @@ RTL（`m16-chipyard-016/017`）均已实现 cfx5；`run_arch.py --cfx 5` 的三�
 
 ### cfx15 hart — gem5
 
-- **寄存器面**：有。cfx15 在 `kCfxhaMap`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:33`）；`hartRegRead`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:670`）、`hartRegWrite`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:703`）。
-- **命令与副作用**：有。定时器事件 `NodeTimerEvent`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:108`）、到期处理 `nodeTimerExpire`（同文件 `components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:880` 一带）。
-- **异常与子原因**：有。`CauseTimer = 1<<10`（`components/gem5/patches/src/arch/dadao/node_cfx.hh.patch:69`）——**仍为 ADR-0061 R2 前口径**（宏 cause + 目标 cfx 投递）；R2 的 `cg9` 捕获缓冲 / hart-first 投递 / monitor 掩码由 gem5 侧后续任务迁移，本册只记差异、不改 gem5。
-- **现有测试载体**：`arch-hart-001/002`（`tests/arch/hart/check_hart.py`，QEMU/RTL 同一 `cfx15.S`）；gem5 侧因 R2 前模型 fail-closed（`expected-divergences.yaml` `DIV-17`）。
-- **现有门控**：`run_arch --case arch-hart-001 --platforms gem5` 预期 rc=1（fail-closed，非 PASS）。
+- **寄存器面**：有。cfx15 在 `kCfxhaMap`；`hartRegRead`/`hartRegWrite`（cg8 管理寄存器）与 `hartAsyncRegRead`/`hartAsyncRegWrite`（cg9 七槽，`rc7`–`rc15` ⇒ `CFXREG`，`rc3`/`rc4` 写忽略读不变、`rc6` 固定 2）——`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch`。
+- **命令与副作用**：有（`m16-gem5-026` 起为 `ADR-0061` R2）。定时器事件 `NodeTimerEvent`/`nodeTimerExpire`；源事件置 `cfx_hart cg9 rc4` 的 bit 15（`IMASK` 为源本地 gate，解除即重踢），源 ack（重装 `timer_cmp`）落位；投递 `nodeDeliverAsync` 在每个指令边界按**当前运行模式 monitor** 的 `cg8 rc1` 求值，`pending & ~mask` **一次性**进一次捕获（`cg9 rc3` 位图并集、`rc4` 扣除、`excp_async_num` 每次进入 +1），**每次进入整体覆盖** `cg9`（无 `frame_valid`、无帧门控），入口 = `cg9 rc5` 的 supv 单向量、`cause_ip` = 提交后的 `rb0`。
+- **异常与子原因**：有。异步源**不占 `excp_cause_id`**（源身份 = 源 cfxha 15），无 `cause_info`；`cg0`–`cg3 rc4` 不定义（访问 ⇒ `CFXREG`）；`escape imms18 = 2` ⇒ 当前 cfx 的 `CFXESC`（cg9 不是返回帧），`3`/SBZ ⇒ `ILLI`。
+- **现有测试载体**：`arch-hart-001/002`（`tests/arch/hart/check_hart.py`，QEMU/gem5 与 RTL 共用同一 `cfx15.S`）；三方逐槽。
+- **现有门控**：`run_arch --cfx 15 --platforms qemu,gem5,chipyard`。
 
 ### cfx15 hart — RTL
 
@@ -276,10 +276,10 @@ RTL（`m16-chipyard-016/017`）均已实现 cfx5；`run_arch.py --cfx 5` 的三�
 ### cfx32 pmem — gem5
 
 - **寄存器面**：有。cfx32 在 `kCfxhaMap`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:33`）；`dmaRegRead`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:556`）、`dmaRegWrite`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:624`）；pmem 64 KiB 区间（`components/gem5/patches/configs/dadao/fs.py.patch:104`）。
-- **命令与副作用**：有。DMA 事件 `NodeDmaEvent`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:93`）与完成处理（同文件 `components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:600` 一带）。
-- **异常与子原因**：有。`CausePmemDma = 1<<8`（`components/gem5/patches/src/arch/dadao/node_cfx.hh.patch:70`）——**仍为 ADR-0061 R2 前口径**（宏 cause + 目标 cfx 投递）；R2 的源身份 = 源 cfxha（bit 32）/ hart-first 捕获由 gem5 侧后续任务迁移。
-- **现有测试载体**：`arch-pmem-001/002`（`tests/arch/pmem/check_pmem_dma.py` 经 shim）；因仍是 R2 前模型（无 `cfx_hart cg9`）在 gem5 上 fail-closed（`DIV-17`）。
-- **现有门控**：`run_arch --cfx 32 --platforms gem5` 预期 rc=1（fail-closed，非 PASS）。
+- **命令与副作用**：有。DMA 事件 `NodeDmaEvent`/`nodeDmaComplete`；完成（`DONE`/`ERROR` + `IRQ_EN`）置 `cfx_hart cg9 rc4` 的 bit 32，`dma_status` W1C 是源 ack（落位）——`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch`。
+- **异常与子原因**：有。`PMEM_DMA` 源身份 = 源 cfxha 32（无 cause id）；投递 `cfx_hart` 的 R2 捕获缓冲（`m16-gem5-026`），可与 TIMER(15) 同界并入一次捕获。
+- **现有测试载体**：`arch-pmem-001/002`（`tests/arch/pmem/check_pmem_dma.py` 经 shim）；三方逐槽。
+- **现有门控**：`run_arch --cfx 32 --platforms qemu,gem5,chipyard`。
 
 ### cfx32 pmem — RTL
 

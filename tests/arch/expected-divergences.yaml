@@ -55,11 +55,11 @@ divergences:
   - id: DIV-06
     kind: temporary
     scope: [chipyard]
-    impact: "cfx32（cfx_pmem）的**寄存器面**（`cg8 pmem_exist` / `cg12/13/14`）不参与三方逐槽比较；QEMU 侧已由 `m16-qemu-006` 补齐，剩余缺口在 gem5。其 DMA/捕获面（`cg15` + `cfx_hart cg9` + monitor 掩码）已由 `arch-pmem-001/002` 逐槽比较（`m16-testcases-014`，QEMU+RTL 两方；gem5 见 `DIV-17`）。cfx15 已由 `DIV-17` 收窄为 gem5；cfx34 已三方（`m16-chipyard-023`）。"
-    reason: "RTL 的 cfx15/32/34 已由 `m16-chipyard-021/022/023` 补齐，剩下的限制在后端而不是 RTL：**cfx32** 的 QEMU 已按 `DADAO-12 §4.9` 实现 `cg8/12/13/14`（`m16-qemu-006`），**gem5 仍只实现 `cg15`**（`ISS-533`，`cg8/12/13/14` 一律 `CFXREG`）⇒ 只有**寄存器面**还不能三方逐槽比；DMA/捕获面（`cg15` + `cfx_hart cg9`）三承载都有，`m16-testcases-014` 的 `arch-pmem-001/002` 因此可逐槽（QEMU+RTL；gem5 的 R2 前模型见 `DIV-17`）。cfx15 的 R2 缺口已由 `DIV-17` 单独收窄（QEMU 已有 `cg9`），cfx34 的三方面已由 `m16-chipyard-023` 打通。"
-    user_ruling: "2026-11-22（本项）；2026-11-24 按实际状态收窄（cfx34 移除）；2026-11-25 cfx15 移交 DIV-17、cfx32 收窄为寄存器面（m16-testcases-014）；2026-11-25 QEMU 寄存器面补齐，close_when 收窄为 gem5（m16-qemu-006）"
+    impact: "cfx32（cfx_pmem）的**寄存器面**（`cg8 pmem_exist` / `cg12/13/14`）不参与三方逐槽比较；QEMU 侧已由 `m16-qemu-006` 补齐，**剩余缺口在 gem5**。其 DMA/捕获面（`cg15` + `cfx_hart cg9` + monitor 掩码）已由 `arch-pmem-001/002` **三方**逐槽比较（`m16-testcases-014` + `m16-gem5-026`）；cfx15 亦已三方（`m16-testcases-013` + `m16-gem5-026`）、cfx34 三方（`m16-chipyard-023`）。"
+    reason: "RTL 的 cfx15/32/34 已由 `m16-chipyard-021/022/023` 补齐，剩下的限制在后端而不是 RTL：**cfx32** 的 QEMU 已按 `DADAO-12 §4.9` 实现 `cg8/12/13/14`（`m16-qemu-006`），**gem5 仍只实现 `cg15`**（`ISS-533`，`cg8/12/13/14` 一律 `CFXREG`）⇒ 只有**寄存器面**还不能三方逐槽比；DMA/捕获面（`cg15` + `cfx_hart cg9`）三承载都有，`m16-testcases-014` 的 `arch-pmem-001/002` 因此可三方逐槽（gem5 的 R2 异步面由 `m16-gem5-026` 补齐）；cfx15 的三方面由 `m16-testcases-013` + `m16-gem5-026` 打通，cfx34 由 `m16-chipyard-023` 打通。"
+    user_ruling: "2026-11-22（本项）；2026-11-24 按实际状态收窄（cfx34 移除）；2026-11-25 cfx15/cfx32 的捕获面均由 gem5 R2 任务（`m16-gem5-026`）收口，本项只剩 cfx32 寄存器面；QEMU 寄存器面已由 `m16-qemu-006` 补齐"
     status: active
-    close_when: "gem5 补齐 cfx_pmem 的 `cg8/12/13/14`（`ISS-533`）⇒ 删本条（QEMU 侧已由 `m16-qemu-006` 补齐；DMA/捕获面已由 `arch-pmem-001/002` 覆盖，cfx15 部分已移交 `DIV-17`）"
+    close_when: "gem5 补齐 cfx_pmem 的 `cg8/12/13/14`（`ISS-533`）⇒ 删本条（QEMU 侧已补齐；DMA/捕获面已由 `arch-pmem-001/002` 三方覆盖）"
 
   - id: DIV-11
     kind: temporary
@@ -105,21 +105,11 @@ divergences:
     user_ruling: "2026-11-24（本任务；DIV-01 的同类功能模型限制）"
     status: active
 
-  - id: DIV-17
-    kind: temporary
-    scope: [gem5]
-    impact: "`arch-hart-001/002`（cfx_hart TIMER R2 捕获缓冲）与 `arch-pmem-001/002`（cfx_pmem DMA 完成中断 + 同界多源）不参与 gem5 逐槽：gem5 仍是 `ADR-0061` R2 前模型（无 `cfx_hart cg9`、来源掩码仍为旧 `cfx_intr_mask`/`global_cfx_intr_mask` 两级），这些用例在 gem5 上 fail-closed（rc=1），不进三方比较；QEMU+RTL 两方逐槽。"
-    reason: "`m16-testcases-013`/`014` 的载体按 `spec/DADAO-12 §4.7/§5.4` R2 写（cg9 捕获缓冲、monitor `cg8 rc1` 掩码）；gem5 侧没有对应实现（`tests/arch/vast-arch-inventory.md` cfx15-gem5 / cfx32-gem5 段标「R2 前口径」）——`arch-pmem-001` 在 gem5 上从槽 16（`cfx_hart cg9` 读）起读回指令字并 rc=1（`m16-testcases-014` 实测），且没有已立的 gem5 迁移任务。"
-    user_ruling: "2026-11-25 用户裁定 B：给 gem5 补 R2 异步面（立 `m16-gem5-026`「gem5 异步捕获缓冲（ADR-0061 R2）」），合入后删除本条"
-    status: active
-    close_when: "gem5 实现 `cfx_hart cg9` 七槽 + R2 捕获缓冲（每次进入覆盖）/monitor `cg8 rc1` 掩码迁移（新立 gem5 任务）"
-
   - id: DIV-18
     kind: temporary
     scope: [chipyard, qemu, gem5]
-    impact: "`cfx_hart cg9 rc6`（`async_switch_run_mode`）实现与 `spec/DADAO-12 §4.7/§5.4`（复位 2、异步进入取 rc6）不一致：RTL 恒 supv（写忽略），QEMU 在 `m16-qemu-006` 被改成「写忽略、恒 2」。"
-    reason: "`m18-spec-006`（用户 2026-11-25 裁定①）已把口径定为 RW、复位 2、进入取 rc6；RTL 对齐由 `m16-chipyard-028`，QEMU 回归由 `m16-qemu-007`。"
+    impact: "`cfx_hart cg9 rc6`（`async_switch_run_mode`）实现与 `spec/DADAO-12 §4.7/§5.4`（`m18-spec-006` 口径：RW、复位 2、异步进入取本寄存器当前值）不一致：RTL 恒 supv（写忽略）、QEMU 在 `m16-qemu-006` 被改成「写忽略、恒 2」、gem5 写忽略且恒 2。用例只读回 rc6（不写 0/1/3），写忽略与「进入取 rc6」不在三方比较面；恢复该断言会红。"
+    reason: "`m18-spec-006`（用户 2026-11-25 裁定①）已把口径定为 RW、复位 2、进入取 rc6；RTL 对齐由 `m16-chipyard-028`，QEMU 回归由 `m16-qemu-007`，gem5 对齐由 `m16-gem5-025`（含 rc6 对齐）。"
     user_ruling: "2026-11-25（`m18-spec-006` 裁定①：改 spec 措辞，实现向 spec 对齐）"
     status: active
-    close_when: "`m16-qemu-007`、`m16-chipyard-028`、`m16-gem5-025`（含 gem5 rc6 对齐）合入 + `arch-hart-001` 补「写 rc6=0/1/3 读回」「异步进入按 rc6」断言"
-
+    close_when: "`m16-chipyard-028`、`m16-qemu-007`、`m16-gem5-025`（含 rc6 对齐）合入 + `arch-hart-001` 补「写 rc6=0/1/3 读回」「异步进入按 rc6」断言"

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..67516ec
+index 0000000..8ea7420
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,441 @@
+@@ -0,0 +1,458 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -75,9 +75,8 @@ index 0000000..67516ec
 +    /* A page-table fault sets one bit of the flat [38:32]/[56:48] bitmap and
 +     * clears the low cause (ADR-0062 D1/D2); CauseCfxMem/CauseCfxPerm mean
 +     * non-PTW internal access and cfx source-mask denial only.  No PTWERR
-+     * low cause. */
-+    CauseTimer    = 1ULL << 10,
-+    CausePmemDma  = 1ULL << 8,
++     * low cause.  Async sources have no cause id at all: their identity is
++     * the source cfxha bitmap in cfx_hart cg9 (spec/DADAO-12 §5.4). */
 +};
 +
 +/** PTE / TLB constants (spec/DADAO-12 §2.2.1-§2.2.4). */
@@ -117,14 +116,16 @@ index 0000000..67516ec
 +              "power of two");
 +
 +/** One cfx mode row (cg0-cg3, spec/DADAO-12 §3; DADAO-13 §1 for cg3).
-+ *  rc9 / rc11 are reserved holes and keep no state (access => CFXREG). */
++ *  rc4 (the pre-`ADR-0061` `cfx_intr_mask`) is **not defined** any more:
++ *  async source masks live in `cg8 rc1` of cfx0-cfx3, so rc4 keeps no state
++ *  and an access raises CFXREG (spec/DADAO-12 §3).  `rc9`/`rc11` stay
++ *  reserved holes. */
 +struct NodeCfxMode
 +{
 +    uint64_t cfxtrap = 0;
 +    uint64_t cfxmem = 0;
 +    uint64_t cfxreg = 0;
 +    uint64_t cfxexe = 0;
-+    uint64_t cfxIntrMask = 0;
 +    uint64_t switchRunMode = 0;
 +    uint64_t excpVector = 0;
 +    uint64_t cgRegDeleg = 0;
@@ -149,10 +150,13 @@ index 0000000..67516ec
 +    uint64_t causeId = 0;
 +    uint64_t causeIp = 0;
 +    uint64_t causeInfo = 0;
++    /* cg5 rc5 `excp_pending` (sync frame field, spec/DADAO-12 §3.6).  The
++     * async pending bitmap is *not* here: it belongs to `cfx_hart cg9 rc4`
++     * (NodeState::asyncSrcPending, §4.7/§5.4). */
 +    uint64_t pending = 0;
++    /* cfx0-cfx3 cg8 rc1 `cfx_<monitor>_async_intr_mask`: bit = source cfxha,
++     * 0 = allow, 1 = mask, reset all ones (ADR-0061 D5). */
 +    uint64_t globalCfxIntrMask = 0;
-+    uint64_t savedGlobalIntrMask = 0;
-+    uint64_t savedIntrMonitor = 0;
 +};
 +
 +/** One guest-visible TLB entry (ADR-0041 D8/D9).  This is the instruction-side
@@ -344,6 +348,20 @@ index 0000000..67516ec
 +    uint64_t timerCmp = 0;
 +    uint64_t timerCtrl = 0;
 +
++    /* cfx_hart cg9 async capture buffer (spec/DADAO-12 §4.7/§5.4, ADR-0061
++     * D7).  Every async entry overwrites the capture slots wholesale
++     * (`rc0`-`rc3`, plus clearing the delivered bits of `rc4`); there is no
++     * frame phase, no frame_valid and no "software writes 0 to release the
++     * frame".  `asyncSrcFrame`/`asyncSrcPending` are HW-written and
++     * software-read-only (a write is ignored, no exception). */
++    uint64_t asyncPrevRunMode = 0;    /* cg9 rc0 (2 bits)   */
++    uint64_t asyncPrevCfxCode = 0;    /* cg9 rc1 (6 bits)   */
++    uint64_t asyncCauseIp = 0;        /* cg9 rc2 (48 bits)  */
++    uint64_t asyncSrcFrame = 0;       /* cg9 rc3 (HW/RO)    */
++    uint64_t asyncSrcPending = 0;     /* cg9 rc4 (HW/RO)    */
++    uint64_t asyncExcpVector = 0;     /* cg9 rc5 (48 bits)  */
++    uint64_t asyncSwitchRunMode = NodeSupv; /* cg9 rc6 (fixed 2) */
++
 +    Event *dmaEvent = nullptr;
 +    Event *timerEvent = nullptr;
 +
@@ -382,14 +400,11 @@ index 0000000..67516ec
 + *  trap/mem/reg/exe.  Self bypasses the cfx axis only. */
 +bool nodePermDenied(const NodeState &s, int target, int kind);
 +
-+/** Save the monitor's global intr mask and block every async source. */
-+void nodeFrameBlockAsync(NodeState &s, int ci, uint8_t entryMode);
-+
-+/** Exception-entry flow (spec/DADAO-12 §5). Returns the vector and sets
-+ *  *entered; a masked exception only records the pending bit. */
++/** Exception-entry flow for a *synchronous* exception (spec/DADAO-12 §5.2).
++ *  Returns the vector and sets *entered.  Async delivery does not go through
++ *  here: it is a capture-buffer entry (`nodeDeliverAsync`, §5.4). */
 +uint64_t nodeCfxEnter(NodeState &s, uint64_t cause, int target,
-+                      uint64_t causeIp, uint64_t causeInfo, bool sync,
-+                      bool *entered);
++                      uint64_t causeIp, uint64_t causeInfo, bool *entered);
 +
 +/** Raise a synchronous exception into `target` and set the PC (vector on
 + *  entry, pc+4 when masked).  `fromFault` selects the redirect form: a gem5
@@ -428,9 +443,11 @@ index 0000000..67516ec
 +bool nodeEscape(ThreadContext *tc, NodeState &s, uint8_t cfxha,
 +                uint32_t byteOffset);
 +
-+/** Deliver the lowest pending asynchronous source at an instruction
-+ *  boundary.  Returns true when a vector was entered (the caller must not
-+ *  execute the current instruction). */
++/** Deliver every pending asynchronous source that the *current run mode's*
++ *  monitor mask lets through, at one instruction boundary (spec/DADAO-12
++ *  §5.4(三)): one capture, bitmap union, pending cleared, `excp_async_num`
++ *  +1 regardless of how many sources.  The caller must not execute the
++ *  current instruction when this returns true. */
 +bool nodeDeliverAsync(ThreadContext *tc, NodeState &s);
 +
 +/** cfx_time value (ns since reset). */

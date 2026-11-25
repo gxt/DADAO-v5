@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..b8bab7b
+index 0000000..8398e3a
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1492 @@
+@@ -0,0 +1,1565 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -66,6 +66,21 @@ index 0000000..b8bab7b
 +constexpr uint64_t kHartEnable = 1ULL << 0;
 +constexpr uint64_t kHartImask = 1ULL << 1;
 +constexpr uint64_t kHartIstatus = 1ULL << 2;
++
++/** Async source identity = source cfxha (spec/DADAO-12 §5.4(一)); the
++ *  `cfx_hart cg9` bitmaps index by it. */
++constexpr unsigned kAsyncTimerBit = CfxhaHart;   /* TIMER      = 15 */
++constexpr unsigned kAsyncPmemBit = CfxhaPmem;    /* PMEM_DMA   = 32 */
++
++/** cg9 rc0/rc1/rc2/rc5/rc6 width masks (spec/DADAO-12 §4.7): run mode 2 bits,
++ *  cfxha 6 bits, `cause_ip`/`excp_vector` a 48-bit 4-byte-aligned address. */
++constexpr uint64_t kAsyncModeMask = 0x3;
++constexpr uint64_t kAsyncCfxMask = 0x3F;
++constexpr uint64_t kAsyncIpMask = 0x0000FFFFFFFFFFFFULL;
++constexpr uint64_t kAsyncIpAlign = ~0x3ULL;
++
++/** cfx_hart is the single async delivery target (`hart-first`, §5.4). */
++constexpr unsigned kAsyncSwitchMode = NodeSupv;
 +
 +constexpr uint64_t kTimeFreq = 1000000000ULL;
 +
@@ -263,6 +278,16 @@ index 0000000..b8bab7b
 +    s.timerCmp = 0;
 +    s.timerCtrl = 0;
 +
++    // cfx_hart cg9 async capture buffer reset values (spec/DADAO-12 §4.7):
++    // every slot 0 except the fixed supv switch value.
++    s.asyncPrevRunMode = 0;
++    s.asyncPrevCfxCode = 0;
++    s.asyncCauseIp = 0;
++    s.asyncSrcFrame = 0;
++    s.asyncSrcPending = 0;
++    s.asyncExcpVector = 0;
++    s.asyncSwitchRunMode = kAsyncSwitchMode;
++
 +    if (s.dmaEvent == nullptr) {
 +        auto *event = new NodeDmaEvent;
 +        event->tc = tc;
@@ -295,7 +320,6 @@ index 0000000..b8bab7b
 +            mr.cfxmem = maskInit;
 +            mr.cfxreg = maskInit;
 +            mr.cfxexe = maskInit;
-+            mr.cfxIntrMask = ~0ULL;
 +            if (m == NodeHypv) {
 +                // DADAO-13 §1 (cg3/hypv rows): H-mode switch values and the
 +                // per-cfx vector base (cfxha << 42 | 0x3ff_ffff_0000).
@@ -334,18 +358,9 @@ index 0000000..b8bab7b
 +    return (mask & (1ULL << (s.cfxCode & 0x3F))) != 0;
 +}
 +
-+void
-+nodeFrameBlockAsync(NodeState &s, int ci, uint8_t entryMode)
-+{
-+    const int mon = entryMode & 0x3;
-+    s.cfx[ci].savedGlobalIntrMask = s.cfx[mon].globalCfxIntrMask;
-+    s.cfx[ci].savedIntrMonitor = mon;
-+    s.cfx[mon].globalCfxIntrMask = ~0ULL;
-+}
-+
 +uint64_t
 +nodeCfxEnter(NodeState &s, uint64_t cause, int target, uint64_t causeIp,
-+             uint64_t causeInfo, bool sync, bool *entered)
++             uint64_t causeInfo, bool *entered)
 +{
 +    const uint8_t entryMode = s.runMode;
 +    const int ci = nodeCfxIndex(target);
@@ -361,29 +376,11 @@ index 0000000..b8bab7b
 +        *entered = false;
 +        return 0;
 +    }
-+    if (!sync) {
-+        // step 3: two-level interrupt source filter (ADR-0045 D3).  Either the
-+        // current cfx's cfx_intr_mask or the entry-mode monitor's
-+        // global_cfx_intr_mask set => pending, no delivery.  Sync exceptions
-+        // are never masked (§5.2 step 2).
-+        const int cur = nodeCfxIndex(s.cfxCode);
-+        const uint64_t curMask = (cur >= 0)
-+            ? s.cfx[cur].mode[entryMode].cfxIntrMask : 0;
-+        const uint64_t globalMask =
-+            s.cfx[entryMode & 0x3].globalCfxIntrMask;
-+        if ((curMask & (1ULL << target)) ||
-+            (globalMask & (1ULL << target))) {
-+            s.cfx[ci].pending |= cause;
-+            *entered = false;
-+            return 0;
-+        }
-+    }
 +
-+    // step 4: trap / sync / async counter
++    // step 4: trap / sync counter.  Async entries never pass through here
++    // (§5.4 is a separate capture-buffer flow with its own counter bump).
 +    if (cause == CauseCfxTrap)
 +        s.cfx[ci].trapNum++;
-+    else if (!sync)
-+        s.cfx[ci].excpAsyncNum++;
 +    else
 +        s.cfx[ci].excpSyncNum++;
 +
@@ -416,7 +413,7 @@ index 0000000..b8bab7b
 +{
 +    bool entered = false;
 +    const uint64_t vec =
-+        nodeCfxEnter(s, cause, target, causeIp, causeInfo, true, &entered);
++        nodeCfxEnter(s, cause, target, causeIp, causeInfo, &entered);
 +    if (entered)
 +        clearReservationOnEntry(tc);
 +    setPc(tc, entered ? vec : causeIp + 4, fromFault);
@@ -489,7 +486,8 @@ index 0000000..b8bab7b
 +      case 1: return &m->cfxmem;
 +      case 2: return &m->cfxreg;
 +      case 3: return &m->cfxexe;
-+      case 4: return &m->cfxIntrMask;
++      // rc4 (`cfx_intr_mask`) is not defined any more (spec/DADAO-12 §3,
++      // ADR-0061 D5): the async source mask is the monitor's cg8 rc1.
 +      case 8: return &m->switchRunMode;
 +      case 10: return &m->excpVector;
 +      case 12: return &m->cgRegDeleg;
@@ -531,14 +529,14 @@ index 0000000..b8bab7b
 +    const int cfxha = kCfxhaMap[ci];
 +
 +    if (cg <= 2) {
-+        if (rc <= 4 || (rc >= 8 && rc <= 11))
++        if (rc <= 3 || (rc >= 8 && rc <= 11))
 +            return cfxModeReg(&r.mode[cg], rc);
 +        return nullptr;
 +    }
 +    if (cg == 3) {
 +        if (s.runMode != NodeHypv)
 +            return nullptr; // cg3 is hypv-only (DADAO-13 §1)
-+        if (rc <= 4 || (rc >= 8 && rc <= 12))
++        if (rc <= 3 || (rc >= 8 && rc <= 12))
 +            return cfxModeReg(&r.mode[3], rc);
 +        return nullptr;
 +    }
@@ -648,11 +646,11 @@ index 0000000..b8bab7b
 +
 +    if (err) {
 +        s.dma.status |= kDmaError | (err << kDmaErrShift);
-+        if (s.dma.irqEn) {
-+            const int ci = nodeCfxIndex(CfxhaPmem);
-+            if (ci >= 0)
-+                s.cfx[ci].pending |= CausePmemDma;
-+        }
++        // PMEM_DMA source event: identity = source cfxha 32, no cause id
++        // (spec/DADAO-12 §5.4(一)); masking is the monitor's business, so the
++        // event is recorded here and only the delivery step filters it.
++        if (s.dma.irqEn)
++            s.asyncSrcPending |= 1ULL << kAsyncPmemBit;
 +        return;
 +    }
 +
@@ -698,6 +696,57 @@ index 0000000..b8bab7b
 +            s.dma.status &= ~kDmaDone;
 +        if (val & kDmaError)
 +            s.dma.status &= ~(kDmaError | kDmaErrMask);
++        // W1C of DONE/ERROR is the source ack: the PMEM_DMA pending bit falls
++        // with it (spec/DADAO-12 §5.4(二), "源 ack 即落").
++        if (val & (kDmaDone | kDmaError))
++            s.asyncSrcPending &= ~(1ULL << kAsyncPmemBit);
++        return true;
++      default:
++        return false;
++    }
++}
++
++/** cfx_hart cg9 async capture buffer (spec/DADAO-12 §4.7/§5.4, ADR-0061 D7).
++ *  Seven slots; `rc7`-`rc15` are reserved and raise CFXREG (the caller does
++ *  that when this returns false).  `rc3`/`rc4` are HW/RO: a software write is
++ *  ignored, reads back the hardware value and raises nothing; `rc0`-`rc2`
++ *  are HW/RW and `rc5`/`rc6` are software configuration.  Widths follow the
++ *  spec row: 2-bit run mode, 6-bit cfxha, 48-bit 4-byte-aligned addresses,
++ *  and `rc6` is the fixed supv switch value (writes are accepted but the
++ *  register keeps 2 -- DADAO-12 §4.7 "固定 supv（2）"). */
++bool
++hartAsyncRegRead(const NodeState &s, unsigned rc, uint64_t *val)
++{
++    switch (rc) {
++      case 0: *val = s.asyncPrevRunMode & kAsyncModeMask; return true;
++      case 1: *val = s.asyncPrevCfxCode & kAsyncCfxMask; return true;
++      case 2: *val = s.asyncCauseIp & kAsyncIpMask; return true;
++      case 3: *val = s.asyncSrcFrame; return true;
++      case 4: *val = s.asyncSrcPending; return true;
++      case 5: *val = s.asyncExcpVector & kAsyncIpMask; return true;
++      case 6: *val = s.asyncSwitchRunMode & kAsyncModeMask; return true;
++      default: return false;
++    }
++}
++
++bool
++hartAsyncRegWrite(NodeState &s, unsigned rc, uint64_t val)
++{
++    switch (rc) {
++      case 0: s.asyncPrevRunMode = val & kAsyncModeMask; return true;
++      case 1: s.asyncPrevCfxCode = val & kAsyncCfxMask; return true;
++      case 2:
++        s.asyncCauseIp = val & kAsyncIpMask & kAsyncIpAlign;
++        return true;
++      case 3:
++      case 4:
++        // HW/RO: the write is ignored and raises nothing (§4.7, ADR-0061 D4).
++        return true;
++      case 5:
++        s.asyncExcpVector = val & kAsyncIpMask & kAsyncIpAlign;
++        return true;
++      case 6:
++        // Fixed supv (2): the write is accepted, the value does not change.
 +        return true;
 +      default:
 +        return false;
@@ -747,22 +796,22 @@ index 0000000..b8bab7b
 +bool
 +hartRegWrite(ThreadContext *tc, NodeState &s, unsigned rc, uint64_t val)
 +{
-+    const int ci = nodeCfxIndex(CfxhaHart);
-+
 +    switch (rc) {
 +      case 4:
++        // A new `timer_cmp` cancels the old deadline and is the source ack:
++        // the TIMER pending bit falls with it (spec/DADAO-12 §4.7/§5.4(二)).
 +        s.timerCmp = val;
-+        if (ci >= 0)
-+            s.cfx[ci].pending &= ~CauseTimer;
++        s.asyncSrcPending &= ~(1ULL << kAsyncTimerBit);
 +        deschedule(s.timerEvent);
 +        timerArm(tc, s);
 +        return true;
 +      case 5:
 +        s.timerCtrl = val & (kHartEnable | kHartImask);
-+        if (!(s.timerCtrl & kHartImask) && hartIstatus(s)) {
-+            if (ci >= 0)
-+                s.cfx[ci].pending |= CauseTimer;
-+        }
++        // IMASK is the source-local gate: while it is set the source keeps
++        // ISTATUS and nothing is pending.  Clearing it with ISTATUS set is
++        // the "re-kick" that puts the source event back (§4.7).
++        if (!(s.timerCtrl & kHartImask) && hartIstatus(s))
++            s.asyncSrcPending |= 1ULL << kAsyncTimerBit;
 +        timerArm(tc, s);
 +        return true;
 +      default:
@@ -1144,63 +1193,72 @@ index 0000000..b8bab7b
 +        s.dma.status |= kDmaDone;
 +    }
 +
-+    if (s.dma.irqEn) {
-+        const int ci = nodeCfxIndex(CfxhaPmem);
-+        if (ci >= 0)
-+            s.cfx[ci].pending |= CausePmemDma;
-+    }
++    if (s.dma.irqEn)
++        s.asyncSrcPending |= 1ULL << kAsyncPmemBit;
 +}
 +
 +void
 +nodeTimerExpire(ThreadContext *tc, NodeState &s)
 +{
 +    (void)tc;
-+    const int ci = nodeCfxIndex(CfxhaHart);
 +    if (!(s.timerCtrl & kHartEnable) || s.timerCmp == ~0ULL)
 +        return;
 +    if (nodeTimeValue(s) < s.timerCmp)
 +        return;
-+    if (ci >= 0)
-+        s.cfx[ci].pending |= CauseTimer;
++    // IMASK is the source-local gate (spec/DADAO-12 §4.7): ISTATUS stays set
++    // and no pending bit is raised; clearing IMASK re-kicks it (hartRegWrite).
++    if (s.timerCtrl & kHartImask)
++        return;
++    s.asyncSrcPending |= 1ULL << kAsyncTimerBit;
 +}
 +
++/** Async delivery at an instruction boundary (spec/DADAO-12 §5.4(三)/(五)).
++ *
++ *  One shot: every source pending and allowed by the *current run mode's*
++ *  monitor mask enters the *same* capture -- `async_src_frame` is the bitmap
++ *  union, the pending bits are removed, and `excp_async_num` counts the entry
++ *  once regardless of how many sources fired.  `cg9` is overwritten wholesale
++ *  on every entry: there is no frame phase and no frame_valid, so a second
++ *  event while software still holds the previous snapshot simply recaptures.
++ *
++ *  Precise point (§5.4(四)): the caller runs this *before* executing the
++ *  instruction at `pc`, i.e. after the previous instruction committed, so
++ *  `rb0` already holds the next instruction address (the jump target after a
++ *  jump) and `async_cause_ip` = that address.  Nothing is replayed. */
 +bool
 +nodeDeliverAsync(ThreadContext *tc, NodeState &s)
 +{
-+    struct Source
-+    {
-+        int cfxha;
-+        uint64_t cause;
-+    };
-+    static const Source sources[] = {
-+        {CfxhaHart, CauseTimer},
-+        {CfxhaPmem, CausePmemDma},
-+    };
++    if (s.asyncSrcPending == 0)
++        return false;
 +
-+    for (const auto &src : sources) {
-+        const int ci = nodeCfxIndex(src.cfxha);
-+        if (ci < 0 || !(s.cfx[ci].pending & src.cause))
-+            continue;
-+        if (src.cfxha == CfxhaHart && (s.timerCtrl & kHartImask))
-+            continue;
++    // Source mask = cg8 rc1 of the monitor row of the *current* run mode
++    // (U -> umon, J -> jmon, S -> smon, H -> hmon); it is not saved or
++    // restored by trap/escape (ADR-0061 D5).
++    const int mon = nodeCfxIndex(s.runMode & kAsyncModeMask);
++    const uint64_t mask = (mon >= 0) ? s.cfx[mon].globalCfxIntrMask : ~0ULL;
++    const uint64_t allowed = s.asyncSrcPending & ~mask;
++    if (allowed == 0)
++        return false;
 +
-+        const uint8_t entryMode = s.runMode;
-+        const uint64_t info =
-+            (src.cfxha == CfxhaHart) ? 0 : s.dma.status;
-+        bool entered = false;
-+        const uint64_t vec = nodeCfxEnter(s, src.cause, src.cfxha, currentPc(tc),
-+                                          info, false, &entered);
-+        if (!entered)
-+            continue;
-+        // Async delivery is an interrupt entry: clear the reservation
-+        // (spec/SimRISC-12 §1; ISS-443).
-+        clearReservationOnEntry(tc);
-+        s.cfx[ci].pending &= ~src.cause;
-+        setPc(tc, vec);
-+        nodeFrameBlockAsync(s, ci, entryMode);
-+        return true;
-+    }
-+    return false;
++    // Capture: whole-buffer overwrite, bitmap union, delivered bits removed.
++    s.asyncSrcFrame = allowed;
++    s.asyncSrcPending &= ~allowed;
++    s.asyncPrevRunMode = s.runMode & kAsyncModeMask;
++    s.asyncPrevCfxCode = s.cfxCode & kAsyncCfxMask;
++    s.asyncCauseIp = currentPc(tc) & kAsyncIpMask & kAsyncIpAlign;
++
++    const int hart = nodeCfxIndex(CfxhaHart);
++    if (hart < 0)
++        return false;
++    s.cfx[hart].excpAsyncNum++;
++
++    // Entry: supv single vector, target cfx = cfx_hart, fixed supv mode.
++    s.runMode = s.asyncSwitchRunMode & kAsyncModeMask;
++    s.cfxCode = static_cast<uint8_t>(CfxhaHart);
++    clearReservationOnEntry(tc);   // spec/SimRISC-12 §1; ISS-443
++    setPc(tc, s.asyncExcpVector);
++    s.traceForce = true;
++    return true;
 +}
 +
 +/** Write the L1 D-cache back at a monitor hand-off (m16-gem5-022).
@@ -1255,7 +1313,6 @@ index 0000000..b8bab7b
 +        return;
 +    }
 +
-+    const uint8_t entryMode = s.runMode;
 +    // m16-gem5-022: hand the monitor segment over in memory (see the helper).
 +    // The hmon cfx is 3; cfx_umon is 0 and its semihosting trap is >= 0x3FF00
 +    // (handled above), so only a real mode hand-off matches here.
@@ -1266,13 +1323,11 @@ index 0000000..b8bab7b
 +
 +    bool entered = false;
 +    const uint64_t vec =
-+        nodeCfxEnter(s, CauseCfxTrap, cfxha, pc, info, true, &entered);
++        nodeCfxEnter(s, CauseCfxTrap, cfxha, pc, info, &entered);
 +    if (entered)
 +        clearReservationOnEntry(tc);
 +    setPc(tc, entered ? vec : pc + 4);
 +    s.traceForce = true;
-+    if (entered && s.cfxCode == cfxha)
-+        nodeFrameBlockAsync(s, ci, entryMode);
 +}
 +
 +bool
@@ -1306,15 +1361,12 @@ index 0000000..b8bab7b
 +        return true;
 +    }
 +
-+    // step 1: restore the monitor's global interrupt mask (D9)
-+    const int mon = s.cfx[ci].savedIntrMonitor & 0x3;
-+    s.cfx[mon].globalCfxIntrMask = s.cfx[ci].savedGlobalIntrMask;
-+    // step 2: restore the previous run mode and current cfx from the frame (no
-+    // cfx-mask layer is restored; the trap saved only globalCfxIntrMask).
-+    // Without the cfx restore a frame that received a nested async delivery
-+    // could never escape: step 6 of the nested entry moved cfxCode to the
-+    // delivered cfx, so this escape's cfxha check would fail with CFXESC
-+    // (DADAO-12 §5.3 step 0/2).
++    // step 2: restore the previous run mode and current cfx from the frame.
++    // The async source mask is *not* a frame field: trap/escape neither save
++    // nor restore it (spec/DADAO-12 §5.4(一), ADR-0061 D5).  The cfx restore
++    // is what lets a frame that received a nested async delivery escape at
++    // all: entry step 6 moved cfxCode to cfx_hart, so the cfxha check would
++    // otherwise fail with CFXESC (DADAO-12 §5.3 step 0/2).
 +    s.runMode = s.cfx[ci].prevRunMode & 0x3;
 +    s.cfxCode = static_cast<uint8_t>(s.cfx[ci].prevCfxCode & 0x3F);
 +    // step 3: increment the escape counter
@@ -1388,6 +1440,18 @@ index 0000000..b8bab7b
 +        out = value;
 +        return true;
 +    }
++    // cfx_hart cg9 async capture buffer (spec/DADAO-12 §4.7): seven slots,
++    // rc7-rc15 reserved => CFXREG.  No other cfx implements cg9, so every
++    // other cfxha falls through to the generic resolver (nullptr => CFXREG).
++    if (cg == 9 && cfxha == CfxhaHart) {
++        uint64_t value = 0;
++        if (!hartAsyncRegRead(s, rc, &value)) {
++            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++            return true;
++        }
++        out = value;
++        return true;
++    }
 +    if (cg == 7) {
 +        out = cg7SpaceReg(s, cfxha, rc);
 +        return true;
@@ -1448,6 +1512,15 @@ index 0000000..b8bab7b
 +    }
 +    if (cg == 8 && cfxha == CfxhaHart) {
 +        if (!hartRegWrite(tc, s, rc, val)) {
++            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++            return true;
++        }
++        return true;
++    }
++    // cg9: HW/RW slots store, HW/RO bitmaps ignore the write without an
++    // exception, reserved rc => CFXREG (spec/DADAO-12 §4.7, ADR-0061 D4/D7).
++    if (cg == 9 && cfxha == CfxhaHart) {
++        if (!hartAsyncRegWrite(s, rc, val)) {
 +            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +            return true;
 +        }

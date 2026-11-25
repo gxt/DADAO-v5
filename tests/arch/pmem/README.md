@@ -37,12 +37,11 @@ DMA 与 D-cache **不保证硬件一致**（`§4.9` 的 A 口径）：软件在 
 ## 运行
 
 ```sh
-python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,chipyard --mode hmon
-python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,chipyard --mode smon
-python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,chipyard --mode umon
+python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,gem5,chipyard --mode hmon
+python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,gem5,chipyard --mode smon
+python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,gem5,chipyard --mode umon
 ```
 
-gem5 仍是 `ADR-0061` R2 前模型（无 `cfx_hart cg9`）⇒ `arch-pmem-001/002` 在 gem5
-上 fail-closed（rc=1，非 PASS），差异登记 `expected-divergences.yaml` `DIV-17`；
-逐槽比较是 QEMU+RTL 两方。RTL 寄存器面探针 `pmem.S` 单独直跑（见
-`m16-chipyard-022` 的 README 历史）。
+`arch-pmem-001/002` 三方逐槽（QEMU+gem5+RTL）：gem5 的 R2 异步面（`cfx_hart cg9`
+捕获缓冲、monitor `cg8 rc1` 掩码、pending 与同界一次捕获）由 `m16-gem5-026` 补齐。
+RTL 寄存器面探针 `pmem.S` 单独直跑（见 `m16-chipyard-022` 的 README 历史）。

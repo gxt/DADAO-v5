@@ -43,10 +43,10 @@ python3 tests/arch/run_arch.py --case arch-hart-001 --mode hmon \
 python3 tests/arch/run_arch.py --case arch-hart-002 --mode smon ...   # / umon 同理
 ```
 
-**gem5** 仍是 `ADR-0061` R2 前模型（无 `cfx_hart cg9`、旧两级 mask），
-`arch-hart-001/002` 在 gem5 上 fail-closed；登记 `expected-divergences.yaml`
-`DIV-17`（close_when 必填）。QEMU 的 `cg9 rc6` 写 0 未忽略（规范固定 supv=2）
-登记 `DIV-18`；用例只读回 rc6，不把该缺陷带进签名。
+**三方逐槽**：`arch-hart-001/002` 在 QEMU、gem5、RTL 上各过本平台 oracle 后
+比较归一化签名（gem5 的 R2 异步面由 `m16-gem5-026` 补齐：`cg9` 七槽、monitor
+`cg8 rc1` 掩码、pending/一次捕获/每次进入覆盖）。QEMU 的 `cg9 rc6` 写 0 未忽略
+（规范固定 supv=2）登记 `DIV-18`；用例只读回 rc6，不把该缺陷带进签名。
 
 ## 运行期证据
 
