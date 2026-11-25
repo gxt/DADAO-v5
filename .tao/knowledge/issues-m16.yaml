@@ -65,9 +65,9 @@
   - gem5
   - spec
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: N/A（2026-11-25 用户裁定：当前只有单 hart，无多 hart 内容 ⇒ 该条款无适用对象，不补实现、不造用例；引入多 hart 时重开）
   title: 【P2】`lr`/`sc` 的「另一 hart 对同一精确地址+相同宽度 store ⇒ 清保留」**三平台均无实现路径**：`m13-qemu-014` 删掉整字值 CAS 后，QEMU 只剩「记录键 + 另一条 lr/异常/sc 自身」三种清除；旧实现靠整字值变化间接覆盖了「同址写」这一半（但并不精确）；chipyard 同样只按 `resvValid/resvAddr/resvWidth` 判、无 store 侧失效钩子。单 hart（`WumingTinyConfig`）无观测载体，故不阻断当前里程碑；**上多 hart 之前必须补**：store 提交路径按 `(PA, 宽度)` 失效匹配的保留标记（或引入一致性事件），并补多 hart 用例。评审时请连带判断是否需要 ADR（跨三平台 + 语义固化）。**GAP（m16-testcases-003 复核）**：仍保持 open —— 三平台均无 store 侧失效钩子，且单 hart 的 WumingTinyConfig 无观测载体（另一 hart 无法在正式向量中构造）；四路径「异常/中断进入」已由 m16-testcases-003 实现并做成向量，与本条的「另一 hart 同址同宽 store」无关。上多 hart 前必须补（含 ADR 判定），不得以单 hart 用例冒充覆盖。
 - id: ISS-443
   scope:
