@@ -30,6 +30,11 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m18-llvm-002 | 2–3 h | **链①** LLVM/opcodes `escape cfxHA`（汇编/反汇编/legality/生成物；等 `m20-llvm-003` 释放 LLVM 写者） |
+| m18-testcases-004 | 3–4 h | **链②** 异步 escape 出口帧向量与探针（cg5/cg9 新布局、escape 五类判据；依赖 ①） |
+| m18-chipyard-002 | 4–6 h | **链④** RTL 异步 escape 出口（依赖 ①②；等 M16 chipyard 写者窗口） |
+| m18-gem5-004 | 3–4 h | **链⑤** gem5 异步 escape 出口（依赖 ①②） |
+| m18-idl-003 | 3–4 h | **链⑥** IDL 执行器/IDL-ISA 迁移（依赖 ②；补 spec-007 的 F3） |
 | m18-linux-026 | 4–6 h | 内核迁移到异步 escape（去 jmon、`cg5 rc8–rc11` 出口、`escape cfx_hart`）；等 `m18-qemu-008` 合入 |
 | m18-linux-025 | 3–5 h | 用户态异步投递在 LTP 负载下自旋（≈70%，`ISS-m18-001` 族）；**等 026 内核移植后在新模型上修**（用户裁定 B） |
 | m18-qemu-007 | 2–3 h | QEMU system 移除 `cfx_jmon`（cfx1）实现（无设计、RTL 亦无）；`trap/访问` ⇒ CFXREG；**须等「异步 escape」规范与内核换帧都落地后再合入** |
