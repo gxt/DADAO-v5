@@ -174,9 +174,9 @@
   - spec
   - chipyard
   milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M17
+  resolved_by: m17-spec-005（ADR-0009 D5/README 指针化；ADR-0004/0020 rev 段与 QEMU 注释另列）
   title: 【P2】**需用户裁定**：`m13-spec-001` 只授权就地修订 `ADR-0004`，但两处活正文仍写旧 guest 分区——`ADR-0009 D5`（decision 正文，非修订节）与 `components/chipyard/README.md:44`。选项：① 就地修订这两处（需用户逐条确认 ADR-0009 的 decision 变更）；② 改为指针引用 `spec/Kaiwu §7.1`（ADR 不承载规范正文）。
 - id: ISS-425
   scope:
