@@ -9,8 +9,20 @@ owner = "main-session"
 [files."discussing.md"]
 owner = "main-session"
 
-[files."issues.yaml"]
+[files."issues-left.yaml"]
 owner = "main-session"
+
+[files."issues-m16.yaml"]
+owner = "m16-session"
+
+[files."issues-m17.yaml"]
+owner = "m17-session"
+
+[files."issues-m18.yaml"]
+owner = "m18-session"
+
+[files."issues-m19.yaml"]
+owner = "m19-session"
 
 [files."milestones-m16.md"]
 owner = "main-session"

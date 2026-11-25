@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""归档期从 `issues.yaml` 抽取某里程碑的 `closed` 项。
+"""归档期从分册后的 `issues-*.yaml` 抽取某里程碑的 `closed` 项。
 
 判据（单一）：`status: closed` **且** `closed_in == <里程碑>`。
 不再按 `resolved_by` 的任务提交日反推 —— 任务号后缀、跨里程碑提交、文本型
@@ -22,19 +22,17 @@ import sys
 import yaml
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-ISSUES = os.path.join(ROOT, ".tao", "knowledge", "issues.yaml")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import issues_store  # noqa: E402
 
 
 def load(milestone: str) -> list[dict]:
-    with open(ISSUES, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    if not isinstance(data, list):
-        raise SystemExit("issues.yaml must be a list")
+    data = issues_store.load_all()
     picked = [
         x for x in data
         if x.get("status") == "closed" and str(x.get("closed_in")) == milestone
     ]
-    picked.sort(key=lambda x: int(str(x["id"]).split("-")[1]))
+    picked.sort(key=issues_store.sort_key)
     return picked
 
 

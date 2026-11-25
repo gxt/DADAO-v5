@@ -1,0 +1,395 @@
+# issues-m16（M16 独占）
+#
+# 本文件由 M16 会话 独占写（用户 2026-11-25 裁定：issues 按里程碑分册）。
+# ID 规则：存量条目保留旧号 `ISS-<数字>`（冻结，不重编）；**新增条目**用
+# `ISS-m16-NNN`（NNN 从 001 起，取本文件内未用最小号）。跨文件修改须用户同意；
+# 里程碑收尾时本文件应清空，未解决条目汇总到 `issues-left.yaml`。
+#
+- id: ISS-407
+  scope:
+  - qemu
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】**覆盖声明与探针状态不一致**（`m13-qemu-004`）：完成区称「另加 sNaN 在右（ft/fo）」两例，但 reviewer 用探针 dump 证明两例机器状态**完全相同**（`set.w` 是 wyde 部分写、写序可交换），NaN 实际都在左操作数 ⇒ 代码无缺陷，但**覆盖声明不实**、向量 notes 也写成「`ftqcmp(1.0, sNaN)`」。教训：凡声明「左右/先后/边界」的用例，必须由探针 dump 证明两侧状态确实不同，否则只是同一用例跑两遍。
+- id: ISS-418
+  scope:
+  - qemu
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m13-qemu-006` 证据脚本的 `8/8`（CFXMEM/guest FAIL 数）是**字面期望**而非现场计数 ⇒ 若日后设计变更（例如新增非法例）会**假红**（不会假绿）。建议改为按集合比对或现场派生。
+- id: ISS-426
+  scope:
+  - qemu
+  - gem5
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`ld.o ra0`/`rd2ra {ra0}` 未丢弃 `[63:54]` 的 SBZ 位：`SimRISC-00 §2.4` 规定 `ra0 = {SBZ(10),RACNT(6),MRPTR(48)}` 且 `[63:54]` 写无效（读回恒 0）；chipyard `WumingRegFile.writeRa` 合规，QEMU `trans_ld_o_rrii_ra → store_ra(0,val)` 写全 64 位、gem5 RA 写口未掩码（只有 RAS 头更新用 `kRasSbzMask`）。现场：写 `0xFFFF000000000000` 读回原值、期望 `0x003F000000000000`；`m13-testcases-031` 链例点 20 在 QEMU/gem5 红（按 spec 未放宽）。修法：两平台 RA 写口对 `[63:54]` 置 0。
+- id: ISS-432
+  scope:
+  - qemu
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: m16-qemu-004
+  title: 【P2】`fence` 的保留 cfx 集三平台不一致：保留集真源是 `Kaiwu §1.2` + `DADAO-12 §1` 的编号表 = `6–14, 16–31, 35–61`（`hb≠0` ⇒ ILLI）；`19–61` 是 `DADAO-12` 0.7.3-rc / `Kaiwu` 附录 0.4.0 的**残留口径**（疑 QEMU 根因）。探针只采样 16/17/18 与 32/33/34，下界 19 属**推断**，实测 **QEMU 的保留集是 `6–14, 19–61`** ⇒ cfx16/17/18 QEMU 放行、cfx32/33/34 QEMU 报异常（chipyard/gem5 与 spec 一致）。由 `m13-testcases-027` 的 `probe_gap.py` 钉住。
+- id: ISS-433
+  scope:
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`trap cfx_power` 三平台不一致：QEMU/gem5 进 power 向量、**chipyard 报 ILLI**。`m13-testcases-027` 实测；属 chipyard RTL 与 spec/另两平台的语义分歧，需定位是 RTL 缺实现还是 spec 未明。
+- id: ISS-435
+  scope:
+  - qemu
+  - chipyard
+  - gem5
+  - testcases
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: m13-qemu-014 + m13-chipyard-002（三平台实现改为精确地址 + 宽度；gem5 原已合规）；m13-testcases-037 / m16-testcases-003（向量：sc.b.nn 点 17-21 + 本任务 sc.{w,t,o}.nn 点 17 + sc.b.nn 点 26 同址异宽）
+  title: 【P2】`sc` 保留（reservation）粒度三平台不一致：`spec/SimRISC-12 §1`/`ADR-0034 D6` 是**精确地址+宽度**（同字异址写入不应清标记），实测 **QEMU 按 8 B 整字判成功**（与 spec 相反）；**chipyard 按整字值比较**（同 hart 改同字另一字节即清标记，spec 未列该清除事件）；gem5 与 spec 一致（3 点全过）。`m13-testcases-028` 的 `probe_gran.S` 同 ELF 实测 `chipyard=2 / qemu=1 / gem5=0`。需裁定：改实现对齐 spec，或改 spec 允许字粒度/字值失效。
+- id: ISS-440
+  scope:
+  - qemu
+  - chipyard
+  - gem5
+  - spec
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`lr`/`sc` 的「另一 hart 对同一精确地址+相同宽度 store ⇒ 清保留」**三平台均无实现路径**：`m13-qemu-014` 删掉整字值 CAS 后，QEMU 只剩「记录键 + 另一条 lr/异常/sc 自身」三种清除；旧实现靠整字值变化间接覆盖了「同址写」这一半（但并不精确）；chipyard 同样只按 `resvValid/resvAddr/resvWidth` 判、无 store 侧失效钩子。单 hart（`WumingTinyConfig`）无观测载体，故不阻断当前里程碑；**上多 hart 之前必须补**：store 提交路径按 `(PA, 宽度)` 失效匹配的保留标记（或引入一致性事件），并补多 hart 用例。评审时请连带判断是否需要 ADR（跨三平台 + 语义固化）。**GAP（m16-testcases-003 复核）**：仍保持 open —— 三平台均无 store 侧失效钩子，且单 hart 的 WumingTinyConfig 无观测载体（另一 hart 无法在正式向量中构造）；四路径「异常/中断进入」已由 m16-testcases-003 实现并做成向量，与本条的「另一 hart 同址同宽 store」无关。上多 hart 前必须补（含 ADR 判定），不得以单 hart 用例冒充覆盖。
+- id: ISS-443
+  scope:
+  - qemu
+  - gem5
+  - testcases
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: m16-testcases-003（qemu：清除点收敛到 cfx_enter 进入向量处，补 CFXTRAP；gem5：tinyCfxRaise/nodeCfxRaise/nodeTrap/nodeDeliverAsync 进入向量时清保留；向量：sc.b.nn 点 22-25 四路径；chipyard 自 m12-chipyard-010 起已清）
+  title: 【P1】`sc` 的「异常/中断进入 ⇒ 清保留」**三平台均不实现**（`spec/SimRISC-12 §1` 明列为清除事件）：`m13-testcases-037` 四条路径实测 —— `MALIGN`/`CFXMEM`/`ILLI` 进入后 `sc` = chipyard `1` / qemu `1` / **gem5 `0`**；`CFXTRAP` = `1` / **`0`** / **`0`**（spec 全为 1 = 清除）。后果：该清除事件**无法写成正式向量**（写 1 ⇒ gem5+qemu 恒红挡 L2；写 0 或写平台值 = 以实现反推，任务书明禁）⇒ 037 只能记 GAP。处置：① gem5 与 qemu 补「异常/中断进入清保留」（qemu 至少补 `CFXTRAP` 路径）；② 修完后在 `sc.b.nn_orrr_rd.S` 补故障/链例 1 点；③ 与 `ISS-440`（多 hart 清除无路径）同源，建议同批处理。
+- id: ISS-448
+  scope:
+  - chipyard
+  - spec
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`WumingDecoder` 的 `rfRows[2]`/`rfRows[3]` 为 `0x7F`，而 `contracts/opcodes.yaml` 同两行为 `0xFF`（`ftsgnj`/`fosgnj` 格）：`m13-chipyard-003` 复核发现，命中的两格在 `WumingDecoder` 里有独立 switch 分支 ⇒ **行为无差异**，属位图与契约的表述不一致。处置：以契约为准核对该两格是否真已定义、统一位图（或反向修正 contracts），并加一条 RTL 位图 ↔ `opcodes.yaml` 的机械对账（`check-gem5-decode` 只对 gem5 侧做过同类对账）。
+- id: ISS-467
+  scope:
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`m16-chipyard-003` 收尾遗留 finding ⑤（①②③④ 已关闭、不再追踪；由 `m16-testcases-021` 承接）：① `components/chipyard/changelog.md` L133 与 `README.md` L204 仍写「`printf`+`stop()` 具名失败」，实际通道是 `chisel3.assert`（Verilator `$error`、`rc=255`）；② changelog 的 sim md5 `7bcf2e2f…` 与 README/完成区 `2fb79602…` 不一致；③ 完成区写「904/904」，实测镜像 272/272（口径混用）；④ 完成区「`m14-testcases-005` 待返工」已过时（已合入 master；但 chipyard 无 TLB ⇒ ptw 探针仍不可跑，实质正确）；⑤ 证据脚本 `run.sh` F 段 `rebuild X && eq …rc… 0 "$?"` 是恒真式——重建失败会被 `&&` 短路吞掉，本次正因此把「elab 被杀」误显成 `sim ends cleanly 255`；E 段 `--jobs 8` 应改「核数−2」。处置：文档三处改写 + 证据脚本改为先取 rc 再断言。
+- id: ISS-469
+  scope:
+  - qemu
+  - gem5
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】QEMU 的 `cfx2rd`/`cfxtrap` 掩码拒绝时 `CFXPERM` 的 `cause_info` 给的是**指令编码**，而 `contract-see §6.1` / `DADAO-12 §4.1` 要求 = **触发指令地址**（与 `excp_cause_ip` 同值）。影响：三平台 `CFXPERM` 的 `cause_info` 不一致（gem5/chipyard 按契约给地址），内核诊断打印的单位会错。来源：`m14-testcases-006` 固件复核时发现（非本任务范围）。处置建议：单立 qemu 任务修 `helper.c` 的拒绝路径 + 补探针（负例断言 `cause_info == excp_cause_ip`）。备注：`m17-idl-020` 实测 gem5 同样给指令编码（原正文称 gem5 正确）；且 2026-11-24 起按扁平位图改造，修法需按 ADR-0062 执行。
+- id: ISS-473
+  scope:
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`tests/inst/11-cfx/escape_ciii_cfx.S` 链例 12 的注释（由 `m16-testcases-021` 承接）称「第 3 次到达判红（不挂死）」，实测不成立（`m15-testcases-019` 复核注入①）：把 case12 改成读未写槽 `0xC4` 后，QEMU 与 chipyard **双 lane 均挂死至超时**（qemu `rc=-2`、0 B），不是「判红退出」。影响：该例的 fail 路径不可用于回归判据（超时而非具名失败）。处置建议：改注释措辞，或让 probe 在到达计数超限时走 `__EXIT` 具名失败（不用挂死）。
+- id: ISS-477
+  scope:
+  - testcases
+  - qemu
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: won't-fix（已有 `tests/inst/07-floating-point` 覆盖，L2 `check-inst-asm` 全量执行）
+  title: 【P2】`tools/testcases/arch/min_rom_probe_035t.py` 的执行通道整体失效（`m15-testcases-020` 实测）：该探针按「裸 ROM 直接传 `-bios` + 末尾 ILLI 收尾」建模，但现 QEMU `-bios` 只接受恰 65536 B 的 BootROM 固件（raw `-kernel` 需 ≥256 B 零前缀），且 ILLI 收尾实测会挂起 ⇒ 修好 spec 章节锚点（`## 7.` → `## 5.`）与 canonical 期望后仍不能真跑。要复活须迁移到「BootROM 固件 + raw kernel + `SYS_EXIT` 收尾」模型，甚至重写故障例判据；属独立改造，本任务只落了锚点与 canonical 两项。
+- id: ISS-485
+  scope:
+  - chipyard
+  - testcases
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: won't-fix（文档级）
+  title: 【P3】`m16-chipyard-009` D-Cache 两处文档级不一致（复核 Accepted 时登记，非阻断）：① `tools/chipyard/dcache/vastdcache.lds` 注释引用**不存在**的 `--check-layout` 选项，并仍写旧窗口 `0x7_8000`/`0x7_C000` 与「无需装入」，实际常量是 `0x7_0000`/`0x9_0000` 且 `.code_old` 显式 PT_LOAD；② `tools/chipyard/dcache/check_vastdcache.py` 自检日志写死到 `/tmp/opencode/check-vastdcache/`（超出 `AGENTS §8` 的 `/tmp/opencode/<任务ID>/` 约定），应改任务目录或 `tempfile.mkdtemp()`。处置：随下一次触碰这两个文件时一并修，不改判据语义。
+- id: ISS-489
+  scope:
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m16-chipyard-010` 复核遗留 f1/f2/f6（f3–f5 已关闭；由 `m16-testcases-021` 承接）：f1 无提交时 `merge-tree` 判据恒真（应以改动集 ∩ `HEAD..master` 兜底）；f2 B 段 Tiny FIRRTL 计数在文件缺失时默认 0、E 段缺 before/after 静默跳过；f3 自检日志写到任务 ID 之外的共享临时目录且不清理；f4 任务书档位（中改）与派单（组件+大改）不一致；f5 changelog 遗留「银行」措辞（非本任务行）；f6 证据脚本退回共享 `.conda-env`（并行会话改动会波及工具链身份）。处置：随下次触碰 chipyard 门控/文档时修。
+- id: ISS-492
+  scope:
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m16-testcases-003` 复核的 finding（由 `m16-testcases-021` 承接）：证据脚本的 `bin.qemu.install_eq_build` 在 `QEMU=` 覆盖时两侧取同一路径、退化为恒真（默认态「安装根 vs 构建树」才有效）；注入脚本 `mode_inject` 已正确覆盖，故只影响该行显示。处置：随下次触碰该证据脚本时改成「覆盖时跳过/标注 N/A」。
+- id: ISS-504
+  scope:
+  - testcases
+  - picolibc
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】picolibc 自测 harness `run_picolibc_tests_tiny.py` 的 `.done` 复用键在 qemu 引擎下 `sim_md5` 恒为 `None`（`obs` 只在 chipyard 分支产生），`info.get("sim_md5") == sim_md5` 退化为 `None == None` ⇒ **换库/换 lds 后仍复用旧判决**（`m15-infra-009` 报 `pass=6` 即此因）。处置：把被测输入指纹（`libc.a` + 安装版 lds + 工具链）纳入 key，或给 harness 加 `--force`/`--no-reuse`；在此之前证据脚本须先删运行期 `run/` 目录。
+- id: ISS-505
+  scope:
+  - testcases
+  - picolibc
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m15-infra-009` 完成区记录的 `check-picolibc-tests fast pass=6` 是 `.done` 缓存复用导致的假绿（真实为 18/20 加载期红：安装版 lds 漏 `KEEP(*(.text.start))`，`.text.unlikely.*` 抢段首使 `e_entry` 偏 `+0x40`）。修复已在 `m15-infra-010` 落地；本条只记 009 的证据失实，供台账/复盘引用。
+- id: ISS-506
+  scope:
+  - picolibc
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m15-infra-010` 修好 `times()` 后，`sysconf(_SC_CLK_TCK)` 仍返回 `SYS_TICKFREQ`（1e9），与 `times()` 的 `CLOCKS_PER_SEC`（1e6）单位不一致（ADR-0058 D2 第 2 条后半未落地）。处置：`sysconf(_SC_CLK_TCK)` 改回 `CLOCKS_PER_SEC`，随下次触碰 picolibc semihost 时修。
+- id: ISS-508
+  scope:
+  - testcases
+  - gem5
+  - infra
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: won't-fix（预估格式已改为 2–3 h）
+  title: 【P3】`f88c726a` 立 M16 批次时台账写 `预估时间：中`，不符合 `check-milestones-fresh` 的 `N h` / `N–M h` / `N 天` / `N–M 天` / `min` 格式 ⇒ `make check-milestones-fresh` rc=2（`m16-testcases-006`、`m16-gem5-020` 两条）；两册任务书 `**预估**` 同为「中」。处置：M16 批次收尾时按档位（中改）改台账与任务书为具体时长，恢复 L1 绿。
+- id: ISS-514
+  scope:
+  - gem5
+  - testcases
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: m16-gem5-022
+  title: 【P2】`m16-gem5-021` 的 I 侧结论「invalidate 后取指重取不可观测」**作废**：其 base probe `cfx5_selfmod.s` 用 16 位 `ld.uw`/`st.w` 只改指令字的 opcode 半，立即数未变，补丁是空操作 ⇒ 0x92 恒真，与 I 侧行为无关。`m16-gem5-022` 用正确构造（写码 → `D|clean` → `I|invalidate` → 跳转）证伪：单行/区间均执行新立即数（guest 0x10），去掉 clean D 才 0x92。不改写 021 既有完成区/审阅记录，仅记此笔。
+- id: ISS-515
+  scope:
+  - testcases
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2·GAP】`ADWBFAIL`（`CFXMEM` 子原因 `[56]`）在正常路径**不可达**：PA RAM 全可写，三平台只能靠故障注入；RTL 有 `CASE_ADWB` 手工镜像，QEMU/gem5 无测试专用注入钩子。用户 2026-11-22 裁定 **C：不单列 M16 用例，登记 GAP**；保留 RTL 手工证据，不在 `tests/arch` 做三方签名。若将来要三方覆盖，需给 QEMU/gem5 加注入开关（独立任务）。
+- id: ISS-516
+  scope:
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2·GAP】cfx5 维护命令的写回被总线拒绝 ⇒ `CFXMEM` 子原因 `[56] ADWBFAIL` 在正常路径不可达：`CACHE-25` 未定义命令级失败，本机脏行只在 store 成功的 PA 上产生。`m16-chipyard-017` 未实现，登记 GAP；若需覆盖，先改契约再实现。
+- id: ISS-517
+  scope:
+  - chipyard
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m16-chipyard-017` 的 cfx5 维护探针缺「I+D 同选 + 合法操作」用例（`CTRL_ID_*` 只有 none/非法）⇒ `CACHE-21` 先 I 后 D 只有静态核验。建议在 cfx5 用例（`m16-testcases-009`/`017`）补一条双侧同选用例。
+- id: ISS-518
+  scope:
+  - qemu
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P3】`m16-qemu-002` 的 finding（由 `m16-testcases-021` 承接）：`patch_tree_judge` 把 `qemu: source worktree absent; skipping…` 这类信息行也计为问题 ⇒ 源树缺失时假红（保守方向，且 build 已先失败）；后续与 `check_patch_tree.py` 的信息行清单对齐。另：`integ042t` 的 `_MACH` 默认 tiny、`node_probe_prelude` 默认 vast，漏设 `DADAO_TEST_PROFILE` 会对称假红（13/25），建议统一默认 profile。'
+- id: ISS-519
+  scope:
+  - qemu
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m16-qemu-003` 复核（② 由 `m16-testcases-021` 承接；① 由 `DIV-15` 登记）：① QEMU 系统模式下 I 侧 `tb_invalidate_phys_range` 在功能模型上不可独立观测（写 RAM 自动失效 TB），`on_i_invalidate_refetch` 例在“clean 不写回”等注入下仍绿、不能充当 I 侧失效的正向证据；I 侧仅 `on_i_leaves_d` 可达 FAIL。建议 `m16-testcases-009` 的 I 侧口径登记为“由 RAM 写自动失效保证”。② `m16-qemu-001` 探针的 `SEL_I/SEL_D` 写反（`cache_ctrl[15:14]` 是 2=I/1=D），该处只验合法/非法故未暴露，后续补正。
+- id: ISS-520
+  scope:
+  - qemu
+  - infra
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: m16-qemu-005
+  title: 【P1·已修复 2026-11-23】共享 `.work/source/qemu` 停在 002/003 之前的旧态（`helper.c` 3322 行、无 dcache/无 003 维护代码），与 master 补丁集差 +476/-19 行 ⇒ master 侧 `check-patch-tree` qemu 段 8 条 ⑥⑨，且 `make_patch.py qemu` 会静默导出旧内容、删掉 002/003。处置（`docs/Process-01`，禁 `reset --hard`）：确认写者空闲后删共享源树 → `make fetch` → `apply_series.py --component qemu` → `make build-qemu` → 判据 `check_patch_tree.py` qemu 段 0 problem + `--source-state` E1。**已按此重放 69 补丁并 `install-host`（安装根与构建树 qemu md5 同为 `f734b701…`，qemu 段 0 problem）。**
+- id: ISS-522
+  scope:
+  - testcases
+  - infra
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2·部分已修】`tests/arch` 的 smon/umon 异常路径失败形态过重（`m16-testcases-012` 复核发现）：载体未装载当前模式监视器时只能等 60 s 超时，且 carrier 开 `-d cpu`，实测单次失败写约 11.7 GB 日志（tmpfs 16 G 被打满）。建议：失败路径短 timeout（如 5 s）+ 关闭或截断 `-d cpu` dump，并让超时判据在写满磁盘前终止；另核其它 driver 是否有同类形态。 **2026-11-25 `m16-testcases-020` 已加 `runlimit`（10 s/128 MiB/1 MiB，未装载监视器 17 KB）；残余=外部强杀驱动留下的孤儿 QEMU（会写满磁盘），由证据脚本 `ulimit -f` + 显式 kill 兜底，`m16-testcases-021` 复核。**
+- id: ISS-523
+  scope:
+  - chipyard
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: m16-chipyard-025
+  title: 【P2】chipyard RTL 的 Vast BootROM 几何复用 Tiny：`bootROMBase/Size = 0xffff_ffff_0000/64 KiB` ⇒ `cfx_power cg7` 块 0 的 `start/size` = `0x3ff_ffff_0000`/`0x1_0000`，与 `spec/Kaiwu §3`/`machine.yaml(vast)` 的 `0x3ff_ffc0_0000`/`0x40_0000` 不符（`m16-testcases-016` 登记 DIV-12）。**用户 2026-11-23 裁定 B：修 RTL**（窗口/复位向量是硬件，镜像布局是构建/装载侧；`build_step5_bootrom.py` 已产标准 Vast 4 MiB 镜像，chipyard 资源生成器吃稀疏 hex）⇒ 由 `m16-chipyard-025` 承接（几何改 4 MiB + 稀疏镜像 + 启动路径 + 删 DIV-12）。
+- id: ISS-524
+  scope:
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】chipyard RTL 的 `cfx_power` 未开 common face：`cg4`（计数）/`cg6`（scratch）读出 `CFXREG`，而 `DADAO-12 §3.5/§3.7` 要求每个非 reserved cfx 都实现（`m16-testcases-016` 登记 DIV-13，QEMU/gem5 合规范）。应补 RTL 而非改口径。
+- id: ISS-525
+  scope:
+  - qemu
+  - gem5
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`cfx_power_ctrl` 的写侧（WO，写被接受）三个实现都未实现：写 0 均报 `CFXREG`（`m16-testcases-016` 诊断项）。该行为未写入判据（未拿实现当期望），需三方补齐后升为判据。
+- id: ISS-526
+  scope:
+  - spec
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P4】`contract-see` 的 power `start` 写 `0x3_ffc0_0000`，与 `spec/Kaiwu §3`/`machine.yaml(vast)` 的 `0x3ff_ffc0_0000` 差一位（`m16-testcases-016` 复核发现，既有笔误、非该任务引入）。随下次 contract-see 变更订正。
+- id: ISS-528
+  scope:
+  - testcases
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`tests/arch` 的 cfx4 PTW/TLB 用例只跑 `[hmon]`（`m16-chipyard-018` 复核确认）：S/U 运行模式与 PTE 的 S/U 轴未覆盖（QEMU/gem5 载体固定 `cfx_hmon`/hypv、RTL step5 只交付 hmon）；对应用户 2026-11-22「每个 cfx 三模式各跑一次」要求。需把 case 迁到 `common/env-{smon,umon}` 并补 S/U PTE 向量（H 轴已由 case 011 覆盖，J 不测）。
+- id: ISS-529
+  scope:
+  - chipyard
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P4】`chipyard_engine` 默认不传 `+verbose`，`ptw_walk`/`ptw_tlb` 的日志事件读不到；当前以记录面为判据（已覆盖验收），建议给引擎加可选 verbose 开关，便于后续按日志断言。
+- id: ISS-530
+  scope:
+  - spec
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】spec 措辞改动未跑下游解析器自检，已连续两次打断 `tests/arch` 自检：① `m18-spec-004` 删 §3.9 ⇒ `tests/arch/power/power_vast.py` 以 `### 3.9` 作 §3.8 结束标记而断链（`m16-chipyard-024` 返工 1 行修）；② `m18-spec-005` 把 §4.7 行文改成「软件只读（写忽略）」、「§5.1 合法值 **仍为** `{0,4,8}`」⇒ `tests/arch/hart/check_cfx15.py` 两处断言失效（`m16-chipyard-025` 返工修）。建议：spec/契约任务收尾必须跑 `python3 tests/arch/run_arch.py --self-test`（或把该自检纳入 spec 门控），并要求解析器用「章节起点/下一章起点」而非固定小节号作边界。
+- id: ISS-531
+  scope:
+  - chipyard
+  - spec
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3·裁定 A】`cfx_pmem` DMA 旁路 D-cache，PA 侧一致性在 spec 未定义（`m16-chipyard-022` 复核）：RTL 的 DMA 引擎直接读写 PA，CPU 若先缓存目标行会读到旧值；探针靠「只用 CPU 未触碰的 PA 行」回避。需在 `DADAO-12 §4.9` 明确 DMA 与 D-cache 的先后/失效语义（或规定软件须 fence/clean 后再启动），三方实现与探针同步。 **用户 2026-11-24 裁定 A：软件负责 `clean`/`invalidate`，硬件不 snoop、不自动失效**；由 `m16-spec-003` 承接。
+- id: ISS-532
+  scope:
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`arch-ptw-013` 的 RTL GAP 理由（pmem SRAM 不可达）已被 `m16-chipyard-022` 消除，可提升为 signature 用例（需改 `tests/arch/ptw/ptw_sig.S` 的 `PTW_CASE=13` 与登记），归 testcases 另立任务。
+- id: ISS-533
+  scope:
+  - qemu
+  - gem5
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】QEMU/gem5 的 `cfx_pmem` 只实现 `cg15`（+`cg7`），`cg8/cg12/cg13/cg14` 走 `CFXREG`；RTL（`m16-chipyard-022`）按 `§4.9` 全实现 ⇒ `cfx_pmem` 寄存器面暂时不能三方逐槽比。`DIV-06` 的 `close_when`（021/022/023 合入）不足以关闭，需补 QEMU/gem5 面或改写条件。
+- id: ISS-534
+  scope:
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】RTL 的 cfx5 维护端口把 `cache_addr_start` 截到 48 位（`m16-testcases-009` 复核发现）：`CACHE-18` 要求 56 位地址不截断；当前用例 PA 均低于 48 位未触达。由 `m16-chipyard-027`（同改 cfx5 RTL 面）一并修并补一条 ≥48 位的向量。
+- id: ISS-535
+  scope:
+  - chipyard
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P4·backlog】`cfx_pmem` 的 PA→SRAM DMA 直读未实现（`m16-testcases-009` 遗留）：D 侧可见性目前用 invalidate/flush 后重填读回观察；直读路径（DMA 主动读 PA 写 SRAM）需另立子用例与 RTL/探针支持。
+- id: ISS-536
+  scope:
+  - qemu
+  - spec
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】QEMU 的 `cfx_hart cg9 rc6`（`async_switch_run_mode`）写被接受并**生效**（投递时 `inner_run_mode = 写入值`；写 0 ⇒ 异步入 user），而 `§4.7` 要求固定 supv(2)、`§5.4` 要求入口 supv 单向量；RTL 为「写接受、忽略」。另：`§4.7` 只对 `rc3/rc4` 明文写「写忽略」，`rc6` 未明写 ⇒ 建议 spec 补一行。归属：QEMU 修复 + spec 措辞（M18 会话，承接 `m18-qemu-006`；对应 `DIV-18` 的 `close_when`）。
+- id: ISS-537
+  scope:
+  - gem5
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2·裁定 B】gem5 仍是 ADR-0061 R2 前的异步模型（无 `cfx_hart cg9`），`m16-testcases-013` 的 cfx15 异步只有 QEMU+RTL 两方逐槽（登记 `DIV-17`）。M16「三方一致」在裁定前不成立：需用户选择 ① 豁免（`DIV-17` 改 permanent/conditional，M16 收口接受 gem5 无异步面）或 ② 立 gem5 R2 迁移任务（异步捕获缓冲 + 掩码/pending，归 M16）。 **用户 2026-11-25 裁定 B：由 `m16-gem5-026`「gem5 异步捕获缓冲（ADR-0061 R2）」承接，合入后删 `DIV-17`。**
+- id: ISS-538
+  scope:
+  - chipyard
+  - infra
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】共享 `.work/source/chipyard` 落后于 master：2026-11-25 04:27 的补丁序列（`b555b0a`）不含 `m16-chipyard-027`（`WumingCache.tagBits` 仍是 48），而 Vast sim（05:03，md5 `da61cb6b…`）由该树构建 ⇒ `m16-testcases-019` 的 `arch-ptw-013` RTL 三方逐槽 BLOCKED（多段 `loadmem` 挂死）。需在写者空闲后 `apply_series` 重放到当前 master 并重建，或明确「验收一律用隔离树」的流程。
+- id: ISS-539
+  scope:
+  - chipyard
+  - spec
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P1·跨里程碑·裁定 B】`m17-spec-002`（ADR-0062 扁平 cause 位图）已改 `DADAO-12`，但 RTL（chipyard）仍按 ADR-0056 ⇒ RTL 上凡比较 `CAUSE_*` 的 guest 断言必红：`m16-testcases-019` 的 `arch-ptw-009 rc=47`、`arch-ptw-011 rc=54`、`arch-ptw-013 rc=3`（隔离树、master 补丁集实测）。这不是 M16 任务缺陷；闭合路径 = `m17-chipyard-001`（RTL 扁平 cause 对齐）合入后复跑。M16 收口前需用户裁定：RTL 相关 signature 暂时退回 gap，或接受 RTL 红并登记差异。 **用户 2026-11-25 裁定 B：保留 signature、接受 RTL known-red；由 `m16-testcases-022` 在 `m17-chipyard-001` 合入后修复/回归。**

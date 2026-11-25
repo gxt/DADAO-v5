@@ -1,0 +1,44 @@
+# issues-m19（M19 独占）
+#
+# 本文件由 M19 会话 独占写（用户 2026-11-25 裁定：issues 按里程碑分册）。
+# ID 规则：存量条目保留旧号 `ISS-<数字>`（冻结，不重编）；**新增条目**用
+# `ISS-m19-NNN`（NNN 从 001 起，取本文件内未用最小号）。跨文件修改须用户同意；
+# 里程碑收尾时本文件应清空，未解决条目汇总到 `issues-left.yaml`。
+#
+- id: ISS-429
+  scope:
+  - infra
+  - testcases
+  - chipyard
+  milestone: M19
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】节点上的 chipyard 模拟器在**固件/hex 变更后不会自动失效**：`sims/verilator/simulator-chipyard.harness-WumingTinyConfig` 与 `generated-src/.../gen-collateral/TLROM.sv` 仍是旧固件，三平台跑批会给出**假红**（实测 server207 在 `m12-chipyard-028` 合入后跑 `01-load-store` 得 37/235：chipyard 报点号、qemu/gem5 报 `0xF1`）。判据：`TLROM.sv` 解析的镜像 md5 必须等于 `bootrom_tiny.bin` 的 md5。处置：`rm -rf generated-src/<cfg> .classpath_cache/chipyard.jar` → `make verilog CONFIG=... -jN` → `make CONFIG=... -jN`。建议节点跑批前加一步自动校验（或 `run_asm_suite` 启动时比对 TLROM md5 并报错）。另：**节点无 JVM/JDK**（`java` 不存在、`/usr/lib/jvm` 空）⇒ 节点无法自行 elab/重建 chipyard 模拟器，只能同步主控机已验证的 Verilator 二进制（或先给节点装 JDK，需用户决定）。
+- id: ISS-451
+  scope:
+  - qemu
+  - infra
+  milestone: M19
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】qemu 二进制 md5 依赖**源树 git 状态**：`scripts/qemu-version.sh` 用 `git describe --dirty`，源树脏时版本串带 `-dirty` ⇒ 同一源码重编得到不同 md5（实测：干净树三次全等 `72bc2b04…`；加一行注释变脏后两次均 `4091db00…`）。原先被误报为「链接非位可复现」，已订正。后果：以 md5 作基线/还原证据时必须确认源树干净，否则会出现假差异；处置：基线登记处注明「必须在干净树上取 md5」，或让安装根 md5 不参与判据（只用行为断言）。
+- id: ISS-453
+  scope:
+  - chipyard
+  - infra
+  milestone: M19
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】chipyard sim 二进制的 md5 只在**同一时段/同一环境**内可复现：`m16-chipyard-002` 复核从同一改前源码（`983612df` 补丁态）独立重建得 `3efebd252c04888b175bfc7cac5ff77b`，而工程师当晚登记的是 `4e072a71…`（更早任务登记值）——行为（37 镜像 output/cycle）全等，仅字节不同。后果：`sim md5` 作「单二进制基线」时须同时记录**构建时段/环境**，跨时段比较 md5 会得到假差异（与 `ISS-451` 的 qemu `git describe --dirty` 同类但成因待查）。处置：查清字节差异来源（Verilator 生成的绝对路径/时间戳/随机种子/`printf` 次序），或在基线登记处注明「md5 仅在同一构建环境内可比」。
+- id: ISS-474
+  scope:
+  - chipyard
+  - infra
+  milestone: M19
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P3】chipyard 构建必须用 chipyard 自带 conda 环境（`components/chipyard/README.md:197` 已写明，我未照做，连续失败 4 次）：① 系统 `java` 是 **21**，`sbt 1.8.2`+`Scala 2.12.17` 读不了 Java 21 的 class 版本 ⇒ `bad constant pool index: 0` / `NoClassDefFoundError: sbt.internal.parser.SbtParser$`；② 换系统 JDK 17 能过 sbt，但 `make verilog` 报 **`Error: firtool not found in PATH`** —— `firtool`/`verilator`/`riscv-tools` 都在 `.work/source/chipyard/.conda-env/` 里。**正确口径**：`export PATH=<chipyard>/.conda-env/bin:$PATH` + `export RISCV=<chipyard>/.conda-env/riscv-tools`，直接用它自带的 java 20（实测 `make verilog` rc=0），无需系统 JDK 17。另：`nohup ... &` 起的构建会随工具壳层退出被回收（日志停在 `[info] done compiling`、无进程），须用 harness 后台任务。'

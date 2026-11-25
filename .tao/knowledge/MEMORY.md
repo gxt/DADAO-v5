@@ -36,7 +36,7 @@
 | 代码模型 / 打包规范（REL26 边 ≤ 32 MiB；单 DSO 可执行区跨度 < 30 MiB） | `.tao/adr/adr-0036-code-model.md` §D4/D7 + `make check-code-range` |
 | 构建 / 测试节点（机型 / 组网 / 软件包 / 就绪判据） | `.tao/knowledge/nodes.md` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
-| issue / 待裁定口径 | `.tao/knowledge/issues.yaml` / `discussing.md` |
+| issue / 待裁定口径 | `.tao/knowledge/issues-{left,m16…m19}.yaml`（按里程碑分册，各自会话独占写）/ `discussing.md` |
 | M14 内核与主流 ISA 差异盘点（八份 / 195 条 / 七根因） | `components/linux/kernel-diff-vs-mainstream-isa.md`（索引）→ 各任务书「盘点结论」段 |
 | 历史归档 | `.tao/archive/M*/`（M1–M15） |
 | 临时 / 一次性产物 | `/tmp/opencode/<任务ID>/` |
@@ -117,5 +117,5 @@
 
 - 任务台账：`.tao/knowledge/milestones-m16.md`（M16）等活册（三分表：待开始 / 进行中 / 已验证；按任务书 `**项目里程碑**` 分派）；**M12–M15 台账已合并进 `.tao/archive/M12/`、`M13/`、`M14/`、`M15/`（M15：2026-11-22，`m15-integ-001`）并删除**，M11 及以前同。
 - M10 完成任务书与 issue 快照：`.tao/archive/M10/`。
-- 已归档 issue：`.tao/archive/M*/issues-closed.md`（按 `closed_in` 取集）；活 `issues.yaml` 保留全部条目（关闭项留作溯源，`archive_issues.py --check` 依此复核快照）。
+- 已归档 issue：`.tao/archive/M*/issues-closed.md`（按 `closed_in` 取集）；活 `issues-*.yaml` 保留全部条目（关闭项留作溯源，`archive_issues.py --check` 依此复核快照）。
 - 一次性过程与长日志：运行期日志目录（可删、未归档）；临时产物：`/tmp/opencode/<任务ID>/`。

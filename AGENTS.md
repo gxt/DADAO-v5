@@ -34,7 +34,7 @@
 ## 3. 并行与资源
 
 - **写者互斥**：同一 **worktree** 同一时刻一个写者；同一**组件**（`.work/source/<name>` 与 `components/<name>/`）同一时刻一个写者；**台账与 `master` 合并只有主会话写**。
-- **多会话并行**：同一主仓可能有别的会话在派单/合并。改共享文件（台账、`issues.yaml`、根 `README`、`Makefile`、`MEMORY`）前先 `git log --oneline -5` + `git worktree list`；发现非本会话 worktree ⇒ 这些文件串行、合并前 rebase、合并后重跑受影响门控。
+- **多会话并行**：同一主仓可能有别的会话在派单/合并。改共享文件（台账、`issues-*.yaml`、根 `README`、`Makefile`、`MEMORY`）前先 `git log --oneline -5` + `git worktree list`；发现非本会话 worktree ⇒ 这些文件串行、合并前 rebase、合并后重跑受影响门控。
 - **并发上限**：同时在跑的子代理 **≤ 8**；同改共享文件（`contracts/`、`Makefile`、`tests/inst/`、`spec/SimRISC-0x` 等）的任务**一律串行**。
 - **并行度**：**构建 `JOBS=32`**；**测试用「全量核 − 2」**（主控机 62 / 节点 38）；禁手写其它值；`free -g` 可用 < 8 GiB 才降档并记录次数。
 - **节点**：6 台只作**评测执行机**（可为评测自建组件）；仓库修改、台账、补丁导出、调试迭代、L1 门控都在主控机。

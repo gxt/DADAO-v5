@@ -1,0 +1,182 @@
+# issues-m18（M18 独占）
+#
+# 本文件由 M18 会话 独占写（用户 2026-11-25 裁定：issues 按里程碑分册）。
+# ID 规则：存量条目保留旧号 `ISS-<数字>`（冻结，不重编）；**新增条目**用
+# `ISS-m18-NNN`（NNN 从 001 起，取本文件内未用最小号）。跨文件修改须用户同意；
+# 里程碑收尾时本文件应清空，未解决条目汇总到 `issues-left.yaml`。
+#
+- id: ISS-444
+  scope:
+  - linux
+  - infra
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】K1 门控的「阶段顺序」证据是**间接**的：共享 BootROM 固件的 power/hmon/smon **不打印任何东西**，而 K1 任务禁 `-d` 逐指令日志，故 `check-linux-k1` 只能用「镜像索引表（hmon<smon 各 1 条）+ 各阶段唯一产物」（boot info 15 字段 = hmon；`ptw_enable`/传入 PTBR/预建表 1 超页/`rb16+rb17` = smon）证明**三阶段都跑过**，**不能直接观测三阶段的相对顺序**（`m14-linux-005` 复核 §4 判定：够用但非直接观测、不阻断）。处置：给共享固件三阶段各加 1 行 semihosting 标记（改 `tests/shared/bootrom/**`，同时影响 `check-linux-k0` 与 `k0_boot_probe`），另立任务；补强后门控改为直接断言顺序。**m18-linux-008 复核（未落地，待另立任务）**：① 该任务硬约束的 `tests/shared/bootrom/**` **不存在**，共享固件实际在 `tests/ee-vast/{power,hmon_k0_vast,smon_k0_vast}.S`，BootROM 构建器在 `tools/qemu/k0_boot_probe.py`（`build_firmware()` 现无 power 阶段 defsym 入口，需新增 `power_defs`）；② `check-linux-k0` **不启动 QEMU**，K0 侧只能对 BootROM 镜像做静态断言（三阶段标记字符串各在自己的窗口内），运行期顺序只能由 `check-linux-k1` 判；③ 交叉影响：chipyard 侧同源 `power_vast.S`（`POWER_RTL_BODY=1`）与签入的 bootrom hex 必须逐字节不变 ⇒ 标记须用 `--defsym`（默认 0）门控，仅 K0/K1 打开。
+- id: ISS-457
+  scope:
+  - linux
+  - testcases
+  milestone: M18
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-008（绝对锚点已由 m14-linux-009 落地；本任务补齐「可达 FAIL」证据并订正路数标签）
+  title: 【P3】K2 两条派单口径缺「可达 FAIL」断言（`m14-linux-008` 复核实测）：① 把 `local_irq_save` 的 `flags` 截成低 32 位 ⇒ `k2_irq_probe` **95/95 全绿**；② 把 `enable` 改成全清 0（而非只清源位）⇒ **同样全绿**。两条都是本任务**明确要求**的性质，却无判据可抓 ⇒ 违反「每条断言须有可达 FAIL 路径」。处置：在 `m14-linux-009`（K2 收口门控）补两条绝对断言——`P1`：`before_smon` == `init_IRQ` 行值（高位参与比较）；`P5`：`enable` 态 == `disable` 态 `& ~DADAO_IRQ_SOURCE_BITS`。另订正 `run.sh --inject` 的「time 6 路」标签（实为 5 路）。**已修（m18-linux-008）**：`P1` 的绝对锚点在 m14-linux-009 已就位；`P5` 原仅有**相对**锚点（`enable == disable & ~bit`），实测不足以判红——`enable-write-zero` 注入下 `start_kernel` 早段的同一次全清写已把行内其余位抹掉，P5 现场变成 `disable=0x8000 / enable=0x0`，相对式比较的是 `0 == 0`；故本任务补两条**绝对**锚点（`enable == 复位全 1 只清源位`、`disable == 复位全 1`），两路注入（`flags-32`⇒P1、`enable-write-zero`⇒P5）实测判红并 `cp`+md5 还原回绿；路数标签改由 `--list` 现场派生。
+- id: ISS-486
+  scope:
+  - linux
+  - infra
+  milestone: M18
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-010
+  title: 【P3】`m14-infra-005` 两处措辞把 libc 行为归给内核（复核 Accepted 时登记，非阻断）：① 任务书完成区「新发现①」写「`sigaltstack` 运行时下限实测 2376 … 建议内核侧确认 `do_sigaltstack` 的 `min_ss_size`」——实际是 musl `src/signal/sigaltstack.c` 的 `sysconf(_SC_MINSIGSTKSZ)` 在用户态先拦（本次 `MINSIGSTKSZ=2376` 生效），内核那条轮不到，engineer 建议已撤销；② `components/musl/patches/arch/dadao/bits/signal.h.patch` 与 `tools/infra/musl_sigframe_probe*.{py,c}` 头注释归因内核。**已订正（`m18-linux-010`）**：② 两处源码/探针注释改为 libc 侧口径（musl `sigaltstack()` 的 `sysconf(_SC_MINSIGSTKSZ)` 用户态先拦、先于 syscall 返回 ENOMEM），① 所在的 `m14-infra-005` 任务书已归档，属历史层不改写；判据与实现未动（`libc.a`/`crt1.o` md5 不变）。
+- id: ISS-487
+  scope:
+  - linux
+  - infra
+  milestone: M18
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-008（S6 改钉调用形态 + clocksource 同判；§4a.4 退役台账；WARNING 白名单按文本/站点 + 源码锚定）
+  title: 【P3】`m14-linux-026` 复核的三条非阻断 finding：F-a `tools/linux/k4_switch_probe.py` 的 S6 正向断言只钉调用字面量 `clockevents_config_and_register(&dadao`，删掉注册行后仍能命中注释 ⇒ 应改钉调用形态并补 `clocksource_register_hz` 同判（现 clocksource 半边无静态断言，靠 K5 探针 C1+T1 覆盖）；F-b 旧断言「未注册 clocksource/clockevent」被翻转，按 `docs/Process-07 §4a` 应补退役台账（替代 = `k5_clocksource_probe` C1+T1–T4，先例 = k3 R4）；F-c 两条 WARNING 白名单按 `file:line` 写死，本轮输出 0 条 WARNING（空转），应改按告警文本匹配。处置：随下次触碰这些门控脚本时一并修。**已修（m18-linux-008）**：F-a `clock_static()` 在注释剥离后的源码上钉调用形态（`clockevents_config_and_register(&dadao_clock_event_device,` 与 `clocksource_register_hz(&dadao_clocksource,`）；F-b 记录写入 `Process-07 §4a.4` 并由 `check-linux-k6` R 组双向机械核对（`retired-back-44` 注入可判红）；F-c 白名单改 `KNOWN_WARNINGS`（按告警文本 + 无消息 `WARN_ON` 的站点文件），并用 `check_known_warnings_static()` 把白名单锚回 `init/main.c`/`fs/sysfs/group.c` 的源码，空转即红。
+- id: ISS-488
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P3】`m14-linux-028` 复核的三条非阻断 finding：R1 `TASK_UNMAPPED_BASE` 页对齐这半个修复无断言覆盖（A2 用 `mm_alloc()` 的 mm、不经 exec，只覆盖 `mmap_min_addr` 那半）⇒ 应补「exec 后 `mm->mmap_base` 页对齐」断言；R2 完成区遗留①「18 条 musl」计数/归属不准（实为 musl 8 + 其它 11），且全局 `check-patch-tree` rc=1 属在途/基线；R3 证据脚本的补丁树判据只 grep `linux: assertion`、不打印问题总数 ⇒ 补一行现场统计。处置：随下次触碰这些门控/任务书时修。**m18-linux-008 处置（2026-11-24）**：R3 已落地（证据脚本从 `check_patch_tree.py` 的输出**现场派生**问题总数与逐组件归属，并校验 `total == Σrows`、`rc==0 ⇔ total==0`，另给「一致/不一致」两路解析自检）；R2 的计数口径同源（不再手写组件归属）；**R1 未落地**：`exec` 后 `mm->mmap_base` 在用户态不可观测（本端口走 `CONFIG_MMU && !HAVE_ARCH_PICK_MMAP_LAYOUT` 的 legazy 布局，`unmapped_area()` 的上取整把 mmap_base 的非对齐掩盖掉），只能由内核侧探针打印（`components/linux` 的 `k5_pagesz_selftest`），而本任务禁改组件补丁 ⇒ 待另立任务。'
+- id: ISS-493
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P1】`k4_fork_probe` 的 F5 用户段偶发挂死（既有缺陷，非 `m14-linux-029` 引入）：`arch/dadao/kernel/k4_selftest.c` 用**本地** `struct pt_regs` 调 `dadao_enter_user()`，第一次 umon `SKIP` 后 `escape` 的目标取自 `task_pt_regs(current)->ip`，取到垃圾地址（实测恒为 `0xbef0`）⇒ `IGPTRAP` 在 0xbef0 → `die-no-vma` → `panic: Attempted to kill init`；探针报 F1/F5/F3 `got=124`。A/B（各 5 跑，同签名）：**master `1792ebf9`（无 029）4/5 红**（72/76×3、69/74×1，1 绿 104/104）；**029 分支 4/5 红**（71/75×4，1 绿 103/103）⇒ 属既有偶发（复核者另测 7/7 红），与 029 删除 `current->mm == NULL` 窗口臂无因果。修法方向：F5 改用 `task_pt_regs(current)` 作为入口帧（与 `k5_syscall_selftest` 的同类调用一致），并补「F5 用户段必到 SYS_EXIT(0)」的稳定复现门控；`m14-linux-029` 的证据脚本按「已登记既有红」处置，替代判据 = `check-linux-k5` 的 C/G 组。'
+- id: ISS-494
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P2】K4 探针在 K5 已开 tick 的镜像上偶发时序红（既有，非 `m14-linux-029` 引入）：`k4_kthread_probe` 的 `k2-task-dead` 在 `kthread_stop()` 后立即读任务态，偶见 `state=0 on_rq=1 frozen=1`（探针 59/68、`K4 kthread FAIL: k2-task-dead=0x0 code=0x51`），同一镜像随后连跑 2 次均 112/112 ⇒ 探针轮询与调度交接的竞态；同类脆弱性也见于 `k4_fork_probe` 的 F5（ISS-493）。建议：K4 探针的完成判据改为「事件 + 有界等待」并补 `sched_yield`/`cond_resched` 让出点；`m14-linux-029` 的证据脚本对其余 K4 探针保持严格判据，出现该类红时按运行期日志披露并重采一次全量。'
+- id: ISS-496
+  scope:
+  - linux
+  milestone: M18
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-011
+  title: 【P3】`m18-linux-001` 复核的非阻断 finding：F3 的 applet 计数派生式 `enabled - infra` 依赖 `SH_IS_ASH` 与无独立符号的 `sh` applet 恰好抵消；未来新增非 applet `CONFIG_*` 会使期望虚高而假红（方向安全）。处置：随下次触碰 busybox 计数判据时改为按 applet 白名单/符号表派生。**已修（`m18-linux-011`）**：`check_k6.py` 改为 `config.min` 的 `CONFIG_<SYM>=y` 白名单 ∩ busybox 静态 applet 表（`include/applets.h` 的 `IF_<SYM>(APPLET…(<name>` 行，`sh` 经 `SH_IS_ASH` 自己的 `APPLET_ODDNAME` 行成项）现场派生期望集，与构建产物 `applets.txt` 逐名比对；不再做 `enabled - infra` 抵消算术。
+- id: ISS-497
+  scope:
+  - linux
+  - musl
+  milestone: M18
+  status: closed
+  closed_in: M18
+  resolved_by: m18-infra-001
+  title: '【P1】K6 长脚本在 ash fork+exec 处确定性崩溃：约 17 条命令后 `die-no-vma`（`va=0x0`，`m18-linux-002` 实测 5/5 复现；`m18-linux-001` 已合入产物同样复现）⇒ 单次启动跑全部命令必红，002 只能拆 3 段短启动。**已定位并修复（`m18-infra-001`）**：根因不在 fork/exec，而在 musl `mallocng` —— `free.c: nontrivial_free()` 的 `a_or(&meta->freed_mask, self)` 未生效（4 字节 `lr.t`/`sc.t` 条件写在参考机器上静默丢写），组状态与掩码失配，下一次 `try_avail()` 在 `malloc.c:164` 的 `assert(mask)` 触发 `glue.h` 的 `a_crash()`（写 NULL）⇒ `die-no-vma`。修法与证据见 `m18-infra-001`（`a_cas` 改为 8 字节字 CAS）；平台侧窄 `sc` 丢写另登记 `ISS-501`。'
+- id: ISS-498
+  scope:
+  - linux
+  milestone: M18
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-004（用户入口跨模式切换屏蔽异步源；四个内核入口重开）
+  title: 【P2】K6 间歇启动未进用户态（`Run /init` 后无输出、QEMU rc=124 或 1；`m18-linux-002` 观测若干次）⇒ 脚本按 `check_k5.py` 先例做 1 次打印重试，第二次仍红。处置：定位启动竞态（入口帧/栈顶/调度）后去掉重试。**已修（m18-linux-004）**：根因是 `dadao_enter_user()` 恢复用户寄存器（含 SP）后到 `trap cfx_umon` 之间（以及任务已在用户态时）的 TIMER 投递——`async_trap.S` 的 supv 臂不换栈，处理器落回用户栈，`dadao_async_die()`/递归 supv 异常随后把启动打死；现入口同时屏蔽 `cfx_smon` supv 行与 `cfx_umon` user 行，`dadao_syscall_enter`/`dadao_trap_enter`/`dadao_user_fault_return`/`dadao_async_handler` 四个内核入口重开（事件在源端 pending、下次进内核补投）。实测 0/200 未进用户态（修前 6/200；去掉屏蔽注入 2/150）。
+- id: ISS-499
+  scope:
+  - linux
+  - busybox
+  - musl
+  milestone: M18
+  status: closed
+  closed_in: M18
+  resolved_by: m18-infra-001
+  title: '【P2】guest `grep` 每次 SIGSEGV（rc=139，含无匹配 `grep -q`）⇒ 12 个 applet 中 `grep` 实际不可用；`m18-linux-002` 断言改用 `$?` + 标记区间绕开。**与 `ISS-497` 同一根因，`m18-infra-001` 一并修复**：`qemu-dadao`（无 DADAO 内核）即可 100% 复现，断言落在 `malloc.c: try_avail`（`assert(mask)`）；busybox 只是受害者。修后 `grep` 有匹配 `rc=0`、无匹配（含 `-q`）`rc=1`。'
+- id: ISS-500
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】K6 之后用户态不再接收任何异步中断（`dadao_enter_user()` 把 `cfx_umon` user 行写 `~0`，全仓无第二处写回）：长用户态窗口内同源事件按契约合并为一次补投 ⇒ `jiffies` 滞后；K6 无用户态可观测面（busybox 无 date/sleep/time、无 /proc），故当次可接受但属**行为变化待追认**。另 `dadao_user_entry_install()` 注释仍称「用户态投递」已成死代码；`dadao_user_fault_return` 在 `enter_from_user_mode()` 前开中断（与上游顺序相反，本配置无断言）。处置：K6 之后若需用户态抢占/时间可见（K7+ 或 SMP），改为「用户态可投递 + 入口安全栈」，或至少修正注释与顺序。另 F2/F3：changelog `12/12` 应为 `checks=11`、`2/150`/`4/150`/实测 `3/150` 数字不一致。
+- id: ISS-501
+  scope:
+  - qemu
+  milestone: M18
+  status: closed
+  closed_in: M18
+  resolved_by: m18-qemu-001（参考机复核不复现 + 新回归向量；纯 QEMU 侧无补丁变更）
+  title: 【P2】`lr`/`sc` 的**窄宽度条件写会被静默丢弃**（参考机器 `qemu-dadao`/`qemu-system-dadao`，`target/dadao/translate.c` 的 `gen_sc`）：`sc.t`/`sc.o` 在「同一 TB 内先有同址窄加载（`ld.ut`）再 `lr`/`sc`，且该地址的 8 字节字里另有被写过的 `int`」时，`sc` 报成功（`rdHB=0`）、内存却保持旧值；`a_or`/`a_cas` 型 RMW 因此丢更新。最小复现：`m18-infra-001` 运行期证据的 `probe/narrow_cas_probe.c`（两次 `st.o` + `ld.ut` + `lr.t`/`sc.t` ⇒ 写丢失；去掉该 `ld.ut` 即正常），`word_cas_probe.c` 的 `lr.o`/`sc.o` 同场景正常。后果：`m18-infra-001` 前 musl `mallocng` 的 `avail_mask`/`freed_mask` 记账被破坏 ⇒ K6 `die-no-vma` 与 guest `grep` rc=139（`ISS-497`/`ISS-499`，已由 musl 侧改用字 CAS 规避）。处置：查 `gen_sc` 的 `MO_ALIGN`/窄宽度 BE 存储路径与 TCG 的 load/store 交互，补一条 `lr.t`+`sc.t` 同址 CAS 的向量（覆盖「同 TB 内前置窄加载」），修后 `ISS-497` 的窄 CAS 口径可作为回归向量。**m18-qemu-001 复核结论（当前参考机不复现）**：`gen_sc`/`lrsc_memop` 自 `m15-qemu-002` 起逐字节未改动，当前装机的 `qemu-dadao`/`qemu-system-dadao`（QEMU 11.1.1 + 本组件补丁集）在 **180 组用户态形状矩阵**（前置 `st.o`/`st.t` × 同址/邻址 `ld.ut`/`ld.o` × 宽度 `.b/.w/.t/.o` 与偏移 × CAS 环形状）与 **11 个 system 形状探针**（含 `ld.ut` 在 `lr` 前/后、`ld.o`、1/2/8 B 宽、失败路径）上全部正确：`sc` 报成功时窄写必然落地、邻居半字不变。原症状（mallocng
+    `a_or` 丢更新）的**剩余成因在 musl 侧**：`m18-infra-001` 之前 `a_cas` 用 `lr.t`/`sc.t`（窄 CAS），其修复已把该原语整体替换为 8 字节字 CAS；用修前 `a_cas`（逐字复刻）重建的 musl 在 400 轮 malloc/free 压力下也不再触发。回归覆盖：新增 `tests/inst/00-isa-design/atomic_rmw.S` 第 14/15 点（同一 TB 内同址 `ld.ut` + `lr.t`/`sc.t` CAS 的正常路径与保留被抢失败路径），并以「丢弃窄写」「把条件写改无条件」两处注入证明该向量可达 FAIL。
+- id: ISS-503
+  scope:
+  - linux
+  milestone: M18
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-012（F1 C 组 11 条恒真断言并入 region 判据并注入证红；F2 musl 10 problem 口径与标签订正；F3 翻转计数按实况 S/C/E 各 1 + R 2；F4 证据脚本无孤儿函数；F5 `trap.S` 符号订正为 `dadao_umon_save`）
+  title: 【P3】`m18-linux-003` 复核的五条非阻断 finding：F1 `check_k6.py` C 组 11 条「rc 标记是脚本期望的…」在 `region()` 成功分支内恒真（应并入 region 断言）；F2 完成区「musl 18 项」不准（实为 10 problem；18 是证据脚本按非 linux 前缀行的统计，标签 `non-linux problems` 亦失准）；F3 完成区/Process-07 的「5 次翻转（S/C/E/R×2）」与「四组各一次」不符；F4 `run.sh` 有未使用的 `check_absent_lines`；F5 §4a.3 表符号名 `dadao_umon_frame` 应为 `dadao_umon_save`。处置：随下次触碰 K6 门控/文档时修。
+- id: ISS-527
+  scope:
+  - spec
+  - docs
+  milestone: M18
+  status: closed
+  closed_in: M18
+  resolved_by: m18-spec-005（①Kaiwu 活正文 §2/§3/§4.2 改 monitor 掩码/捕获缓冲/cfxha 32 投递；②IDL-ISA §4.6 builtin 正文改同步 escape + cg9 捕获缓冲；④DD-C002/C003/C004 改单层 monitor 掩码、pending 归 cg9、escape 仅同步帧；⑥R2 删除「无嵌套」判据，该项失效。残项另立 ISS-530）
+  title: 【P2】`m18-spec-004`（ADR-0061）落地后的活文档残留与口径矛盾（`m18-spec-005` 收尾）：① `spec/Kaiwu` L74/92/152/595 仍写 `rc4=cfx_intr_mask`、`cg8 rc1=global_cfx_intr_mask`、escape 恢复掩码；② `spec/IDL-ISA…` L312/322/325/327/464 仍用 `async_cause_id`/`async_saved_global_intr_mask`/恢复掩码；③ `spec/SimRISC-11` L94 注释名 `async_cause_id`；④ `docs/DDLN/C-资源管理` DD-C002 L56、DD-C003 L53/56/58、DD-C004 L71 仍写 monitor 掩码/pending；⑤ `DADAO-12`/`DADAO-22` 变更记录并存互斥两条（改 17/18 与取消 17/18）且引已删 `§3.9`；⑥ `m18-spec-004` 的 `run.sh` 对 §5.4 无嵌套判据无语义断言（仅靠 manifest sha 变红），需补一条。另：`ADR-0061` Consequences 未列上述文档，architect 补列。
+- id: ISS-530
+  scope:
+  - spec
+  - docs
+  - idl
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m18-spec-005`（ADR-0061 R2）收尾后仍存在的活文档残留：① `spec/SimRISC-11 §3.1` 的 `escape_ciii_cfx` IDL 块由 `idl/SimRISC-11.idl` 渲染（禁手改），仍按「cg9 有效帧 + 返回」建模，须随 `m18-idl-002` 改语义源并重渲染（同笔更新 `idl/data/exec_anchor.toml` 与 `idl/.manifests.toml`，避免只改锁造成假绿）；② `docs/DDLN/C-资源管理` DD-C008 L9/L47、DD-C009 L66 仍写「低编号 cfx 优先」「两层掩码」，本任务白名单未列；③ `DADAO-12`/`DADAO-22`/`Kaiwu`/`IDL-ISA` 变更记录内旧模型条目按「历史记录不改」保留，另需 architect 决定是否补一条互斥说明。
+- id: ISS-536
+  scope:
+  - qemu
+  - testcases
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P2】**回归**：`check-tset-libc-smoke` 单例 `regression/pthread_cond_wait-cancel_ignored` 稳定红——`exit=1 … did not act on cancellation`；`TESTCASES-104t` 基线记为 `qemu_status: pass, exit=0`。复现：`m18-qemu-001` 3/3 + reviewer 独立 1 次 + 换修前 `a_cas` 的 musl 同样红（共 5 次）；`qemu-dadao` md5 前后同为 `7dcf3811`、本任务未改 QEMU 补丁 ⇒ 非窄 CAS / 非本任务引入。待定位归属（QEMU 取消/信号路径 vs musl 侧 vs 测试自身），定位后修并补可达 FAIL。'
+- id: ISS-538
+  scope:
+  - linux
+  - infra
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`run_suite.py` 跑内核套件时**不取写者锁**：内核写者（如 `m18-linux-023` 重放/重建共享 `.work/source/linux`）与套件跑批可并发 ⇒ 跑批落在半改写内核上产生**假红**（`m18-linux-006` 实测：`cause=CFXMEM(0x10000000000002)`、随机 `die 0xe1/0xec`、`MALIGN`）。临时绕行 = 私人重放树 + `DADAO_LINUX_SOURCE`/`DADAO_LINUX_BUILD` 覆盖。建议：`run_suite.py` 进入与 `gate.lock`/writer 登记一致的互斥，或在检测到源树有写者时拒绝启动。
+- id: ISS-540
+  scope:
+  - idl
+  - qemu
+  - spec
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2·需用户裁定】`cg9 rc6`（switch_run_mode）口径不一致：spec `DADAO-12 §4.7` 初始值 2 + `§5.4` 伪码注「固定 supv」，`contract-see` 同句；而 QEMU（`helper.c:3410` 写 `val&0x3`、`helper.c:3209` 进入取 rc6、`cpu.c:348` 复位 2）与 IDL 执行器均「接受 2 位、进入取 rc6」，RTL 未核。`m18-idl-002` reviewer 判 F1：择一——① spec/契约措辞改「复位 2、进入取 rc6」；② QEMU+RTL+IDL 三侧硬固定 supv。另 F2：IDL `Cfx.__init__` 的 `cg9[6]` 初值 0 ≠ spec/QEMU 的 2。
+- id: ISS-539
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P1】**用户态信号投递死在异步异常入口**（私人干净内核复现，`m18-linux-006` 返工）：`MALIGN(0x1000) ip=dadao_async_excp+0x1fc info=0xfffeffff7fff` → `die mode=2 code=0xec`；另有 `die 0xe1` 与 `clock_gettime01` 无 die 停摆；约 **1 次/10 例**。属 `m18-linux-024`（异步交付窗口）族但表现为信号路径；导致 LTP 跑批无法建立「连跑 2 次一致」的验收基线。处置：并入 024（或另立）定位异步入口的 MALIGN/现场污染，修后复跑 LTP ≥2 次。
