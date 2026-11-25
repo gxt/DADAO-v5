@@ -53,6 +53,11 @@
 15. **计数口径**：`escape_num` 每次 `escape` 执行 +1（同步/异步一视同仁）；`excp_async_num` 保持“每次异步进入 +1”。
 16. **`cg0`–`cg3`（各 cfx 的四个模式行）**：`<mode>_switch_run_mode` 由 `rc8` 改为 **`rc14`**；`<mode>_excp_vector` 由 `rc10` 改为 **`rc15`**（与 `cg9` 的 `rc14`/`rc15` 对齐）。
 17. **空出的 `rc8`/`rc10` 归 reserved（方案 A）**：`cg0`–`cg3` 的 `rc8`/`rc10`、`cg9` 的 `rc8`/`rc10` 均标 reserved，访问 ⇒ `CFXREG`。
+20. **`escape` 编码不变**：指令的机器码布局不改（仍带原 `cfxha`/`imms18` 字段位）；汇编格式写 `escape cfxHA`（`imms18` 省略）。`imms18` 位的新语义按下一问确认。
+21. **`escape` 的目标非法**：`rc9` 指向未实现 cfx，或目标模式没有对应 monitor（如 jail→jmon 不存在）⇒ `CFXESC`。
+22. **`rc11` 复位值**：全 1（fail-safe，默认屏蔽所有源）。
+23. **`trap` 也自动填 `rc8`–`rc11`**：`trap` 是同步进入，目标 cfx 的 `cg5` 同时得到入口记录与出口意图。
+24. **`rc0`–`rc3` 只读**：软件写入 ⇒ `CFXREG`。
 18. **`escape` 指令格式**：改为 **`escape cfxHA`**——只有 `cfxha` 操作数，**去掉 `imms18`/`imms20`**（`+0/+4` 偏移与 `cg9` 选择位一并消失；返回地址取 `rc10`）。
 19. **版本**：本批改动并入 **0.8.0 定版**（`0.8.0-rc` → `0.8.0`，去掉 `-rc`、补发布日期），**不是**升到 0.9.0；`DADAO-12` 与 `DADAO-22` **同批**定为 0.8.0（两册头部写明“与 SEE 版本号一致”），`contract-see` 随上游册同步（`check-spec-drift` 不变量）。
 
