@@ -105,3 +105,11 @@
   closed_in: M20
   resolved_by: m20-llvm-002（2026-11-25：AsmParser 按组文本 bank + 组内编码判 count；跨 bank 5/5 rc≠0、合法组零 diff、check-lit 184/184、encoding oracle 124/124）
   title: '【P2】LLVM 汇编器仍接受跨 bank 的文本寄存器组：`ra2rd {rd63:rf61}, {ra63:rb61}` 被接受并编码为 `0x40BBFFFF`（immu6=63，起始 63+63>64 应 ILLI），AsmParser 的 count 推导按寄存器枚举 id 差值跨了 bank，`mreg_range_overflow` 未拦住；`m20-llvm-001` 已在 MC 反汇编层拒绝该字（`<unknown>`），但汇编期仍可生成非法编码。证据：`m20-llvm-001` 复核，`llvm-mc` rc=0、`llvm-objdump` 显示 `<unknown>`。处置：AsmParser 按组文本的 bank 与起始/个数判 `mreg_zero`/`mreg_range_overflow`（不得用跨 bank 的枚举差值），补 lit 负例。'
+- id: ISS-m20-002
+  scope:
+  - testcases
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P3】`stm.t`/`stm.w` 缺 `immu6=63` 边界用例：`stm.b_rrri_rd` 与 `stm.o_rrri_{rd,rf,ra,rb}` 已由 `m17-testcases-006` 补齐 63 例，但 `stm.t_rrri_rd`/`stm.t_rrri_rf`/`stm.w_rrri_rd` 仍无 `immu6=63`；同时 `stm.t_rrri_rf` 的 rf0 源注释只说 FCSR 字段、未明确“读出完整 64 位（本指令只存低 32 位）”。现场 `git blame` 显示相关行由 `b69347fc` 更新，RD 注释已为“读出 0”，不再有“0/当前指令地址”。处置：三个文件各补 1 个 63 链例（首/中/尾 + 下一单元未写），并明确 rf0 源读出宽度；同步 case-ledger/signature 生成物。'
