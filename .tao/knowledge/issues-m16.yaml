@@ -205,9 +205,9 @@
   scope:
   - chipyard
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: won't-fix（用户 2026-11-25：页表必须在内存、不构建 ADWBFAIL 用例；cfx5 命令级回写失败同口径不造用例）
   title: 【P2·GAP】cfx5 维护命令的写回被总线拒绝 ⇒ `CFXMEM` 子原因 `[56] ADWBFAIL` 在正常路径不可达：`CACHE-25` 未定义命令级失败，本机脏行只在 store 成功的 PA 上产生。`m16-chipyard-017` 未实现，登记 GAP；若需覆盖，先改契约再实现。
 - id: ISS-517
   scope:
