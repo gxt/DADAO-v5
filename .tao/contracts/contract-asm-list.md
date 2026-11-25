@@ -16,7 +16,7 @@
 | `imms12` | s12: -2048..2047 | 访存偏移（字节，无 `%4` 要求） |
 | `imms14` | bytes: [-8192, 8188]，`%4==0` | 跳转/分支 rrii 偏移（字节→编码 `>>2`） |
 | `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求）；`aip.si` 的**编码层** 4 KiB 块偏移（`<<12`；汇编层按字节写 `imms30`） |
-| `imms20` | 跳转/分支 bytes: [-524288, 524284]，`%4==0`；`escape` 只接受 `{0, 4, 8}`（`8` = `cg9` 现场、偏移 0） | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
+| `imms20` | 跳转/分支 bytes: [-524288, 524284]，`%4==0`；`escape` 不使用该字段（`imms18` 必须为 0） | 跳转/分支 riii 偏移（字节→编码 `>>2`） |
 | `imms24` | s24: -8388608..8388607 | 编码层字段（非汇编层直接使用） |
 | `imms26` | bytes: [-33554432, 33554428]，`%4==0` | 跳转 iiii 偏移（字节→编码 `>>2`） |
 | `imms30` | bytes: [-536870912, 536866816]，`%4096==0` | `aip.si` 的**汇编层**操作数（字节；编码 `imms18 = bytes >> 12`） |
@@ -313,7 +313,7 @@
 |---|---|---|---|---|
 | `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxHA, cgHB, rcHC, rdHD` | `cfx2rc_crrr_cfx` |
 | `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxHA, cgHB, rcHC, rdHD` | `cfx2rd_crrr_cfx` |
-| `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms20]` | `escape_ciii_cfx` |
+| `escape` | `ciii` | `cfx` | `escape cfxHA` | `escape_ciii_cfx` |
 | `fence` | `ciii` | `cfx` | `fence cfxHA, immu18` | `fence_ciii_cfx` |
 | `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
 

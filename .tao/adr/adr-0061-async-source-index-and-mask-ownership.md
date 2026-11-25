@@ -1,8 +1,8 @@
 # ADR-0061: 异步中断模型修订（掩码归 monitor、源索引统一 cfxha、cg9 精简为软件只读）
 
-**状态**：Accepted（2026-11-23；用户确认"统一"并批准派发 `m18-spec-004`；D5 掩码更名、D6 pending 跟随源事件、D12 版本按本 ADR 草案执行，spec-004 复核时如与预期不符再改）；2026-11-23 R2 裁定修订 cg9 为捕获缓冲、`escape` 不再异步返回，见「R2 修订」段
+**状态**：Accepted（2026-11-23；用户确认"统一"并批准派发 `m18-spec-004`；D5 掩码更名、D6 pending 跟随源事件、D12 版本按本 ADR 草案执行，spec-004 复核时如与预期不符再改）；2026-11-23 R2 裁定修订 cg9 为捕获缓冲、`escape` 不再异步返回，见「R2 修订」段；2026-11-26 R3 修订：cg5 rc8–rc11 出口 + 异步 escape，见「R3 修订」段
 **日期**：2026-11-23
-**关联**：`ADR-0060`（Accepted；本 ADR 取代其 D2/D3 的 cg9 表与释放语义、D6 的掩码归属、D7 的「保留 cause 17/18」；D0/D1/D4/D5/D9 继续有效并 Super­sede 记录待 Accepted 后追加）；`ADR-0059`（已 Superseded）；`m18-spec-002`、`m18-qemu-004`、`m16-chipyard-021`、`m16-chipyard-020`；`ISS-500`、`ISS-498`
+**关联**：`ADR-0060`（Accepted；本 ADR 取代其 D2/D3 的 cg9 表与释放语义、D6 的掩码归属、D7 的「保留 cause 17/18」；D0/D1/D4/D5/D9 继续有效并 Super­sede 记录待 Accepted 后追加）；`ADR-0059`（已 Superseded）；`m18-spec-002`、`m18-qemu-004`、`m16-chipyard-021`、`m16-chipyard-020`、`m18-spec-007`；`ISS-500`、`ISS-498`
 
 ## Context（背景）
 
@@ -121,3 +121,45 @@ cg9 **只是异步进入瞬间的捕获缓冲**：每次异步进入 `cfx_hart` 
 - **`escape imms18=2` 不再异步返回**：cg9 捕获后丢弃，返回用户走 smon/umon 正常路径；`escape` 编码本身不变（sync/cg5 继续，`imms18[1]` 保留给未来/兼容）（见 D9）。
 - **影响**：`m18-qemu-005`/`m18-spec-004`/`m18-testcases-003`/`m18-linux-022` 需再修订；**不新立 ADR**；状态保持 Accepted，版本仍 `0.8.0-rc`（不升号）。
 
+
+## R3 修订（2026-11-26，用户裁定）
+
+用户 2026-11-26 裁定 **A：修订本 ADR（加 R3）**，把「异步 escape」纳入规范。R3 与 R2 的 D9/D10 及 Alternatives 结论冲突处，以 R3 为准；R2 段保留为历史，不删除、不改写；D1–D8 保留，与 R3 冲突处以 R3 为准。
+
+### R3-D1 两层模型：入口记录 + 出口意图
+
+- **入口记录**由硬件写、软件只读；**出口意图**在进入时由硬件复制一份，handler 可改，`escape` 只认这一份。
+- 同步/异步**共用同一 `escape` 出口**；异步返回不再需要第二 monitor（jmon 退场）。
+
+### R3-D2 `cg5` 重排（每 cfx）
+
+- `rc0` prev run mode、`rc1` prev cfx code、`rc2` prev ip（原 `excp_cause_ip`）、`rc3` prev intr mask：入口记录，**只读**，软件写入 ⇒ `CFXREG`。
+- `rc4` excp cause id、`rc5` excp cause info。
+- `rc8` escape run mode、`rc9` escape cfx code、`rc10` escape ip、`rc11` escape intr mask：出口意图，进入时硬件自动填、软件可写；`rc11` 复位全 1。
+- **删除** `excp pending`（`rc6`/`rc7` 维持现状）。
+
+### R3-D3 `cfx_hart cg9` 重排
+
+- `rc0` prev run mode、`rc1` prev cfx code、`rc2` prev ip、`rc3` prev intr mask（与 `cg5` 同序，只读）。
+- `rc4` 本次源集合（只读）、`rc5` `async_src_pending`、`rc14` `async_switch_run_mode`、`rc15` `async_excp_vector`。
+- 原 `rc8`/`rc10` 归 reserved（访问 ⇒ `CFXREG`）；其余 reserved。
+- 异步进入只写 `cg9 rc0`–`rc4` 与 **hart 自己的 `cg5 rc8`–`rc11`**，**不写** hart `cg5 rc0`–`rc3`；`trap`（同步进入）写目标 cfx 的 `cg5 rc0`–`rc5` + `rc8`–`rc11`。
+
+### R3-D4 `cg0`–`cg3` 槽位迁移
+
+- `<mode>_switch_run_mode` 由 `rc8` → **`rc14`**；`<mode>_excp_vector` 由 `rc10` → **`rc15`**；原 `rc8`/`rc10` 归 reserved（访问 ⇒ `CFXREG`）。
+
+### R3-D5 `escape` 语义
+
+- 汇编格式 **`escape cfxHA`**；机器码布局不变，但 `imms18` 必须为 **0**（非 0 ⇒ `ILLI`）；旧的 `+0`/`+4` 偏移与 `cg9` 帧选择位作废。
+- `cfxha` 必须等于当前 cfx（否则 `CFXESC`）；用当前 cfx 的 `cg5 rc8`–`rc11`：切 mode/切 cfx、跳 `rc10`、把 `rc11` **整字**写入目标模式 monitor 的 `cg8 rc1`，与跳转**原子完成**（`rc10` 第一条指令前生效；user→umon、supv→smon、hypv→hmon）。
+- 目标 mode **不得高于**当前模式（否则 `CFXESC`）；目标 cfx 未实现或目标模式无对应 monitor（jail→jmon 不存在）⇒ `CFXESC`。
+- **不设帧有效位**：只要 `cfxha == 当前 cfx` 且目标模式不升权即可；重复 `escape` 由软件负责。
+- `escape_num` 每次 `escape` 执行 +1（同步/异步一视同仁）。
+- 嵌套纪律（软件快照）：硬件单帧；入口把 `cg5 rc8`–`rc11`（连同 `cg9` 记录）抄到每任务/每 CPU 内存，返回前写回 `rc8`–`rc11` 再 `escape`；嵌套按 LIFO。
+
+### R3-D6 supersede 与保留
+
+- **supersede**：D9（`escape imms18[1] = 1 ⇒ CFXESC`、异步返回改走 smon→umon）；D10 中「不再由 escape 异步返回」；Alternatives 中「取消 `imms18[1]` 改 LIFO 隐含选择」的结论。
+- **保留**：D1–D8 继续有效；其中与 R3 冲突处以 R3 为准（尤其 D3/D4 的入口记录版本、D7 的 cg9 槽位表、D9 的编码结论）。
+- 影响：`DADAO-12`/`DADAO-22` 定版 0.8.0、`SimRISC-11` 0.5.8-rc 及 `contract-see`/`contract-syscall`/别名表同步由 `m18-spec-007` 落地；实现侧（QEMU/RTL/IDL/汇编器/内核）按 R3 另行排任务。

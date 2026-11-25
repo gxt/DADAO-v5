@@ -597,11 +597,10 @@ def build_main_table(records):
                        f_crrr(), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
     records.append(rec("cfx2rc-crrr", "cfx2rc", "crrr", 0x7B,
                        f_crrr(), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
-    # escape 的 imms18：bit0 = cg5 字节偏移 bit2、bit1 = 帧选择位（0=cg5/1=cg9）、
-    # [17:2] 为 SBZ；imms18 = 3（cg9 帧 + 偏移 +4）非法（SimRISC-11 §3）。
+    # escape 的 imms18 为 SBZ：必须为 0，非 0 ⇒ ILLI（SimRISC-11 §3；汇编层只写 cfxHA）。
     records.append(rec("escape-ciii", "escape", "ciii", 0x7E,
                        f_ciii("imms18"),
-                       ["imms18[17:2] == 0", "imms18 != 3", CFX_RESERVED_EXPR],
+                       ["imms18 == 0", CFX_RESERVED_EXPR],
                        S00_QFC, scope="m1"))
     records.append(rec("trap-ciii", "trap", "ciii", 0x7F,
                        f_ciii("immu18"), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
@@ -939,6 +938,7 @@ EXPR_TO_RULE = OrderedDict([
     ("immu18[17:12] == 0",                        "encode_sbz"),
     ("imms18[17:2] == 0",                         "encode_sbz"),
     ("imms18 != 3",                               "encode_sbz"),
+    ("imms18 == 0",                               "encode_sbz"),
     (CFX_RESERVED_EXPR,                           "encode_cfx_reserved"),
     ("immu18[11:10] == 0",                        "encode_sbz"),
     ("immu18[11:6] == 0",                         "encode_sbz"),

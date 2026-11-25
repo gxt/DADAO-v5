@@ -1,8 +1,8 @@
 # semihosting 合约（M5）
 
-> **版本：0.7.1** [DADAO-22 §1. 调用约定][DADAO-12 §1. 运行模式与核芯功能扩展]
+> **版本：0.8.0** [DADAO-22 §1. 调用约定][DADAO-12 §1. 运行模式与核芯功能扩展]
 >
-> **来源**：决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted，`D1`–`D8`/`D14`）；规范正文 `spec/Kaiwu-测试机运行环境.md §5`（v5 自定）；调用约定引用 `spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.1）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）；服务号值语义取自 Arm Semihosting（`Semihosting for AArch32 and AArch64`）。
+> **来源**：决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted，`D1`–`D8`/`D14`）；规范正文 `spec/Kaiwu-测试机运行环境.md §5`（v5 自定）；调用约定引用 `spec/DADAO-22-SBI-主管系统二进制接口.md`（0.8.0）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）；服务号值语义取自 Arm Semihosting（`Semihosting for AArch32 and AArch64`）。
 >
 > **范围**：v5 测试机 semihosting——入口判定（tag）、调用约定、完整 25 服务表、返回机制、停机（`SYS_EXIT`）、已知风险。SEE/HEE 运行环境见 `contract-see.md`。
 >
@@ -68,7 +68,7 @@
 ## §4 返回机制
 
 - semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 IP**（`IP += 4`）并写回返回寄存器 `rd8`；guest 侧不需 `escape`。[ADR-0020 D4][Machine-01 §5.4]
-- 该机制与一般 trap 的 `escape cfxha, [excp_cause_ip, 4]` 返回不同（semihosting 不进入向量）。[ADR-0020 D4][DADAO-22 §1. 调用约定]
+- 该机制与一般 trap 的 `escape cfxha` 返回不同（后者先把 `cg5 rc10` 写为 `excp_cause_ip + 4`；semihosting 不进入向量）。[ADR-0020 D4][DADAO-22 §1. 调用约定]
 
 ## §5 停机（`SYS_EXIT` 取代 exit port）
 

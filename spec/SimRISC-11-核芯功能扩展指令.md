@@ -1,6 +1,6 @@
 # SimRISC核芯功能扩展指令
 
-> **版本：0.5.7**（与 SimRISC-00 一致）
+> **版本：0.5.8-rc**（与 SimRISC-00 一致）
 > **分类：核芯功能扩展** — trap/escape/cfx2rd/cfx2rc/fence
 
 ## 1. 指令域与执行条件
@@ -51,15 +51,15 @@ if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ 进
 
 ## 3. 退出指令
 
-退出指令用于退出同步异常、将控制权交还给陷入异常前的状态。异步中断没有 `escape` 返回路径：`cfx_hart cg9` 是进入瞬间的捕获缓冲，由软件搬运后丢弃，返回走 smon/umon 正常路径（见 `DADAO-12 §5.4`）。
+退出指令用于退出异常、将控制权交还给出口意图指定的现场。同步与异步**共用**该出口：同步进入的出口意图在目标 cfx 的 `cg5 rc8`–`rc11`，异步进入的在 `cfx_hart cg5 rc8`–`rc11`（见 `DADAO-12 §5.1`/`§5.3`/`§5.4`）。
 
 操作数类型为：`ciii`
 
 ```simrisc
-escape  cfxHA, [excp_cause_ip, imms20]
+escape  cfxHA
 ```
 
-其中，cfx_\<cfxname\> 指定核芯功能扩展名称；imms20 指定目标地址偏移（字节）。编码层 `imms18 = imms20 >> 2`，其中 `imms18[0]` 为字节偏移 bit2、`imms18[1]` 为**帧选择位**（0 = `cg5` 同步异常帧，1 = `cg9` 捕获缓冲），`imms18[17:2]` 为 SBZ、手工编码非零 ⇒ ILLI。合法 `imms18` 集合为 `{0, 1, 2}`：`0`/`1` 为 `cg5` 帧、字节偏移 0/+4，实际地址 = `excp_cause_ip + (imms18 << 2)`；`2` 为 `cg9` 帧选择、偏移恒 0，但 `cg9` 是异步进入的**捕获缓冲**而非返回帧，**不用于异步返回**（执行 ⇒ 当前 cfx 的 `CFXESC`，不改变 cfx/运行模式/`cg9`）；`3`（帧选择位 1 + 偏移 +4）⇒ ILLI。汇编层 `imms20` 以字节为单位（`imms20 = imms18 << 2`），合法值 `{0, 4, 8}`，其中 `8` 只是 `cg9` 帧选择的合法编码、不提供异步返回。偏移是编译期固定的立即数，不支持任意地址跳转。
+其中，`cfxHA` 指定核芯功能扩展名称，必须是**当前执行的 cfx**。编码字段 `imms18` 必须为 **0**（SBZ），手工编码非 0 ⇒ ILLI；旧的 `+0`/`+4` 偏移与 `cg9` 帧选择位作废。返回的运行模式、cfx 与指令指针取自当前 cfx `cg5` 的出口意图 `rc8`–`rc11`，返回地址精确取 `rc10`；目标运行模式不得升权、目标 cfx 未实现或目标模式没有对应 monitor ⇒ 当前 cfx 的 `CFXESC`。不设“帧有效位”；`escape_num` 每次执行 +1。完整语义见 `DADAO-12 §5.1`/`§5.3`。
 
 ### 3.1 形式化语义（IDL）
 
@@ -259,7 +259,7 @@ cfx_fence(cfxHA, immu18[11:6], immu18[5:0]);
 |---|---|---|---|---|
 | `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxHA, cgHB, rcHC, rdHD` | `cfx2rc_crrr_cfx` |
 | `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxHA, cgHB, rcHC, rdHD` | `cfx2rd_crrr_cfx` |
-| `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms20]` | `escape_ciii_cfx` |
+| `escape` | `ciii` | `cfx` | `escape cfxHA` | `escape_ciii_cfx` |
 | `fence` | `ciii` | `cfx` | `fence cfxHA, immu18` | `fence_ciii_cfx` |
 | `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
 

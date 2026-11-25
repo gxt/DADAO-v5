@@ -2384,8 +2384,7 @@
     bank: imm
     signed: true
   legality:
-  - imms18[17:2] == 0
-  - imms18 != 3
+  - imms18 == 0
   - cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62
   spec_cite: 'SimRISC-11: escape'
   scope: m1

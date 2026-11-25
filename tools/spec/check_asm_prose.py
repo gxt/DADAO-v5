@@ -311,7 +311,7 @@ _FORMAT_OP_COUNTS: dict[str, set[int]] = {
     "oiii": {1},      # swym 0
     # cfx family (SPEC-103t/ISS-077: previously absent ⇒ operand count silently skipped)
     "crrr": {2, 4},   # 4 = cfx2rd cfxHA, cgHB, rcHC, rdHD; 2 = alias cfx_<name>, rdHD
-    "ciii": {2},      # escape cfxHA, [excp_cause_ip, imms20]; trap cfxHA, immu18
+    "ciii": {1, 2},   # 1 = escape cfxHA（imms18 恒 0）；2 = trap cfxHA, immu18
 }
 
 

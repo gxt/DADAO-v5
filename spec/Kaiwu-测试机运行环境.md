@@ -80,7 +80,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 - **运行模式范围（按 profile）**：`Kaiwu-Tiny` 不提供模式切换路径——复位后即在特权态（名义 `hypv`；复位时 cfxha 63 / `power`，移交后 cfxha 3 / `hmon`）执行，运行模式恒 `hypv`，**不能进入 `user`/`jail`/`supv`**，不实现 smon；`Kaiwu-Vast` 启用 `hypv`、`supv` 与 `user`，`jail` 不启用。
 - **`switch_run_mode`（按 profile）**：`Kaiwu-Vast` 取 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 的值作为异常进入后的运行模式（上段步骤 6）；`Kaiwu-Tiny`（**测试机约定**）该寄存器的**写入被忽略**（寄存器保存值保持 `3`，`hypv`），**读回为寄存器保存值**；异常进入一律强制 `hypv`（`inner_run_mode ← 3`），运行模式不变。[DADAO-12 §5.2 异常进入流程][DADAO-12 §3.4 cg3 - hypv mode 寄存器]
 - **异常承载（按 profile）**：`Kaiwu-Vast` 由 `hmon`（cfx3）承载 hypv 异常、`smon`（cfx2）承载 supv 异常；`Kaiwu-Tiny` 由 `hmon`（cfx3）承载唯一的 hypv 同步异常（无 smon），异常经 hmon 向量处理（见 `§4.4`）。
-- **启动链（按 profile）**：`Kaiwu-Tiny` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）：BootROM 内的 power stub 把编入同一镜像的 hmon 运行段复制到 hmon SRAM（`§6.2`），以 `trap cfx_hmon` 按 `DADAO-12 §5.2` 的 `CFXTRAP` 移交 hmon；hmon 入口校验 magic、按需配置权限后 `escape cfx_hmon, [excp_cause_ip, 4]` 返回 power stub，power 跳固定应用入口 `0xffff_ff01_0100`（`§6`）。hmon 异常向量初值即 hmon SRAM 起始（`DADAO-12 §3.4`），入口内显式写入同值属幂等、不是向量可用的前提。全程运行模式为 `hypv`，不做模式切换。`Kaiwu-Vast` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）；`power → hmon → smon`（supv/cfx2）路径保留：power 从 BootROM 装载 hmon 并 `trap` 移交；hmon 配置 smon 的 S-mode 向量/权限后 `trap` 移交；smon 建立第一张页表、开启 PTW 并接管运行期。M11 测试不覆盖 smon。
+- **启动链（按 profile）**：`Kaiwu-Tiny` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）：BootROM 内的 power stub 把编入同一镜像的 hmon 运行段复制到 hmon SRAM（`§6.2`），以 `trap cfx_hmon` 按 `DADAO-12 §5.2` 的 `CFXTRAP` 移交 hmon；hmon 入口校验 magic、按需配置权限后 `escape cfx_hmon` 返回 power stub（返回前把 `cg5 rc10` 写为 `excp_cause_ip + 4`），power 跳固定应用入口 `0xffff_ff01_0100`（`§6`）。hmon 异常向量初值即 hmon SRAM 起始（`DADAO-12 §3.4`），入口内显式写入同值属幂等、不是向量可用的前提。全程运行模式为 `hypv`，不做模式切换。`Kaiwu-Vast` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）；`power → hmon → smon`（supv/cfx2）路径保留：power 从 BootROM 装载 hmon 并 `trap` 移交；hmon 配置 smon 的 S-mode 向量/权限后 `trap` 移交；smon 建立第一张页表、开启 PTW 并接管运行期。M11 测试不覆盖 smon。
 - **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。
 
 ---
@@ -145,11 +145,11 @@ TLB 属 `cfx_ptw`，其匹配键、命中检查、填充条件、A/D 维护与�
 
 ### 4.2 `escape` → 异常退出流程
 
-`escape` 指令完成同步异常退出：恢复 `excp_prev_run_mode`、递增 `escape_num`，并以 `escape` 的 `imms18`（指令字偏移）计算返回地址并跳转——`Addr = excp_cause_ip + (imms18 << 2)`（`cg5` 同步异常帧）。**异步没有 `escape` 返回路径**：`cfx_hart cg9` 是进入瞬间的捕获缓冲，由软件搬运后丢弃，返回走 smon/umon 正常路径（`DADAO-12 §5.4`）。[DADAO-12 §异常退出流程] 汇编层写 `escape cfxha, [excp_cause_ip, imms20]`，`imms20` 以字节为单位、合法值 **`{0, 4, 8}`**（`imms18 = imms20 >> 2 ∈ {0, 1, 2}`；`8` 只是 `cg9` 帧选择的合法编码，**不提供异步返回**）；编码层 `imms18[1]` 为帧选择位（0 = `cg5`、1 = `cg9`），`imms18[17:2]` 为 SBZ、`imms18 = 3` ⇒ `ILLI`（先于任何状态切换）；`imms18[1] = 1` 执行时 `cg9` 不是返回帧 ⇒ 当前 cfx 的 `CFXESC`。[SimRISC-11]
+`escape cfxHA` 完成异常退出：按当前 cfx 的 `cg5 rc8`–`rc11` 出口意图恢复运行模式/cfx、跳转 `rc10`，并按 `rc11` 整字恢复目标模式 monitor 的 `cg8 rc1`；`imms18` 必须为 0（非 0 ⇒ `ILLI`）。同步与异步**共用**该出口：异步进入把出口意图填进 `cfx_hart cg5 rc8`–`rc11`，handler 可执行 `escape cfx_hart` 返回被中断现场（`rc10` = 已提交指令之后的 `rb0`，**不重放**）。[DADAO-12 §5.1 指令行为说明][DADAO-12 §5.3 异常退出流程][DADAO-12 §5.4 异步中断进入与退出][SimRISC-11]
 
-被调方通过 `escape cfxha, [excp_cause_ip, 4]` 返回 trap 指令的下一条指令（`excp_cause_ip + 4`）。[DADAO-22 §1. 调用约定]
+被调方执行 `escape cfxha` 返回（返回地址取 `cg5 rc10`）；返回 trap 指令的下一条指令前先把 `rc10` 写为 `excp_cause_ip + 4`。[DADAO-22 §1. 调用约定]
 
-- **`escape` 的目标 cfx 恒为当前 cfx；退出后当前 cfx 恢复为异常前的值**：`DADAO-12 §5.3` 原文为「`escape` 指令编码中指定了 `cfxha`，它必须是当前执行的核芯功能扩展（`inner_cfx_code`）；返回 cfx、运行模式与 IP 均取自当前 cfx 的异常帧」；其硬件语义（`§5.3` 步骤 0–3）在 `cfxha != inner_cfx_code` 时先报**当前 cfx** 的 `CFXESC`；通过后恢复 `excp_prev_run_mode` **与 `inner_cfx_code ← excp_prev_cfx_code`**（`cg5 rc1`，异常进入时保存，见 `§3.6`），递增 `escape_num` 并更新 `IP`；**不恢复任何来源掩码**。故 `escape` 的**目标**恒为当前 cfx（即发起 `escape` 的 cfx），而**退出后的当前 cfx** 恢复为异常发生前的值。任何进入的异步事件会改写 `inner_cfx_code`，该恢复保证本帧后续 `escape` 仍能正确匹配目标。[DADAO-12 §5.3 异常退出流程]
+- **`escape` 的目标 cfx 恒为当前 cfx；退出后当前 cfx 恢复为异常前的值**：`DADAO-12 §5.3` 原文为「`escape` 指令编码中指定了 `cfxha`，它必须是当前执行的核芯功能扩展（`inner_cfx_code`）；返回 cfx、运行模式与 IP 均取自当前 cfx 的异常帧」；其硬件语义（`§5.3` 步骤 0–3）在 `cfxha != inner_cfx_code` 时先报**当前 cfx** 的 `CFXESC`；通过后从出口意图恢复 `inner_run_mode ← cg5 rc8`、`inner_cfx_code ← cg5 rc9`、`IP ← cg5 rc10`，递增 `escape_num`，并按 `cg5 rc11` 整字恢复目标模式 monitor 的 `cg8 rc1`；`trap` 本身不改写该掩码（只把进入前值抄入 `rc11`）。故 `escape` 的**目标**恒为当前 cfx（即发起 `escape` 的 cfx），而**退出后的当前 cfx** 恢复为异常发生前的值。任何进入的异步事件会改写 `inner_cfx_code`，该恢复保证本帧后续 `escape` 仍能正确匹配目标。[DADAO-12 §5.3 异常退出流程]
 
 ### 4.3 两条路对照
 
@@ -177,7 +177,7 @@ TLB 属 `cfx_ptw`，其匹配键、命中检查、填充条件、A/D 维护与�
 - **`excp_cause_info` 的规定范围**：本册只规定上表 5 类（`CFXMEM`/`ILLI`/`UNDI`/`MALIGN`/`IALIGN`）的 `info`；其余异常原因（`CFXTRAP`/`CFXESC`/`CFXPERM`/`CFXREG`/`RASOF`/`RASUF`）的 `info` 按 `DADAO-12 §4.1`（`cfx_umon`/`jmon`/`smon`/`hmon` 同表），本册不另行规定；未规定者为 0。[DADAO-12 §4.1 cfx_umon - user monitor]
 - **IALIGN 的 IP 停留语义**：`IALIGN` 为精确异常——**IP 停留在非法地址**，`excp_cause_ip` 记录该非法 `IP`，硬件**不写回下一条指令地址**；处理方式由 hmon 决定（与 `DADAO-12 §5` 的精确异常定义一致）。[DADAO-12 §5. 异常进入与异常退出]
 - **进入目标**：目标 cfx = `cfx3 hmon`，`inner_inst_pointer <= cfx_hmon_hypv_excp_vector`；该向量初值 = hmon SRAM 起始 `0x0fff_0000_0000`（`§1.1`，`DADAO-12 §3.4` 规定有内部 SRAM 的 cfx 以该 SRAM 起始为初值）；hmon 入口显式写入同值属幂等，**不是**向量可用的前提；`excp_prev_run_mode` = `hypv`；模式切换**强制 `hypv`**（`cfx_hmon_hypv_switch_run_mode` 的写入被忽略、**寄存器保存值保持 `3`**，读回该保存值，见 `§2`）。[DADAO-12 §5.2 异常进入流程][DADAO-12 §3.4 cg3 - hypv mode 寄存器]
-- **返回**：hmon 用 `escape cfx_hmon, [excp_cause_ip, 0]`（重试）或 `escape cfx_hmon, [excp_cause_ip, 4]`（跳过）返回（`§4.2`）；`IALIGN` 时 `excp_cause_ip` 即非法地址，是否重试/跳过由 hmon 软件决定。
+- **返回**：hmon 用 `escape cfx_hmon` 返回（`§4.2`）；重试保持 `cg5 rc10` 的进入值，跳过前先把 `rc10` 写为 `excp_cause_ip + 4`；`IALIGN` 时 `excp_cause_ip` 即非法地址，是否重试/跳过由 hmon 软件决定。
 
 ---
 
@@ -251,7 +251,7 @@ v5 semihosting **服务集 = 完整 25 个**，号值采用 **Arm Semihosting �
 
 semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 IP**（`IP += 4`，跳过 `trap`）并写回返回寄存器（`rd8`）；guest 侧不需 `escape` 返回。
 
-- 该机制与一般 trap 的 `escape cfxha, [excp_cause_ip, 4]` 返回（`§4.2`）不同：semihosting 不进入向量，故不适用通用 `escape` 返回约定。[DADAO-22 §1. 调用约定]
+- 该机制与一般 trap 的 `escape cfxha` 返回（`§4.2`）不同：semihosting 不进入向量，故不适用通用 `escape` 返回约定。[DADAO-22 §1. 调用约定]
 
 ### 5.5 停机（`SYS_EXIT` 取代 exit port）
 
@@ -322,7 +322,7 @@ BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）�
 4. 写 `cfx_hmon_hypv_excp_vector = 0x0fff_0000_0000`；该寄存器初值已等于 hmon SRAM 起始（`DADAO-12 §3.4`），此步幂等、可省；
 5. 写 `cfx_hmon_hypv_switch_run_mode`（Tiny 下写入被忽略、保存值保持 `3`，见 `§2`）；
 6. `trap cfx_hmon, <boot_magic>`（= 表头 `boot_magic`）按 `DADAO-12 §5.2` 的 `CFXTRAP` 进入 hmon 向量；
-7. hmon 入口校验 `CFXTRAP` 与 magic、按需配置权限，`escape cfx_hmon, [excp_cause_ip, 4]` 返回 power stub（`§4.2`；`escape` 退出后 `inner_cfx_code` 恢复为异常进入前的值，即 `cfx_power`）；
+7. hmon 入口校验 `CFXTRAP` 与 magic、按需配置权限，`escape cfx_hmon` 返回 power stub（`§4.2`；返回前把 `cg5 rc10` 写为 `excp_cause_ip + 4`；`escape` 退出后 `inner_cfx_code` 恢复为异常进入前的值，即 `cfx_power`）；
 8. power 跳固定应用入口 `0xffff_ff01_0100`，不返回。
 
 **复制目标与长度上限**：目标固定为 hmon SRAM 起始 `0x0fff_0000_0000`；单段长度上限 = **8 KiB**（镜像预算；hmon SRAM 本身 64 KiB，故 SRAM 不是约束）。表项须满足 `size ≤ 56 KiB`、`offset + size` 落在 BootROM 内且两值 8 字节对齐，否则**构建期失败**、power 运行时按 `§6.1` 失败语义 park（不截断、不静默继续）。hmon SRAM 未被表项覆盖的字节为 0（宿主不预置）。
@@ -444,7 +444,7 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 | hart | 仅 `hart_id = 0` 在线；其它 hart 状态未定义（K0 不启动、不得依赖） |
 | cache / LLC | 不引入、不假设一致性 |
 
-- 启动链沿用 `§2`/`§6` 的 `power → hmon → smon`：smon 建立首张页表并开启 PTW 后，按 `DADAO-23` 的移交流程 `escape cfx_smon, [excp_cause_ip, 0]` 进入内核的 VA 入口（`rb16`）。[DADAO-23 §3 启动与引导移交约定]
+- 启动链沿用 `§2`/`§6` 的 `power → hmon → smon`：smon 建立首张页表并开启 PTW 后，按 `DADAO-23` 的移交流程 `escape cfx_smon` 进入内核的 VA 入口（先把 `cg5 rc10` 写为 `rb16`）。[DADAO-23 §3 启动与引导移交约定]
 - `rb17` 与 `DADAO-23` 的「设备树地址」**同位**，但本机**不引入 DTB**：`rb17` 承载 boot info 的 VA，内核**不得按 DTB 解析**。[DADAO-23 §3 启动与引导移交约定][spec-decision]
 - `rb1`（SP）未定义 ⇒ 内核 `head.S` 须在任何栈使用前自建 early stack（栈指针按 VA）；`rd15` 与其它通用寄存器不得依赖。[spec-decision]
 - **其它 hart**：K0 只有 `hart_id = 0` 在线，其余 hart 的状态**未定义**（实现可保持停止或不复位）；内核不得等待、唤醒或依赖它们，SMP 启动与停核协议不在本册。[spec-decision]

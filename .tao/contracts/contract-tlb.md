@@ -1,6 +1,6 @@
 # TLB 与失效接口合约（K3）
 
-> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.8.0-rc）的 `§2.2`/`§4.5`/`§3.6`/`§5.2`；测试机运行环境正文 `spec/Kaiwu-测试机运行环境.md`（0.4.7-rc，`§3.1`/`§6.3.5`）；决策 `.tao/adr/adr-0041-tlb-ad.md`（`ADR-0041`，Accepted）、`.tao/adr/adr-0056-cause-id-subcause-encoding.md`（`ADR-0056`，Accepted；其 **D2/D3 两级 wyde 编码由 `ADR-0062` 取代**）与 `.tao/adr/adr-0062-flat-cause-bitmap.md`（`ADR-0062`，Accepted，扁平位图唯一口径）；K3 的三条测试机约定（§9）为用户 2026-11-16 问答结论。**本合约不设版本号**（用户 2026-11-24 裁定；来源以上游册与 ADR 为准）。
+> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.8.0）的 `§2.2`/`§4.5`/`§3.6`/`§5.2`；测试机运行环境正文 `spec/Kaiwu-测试机运行环境.md`（0.4.7-rc，`§3.1`/`§6.3.5`）；决策 `.tao/adr/adr-0041-tlb-ad.md`（`ADR-0041`，Accepted）、`.tao/adr/adr-0056-cause-id-subcause-encoding.md`（`ADR-0056`，Accepted；其 **D2/D3 两级 wyde 编码由 `ADR-0062` 取代**）与 `.tao/adr/adr-0062-flat-cause-bitmap.md`（`ADR-0062`，Accepted，扁平位图唯一口径）；K3 的三条测试机约定（§9）为用户 2026-11-16 问答结论。**本合约不设版本号**（用户 2026-11-24 裁定；来源以上游册与 ADR 为准）。
 >
 > **范围**：`cfx_ptw` 的 TLB——匹配键、命中检查、填充条件、A/D 状态机与原子 OR 回写、`cfx_ptw_tlb_control` 失效接口（三维、判序、三操作、三档范围、`ASID_ANY` 与 `G`）、异常路由与**高位位图归属**、访存判定顺序；消费方 = QEMU 的 PTW/TLB 实现（`m14-qemu-*`）与 `tests/arch` 的 PTW/TLB 探针。页表项字段格式、两级页表步进与页权限的**位定义**归 `contract-see §2`，本合约只收 TLB 侧语义。
 >

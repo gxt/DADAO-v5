@@ -1,6 +1,6 @@
 # SBI（主管系统二进制接口）
 
-> **版本：0.8.0-rc**（与 SEE 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
+> **版本：0.8.0**（与 SEE 版本号一致，同步更新）
 
 SBI 定义不同核芯功能扩展之间的功能调用。大部分功能调用在同一运行模式（主管模式）进行，仅少数需要访问特权硬件资源的服务才会提升到 H-mode 执行。
 
@@ -8,7 +8,7 @@ SBI 定义不同核芯功能扩展之间的功能调用。大部分功能调用�
 
 ## 1. 调用约定
 
-**发起与返回**：调用方执行 `trap cfxha, immu18` 陷入目标核芯功能扩展；被调方通过 `escape cfxha, [excp_cause_ip, 4]` 返回，跳转到 trap 指令的下一条指令（`excp_cause_ip + 4`）。
+**发起与返回**：调用方执行 `trap cfxha, immu18` 陷入目标核芯功能扩展；被调方执行 `escape cfxha` 返回（`cfxha` 必须是当前 cfx），返回地址取 `cg5 rc10`（进入时硬件填为 `trap` 指令地址）。需返回 `trap` 下一条指令时，被调方在 `escape` 前把 `rc10` 写为 `excp_cause_ip + 4`；需重试时保持 `rc10` 的进入值。本节及后续示例中的 `escape cfxha` 均假定已按本约定设置 `rc10`（示例省略该前置写入）。
 
 **参数传递**：与 ABI 传参规范一致（参见 ABI）。
 
@@ -91,7 +91,7 @@ cfx_smon_supv_excp_handler:
     br.eq {rd2, rd3}?, [rb0, cfx_smon_probe_cfx] @@ func 1
 
 cfx_smon_unknown:
-    escape cfx_smon, [excp_cause_ip, 4]
+    escape cfx_smon
 ```
 
 ### 3.2 内部实现代码
@@ -99,13 +99,13 @@ cfx_smon_unknown:
 ```simrisc
 cfx_smon_get_version:
     set.rd   rd8, 0x00070002                        @@ v0.7.2
-    escape cfx_smon, [excp_cause_ip, 4]
+    escape cfx_smon
 
 cfx_smon_probe_cfx:
     @@ rd16 = cfx（调用方传入）
     @@ 根据硬件实现返回目标 cfx 的功能位图
     set.rd   rd8, 0                                 @@ 占位
-    escape cfx_smon, [excp_cause_ip, 4]
+    escape cfx_smon
 ```
 
 ### 3.3 功能调用示例
@@ -156,7 +156,7 @@ cfx_ptw_supv_excp_handler:
     @@ 具体处理根据 cause_id 分发
 
 cfx_ptw_unknown:
-    escape cfx_ptw, [excp_cause_ip, 4]
+    escape cfx_ptw
 
 cfx_ptw_trap_dispatch:
     cfx2rd  cfx_ptw_excp_cause_info, rd2
@@ -172,34 +172,34 @@ cfx_ptw_trap_dispatch:
     br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_pte] @@ func 3
     set.rd   rd3, 4
     br.eq {rd2, rd3}?, [rb0, cfx_ptw_handle_fault] @@ func 4
-    escape cfx_ptw, [excp_cause_ip, 4]
+    escape cfx_ptw
 
 cfx_ptw_set_ptbr:
     @@ rb16 = base（PPN[55:16]，64KiB 对齐；低 16 位与高 8 位由硬件清 0）
     set.rd   rd17, rb16                              @@ rb→rd 中转（cfx2rc 源操作数须为 rd）
     cfx2rc  cfx_ptw_ptbr, rd17
-    escape cfx_ptw, [excp_cause_ip, 4]
+    escape cfx_ptw
 
 cfx_ptw_get_ptbr:
     @@ 返回 rb8 = base（cfx2rd 只能写 RD bank，故经 rd8 中转）
     cfx2rd  cfx_ptw_ptbr, rd8
     set.rb   rb8, rd8               @@ 返回 bank：rb8 = base
-    escape cfx_ptw, [excp_cause_ip, 4]
+    escape cfx_ptw
 
 cfx_ptw_set_ptw_enable:
     @@ rd16 = enable（0=关闭，1=开启）
     cfx2rc  cfx_ptw_enable, rd16
-    escape cfx_ptw, [excp_cause_ip, 4]
+    escape cfx_ptw
 
 cfx_ptw_set_pte:
     @@ rd16 = level（1=L1, 2=L2）, rb16 = va, rd18 = pte
     @@ TODO: 读取唯一 PTBR，按 level 计算 PTE 偏移，通过 OS 映射的虚拟地址写 PTE（页表项格式在后续步骤定义）
-    escape cfx_ptw, [excp_cause_ip, 4]
+    escape cfx_ptw
 
 cfx_ptw_handle_fault:
     @@ rd16 = cause, rb16 = fault_addr（由调用方传入）
     @@ ... 根据 cause 类型执行页表步进、pmem 分配、PTE 更新 ...
-    escape cfx_ptw, [excp_cause_ip, 4]
+    escape cfx_ptw
 ```
 
 各 cfx 之间的委托关系：页表异常由当前运行模式 monitor 接收——未映射只置缺失类位图 `[48]`–`[55]` 之一、A/D 回写失败只置 `[56] ADWBFAIL`、权限拒绝只置权限类位图 `[32]`–`[38]` 之一（低位 cause = 0、`CFXMEM`/`CFXPERM` = 0）；monitor 可经 `SBI_PTW_*` 服务委托 `cfx_ptw` 完成页表步进与缺页处理，`cfx_ptw` 委托 `cfx_pmem` 申请物理页。
@@ -298,14 +298,15 @@ cfx_hart_supv_excp_handler:
     br.eq {rd2, rd3}?, [rb0, cfx_hart_trap_dispatch]
 
 cfx_hart_unknown:
-    escape cfx_hart, [excp_cause_ip, 4]
+    escape cfx_hart
 
-cfx_hart_async_excp_handler:                     @@ 由 cfx_hart cg9 rc5（async_excp_vector）进入，不是本 cfx 的同步向量
+cfx_hart_async_excp_handler:                     @@ 由 cfx_hart cg9 rc15（async_excp_vector）进入，不是本 cfx 的同步向量
     @@ 异步进入瞬间已把源集合捕获进 cfx_hart cg9（位 = 源 cfxha：TIMER=15、PMEM_DMA=32）
     cfx2rd  cfx_hart_async_src_frame, rd2        @@ 本次捕获的源集合
     @@ TIMER：rd2 的 bit15 置位时回 cfx_hart cg8 rc5 读 ISTATUS
     @@ PMEM_DMA：rd2 的 bit32 置位时回 cfx_pmem cg15 rc4 读 dma_status（含 ERR_CODE）
-    @@ 关中断窗口：把 cg9（prev_*/cause_ip/src_frame）与 GPR 搬到本任务现场（task_pt_regs）
+    @@ 关中断窗口：把 cg9（prev_*/prev_ip/src_frame）与 cg5 rc8–rc11、GPR 搬到本任务现场（task_pt_regs）
+    @@ 也可不 handoff：用 hart 的 cg5 rc8–rc11 出口意图执行 escape cfx_hart 直接返回
     trap    cfx_smon, 0x0                        @@ handoff 到 smon；本处不返回，用户/内核返回走 smon/umon 正常路径
 
 cfx_hart_trap_dispatch:
@@ -316,7 +317,7 @@ cfx_hart_trap_dispatch:
     br.eq {rd2, rd3}?, [rb0, cfx_hart_get_id] @@ func 0
     set.rd   rd3, 1
     br.eq {rd2, rd3}?, [rb0, cfx_hart_set_timer] @@ func 1
-    escape cfx_hart, [excp_cause_ip, 4]
+    escape cfx_hart
 ```
 
 ### 7.2 内部实现代码
@@ -324,14 +325,14 @@ cfx_hart_trap_dispatch:
 ```simrisc
 cfx_hart_get_id:
     cfx2rd  cfx_hart_hart_id, rd8                    @@ 返回值在 rd8
-    escape cfx_hart, [excp_cause_ip, 4]
+    escape cfx_hart
 
 cfx_hart_set_timer:
     @@ rd16 = timeout（绝对时间，单位同 cfx_time_value）
     cfx2rc  cfx_hart_timer_cmp, rd16                 @@ 写比较值即清除本次匹配条件
     set.rd   rd2, 1                                  @@ bit0=ENABLE，IMASK=0
     cfx2rc  cfx_hart_timer_ctrl, rd2
-    escape cfx_hart, [excp_cause_ip, 4]
+    escape cfx_hart
 
 @@ `cfx_hart_timer_int` 为旧同步定时器入口，已删除：定时器与 PMEM_DMA 的异步中断不进入本 cfx 的同步分派，
 @@ 入口见 §7.1 的 `cfx_hart_async_excp_handler`（捕获缓冲 → `trap cfx_smon`，不用 `escape` 返回）。
@@ -396,53 +397,53 @@ cfx_pmem_supv_excp_handler:
     set.rd   rd3, 8
     br.eq {rd2, rd3}?, [rb0, cfx_pmem_dma_wait]   @@ func 8
 cfx_pmem_unknown:
-    escape cfx_pmem, [excp_cause_ip, 4]
+    escape cfx_pmem
 
 cfx_pmem_get_pm_count:
     cfx2rd  cfx_pmem_exist, rd8
     @@ TODO: 遍历 cfx_pmem_exist 位图，统计置 1 的位数 = PM 区域数
-    escape cfx_pmem, [excp_cause_ip, 4]
+    escape cfx_pmem
 
 cfx_pmem_get_pm_start:
     @@ rd16 = idx, cfx_pmem_start[idx] 为索引数组
     @@ TODO: 跳转表或 SRAM 实现动态索引
-    escape cfx_pmem, [excp_cause_ip, 4]
+    escape cfx_pmem
 
 cfx_pmem_get_pm_size:
     @@ rd16 = idx
     @@ TODO: 同上
-    escape cfx_pmem, [excp_cause_ip, 4]
+    escape cfx_pmem
 
 cfx_pmem_get_pm_attr:
     @@ rd16 = idx
     @@ TODO: 同上
-    escape cfx_pmem, [excp_cause_ip, 4]
+    escape cfx_pmem
 
 cfx_pmem_alloc_page:
     @@ rd16 = size_hint（0 = 自动选择最小的可用区域）
     @@ 返回 rd8 = ppn（物理页号）或 -1（失败）
     @@ TODO: 遍历 PM 区域，维护自由页链表，分配并返回 PPN
-    escape cfx_pmem, [excp_cause_ip, 4]
+    escape cfx_pmem
 
 cfx_pmem_free_page:
     @@ rd16 = ppn
     @@ TODO: 将 PPN 归还到对应 PM 区域的自由页链表
-    escape cfx_pmem, [excp_cause_ip, 4]
+    escape cfx_pmem
 
 cfx_pmem_dma_start:
     @@ rd16 = dir（0 = CFX→PA，1 = PA→CFX），rd17 = src，rd18 = dst，rd19 = size
     @@ BUSY=1 ⇒ rd8 = -5（SBI_ERR_BUSY），不写寄存器
     @@ 否则写 cg15 rc0..rc3（START=1，DIR = rd16 & 1），rd8 = 0
-    escape cfx_pmem, [excp_cause_ip, 4]
+    escape cfx_pmem
 
 cfx_pmem_dma_status:
     @@ rd8 = cfx_pmem_dma_status（原始值：BUSY/DONE/ERROR/ERR_CODE）
-    escape cfx_pmem, [excp_cause_ip, 4]
+    escape cfx_pmem
 
 cfx_pmem_dma_wait:
     @@ 预留：无时钟/定时器，不实现轮询与超时 ⇒ SBI_ERR_NOT_SUPPORTED(-2)
     set.rd   rd8, -2
-    escape cfx_pmem, [excp_cause_ip, 4]
+    escape cfx_pmem
 ```
 
 ## 10. 全局时间（cfx_time）
@@ -478,7 +479,7 @@ cfx_time_supv_excp_handler:
     br.eq {rd2, rd3}?, [rb0, cfx_time_get_time]
 
 cfx_time_unknown:
-    escape cfx_time, [excp_cause_ip, 4]
+    escape cfx_time
 ```
 
 ### 10.2 内部实现代码
@@ -486,7 +487,7 @@ cfx_time_unknown:
 ```simrisc
 cfx_time_get_time:
     cfx2rd  cfx_time_value, rd8                       @@ 返回值在 rd8，读取全局时间计数值
-    escape cfx_time, [excp_cause_ip, 4]
+    escape cfx_time
 ```
 
 ### 10.3 功能调用示例
@@ -535,10 +536,10 @@ cfx_uart_supv_excp_handler:
     br.eq {rd2, rd3}?, [rb0, cfx_uart_trap_dispatch]
 
     @@ UART 中断（1<<32..63）
-    @@ 通过 excp_pending 寄存器判断具体中断源并处理
-    cfx2rd  cfx_uart_excp_pending, rd3
-    @@ 此处根据 pending 位处理对应 UART
-    escape cfx_uart, [excp_cause_ip, 0]
+    @@ 具体中断源由 cfx_uart 自己的 UART 寄存器给出，此处按该寄存器处理
+    @@ （无统一 pending 寄存器；按硬件协议的 UART 状态寄存器判源）
+    @@ 重试：保持 rc10 的进入值（§1）
+    escape cfx_uart
 
 cfx_uart_trap_dispatch:
     cfx2rd  cfx_uart_excp_cause_info, rd2
@@ -554,7 +555,7 @@ cfx_uart_trap_dispatch:
     br.eq {rd2, rd3}?, [rb0, cfx_uart_read] @@ func 3
 
 cfx_uart_unknown:
-    escape cfx_uart, [excp_cause_ip, 4]
+    escape cfx_uart
 ```
 
 ### 11.2 内部实现代码
@@ -563,24 +564,24 @@ cfx_uart_unknown:
 cfx_uart_putchar:
     @@ rd16 = ch（调用方传入）
     cfx2rc  cfx_uart_uart0_regs[0], rd16              @@ 写 UART 发送寄存器
-    escape cfx_uart, [excp_cause_ip, 4]
+    escape cfx_uart
 
 cfx_uart_getchar:
     @@ 从 UART 接收寄存器读取字符
     cfx2rd  cfx_uart_uart0_regs[1], rd8
-    escape cfx_uart, [excp_cause_ip, 4]
+    escape cfx_uart
 
 cfx_uart_write:
     @@ rb16 = buf, rd16 = len
     @@ 循环写入 len 字节（此处省略循环实现）
     set.rd   rd8, 0
-    escape cfx_uart, [excp_cause_ip, 4]
+    escape cfx_uart
 
 cfx_uart_read:
     @@ rb16 = buf, rd16 = len
     @@ 循环读取 len 字节（此处省略循环实现）
     set.rd   rd8, 0
-    escape cfx_uart, [excp_cause_ip, 4]
+    escape cfx_uart
 ```
 
 ### 11.3 功能调用示例
@@ -647,7 +648,7 @@ cfx_power_supv_excp_handler:
     br.eq {rd2, rd3}?, [rb0, cfx_power_soft_reset]
 
 cfx_power_unknown:
-    escape cfx_power, [excp_cause_ip, 4]
+    escape cfx_power
 
 @@ ─── SBI 功能调用 dispatch（基于 excp_cause_info 中的 immu18）───
 cfx_power_trap_dispatch:
@@ -660,7 +661,7 @@ cfx_power_trap_dispatch:
     br.eq {rd2, rd3}?, [rb0, cfx_power_hard_reset] @@ func 1
     set.rd   rd3, 2
     br.eq {rd2, rd3}?, [rb0, cfx_power_soft_reset] @@ func 2
-    escape cfx_power, [excp_cause_ip, 4]
+    escape cfx_power
 ```
 
 ### 12.2 内部实现代码
@@ -728,7 +729,7 @@ cfx_umon_user_excp_handler:
     set.rd   rd3, 256
     br.eq {rd2, rd3}?, [rb0, illi_handler] @@ ILLI (1<<8)
     @@ 默认：未处理异常
-    escape cfx_umon, [excp_cause_ip, 4]
+    escape cfx_umon
 ```
 
 syscall_handler、illi_handler 等具体处理函数由操作系统实现。
@@ -743,9 +744,11 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
-### 0.8.0-rc（未发布）
+### 0.8.0（2026-11-26）
 
-- 页表异常编码随 SEE 改为**扁平位图**（内容改，版本仍 `0.8.0-rc`）：§4 委托段与 §5.1/§5.3 的 `CFXMEM`/`CFXPERM` 旧归并改为——未映射只置 `[48]`–`[55]` 之一、A/D 回写失败只置 `[56] ADWBFAIL`、权限拒绝只置 `[32]`–`[38]` 之一，低位 cause = 0、`CFXMEM`/`CFXPERM` = 0；`§5.3` 标题同步。**SBI 语义未变**（功能码、入参、返回值与调用约定均不变）；页表异常位图口径见 SEE 册 §3.6。
+- **返回改 `escape cfxha` / `cg5` 重排（内容改，定版 0.8.0）**：随 SEE 的异步 escape 修订，SBI 返回不再带 `imms18` 偏移——被调方执行 `escape cfxha`（返回地址取 `cg5 rc10`），需返回 `trap` 下一条时先把 `rc10` 写为 `excp_cause_ip + 4`；§1 与各示例同步。`cg5` 字段随 SEE 重排（`rc0`–`rc3` 入口记录只读、`rc4`/`rc5` cause id/info、`rc8`–`rc11` 出口意图）并删除原来的统一 pending 字段；`cfx_uart` 的中断示例改用其自己的 UART 寄存器判源。**功能码、入参、返回值与错误码未变**。
+
+- 页表异常编码随 SEE 改为**扁平位图**（内容改，版本仍 `0.8.0`）：§4 委托段与 §5.1/§5.3 的 `CFXMEM`/`CFXPERM` 旧归并改为——未映射只置 `[48]`–`[55]` 之一、A/D 回写失败只置 `[56] ADWBFAIL`、权限拒绝只置 `[32]`–`[38]` 之一，低位 cause = 0、`CFXMEM`/`CFXPERM` = 0；`§5.3` 标题同步。**SBI 语义未变**（功能码、入参、返回值与调用约定均不变）；页表异常位图口径见 SEE 册 §3.6。
 
 - 与 SEE 的异步捕获缓冲修订同步（内容改，版本仍 `0.8.0-rc`）：异步入口示例不再用 `escape` 返回——`cfx_hart cg9` 只是进入瞬间的捕获缓冲，示例改为「关中断窗口把 `cg9` + GPR 搬到本任务现场 → `trap cfx_smon`」并以 `trap cfx_smon, 0x0` 终结（不返回本处，返回走 smon/umon 正常路径）；删除旧的同步定时器入口 `cfx_hart_timer_int`（定时器/PMEM_DMA 异步中断只走 `cg9 rc5` 异步向量）。`escape imms18=2` 编码仍合法但不作为异步返回，`imms18=3` ⇒ `ILLI` 不变。源身份（cfxha 15/32）、来源掩码（monitor `cg8 rc1`）、同一界多源一次性捕获均不变。**SBI 语义未变**（功能码、入参、返回值与调用约定均不变）。
 
@@ -771,8 +774,7 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 - cfx_hart 增加每 hart 定时器比较器：新增 `SBI_HART_SET_TIMER`（FID 1，入参 `rd16` = 绝对时间）设置比较值并开启 ENABLE/IMASK，到期触发 TIMER 中断；`SBI_HART_GET_ID`（FID 0）不变。
 - 全局时间 `cfx_time`（per-system，只读时间基准、不产生中断）只提供 `SBI_TIME_GET`（FID 0）；定时器设置统一由 cfx_hart 承载。
 - 删除 FPEXCP 异常。
-- `pending` 统一（`excp_pending`）。
-- 与上游 SimRISC 0.5.5 基线对齐。
+- `pending` 统一为各核芯功能扩展的专有 pending。
 - 版本号常量同步：SBI 版本号 0.7.2（umon / jmon / smon）。
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
 - 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`，寄存器名改 `cfx_<name>_<mode>`；功能调用示例中的临时寄存器由 `rb3` 改为 `rb8`。

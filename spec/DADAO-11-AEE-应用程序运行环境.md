@@ -1,6 +1,6 @@
 # DADAO Application Execution Environment
 
-> **版本：0.9.4-rc**（与 ABI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
+> **版本：0.9.4-rc**（与 ABI 版本号一致，同步更新）
 
 应用程序运行环境：Application Execution Environment
 
@@ -106,7 +106,6 @@ Dadao中的octa是64位，即8字节，而gas中的.octa定义的数据是16字�
 - 删除 8/16/32 位运算中的乘除法解释与示例（乘法结果宽度与除法前的 `ext.so` 扩展提示不再单列）。
 - 删除 FPEXCP 异常（浮点按 IEEE 754 执行、经 `rf0` 轮询异常状态）。
 - 地址空间布局 / 汇编兼容性内容并入本册（职责边界调整）。
-- 与上游 SimRISC 0.5.5 基线对齐。
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
 - 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`。
 - `LD`/`ST` 指令名统一后缀；`cs.`/`br.` 指令名加点；修正无后缀 `add` 为 `add.so`。
