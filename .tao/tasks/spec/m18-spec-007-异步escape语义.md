@@ -15,31 +15,75 @@
 
 用户 2026-11-25 裁定：**定义“异步 escape”，使软件可以从异步中断现场直接返回**（不再借 jmon 或其它 monitor）。
 
-## 待裁定（用户给出，未给前本任务不动 spec）
+## 讨论记录（2026-11-25，与用户）
 
-1. **语义定义**（用户提供）：
-   - 触发条件：进入异步现场后（当前 cfx = `cfx_hart`、`cg9` 有本次捕获、无 `cg5`）执行 `escape`；
-   - 恢复来源：`prev_run_mode`/`prev_cfx_code`/`cause_ip` 取 `cg9 rc0/rc1/rc2`（是否允许软件先改写这几个槽？）；
-   - 编码：沿用 `imms18 ∈ {0,1,2}`？`cg9` 选择位（`imms18[1]=1`）在新语义下是“异步返回”还是仍 `CFXESC`？偏移语义（+0/+4）；
-   - 与 mask/pending 的关系：返回前后是否重开运行模式 mask、是否扣 pending、是否允许在返回窗口内再投递（嵌套）；
-   - 计数：`excp_async_num`/`escape_num` 是否变化；
-   - 错误：不同步现场、目标不是 `cfx_hart`、编码非法、重复 escape 的 cause；
-   - 与 `cg9` “捕获缓冲、每次覆盖、无 frame_valid”的关系（是否需要“返回后使捕获失效”？）。
-2. 版本号是否升级（默认不动，除非用户明确）。
+### 已作废（2026-11-25，用户明确“刚才讨论的内容作废”）
 
-## 目标（待语义确定后细化）
+- ~~删除 `cfx_hart cg9 rc0/rc1/rc2`、复用 `cg5 rc0/rc1/rc3`~~
+- ~~删除 `cg9 rc3 async_src_frame`，改由 mask + pending 推导源~~
+- ~~删除 `cfx_hart` 异常原因表的 `IPI`~~
 
-1. `spec/DADAO-12` §5.1/§5.4（`escape` 与异步现场）新增“异步 escape”条文；`§4.7 cg9` 若需配合（如返回后状态）同步。
-2. `.tao/contracts/contract-see.md` 同步（`escape` 行、异步边界、掩码/pending 口径）。
-3. 活文档残留扫描（`ADR-0060/0061`、`vast-arch-inventory`、`expected-divergences` 等）按新口径更新或标注。
-4. 不实现：QEMU/RTL/gem5/IDL/LLVM/内核各实现由后续任务承接（`m18-qemu-007`、内核换帧任务等）。
+（用户明确：**不合并同步/异步入口**，改为增加 `escape` 的出口。）
 
-## 验收（待语义确定后细化）
+### 已确定（用户 2026-11-25）
 
-1. spec/契约一致、`check-spec-codeblocks`/`-changelog`/`-purity`、`check-contracts-*`、`check-manifests-guard` rc=0。
-2. 语义条文的**每条断言可被后续实现直接判定**（触发/恢复/编码/嵌套/错误 五类齐全）。
-3. 全文无自相矛盾（旧 R2 的“`escape` 不以 `cg9` 为返回帧”必须显式改写或限定）。
-4. 版本号按裁定执行；完成区 ≤30 行；状态 → `待验收`。
+1. `cg5 rc8`–`rc11`（escape run mode / escape cfx code / escape ip / escape intr mask）由**硬件在进入时自动填**（同步与异步都填）；软件只在需要改返回点时改写。
+2. **分两层：入口记录 + 出口意图**。入口记录由硬件写、软件只读；出口意图进入时由硬件复制一份，handler 可改，`escape` 只认这一份。
+3. **入口记录改只读（方案 A）**：`rc0`–`rc3` 硬件写、软件只读；现存所有软件改写点迁到 `rc8`–`rc10`。
+4. **`cg5` 重新排序**（与出口意图一一对应）：
+   - `rc0` = prev run mode（对应 `rc8` escape run mode）
+   - `rc1` = prev cfx code（对应 `rc9` escape cfx code）
+   - `rc2` = prev ip（对应 `rc10` escape ip；原 `excp_cause_ip`）
+   - `rc3` = prev intr mask（对应 `rc11` escape intr mask）
+   - `rc4` = excp cause id（原 `rc2`）
+   - `rc5` = excp cause info（原 `rc4`）
+   - `rc8` = escape run mode、`rc9` = escape cfx code、`rc10` = escape ip、`rc11` = escape intr mask
+   - `excp pending`（原 `rc5`）**删除**
+5. **异步只写 `cg9` 的记录与 `cg5` 的出口意图**：异步进入把入口记录写在 `cg9 rc0`–`rc3`，把出口意图写在 `hart cg5 rc8`–`rc11`；hart 的 `cg5 rc0`–`rc3` **不填**。同步进入则写自身的 `cg5 rc0`–`rc3` + `rc8`–`rc11`。
+6. **`escape` 的权限规则**：只允许“同级或降权”（目标模式特权等级 ≤ 当前模式）；向更高特权级返回一律 `CFXESC`。
+7. **`escape` 指令形态**：保留 `cfxha` 操作数，且必须等于当前 cfx（否则 `CFXESC`）；`imms18` 全 SBZ，非 0 ⇒ `ILLI`；返回地址精确取 `rc10`，不再有 +0/+4 偏移。
+8. **嵌套纪律（软件快照）**：硬件单帧；入口把 `rc8`–`rc11`（连同 `cg9` 记录）抄到每任务/每 CPU 内存，返回前写回 `rc8`–`rc11` 再 `escape`；嵌套按 LIFO。
+9. **`rc11` 的写入口径**：整字写入“目标运行模式（由 `rc8` 决定）monitor 的 `cg8 rc1`”；与切模式/切 cfx/跳转原子完成，写入在 `rc10` 第一条指令前生效（user→umon、supv→smon、hypv→hmon）。
+10. **`cfx_hart cg9` 的 `rc0`–`rc3` 采用同样顺序**：`rc0` prev run mode、`rc1` prev cfx code、`rc2` prev ip、`rc3` prev intr mask。
+11. **保留“本次源集合”位图槽（方案 B）**：`cg9 rc4` = 本次进入的源集合（硬件写、只读）；`pending` 语义保持现状（投递即清）。
+12. **`cg9` 其余槽位**：`rc5` = `async_src_pending`、`rc8` = `async_switch_run_mode`、`rc10` = `async_excp_vector`。
+13. **出口帧不设有效位（方案 A）**：只要 `cfxha == 当前 cfx` 且目标 run mode 不升权限即可 `escape`；不跟踪“是否进入过/是否已返回”，重复 `escape` 由软件负责。
+14. **删除 `excp pending`**：`DADAO-22` 的 `cfx_uart_excp_pending` 举例改到 `cfx_uart` 自己的专用寄存器（或删除该例）。
+    - 更正（我此前口误）：重排后新 `rc5` = `excp cause info`，**没有空闲槽**，不存在“`rc5` 归 reserved”这回事；`rc6`/`rc7` 维持现状。
+15. **计数口径**：`escape_num` 每次 `escape` 执行 +1（同步/异步一视同仁）；`excp_async_num` 保持“每次异步进入 +1”。
+16. **版本**：本批改动并入 **0.8.0 定版**（`0.8.0-rc` → `0.8.0`，去掉 `-rc`、补发布日期），**不是**升到 0.9.0；`DADAO-12` 与 `DADAO-22` **同批**定为 0.8.0（两册头部写明“与 SEE 版本号一致”），`contract-see` 随上游册同步（`check-spec-drift` 不变量）。
+
+（原“增加 cg5 rc8–rc11 的提议”已逐条转为上方已确定项。）
+
+### 事实核对（删除 `excp pending` 的连带面）
+
+- Linux 侧：`components/linux/patches/` 内 **0 处**使用 `excp_pending`。
+- QEMU 侧：`cg5 rc5` 映射到 `r->pending`，但只在该 cfx 复位时清零、被 dump 打印，**没有任何写入路径**（异步 pending 在 `cg9 rc4`）——属死状态。
+- IDL：`CG5_PENDING` 有建模（读写/复位）。
+- spec/契约/别名：`DADAO-12 §3.6` 表行、`contract-syscall`（“硬件现场只有 cg5 六个字段”列举）、`contract-see`、`contract-cfx-aliases`、`DADAO-22` 的 `cfx_uart_excp_pending` 举例。
+
+## 待裁定
+
+无（讨论完成；等用户说“开始”再派发）。
+
+## 目标
+
+1. `spec/DADAO-12`：
+   - `§3.6 cg5`：改为 `rc0` prev run mode / `rc1` prev cfx code / `rc2` prev ip / `rc3` prev intr mask（均只读）/ `rc4` cause id / `rc5` cause info；删除 `excp pending`；新增 `rc8`–`rc11` 出口意图（escape run mode / cfx code / ip / intr mask），进入时硬件复制、软件可写。
+   - `§4.7 cg9`：`rc0` prev run mode / `rc1` prev cfx code / `rc2` prev ip / `rc3` prev intr mask；`rc4` 本次源集合（只读）；`rc5` `async_src_pending`；`rc8` `async_switch_run_mode`；`rc10` `async_excp_vector`；其余 reserved。异步进入只写 `cg9 rc0–rc4` 与 `hart cg5 rc8–rc11`，**不写** `hart cg5 rc0–rc3`。
+   - `§5.1`/`§5.3`：`escape` 语义改为“按当前 cfx 的 `cg5 rc8–rc11` 返回”：`cfxha` 必须等于当前 cfx；目标 run mode 不得高于当前模式（否则 `CFXESC`）；`imms18` 全 SBZ（非 0 ⇒ `ILLI`）；返回地址精确取 `rc10`；`rc11` 整字写入目标模式 monitor 的 `cg8 rc1`，与切模式/切 cfx/跳转原子完成。
+   - `§5.4`：异步进入的写入集合与 `cg9` 新布局；同步与异步共用同一 `escape` 出口。
+2. `spec/DADAO-22`：`cfx_uart_excp_pending` 举例改用 `cfx_uart` 自己的专用寄存器（或删除该例）；版本随 SEE 定为 0.8.0。
+3. `.tao/contracts/contract-see.md` / `contract-syscall`（cg5 字段列举）/ `contract-cfx-aliases`：同步新布局与 `escape` 口径。
+4. 版本：`DADAO-12` 与 `DADAO-22` 去掉 `-rc` 定为 **0.8.0** 并补发布日期；`contract-see` 同步 0.8.0；不动 `contract-syscall` 的 0.9.2。
+
+## 验收
+
+1. `check-spec-codeblocks`/`-changelog`/`-purity`、`check-contracts-dir`/`-pending`、`check-contract-relocs`、`check-manifests-guard`、`check-spec-drift`、`check-knowledge-refs` 全 rc=0。
+2. 全文一致性：`cg5 rc0–rc5/rc8–rc11`、`cg9 rc0–rc5/rc8/rc10` 的槽位在 `DADAO-12`、契约、别名表、`DADAO-22` 举例中**唯一且一致**；无 `excp pending` 现行条文；无“+0/+4”旧 `escape` 偏移；无“`escape` 不以 `cg9` 为返回帧”与“异步无返回帧”的旧结论残留（变更记录里的历史条文可保留原样）。
+3. 版本：`DADAO-12`、`DADAO-22`、`contract-see` 三处均为 `0.8.0`（无 `-rc`），附录/§7 有对应定版记录与日期；`check-spec-drift` 不变量成立。
+4. 可达 FAIL ≥2 路：① 把某槽位改回旧号 ⇒ 一致性扫描红；② 把 `escape` 的“不得升权”删掉 ⇒ 词条断言红；`cp`+md5 还原回绿。
+5. 完成区 ≤30 行；状态 → `待验收`。
 
 ## 硬约束
 
