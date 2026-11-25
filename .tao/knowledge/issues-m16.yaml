@@ -536,3 +536,21 @@
   closed_in: M16
   resolved_by: 主会话补完 M14 归档簿记（manifests 删条目 + README 归档段）
   title: 【P3】`m14-integ-001` 归档收尾遗漏两处簿记：① `.tao/knowledge/.manifests.toml` 仍登记已删除的 `milestones-m14.md` ⇒ `check-manifests-guard` 红（主会话已补删条目）；② 根 `README.md` 归档行曾写「含 1 册 `已退役`」，回退第三态后措辞不符（已改为「1 册带 `> **已退役**` 注记」）。处置：归档检查清单（`Process-04`）补一条「manifest/README 指针随归档同笔更新」，避免下次里程碑重犯。
+- id: ISS-m16-008
+  scope:
+  - chipyard
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P1】共享 `.work/source/chipyard` 当期构建（`13ef828`，11-25 10:10，Vast sim `53c367f6…`）上 `tests/arch/hart/cfx15.S` 不收敛：`+max-cycles=8e6` 内 `$stop`/0 槽，`1.05M` cycle 内 `_start` 重启 881 次；11-24 17:50 旧构建（`f39a0c6`，缺 023/027/m17-chipyard-001）同一 ELF <300k cycle 完成、80 槽过 oracle ⇒ 新补丁集组合引入。阻断 gem5-026 的当期复跑、025/028/022/023 的 RTL 腿与 M16 `check-arch-vast`。由 `m16-chipyard-029` 定位/修复。"
+- id: ISS-m16-009
+  scope:
+  - gem5
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】gem5 的 **Tiny** 配置仍暴露 `cg0–cg3 rc4` 且 trap/escape 保存/恢复掩码（QEMU/RTL/Node 已统一为 `CFXREG`、不保存恢复）；`tests/unit/gem5/tiny_hmon` 读 `cg3 rc4` 依赖该旧行为。由 `m16-gem5-025` 顺带处置（或登记 Tiny 差异）。"

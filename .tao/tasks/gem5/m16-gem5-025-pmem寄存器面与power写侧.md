@@ -19,6 +19,9 @@
 3. **探针/三方**：`tests/arch/pmem/`、`tests/arch/power/` 的 gem5 侧期望同步；核 `DIV-06`/`DIV-13` 的 `close_when` 收窄。
 4. **不回归**：cfx5/cfx15/time 代表集、gem5 自身回归（`check-patch-tree` gem5 段 0 problem）。
 
+5. **`cg9 rc6` 对齐 spec-006（`DIV-18` gem5 部分）**：`cfx_hart cg9 rc6` 改为 RW、复位 2、**异步进入取该值**（当前 gem5 写忽略、恒 2）；`arch-hart-001` 的 rc6 断言与 QEMU/RTL 同场景。
+6. **Tiny 的旧掩码面（`ISS-m16-009`）**：`cg0–cg3 rc4` 与 trap/escape 保存恢复掩码在 gem5 Tiny 上仍在（QEMU/RTL/Node 已统一 `CFXREG`）；按 `tests/unit/gem5/tiny_hmon` 的依赖决定「改 Tiny 行为 + 改该测试」还是登记 Tiny 差异，二者择一并写明。
+
 ## 不做
 
 - 不改 RTL/QEMU/spec；

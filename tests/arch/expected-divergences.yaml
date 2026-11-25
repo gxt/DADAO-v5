@@ -116,10 +116,10 @@ divergences:
 
   - id: DIV-18
     kind: temporary
-    scope: [chipyard, qemu]
+    scope: [chipyard, qemu, gem5]
     impact: "`cfx_hart cg9 rc6`（`async_switch_run_mode`）实现与 `spec/DADAO-12 §4.7/§5.4`（复位 2、异步进入取 rc6）不一致：RTL 恒 supv（写忽略），QEMU 在 `m16-qemu-006` 被改成「写忽略、恒 2」。"
     reason: "`m18-spec-006`（用户 2026-11-25 裁定①）已把口径定为 RW、复位 2、进入取 rc6；RTL 对齐由 `m16-chipyard-028`，QEMU 回归由 `m16-qemu-007`。"
     user_ruling: "2026-11-25（`m18-spec-006` 裁定①：改 spec 措辞，实现向 spec 对齐）"
     status: active
-    close_when: "`m16-qemu-007` 与 `m16-chipyard-028` 合入 + `arch-hart-001` 补「写 rc6=0/1/3 读回」「异步进入按 rc6」断言"
+    close_when: "`m16-qemu-007`、`m16-chipyard-028`、`m16-gem5-025`（含 gem5 rc6 对齐）合入 + `arch-hart-001` 补「写 rc6=0/1/3 读回」「异步进入按 rc6」断言"
 
