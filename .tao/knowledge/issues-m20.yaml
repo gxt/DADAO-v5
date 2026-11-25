@@ -17,9 +17,9 @@
   - gem5
   - testcases
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: m20-gem5-003（2026-11-25 重分诊：不是挂死，clocale_mbfuncs 单核 2,992,041,018 inst / 2514 s 正常退出；修复后 1933 s pass，1.32× 吞吐；但 72/72 全量、最大例与 raise-race 未绿 → 另立 ISS-m20-003）
   title: 【P1】gem5 SE 长尾 **72/72 在 3600s 仍超时**（qemu 侧 72/72 全 pass），且最小时耗例 （`functional/clocale_mbfuncs`、`regression/raise-race`，qemu 0.0 s）同样吃满 3600 s ⇒ 不像「单纯慢」（qemu 中位 44 s、最大 1103 s，按 10–50× 放大也解释不了 0 s 例）。 疑为 gem5 SE 挂死（FP 未实现死循环 / syscall 重试 / IO 自旋）。影响：M13 比值分布 `n=0`，`m13-testcases-003`（7200s 复核）很可能无效。 证据：`m13-testcases-001` 全量结果（72 例，gem5 全部 `blocked`/`time budget`）。 建议：003 改为「定位 72 例挂死根因」而非「加预算」；先挑最小例（qemu 0.0 s）做 单例诊断（gem5 stats/指令计数/`--debug-flags` 分段）。 实测（2026-11-10，`functional/clocale_mbfuncs`，SIGINT 90 s 后 dump stats）： `simInsts=40,847,163`、`numCycles=40,847,163`、退出原因 `user interrupt received`、 无 guest exit ⇒ 该例在 90 s 内跑了 4085 万条指令仍未结束，符合「死循环」而非「慢」。
 - id: ISS-362
   scope:
@@ -138,3 +138,12 @@
   closed_in: M20
   resolved_by: N/A（2026-11-25 主会话：主仓 `.git/hooks/pre-commit` 是 prek 生成的 stray hook，指向 `.cache/refs/riscv-unified-db` 且 DADAO 仓无配置；已删除（备份仅运行期保留），`git hook run pre-commit` 不再存在，worktree 提交不再被该钩子拦截）
   title: '【P3】主仓 `.git/hooks/pre-commit`（prek 生成）把 `--cd=".cache/refs/riscv-unified-db"` 写成**相对路径**，而该缓存只存在于主工作树、fresh worktree 没有 ⇒ 在独立 worktree 里任何 commit 都被钩子以 `No such file or directory` 拒绝（`m18-linux-013` 的 ADR 提交实测）。处置：改为绝对路径、去掉 `--cd`（该 hook 本应在 DADAO 仓内跑）、或在工作树创建时提供 `.cache/refs` 符号链接；临时绕行 = `git commit --no-verify` 并在审阅记录披露（ADR 为 markdown 规划件，真门控在 `make check`/`check-knowledge-refs`）。'
+- id: ISS-m20-003
+  scope:
+  - gem5
+  - testcases
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P1】gem5 SE 72/72 全量长尾仍未全绿（m20-gem5-003 重分诊后剩余项）：原 ISS-361 的「挂死」前提不成立——`clocale_mbfuncs` 单核 2,992,041,018 inst / 2514 s 正常退出，修复后 1933 s pass；3 个抽样（ffbench 1667 s、backprop 2174 s、sieve 3363 s）pass。剩余：72/72 全量未重跑；最大 `JM/lencod` 历史 18132 s@32 并发仍可能超 3600 s；`regression/raise-race`（fork/信号，48 h）未验证；M13 预算/并发口径（archive 写 `--jobs 48 --gem5-timeout 3600`，任务书曾写 32+120 s）需重新裁定。处置：先定「夜跑/长尾预算与并发」口径，再按该口径跑 72/72；最大例与 raise-race 单列诊断。'
