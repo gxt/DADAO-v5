@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
 new file mode 100644
-index 0000000..8ee09ea
+index 0000000..20a7495
 --- /dev/null
 +++ b/src/arch/dadao/isa.hh
-@@ -0,0 +1,189 @@
+@@ -0,0 +1,209 @@
 +// DADAO ISA object (B0 skeleton + B6 LR/SC reservation state).
 +#ifndef __ARCH_DADAO_ISA_HH__
 +#define __ARCH_DADAO_ISA_HH__
@@ -73,6 +73,23 @@ index 0000000..8ee09ea
 +     *  when tinyActive(); the SE and Vast paths never read it. */
 +    TinyState &tinyState() { return tiny; }
 +    const TinyState &tinyState() const { return tiny; }
++
++    /** Hidden RegRAS ring base (ADR-0012 D7.5): 0..62, reset 0, not
++     *  architecturally visible.  ra_i lives in physical slot
++     *  `1 + (rasBase + i) % 63`; ra0 is the header at slot 0.  `call`/`ret`
++     *  move this base instead of copying entries (exec/common.hh ras::phys()).
++     *  It is thread state, so it is serialized with the ISA object. */
++    unsigned rasBase() const { return rasBaseIdx; }
++    void
++    setRasBase(unsigned base)
++    {
++        panic_if(base >= 63,
++                 "DADAO ISA: RegRAS ring base %u is outside 0..62", base);
++        rasBaseIdx = base;
++    }
++
++    void serialize(CheckpointOut &cp) const override;
++    void unserialize(CheckpointIn &cp) override;
 +
 +    /** cfx_cache (cfx5) maintenance targets (m16-gem5-021).
 +     *
@@ -151,6 +168,9 @@ index 0000000..8ee09ea
 +    bool reservationValid = false;
 +    Addr reservationAddr = 0;
 +    unsigned reservationWidth = 0;
++
++    /** Hidden RegRAS ring base (0..62, reset 0); see rasBase(). */
++    unsigned rasBaseIdx = 0;
 +
 +    /** Wuming per-instruction cycle table switch (M16, off by default). */
 +    bool wumingCycles = false;

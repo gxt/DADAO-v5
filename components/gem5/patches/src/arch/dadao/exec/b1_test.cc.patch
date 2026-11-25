@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b1_test.cc b/src/arch/dadao/exec/b1_test.cc
 new file mode 100644
-index 0000000..3ab7de7
+index 0000000..c1aeebc
 --- /dev/null
 +++ b/src/arch/dadao/exec/b1_test.cc
-@@ -0,0 +1,1474 @@
+@@ -0,0 +1,1492 @@
 +/*
 + * DADAO gem5 B1 execution assertions (GEM5-006t).
 + *
@@ -181,6 +181,23 @@ index 0000000..3ab7de7
 +    uint64_t rb[64] = {};
 +    uint64_t ra[64] = {};
 +    uint64_t rf[64] = {};
++    // Hidden RegRAS ring base (ADR-0012 D7.5).  `ra[]` is the physical
++    // register file; tests address it through raAt() (logical index).
++    unsigned ringBase = 0;
++
++    uint64_t &
++    raAt(unsigned idx)
++    {
++        return ra[exec::ras::phys(ringBase, idx)];
++    }
++    uint64_t
++    raAt(unsigned idx) const
++    {
++        return ra[exec::ras::phys(ringBase, idx)];
++    }
++    unsigned rasBase() const { return ringBase; }
++    void setRasBase(unsigned base) { ringBase = base; }
++
 +    uint64_t ip = 0;
 +    std::map<uint64_t, uint8_t> mem;
 +
@@ -203,7 +220,7 @@ index 0000000..3ab7de7
 +            return idx == 0 ? 0 : rd[idx];
 +        if (bank == exec::Bank::Rb)
 +            return idx == 0 ? ip : rb[idx];
-+        return ra[idx];
++        return raAt(idx);
 +    }
 +
 +    void
@@ -218,7 +235,7 @@ index 0000000..3ab7de7
 +        else if (bank == exec::Bank::Rb)
 +            rb[idx] = val;
 +        else
-+            ra[idx] = val;
++            raAt(idx) = val;
 +    }
 +
 +    uint64_t readFloat(unsigned idx) override { return rf[idx]; }
@@ -290,7 +307,7 @@ index 0000000..3ab7de7
 +        switch (bank) {
 +          case TB_RD: return rd[idx];
 +          case TB_RB: return rb[idx];
-+          case TB_RA: return ra[idx];
++          case TB_RA: return raAt(idx);
 +          case TB_RF: return rf[idx];
 +        }
 +        return 0;
@@ -302,7 +319,7 @@ index 0000000..3ab7de7
 +        switch (bank) {
 +          case TB_RD: rd[idx] = val; break;
 +          case TB_RB: rb[idx] = val; break;
-+          case TB_RA: ra[idx] = val; break;
++          case TB_RA: raAt(idx) = val; break;
 +          case TB_RF: rf[idx] = val; break;
 +        }
 +    }
@@ -446,7 +463,7 @@ index 0000000..3ab7de7
 +    for (unsigned i = 0; i < 64; ++i) {
 +        ctx.rd[i] = 0xDEAD000000000000ULL + i;
 +        ctx.rb[i] = 0xBEEF000000000000ULL + i;
-+        ctx.ra[i] = 0xCAFE000000000000ULL + i;
++        ctx.raAt(i) = 0xCAFE000000000000ULL + i;
 +        ctx.rf[i] = 0xF00D000000000000ULL + i;
 +    }
 +    ctx.rd[0] = 0;
@@ -454,6 +471,7 @@ index 0000000..3ab7de7
 +    ctx.rf[0] = 0xF0F0F0F000000003ULL;
 +    ctx.rb[3] = base;
 +    ctx.rd[20] = 0x40;
++    ctx.ringBase = 0;
 +}
 +
 +// ---------------------------------------------------------------------------
@@ -1030,7 +1048,7 @@ index 0000000..3ab7de7
 +        check(rfFault == exec::Fault::None,
 +              "ldm RF rdhc in block: None (got %s)", faultName(rfFault));
 +        for (unsigned i = 0; i < 3; ++i)
-+            check(ctx.ra[19 + i] == patternRaw(8, i) &&
++            check(ctx.raAt(19 + i) == patternRaw(8, i) &&
 +                      ctx.rf[19 + i] == patternRaw(8, i),
 +                  "ldm RA/RF: element %u loaded", i);
 +    }
@@ -1160,7 +1178,7 @@ index 0000000..3ab7de7
 +    {
 +        MockContext ctx;
 +        initContext(ctx, 0x1000);
-+        ctx.ra[0] = 0xFFFF000000001234ULL;
++        ctx.raAt(0) = 0xFFFF000000001234ULL;
 +        const exec::Fault fault = runWord(
 +            ctx, "st.o_rrii_ra", makeWord("st.o_rrii_ra", 0, 3, 0x20, 0, 1));
 +        check(fault == exec::Fault::None, "st.o ra0: fault %s",
@@ -1179,7 +1197,7 @@ index 0000000..3ab7de7
 +            ctx, "ld.o_rrii_ra", makeWord("ld.o_rrii_ra", 0, 3, 0x20, 0, 1));
 +        check(fault == exec::Fault::None, "ld.o ra0: fault %s",
 +              faultName(fault));
-+        check(ctx.ra[0] == patternRaw(8, 0),
++        check(ctx.raAt(0) == patternRaw(8, 0),
 +              "ld.o ra0 loads all 64 bits (no [63:48] clearing)");
 +    }
 +    // ILLI: load into rd0 / rb0 (both single and multi).

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/converge_test.cc b/src/arch/dadao/exec/converge_test.cc
 new file mode 100644
-index 0000000..2ee0c83
+index 0000000..df796b7
 --- /dev/null
 +++ b/src/arch/dadao/exec/converge_test.cc
-@@ -0,0 +1,379 @@
+@@ -0,0 +1,399 @@
 +// DADAO gem5 execution convergence harness (GEM5-013t).
 +//
 +// Standalone C++17 (no gem5 headers), compiled by tools/gem5/check_converge.py
@@ -76,6 +76,7 @@ index 0000000..2ee0c83
 +    bool resValid = false;
 +    uint64_t resAddr = 0;
 +    unsigned resWidth = 0;
++    unsigned ringBase = 0;
 +};
 +
 +class TestContext : public exec::B7Context
@@ -92,6 +93,22 @@ index 0000000..2ee0c83
 +    uint64_t resAddr = 0;
 +    unsigned resWidth = 0;
 +
++    // Hidden RegRAS ring base (ADR-0012 D7.5); `ra[]` is the physical file.
++    unsigned ringBase = 0;
++
++    uint64_t &
++    raAt(unsigned idx)
++    {
++        return ra[exec::ras::phys(ringBase, idx)];
++    }
++    uint64_t
++    raAt(unsigned idx) const
++    {
++        return ra[exec::ras::phys(ringBase, idx)];
++    }
++    unsigned rasBase() const override { return ringBase; }
++    void setRasBase(unsigned base) override { ringBase = base; }
++
 +    TestContext() : mem(kMemBytes, 0) { reset(); }
 +
 +    void
@@ -100,7 +117,7 @@ index 0000000..2ee0c83
 +        for (unsigned i = 0; i < 64; ++i) {
 +            rd[i] = i == 0 ? 0 : kInitReg;
 +            rb[i] = i == 0 ? 0 : kInitReg;
-+            ra[i] = i == 0 ? 0 : kInitReg;
++            raAt(i) = i == 0 ? 0 : kInitReg;
 +            rf[i] = i == 0 ? kFcsrReset : kInitReg;
 +            cfx[i] = 0xCF00000000000000ull + i;
 +        }
@@ -110,6 +127,7 @@ index 0000000..2ee0c83
 +        resValid = false;
 +        resAddr = 0;
 +        resWidth = 0;
++        ringBase = 0;
 +    }
 +
 +    Snapshot
@@ -126,6 +144,7 @@ index 0000000..2ee0c83
 +        s.resValid = resValid;
 +        s.resAddr = resAddr;
 +        s.resWidth = resWidth;
++        s.ringBase = ringBase;
 +        return s;
 +    }
 +
@@ -138,7 +157,8 @@ index 0000000..2ee0c83
 +               std::memcmp(s.rf, rf, sizeof(rf)) == 0 &&
 +               std::memcmp(s.cfx, cfx, sizeof(cfx)) == 0 &&
 +               s.mem == mem && s.ip == ip && s.resValid == resValid &&
-+               s.resAddr == resAddr && s.resWidth == resWidth;
++               s.resAddr == resAddr && s.resWidth == resWidth &&
++               s.ringBase == ringBase;
 +    }
 +
 +    // ---- RegAccess / B1..B7 context ------------------------------------
@@ -148,7 +168,7 @@ index 0000000..2ee0c83
 +        switch (bank) {
 +          case exec::Bank::Rd: return idx == 0 ? 0 : rd[idx];
 +          case exec::Bank::Rb: return idx == 0 ? ip : rb[idx];
-+          case exec::Bank::Ra: return ra[idx];
++          case exec::Bank::Ra: return raAt(idx);
 +        }
 +        return 0;
 +    }
@@ -164,7 +184,7 @@ index 0000000..2ee0c83
 +        switch (bank) {
 +          case exec::Bank::Rd: rd[idx] = val; break;
 +          case exec::Bank::Rb: rb[idx] = val; break;
-+          case exec::Bank::Ra: ra[idx] = val; break;
++          case exec::Bank::Ra: raAt(idx) = val; break;
 +        }
 +    }
 +

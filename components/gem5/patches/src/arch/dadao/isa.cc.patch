@@ -1,15 +1,16 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..fab7c20
+index 0000000..f685453
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,497 @@
+@@ -0,0 +1,533 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
 +#include <cstdio>
 +#include <string_view>
 +
++#include "arch/dadao/exec/common.hh"
 +#include "arch/dadao/fs_machine.hh"
 +#include "arch/dadao/fs_workload.hh"
 +#include "arch/dadao/inst.hh"
@@ -161,8 +162,30 @@ index 0000000..fab7c20
 +ISA::clear()
 +{
 +    // Architectural GPRs are cleared by the CPU's register file reset; the
-+    // only ISA-private state is the B6 reservation slot.
++    // ISA-private state is the B6 reservation slot and the hidden RegRAS ring
++    // base (reset 0, ADR-0012 D7.5).
 +    clearReservations();
++    rasBaseIdx = 0;
++}
++
++void
++ISA::serialize(CheckpointOut &cp) const
++{
++    BaseISA::serialize(cp);
++    // The RA register file is saved by the thread context as physical slots,
++    // so the ring base must be saved with it or a restore would reinterpret
++    // the logical view (ADR-0012 D7.5).
++    SERIALIZE_SCALAR(rasBaseIdx);
++}
++
++void
++ISA::unserialize(CheckpointIn &cp)
++{
++    BaseISA::unserialize(cp);
++    UNSERIALIZE_SCALAR(rasBaseIdx);
++    panic_if(rasBaseIdx >= 63,
++             "DADAO ISA: checkpoint RegRAS ring base %u is outside 0..62",
++             rasBaseIdx);
 +}
 +
 +std::vector<ISA *> ISA::holders;
@@ -348,8 +371,13 @@ index 0000000..fab7c20
 +            tc->getReg(RegId(intRegClass, int_reg::RbBase + i)));
 +    };
 +    auto ra = [&](int i) {
++        // Architectural (logical) view over the hidden ring base: the same
++        // dump QEMU emits, so a full 64-slot compare is layout-independent
++        // (ADR-0012 D7.5).
 +        return static_cast<unsigned long long>(
-+            tc->getReg(RegId(intRegClass, int_reg::RaBase + i)));
++            tc->getReg(RegId(intRegClass,
++                             int_reg::RaBase + DadaoISA::exec::ras::phys(
++                                 rasBaseIdx, unsigned(i)))));
 +    };
 +    auto rf = [&](int i) {
 +        return static_cast<unsigned long long>(
@@ -460,6 +488,9 @@ index 0000000..fab7c20
 +        tc->setReg(id, RegVal(0));
 +    for (const auto &id : floatRegClass)
 +        tc->setReg(id, RegVal(0));
++    // All RA data slots are zero and RACNT = 0, so the hidden ring base is
++    // back at its reset value too (ADR-0012 D7.5).
++    rasBaseIdx = 0;
 +
 +    tc->setReg(RegId(floatRegClass, 0), 0x7FF800007FC00000ULL);
 +    tc->pcState(PCState(fs->getEntry()));
@@ -497,6 +528,11 @@ index 0000000..fab7c20
 +    for (const auto &id : floatRegClass)
 +        tc->setReg(id, src->getReg(id));
 +    tc->pcState(src->pcState());
++    // The RA registers above are physical slots; the ring base must travel
++    // with them or the logical RA view would change on a copy (D7.5).
++    auto *srcIsa = dynamic_cast<DadaoISA::ISA *>(src->getIsaPtr());
++    if (srcIsa != nullptr)
++        rasBaseIdx = srcIsa->rasBase();
 +}
 +
 +} // namespace DadaoISA

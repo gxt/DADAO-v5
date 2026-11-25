@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/common.hh b/src/arch/dadao/exec/common.hh
 new file mode 100644
-index 0000000..c7c1c3e
+index 0000000..f896230
 --- /dev/null
 +++ b/src/arch/dadao/exec/common.hh
-@@ -0,0 +1,208 @@
+@@ -0,0 +1,237 @@
 +// DADAO gem5 execution core: shared register access for the B1-B7 batches.
 +//
 +// Plain C++ (no gem5 headers), like the B0 decode core, so the same code is
@@ -82,6 +82,35 @@ index 0000000..c7c1c3e
 +    Ra,
 +    Rf,
 +};
++
++/** Hidden RegRAS ring layout (ADR-0012 D7.5, spec/SimRISC-00 §2.4.3).
++ *
++ * Physical slot 0 holds the ra0 header ({SBZ,RACNT,MRPTR}) and never moves;
++ * ra1..ra63 are the 63 data slots of the ring, addressed relative to the
++ * hidden base.  `phys()` is the *same* formula as QEMU's ra_phys(), so the
++ * four platforms share one layout and an architectural RA access needs no
++ * entry copy on call/ret: only the base changes.
++ */
++namespace ras
++{
++
++/** RegRAS data slots (ra1..ra63); ra0 is the header. */
++inline constexpr unsigned kSlots = 63;
++
++/** Logical RA index -> physical register-file slot.
++ *
++ * `base` is 0..62 (reset 0, not architecturally visible) and `idx` is a
++ * logical RA index 0..63.  Index 0 is the header; the ring is
++ * 1 + (base + idx) % 63, exactly QEMU's ra_phys(). */
++inline unsigned
++phys(unsigned base, unsigned idx)
++{
++    if (idx == 0)
++        return 0;
++    return 1 + (base + idx) % kSlots;
++}
++
++} // namespace ras
 +
 +/** Architectural register access, implemented by the gem5 adapter and by the
 + * assertion harness.

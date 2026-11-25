@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..43762a0
+index 0000000..6bf732c
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,1030 @@
+@@ -0,0 +1,1044 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -252,6 +252,12 @@ index 0000000..43762a0
 +            return 0;
 +        if (bank == exec::Bank::Rb && idx == 0)
 +            return pc();
++        // ra is a ring buffer with a hidden base (ADR-0012 D7.5): every
++        // architectural access is translated, so the RA logical view never
++        // changes when call/ret move only the base.
++        if (bank == exec::Bank::Ra)
++            return tc->getReg(
++                intReg(bank, exec::ras::phys(isa()->rasBase(), idx)));
 +        return tc->getReg(intReg(bank, idx));
 +    }
 +
@@ -273,8 +279,16 @@ index 0000000..43762a0
 +        // writeRasHeader) and reach this port with [63:54] already zero.
 +        if (bank == exec::Bank::Ra && idx == 0)
 +            val &= 0x003FFFFFFFFFFFFFULL;
++        if (bank == exec::Bank::Ra) {
++            tc->setReg(intReg(bank, exec::ras::phys(isa()->rasBase(), idx)),
++                       val);
++            return;
++        }
 +        tc->setReg(intReg(bank, idx), val);
 +    }
++
++    unsigned rasBase() const override { return isa()->rasBase(); }
++    void setRasBase(unsigned base) override { isa()->setRasBase(base); }
 +
 +    uint64_t
 +    readFloat(unsigned idx) override

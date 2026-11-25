@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b7_test.cc b/src/arch/dadao/exec/b7_test.cc
 new file mode 100644
-index 0000000..3ae9a4f
+index 0000000..e158642
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7_test.cc
-@@ -0,0 +1,2280 @@
+@@ -0,0 +1,2298 @@
 +/*
 + * DADAO gem5 B7 execution assertions (GEM5-012t).
 + *
@@ -158,6 +158,23 @@ index 0000000..3ae9a4f
 +    uint64_t rb[64] = {};
 +    uint64_t ra[64] = {};
 +    uint64_t rf[64] = {};
++    // Hidden RegRAS ring base (ADR-0012 D7.5).  `ra[]` is the physical
++    // register file; tests address it through raAt() (logical index).
++    unsigned ringBase = 0;
++
++    uint64_t &
++    raAt(unsigned idx)
++    {
++        return ra[exec::ras::phys(ringBase, idx)];
++    }
++    uint64_t
++    raAt(unsigned idx) const
++    {
++        return ra[exec::ras::phys(ringBase, idx)];
++    }
++    unsigned rasBase() const override { return ringBase; }
++    void setRasBase(unsigned base) override { ringBase = base; }
++
 +    uint64_t ip = 0x1000;
 +
 +    int reads = 0;
@@ -172,7 +189,7 @@ index 0000000..3ae9a4f
 +        switch (bank) {
 +          case exec::Bank::Rd: return idx == 0 ? 0 : rd[idx];
 +          case exec::Bank::Rb: return idx == 0 ? ip : rb[idx];
-+          case exec::Bank::Ra: return ra[idx];
++          case exec::Bank::Ra: return raAt(idx);
 +        }
 +        return 0;
 +    }
@@ -191,7 +208,7 @@ index 0000000..3ae9a4f
 +        switch (bank) {
 +          case exec::Bank::Rd: rd[idx] = val; break;
 +          case exec::Bank::Rb: rb[idx] = val; break;
-+          case exec::Bank::Ra: ra[idx] = val; break;
++          case exec::Bank::Ra: raAt(idx) = val; break;
 +        }
 +    }
 +
@@ -270,14 +287,15 @@ index 0000000..3ae9a4f
 +    for (unsigned i = 0; i < 64; ++i) {
 +        ctx.rd[i] = 0xDAD0000000000000ull + i;
 +        ctx.rb[i] = 0xB0B0000000000000ull + i;
-+        ctx.ra[i] = 0xCAFE000000000000ull + i;
++        ctx.raAt(i) = 0xCAFE000000000000ull + i;
 +        ctx.rf[i] = 0xF00D000000000000ull + i;
 +    }
 +    ctx.rd[0] = 0;
 +    ctx.rb[0] = 0;
-+    ctx.ra[0] = 0;
++    ctx.raAt(0) = 0;
 +    ctx.rf[0] = kFcsrReset;
 +    ctx.ip = 0x1000;
++    ctx.ringBase = 0;
 +    ctx.reads = 0;
 +    ctx.fcsrWrites = 0;
 +    ctx.badWrites = 0;
@@ -2202,7 +2220,7 @@ index 0000000..3ae9a4f
 +                  case 'f': ctx.rf[idx] = value; break;
 +                  case 'd': ctx.rd[idx] = value; break;
 +                  case 'b': ctx.rb[idx] = value; break;
-+                  default: ctx.ra[idx] = value; break;
++                  default: ctx.raAt(idx) = value; break;
 +                }
 +                continue;
 +            }

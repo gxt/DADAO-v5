@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b4_test.cc b/src/arch/dadao/exec/b4_test.cc
 new file mode 100644
-index 0000000..0206e25
+index 0000000..1a37eaa
 --- /dev/null
 +++ b/src/arch/dadao/exec/b4_test.cc
-@@ -0,0 +1,1486 @@
+@@ -0,0 +1,1504 @@
 +/*
 + * DADAO gem5 B4 execution assertions (GEM5-009t).
 + *
@@ -361,6 +361,23 @@ index 0000000..0206e25
 +    uint64_t rb[64] = {};
 +    uint64_t ra[64] = {};
 +    uint64_t rf[64] = {};
++    // Hidden RegRAS ring base (ADR-0012 D7.5).  `ra[]` is the physical
++    // register file; tests address it through raAt() (logical index).
++    unsigned ringBase = 0;
++
++    uint64_t &
++    raAt(unsigned idx)
++    {
++        return ra[exec::ras::phys(ringBase, idx)];
++    }
++    uint64_t
++    raAt(unsigned idx) const
++    {
++        return ra[exec::ras::phys(ringBase, idx)];
++    }
++    unsigned rasBase() const { return ringBase; }
++    void setRasBase(unsigned base) { ringBase = base; }
++
 +    uint64_t ip = 0x1000;
 +
 +    int badWrites = 0;
@@ -375,7 +392,7 @@ index 0000000..0206e25
 +        switch (bank) {
 +          case exec::Bank::Rd: return idx == 0 ? 0 : rd[idx];
 +          case exec::Bank::Rb: return idx == 0 ? ip : rb[idx];
-+          case exec::Bank::Ra: return ra[idx];
++          case exec::Bank::Ra: return raAt(idx);
 +        }
 +        return 0;
 +    }
@@ -391,7 +408,7 @@ index 0000000..0206e25
 +        switch (bank) {
 +          case exec::Bank::Rd: rd[idx] = val; break;
 +          case exec::Bank::Rb: rb[idx] = val; break;
-+          case exec::Bank::Ra: ra[idx] = val; break;
++          case exec::Bank::Ra: raAt(idx) = val; break;
 +        }
 +    }
 +
@@ -424,13 +441,14 @@ index 0000000..0206e25
 +    for (unsigned i = 0; i < 64; ++i) {
 +        ctx.rd[i] = 0xDEAD000000000000ULL + i;
 +        ctx.rb[i] = 0xBEEF000000000000ULL + i;
-+        ctx.ra[i] = 0xCAFE000000000000ULL + i;
++        ctx.raAt(i) = 0xCAFE000000000000ULL + i;
 +        ctx.rf[i] = 0xF00D000000000000ULL + i;
 +    }
 +    ctx.rd[0] = 0;
 +    ctx.rb[0] = 0;
 +    ctx.rf[0] = 0;
 +    ctx.ip = 0x1000;
++    ctx.ringBase = 0;
 +}
 +
 +// ---------------------------------------------------------------------------

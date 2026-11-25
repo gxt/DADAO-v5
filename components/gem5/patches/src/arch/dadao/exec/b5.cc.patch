@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b5.cc b/src/arch/dadao/exec/b5.cc
 new file mode 100644
-index 0000000..9cf3952
+index 0000000..07cccb4
 --- /dev/null
 +++ b/src/arch/dadao/exec/b5.cc
-@@ -0,0 +1,558 @@
+@@ -0,0 +1,562 @@
 +// DADAO gem5 B5 execution core -- implementation.
 +//
 +// The 29 B5 ids are dispatched through the table below, by `entry->id` (never
@@ -240,7 +240,10 @@ index 0000000..9cf3952
 +
 +/** C1/C2/C3a/C3b push (spec/SimRISC-00 §2.4.1).  Returns RasOverflow when
 + * RACNT == 63 and MRPTR == 0, or Memory when the MemRAS write fails; on either
-+ * fault nothing has been committed. */
++ * fault nothing has been committed.
++ *
++ * The RegRAS is a ring buffer (ADR-0012 D7.5): C3a/C3b write one new top slot
++ * and advance the hidden base; no entry is copied.  C2 folds in place. */
 +Fault
 +pushRas(B5Context &ctx, uint64_t returnAddress)
 +{
@@ -267,16 +270,18 @@ index 0000000..9cf3952
 +        return Fault::None;
 +    }
 +
-+    // C3a: one free slot; move the valid entries one slot towards ra63.
++    // C3a: one free slot.  Moving the hidden base one step makes room at the
++    // new logical top; every existing entry keeps its physical slot.
 +    if (racnt < kNumRaSlots) {
-+        for (uint64_t j = 64 - racnt; j <= kNumRaSlots; ++j)
-+            ctx.writeInt(Bank::Ra, j - 1, ctx.readInt(Bank::Ra, j));
++        ctx.setRasBase((ctx.rasBase() + 1) % kNumRaSlots);
 +        ctx.writeInt(Bank::Ra, kNumRaSlots, entry);
 +        writeRasHeader(ctx, racnt + 1, mrptr);
 +        return Fault::None;
 +    }
 +
-+    // C3b: evict the stack bottom to MemRAS, then push.
++    // C3b: evict the stack bottom (logical 1 with a full stack) to MemRAS,
++    // then push.  The bottom is read through the old base, before the ring
++    // advances; a failed write commits nothing.
 +    if (mrptr == 0)
 +        return Fault::RasOverflow;
 +    const uint64_t newPtr = mrptr - 8;
@@ -284,8 +289,7 @@ index 0000000..9cf3952
 +    storeBigEndian8(bytes, ctx.readInt(Bank::Ra, 64 - racnt));
 +    if (!ctx.writeMem(newPtr, bytes, 8))
 +        return Fault::Memory;
-+    for (uint64_t j = 2; j <= kNumRaSlots; ++j)
-+        ctx.writeInt(Bank::Ra, j - 1, ctx.readInt(Bank::Ra, j));
++    ctx.setRasBase((ctx.rasBase() + 1) % kNumRaSlots);
 +    ctx.writeInt(Bank::Ra, kNumRaSlots, entry);
 +    writeRasHeader(ctx, kNumRaSlots, newPtr);
 +    return Fault::None;
@@ -313,9 +317,9 @@ index 0000000..9cf3952
 +                         ((count - 1) << 48) | (top & kMask48));
 +            return Fault::None;
 +        }
-+        // D3: pop the top entry, move the remaining valid entries up.
-+        for (int64_t j = 62; j >= static_cast<int64_t>(64 - racnt); --j)
-+            ctx.writeInt(Bank::Ra, j + 1, ctx.readInt(Bank::Ra, j));
++        // D3: pop the top entry; the ring base moves back one step, so the
++        // remaining entries keep their physical slots (no copy).
++        ctx.setRasBase((ctx.rasBase() + kNumRaSlots - 1) % kNumRaSlots);
 +        writeRasHeader(ctx, racnt - 1, mrptr);
 +        return Fault::None;
 +    }

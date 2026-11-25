@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..b04c450
+index 0000000..b9f6dd8
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,6407 @@
+@@ -0,0 +1,6423 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
@@ -35,6 +35,7 @@ index 0000000..b04c450
 +#include <string>
 +#include <vector>
 +
++#include "arch/dadao/exec/common.hh"
 +#include "arch/dadao/isa.hh"
 +#include "arch/dadao/process.hh"
 +#include "arch/dadao/pcstate.hh"
@@ -3316,14 +3317,21 @@ index 0000000..b04c450
 +{
 +    constexpr uint64_t Mask48 = (uint64_t(1) << 48) - 1;
 +    constexpr uint64_t RecursionMax = 0xFFFF;
-+    constexpr unsigned NumRaSlots = 63;
++    constexpr unsigned NumRaSlots = DadaoISA::exec::ras::kSlots;
 +    constexpr uint64_t SbzMask = 0xFFC0000000000000ULL;
 +
++    // Same ring layout as the call/ret core (ADR-0012 D7.5): the signal
++    // frame's return address is pushed by moving the hidden base, never by
++    // copying entries.
++    auto *isa = static_cast<DadaoISA::ISA *>(tc->getIsaPtr());
++    auto phys = [&](unsigned idx) {
++        return DadaoISA::exec::ras::phys(isa->rasBase(), idx);
++    };
 +    auto readRa = [&](unsigned idx) {
-+        return tc->getReg(intReg(DadaoISA::int_reg::RaBase + idx));
++        return tc->getReg(intReg(DadaoISA::int_reg::RaBase + phys(idx)));
 +    };
 +    auto writeRa = [&](unsigned idx, uint64_t value) {
-+        tc->setReg(intReg(DadaoISA::int_reg::RaBase + idx), value);
++        tc->setReg(intReg(DadaoISA::int_reg::RaBase + phys(idx)), value);
 +    };
 +    auto writeHeader = [&](uint64_t racnt, uint64_t mrptr) {
 +        writeRa(0, (readRa(0) & SbzMask) | ((racnt & 0x3F) << 48) |
@@ -3350,8 +3358,7 @@ index 0000000..b04c450
 +    }
 +
 +    if (racnt < NumRaSlots) { // C3a: one free register slot
-+        for (uint64_t j = 64 - racnt; j <= NumRaSlots; ++j)
-+            writeRa(j - 1, readRa(j));
++        isa->setRasBase((isa->rasBase() + 1) % NumRaSlots);
 +        writeRa(NumRaSlots, entry);
 +        writeHeader(racnt + 1, mrptr);
 +        return true;
@@ -3365,8 +3372,7 @@ index 0000000..b04c450
 +    SETranslatingPortProxy proxy(tc);
 +    if (!proxy.tryWriteBlob(newPtr, bytes, sizeof(bytes)))
 +        return false;
-+    for (uint64_t j = 2; j <= NumRaSlots; ++j)
-+        writeRa(j - 1, readRa(j));
++    isa->setRasBase((isa->rasBase() + 1) % NumRaSlots);
 +    writeRa(NumRaSlots, entry);
 +    writeHeader(NumRaSlots, newPtr);
 +    return true;
@@ -5199,6 +5205,11 @@ index 0000000..b04c450
 +        const RegId rf(DadaoISA::floatRegClass, i);
 +        ctc->setReg(rf, tc->getReg(rf));
 +    }
++    // The child inherits the physical RA slots above; the hidden ring base
++    // must travel with them or its logical RA view would change (D7.5).
++    if (auto *parentIsa = dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr()))
++        static_cast<DadaoISA::ISA *>(ctc->getIsaPtr())
++            ->setRasBase(parentIsa->rasBase());
 +    const Addr trapPc = tc->pcState().instAddr();
 +    ctc->pcState(DadaoISA::PCState(trapPc + 4));
 +    ctc->setReg(rb(1), newsp);
@@ -5344,6 +5355,11 @@ index 0000000..b04c450
 +        const RegId rf(DadaoISA::floatRegClass, i);
 +        ctc->setReg(rf, tc->getReg(rf));
 +    }
++    // Fork: the child's RA slots are a copy of the parent's, so the ring base
++    // is copied too (ADR-0012 D7.5).
++    if (auto *parentIsa = dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr()))
++        static_cast<DadaoISA::ISA *>(ctc->getIsaPtr())
++            ->setRasBase(parentIsa->rasBase());
 +    // The child is a copy of the caller at the point where the trap has just
 +    // completed: the next instruction is the one after the trap (pc), and the
 +    // one after that is pc + 4 (npc) -- exactly what the parent's advancePC

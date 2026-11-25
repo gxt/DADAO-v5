@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b5.hh b/src/arch/dadao/exec/b5.hh
 new file mode 100644
-index 0000000..dec03c4
+index 0000000..271d822
 --- /dev/null
 +++ b/src/arch/dadao/exec/b5.hh
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,111 @@
 +// DADAO gem5 B5 execution core: register block copies, conditional
 +// assignment, control flow and the RegRAS/MemRAS state machine (29 ids).
 +//
@@ -89,6 +89,16 @@ index 0000000..dec03c4
 +    ~B5Context() override = default;
 +
 +    virtual void branchTo(uint64_t target64) = 0;
++
++    /** Hidden RegRAS ring base (ADR-0012 D7.5): 0..62, reset 0, not
++     * architecturally visible.
++     *
++     * The register surface maps every RA access with
++     * `1 + (rasBase() + idx) % 63` (exec/common.hh ras::phys()), so this core
++     * keeps using logical indices: `call` advances the base by one and `ret`
++     * moves it back, without copying any entry. */
++    virtual unsigned rasBase() const = 0;
++    virtual void setRasBase(unsigned base) = 0;
 +};
 +
 +/** Execute one B5 instruction.

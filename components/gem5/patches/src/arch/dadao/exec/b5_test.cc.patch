@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b5_test.cc b/src/arch/dadao/exec/b5_test.cc
 new file mode 100644
-index 0000000..1cd0059
+index 0000000..22a4421
 --- /dev/null
 +++ b/src/arch/dadao/exec/b5_test.cc
-@@ -0,0 +1,2139 @@
+@@ -0,0 +1,2210 @@
 +/*
 + * DADAO gem5 B5 execution assertions (GEM5-010t).
 + *
@@ -258,6 +258,29 @@ index 0000000..1cd0059
 +    uint64_t ra[64] = {};
 +    uint64_t rf[64] = {};
 +    uint64_t ip = 0x1000;
++
++    // Hidden RegRAS ring base (ADR-0012 D7.5).  `ra[]` is the physical
++    // register file; tests address it through raAt() (logical index).
++    unsigned ringBase = 0;
++
++    uint64_t &
++    raAt(unsigned idx)
++    {
++        return ra[exec::ras::phys(ringBase, idx)];
++    }
++    uint64_t
++    raAt(unsigned idx) const
++    {
++        return ra[exec::ras::phys(ringBase, idx)];
++    }
++    unsigned rasBase() const override { return ringBase; }
++    void setRasBase(unsigned base) override
++    {
++        check(base < exec::ras::kSlots, "harness: ring base %u out of 0..62",
++              base);
++        ringBase = base;
++    }
++
 +    std::map<uint64_t, uint8_t> mem;
 +
 +    bool failAllReads = false;
@@ -292,7 +315,7 @@ index 0000000..1cd0059
 +        switch (bank) {
 +          case exec::Bank::Rd: return idx == 0 ? 0 : rd[idx];
 +          case exec::Bank::Rb: return idx == 0 ? ip : rb[idx];
-+          case exec::Bank::Ra: return ra[idx];
++          case exec::Bank::Ra: return raAt(idx);
 +        }
 +        return 0;
 +    }
@@ -311,7 +334,7 @@ index 0000000..1cd0059
 +        switch (bank) {
 +          case exec::Bank::Rd: rd[idx] = val; break;
 +          case exec::Bank::Rb: rb[idx] = val; break;
-+          case exec::Bank::Ra: ra[idx] = val; break;
++          case exec::Bank::Ra: raAt(idx) = val; break;
 +        }
 +    }
 +
@@ -385,7 +408,7 @@ index 0000000..1cd0059
 +    switch (group) {
 +      case G_RD: return ctx.rd[idx];
 +      case G_RB: return ctx.rb[idx];
-+      case G_RA: return ctx.ra[idx];
++      case G_RA: return ctx.raAt(idx);
 +      case G_RF: return ctx.rf[idx];
 +    }
 +    return ctx.rd[idx];
@@ -397,7 +420,7 @@ index 0000000..1cd0059
 +    switch (group) {
 +      case G_RD: return idx == 0 ? 0 : ctx.rd[idx];
 +      case G_RB: return idx == 0 ? ctx.ip : ctx.rb[idx];
-+      case G_RA: return ctx.ra[idx];
++      case G_RA: return ctx.raAt(idx);
 +      case G_RF: return ctx.rf[idx];
 +    }
 +    return 0;
@@ -429,13 +452,14 @@ index 0000000..1cd0059
 +    for (unsigned i = 0; i < 64; ++i) {
 +        ctx.rd[i] = 0xDAD0000000000000ULL + i;
 +        ctx.rb[i] = 0xB0B0000000000000ULL + i;
-+        ctx.ra[i] = 0xCAFE000000000000ULL + i;
++        ctx.raAt(i) = 0xCAFE000000000000ULL + i;
 +        ctx.rf[i] = 0xF00D000000000000ULL + i;
 +    }
 +    ctx.rd[0] = 0;
 +    ctx.rb[0] = 0;
 +    ctx.rf[0] = 0xFFFF0000FFFF0000ULL;
-+    ctx.ra[0] = ra0Value(0, 0);
++    ctx.raAt(0) = ra0Value(0, 0);
++    ctx.ringBase = 0;
 +    ctx.ip = 0x1000;
 +    ctx.mem.clear();
 +    resetCounters(ctx);
@@ -751,10 +775,10 @@ index 0000000..1cd0059
 +                                     : uint64_t(0x2000 + 0x40 + 16);
 +    check(ctx.branchTarget == expected, "%s positive: target 0x%" PRIx64,
 +          o.id, ctx.branchTarget);
-+    check(ctx.ra[63] == entryValue(1, 0x1004),
++    check(ctx.raAt(63) == entryValue(1, 0x1004),
 +          "%s positive: ra63 = count 1 + pc+4", o.id);
-+    check(((ctx.ra[0] >> 48) & 0x3F) == 1 &&
-+              (ctx.ra[0] & kMask48) == 0,
++    check(((ctx.raAt(0) >> 48) & 0x3F) == 1 &&
++              (ctx.raAt(0) & kMask48) == 0,
 +          "%s positive: RACNT=1, MRPTR=0", o.id);
 +}
 +
@@ -763,8 +787,8 @@ index 0000000..1cd0059
 +{
 +    MockContext ctx;
 +    initContext(ctx);
-+    ctx.ra[0] = ra0Value(1, 0);
-+    ctx.ra[63] = entryValue(1, 0x3456);
++    ctx.raAt(0) = ra0Value(1, 0);
++    ctx.raAt(63) = entryValue(1, 0x3456);
 +    ctx.ip = 0x1000;
 +    resetCounters(ctx);
 +    WordSpec w;
@@ -779,7 +803,7 @@ index 0000000..1cd0059
 +          o.id, ctx.branchTarget);
 +    check(ctx.rd[5] == ~uint64_t(6), "%s positive: rdha = sext(imms18)",
 +          o.id);
-+    check(((ctx.ra[0] >> 48) & 0x3F) == 0,
++    check(((ctx.raAt(0) >> 48) & 0x3F) == 0,
 +          "%s positive: RACNT decremented", o.id);
 +}
 +
@@ -1270,7 +1294,7 @@ index 0000000..1cd0059
 +        const exec::Fault fault = runWord(ctx, "rd2ra_orri_ra", w);
 +        check(fault == exec::Fault::None, "rd2ra ra0 destination (%s)",
 +              faultName(fault));
-+        check(ctx.ra[0] == bits, "rd2ra copies ra0 as opaque 64 bits");
++        check(ctx.raAt(0) == bits, "rd2ra copies ra0 as opaque 64 bits");
 +        w.rahc = 0;
 +        w.rdhb = 4;
 +        const exec::Fault back = runWord(ctx, "ra2rd_orri_ra", w);
@@ -1683,12 +1707,12 @@ index 0000000..1cd0059
 +        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
 +        check(fault == exec::Fault::None, "call C1: fault %s",
 +              faultName(fault));
-+        check(ctx.ra[63] == entryValue(1, 0x1004),
++        check(ctx.raAt(63) == entryValue(1, 0x1004),
 +              "call C1: ra63 = count 1 + pc+4");
-+        check(((ctx.ra[0] >> 48) & 0x3F) == 1 &&
-+                  (ctx.ra[0] & kMask48) == 0,
++        check(((ctx.raAt(0) >> 48) & 0x3F) == 1 &&
++                  (ctx.raAt(0) & kMask48) == 0,
 +              "call C1: RACNT 0 -> 1, MRPTR unchanged");
-+        check((ctx.ra[0] & 0xFFC0000000000000ULL) == kSbz,
++        check((ctx.raAt(0) & 0xFFC0000000000000ULL) == kSbz,
 +              "call C1: ra0 SBZ bits preserved");
 +        check(ctx.ip == 0x1010, "call C1: target branch");
 +    }
@@ -1707,7 +1731,7 @@ index 0000000..1cd0059
 +        const exec::Fault fault = runWord(ctx, "call_rrii_ra", w);
 +        check(fault == exec::Fault::None, "call rrii C1: fault %s",
 +              faultName(fault));
-+        check(ctx.ra[63] == entryValue(1, 0x2004),
++        check(ctx.raAt(63) == entryValue(1, 0x2004),
 +              "call rrii C1: return address = call pc + 4");
 +        check(ctx.ip == 0x3000 + 0x10 + 16, "call rrii C1: target");
 +        check(ctx.rb[5] == 0x3000 && ctx.rd[6] == 0x10,
@@ -1724,7 +1748,7 @@ index 0000000..1cd0059
 +        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
 +        check(fault == exec::Fault::None, "call 48-bit return: fault %s",
 +              faultName(fault));
-+        check(ctx.ra[63] == entryValue(1, 0xFFFFFFFFFFF4ULL),
++        check(ctx.raAt(63) == entryValue(1, 0xFFFFFFFFFFF4ULL),
 +              "call 48-bit return: ra63 holds (pc+4)[47:0]");
 +    }
 +    // C2: recursion fold, RACNT unchanged, no entry movement.
@@ -1732,74 +1756,80 @@ index 0000000..1cd0059
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(1, 0);
-+        ctx.ra[63] = entryValue(1, 0x1004);
-+        const uint64_t sentinel = ctx.ra[62];
++        ctx.raAt(0) = ra0Value(1, 0);
++        ctx.raAt(63) = entryValue(1, 0x1004);
++        const uint64_t sentinel = ctx.raAt(62);
 +        resetCounters(ctx);
 +        WordSpec w;
 +        w.imms24 = 4;
 +        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
 +        check(fault == exec::Fault::None, "call C2: fault %s",
 +              faultName(fault));
-+        check(ctx.ra[63] == entryValue(2, 0x1004),
++        check(ctx.raAt(63) == entryValue(2, 0x1004),
 +              "call C2: recursion count incremented");
-+        check(((ctx.ra[0] >> 48) & 0x3F) == 1, "call C2: RACNT unchanged");
-+        check(ctx.ra[62] == sentinel, "call C2: no entry movement");
++        check(((ctx.raAt(0) >> 48) & 0x3F) == 1, "call C2: RACNT unchanged");
++        check(ctx.raAt(62) == sentinel, "call C2: no entry movement");
++        check(ctx.ringBase == 0, "call C2: hidden ring base unchanged");
 +    }
 +    // C2 must not fold at count 0xFFFF; go to C3a instead.
 +    {
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(1, 0);
-+        ctx.ra[63] = entryValue(0xFFFF, 0x1004);
++        ctx.raAt(0) = ra0Value(1, 0);
++        ctx.raAt(63) = entryValue(0xFFFF, 0x1004);
 +        resetCounters(ctx);
 +        WordSpec w;
 +        w.imms24 = 4;
 +        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
 +        check(fault == exec::Fault::None, "call count=0xFFFF: fault %s",
 +              faultName(fault));
-+        check(ctx.ra[63] == entryValue(1, 0x1004),
++        check(ctx.raAt(63) == entryValue(1, 0x1004),
 +              "call count=0xFFFF: new entry pushed");
-+        check(ctx.ra[62] == entryValue(0xFFFF, 0x1004),
-+              "call count=0xFFFF: old entry shifted down");
-+        check(((ctx.ra[0] >> 48) & 0x3F) == 2,
++        check(ctx.raAt(62) == entryValue(0xFFFF, 0x1004),
++              "call count=0xFFFF: old entry is one slot lower");
++        check(((ctx.raAt(0) >> 48) & 0x3F) == 2,
 +              "call count=0xFFFF: RACNT 2");
++        check(ctx.ringBase == 1, "call count=0xFFFF: ring base advanced");
 +    }
-+    // C3a: valid entries move one slot towards ra63.
++    // C3a: the ring advances the hidden base; no entry is copied.
 +    {
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(3, 0);
-+        ctx.ra[61] = entryValue(1, 0x1111);
-+        ctx.ra[62] = entryValue(1, 0x2222);
-+        ctx.ra[63] = entryValue(1, 0x3333);
++        ctx.raAt(0) = ra0Value(3, 0);
++        ctx.raAt(61) = entryValue(1, 0x1111);
++        ctx.raAt(62) = entryValue(1, 0x2222);
++        ctx.raAt(63) = entryValue(1, 0x3333);
++        const uint64_t oldTopSlot = ctx.ra[exec::ras::phys(0, 63)];
 +        resetCounters(ctx);
 +        WordSpec w;
 +        w.imms24 = 4;
 +        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
 +        check(fault == exec::Fault::None, "call C3a: fault %s",
 +              faultName(fault));
-+        check(ctx.ra[63] == entryValue(1, 0x1004),
++        check(ctx.raAt(63) == entryValue(1, 0x1004),
 +              "call C3a: new top entry");
-+        check(ctx.ra[62] == entryValue(1, 0x3333) &&
-+                  ctx.ra[61] == entryValue(1, 0x2222) &&
-+                  ctx.ra[60] == entryValue(1, 0x1111),
-+              "call C3a: old entries shifted");
-+        check(((ctx.ra[0] >> 48) & 0x3F) == 4,
++        check(ctx.raAt(62) == entryValue(1, 0x3333) &&
++                  ctx.raAt(61) == entryValue(1, 0x2222) &&
++                  ctx.raAt(60) == entryValue(1, 0x1111),
++              "call C3a: old entries keep their ring positions");
++        check(((ctx.raAt(0) >> 48) & 0x3F) == 4,
 +              "call C3a: RACNT 3 -> 4");
++        check(ctx.ringBase == 1, "call C3a: hidden ring base +1");
++        check(ctx.ra[exec::ras::phys(0, 63)] == oldTopSlot,
++              "call C3a: old top's physical slot untouched (no copy)");
 +    }
 +    // C3b: evict the bottom entry to MemRAS, then push.
 +    {
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(63, 0x2008);
++        ctx.raAt(0) = ra0Value(63, 0x2008);
 +        for (unsigned i = 1; i <= 63; ++i)
-+            ctx.ra[i] = entryValue(1, 0x4000 + i);
-+        const uint64_t oldTop = ctx.ra[63];
-+        const uint64_t oldSecond = ctx.ra[2];
++            ctx.raAt(i) = entryValue(1, 0x4000 + i);
++        const uint64_t oldTop = ctx.raAt(63);
++        const uint64_t oldSecond = ctx.raAt(2);
 +        resetCounters(ctx);
 +        WordSpec w;
 +        w.imms24 = 4;
@@ -1810,25 +1840,59 @@ index 0000000..1cd0059
 +              "call C3b: one 8-byte MemRAS write");
 +        check(getMem64(ctx, 0x2000) == entryValue(1, 0x4001),
 +              "call C3b: stack bottom written big-endian at MRPTR-8");
-+        check((ctx.ra[0] & kMask48) == 0x2000,
++        check((ctx.raAt(0) & kMask48) == 0x2000,
 +              "call C3b: MRPTR decremented by 8");
-+        check(((ctx.ra[0] >> 48) & 0x3F) == 63,
++        check(((ctx.raAt(0) >> 48) & 0x3F) == 63,
 +              "call C3b: RACNT stays 63");
-+        check(ctx.ra[63] == entryValue(1, 0x1004),
++        check(ctx.raAt(63) == entryValue(1, 0x1004),
 +              "call C3b: new top entry");
-+        check(ctx.ra[62] == oldTop, "call C3b: old top shifted to ra62");
-+        check(ctx.ra[1] == oldSecond, "call C3b: bottom evicted, ra1 = old ra2");
-+        check((ctx.ra[0] & 0xFFC0000000000000ULL) == kSbz,
++        check(ctx.raAt(62) == oldTop,
++              "call C3b: old top is one ring position down");
++        check(ctx.raAt(1) == oldSecond,
++              "call C3b: bottom evicted, logical ra1 = old ra2");
++        check(ctx.ringBase == 1, "call C3b: hidden ring base +1");
++        check(ctx.ra[exec::ras::phys(0, 63)] == oldTop,
++              "call C3b: old top's physical slot untouched (no copy)");
++        check(ctx.raAt(63) ==
++                  ctx.ra[exec::ras::phys(0, 1)],
++              "call C3b: the evicted bottom slot is the new top slot");
++        check((ctx.raAt(0) & 0xFFC0000000000000ULL) == kSbz,
 +              "call C3b: ra0 SBZ bits preserved");
++    }
++    // Ring wrap: base 62 + C3b advance wraps to 0, still QEMU's mapping.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.ip = 0x1000;
++        ctx.setRasBase(62);
++        ctx.raAt(0) = ra0Value(63, 0x2008);
++        for (unsigned i = 1; i <= 63; ++i)
++            ctx.raAt(i) = entryValue(1, 0x4000 + i);
++        const uint64_t oldTop = ctx.raAt(63);
++        resetCounters(ctx);
++        WordSpec w;
++        w.imms24 = 4;
++        const exec::Fault fault = runWord(ctx, "call_iiii_ra", w);
++        check(fault == exec::Fault::None, "call wrap: fault %s",
++              faultName(fault));
++        check(ctx.ringBase == 0, "call wrap: base 62 -> 0");
++        check(getMem64(ctx, 0x2000) == entryValue(1, 0x4001),
++              "call wrap: bottom read through the wrapped mapping");
++        check(ctx.raAt(63) == entryValue(1, 0x1004),
++              "call wrap: new top at logical 63");
++        check(ctx.raAt(62) == oldTop,
++              "call wrap: old top is one ring position down");
++        check(((ctx.raAt(0) >> 48) & 0x3F) == 63,
++              "call wrap: RACNT stays 63");
 +    }
 +    // C3b with MRPTR == 0: RASOF and no writes at all.
 +    {
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(63, 0);
++        ctx.raAt(0) = ra0Value(63, 0);
 +        for (unsigned i = 1; i <= 63; ++i)
-+            ctx.ra[i] = entryValue(1, 0x4000 + i);
++            ctx.raAt(i) = entryValue(1, 0x4000 + i);
 +        resetCounters(ctx);
 +        WordSpec w;
 +        w.imms24 = 4;
@@ -1844,12 +1908,12 @@ index 0000000..1cd0059
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(63, 0x2008);
++        ctx.raAt(0) = ra0Value(63, 0x2008);
 +        for (unsigned i = 1; i <= 63; ++i)
-+            ctx.ra[i] = entryValue(1, 0x4000 + i);
-+        const uint64_t ra0Before = ctx.ra[0];
-+        const uint64_t ra1Before = ctx.ra[1];
-+        const uint64_t ra63Before = ctx.ra[63];
++            ctx.raAt(i) = entryValue(1, 0x4000 + i);
++        const uint64_t ra0Before = ctx.raAt(0);
++        const uint64_t ra1Before = ctx.raAt(1);
++        const uint64_t ra63Before = ctx.raAt(63);
 +        resetCounters(ctx);
 +        ctx.failWriteAddr = 0x2000;
 +        WordSpec w;
@@ -1858,8 +1922,8 @@ index 0000000..1cd0059
 +        check(fault == exec::Fault::Memory,
 +              "call C3b write fault -> Memory (%s)", faultName(fault));
 +        check(ctx.writes.empty(), "call C3b fault: zero register writes");
-+        check(ctx.ra[0] == ra0Before && ctx.ra[1] == ra1Before &&
-+                  ctx.ra[63] == ra63Before,
++        check(ctx.raAt(0) == ra0Before && ctx.raAt(1) == ra1Before &&
++                  ctx.raAt(63) == ra63Before,
 +              "call C3b fault: RA state unchanged");
 +        check(ctx.memWrites == 0, "call C3b fault: no MemRAS write");
 +        check(ctx.ip == 0x1000, "call C3b fault: PC stays at the call");
@@ -1878,8 +1942,8 @@ index 0000000..1cd0059
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(1, 0);
-+        ctx.ra[63] = entryValue(0, 0x5555);
++        ctx.raAt(0) = ra0Value(1, 0);
++        ctx.raAt(63) = entryValue(0, 0x5555);
 +        resetCounters(ctx);
 +        WordSpec w;
 +        w.rdha = 5;
@@ -1889,16 +1953,16 @@ index 0000000..1cd0059
 +              "ret D1 -> RasUnderflow (%s)", faultName(fault));
 +        check(ctx.writes.empty(), "ret D1: rdha not written");
 +        check(ctx.ip == 0x1000, "ret D1: PC stays at ret");
-+        check(ctx.ra[63] == entryValue(0, 0x5555), "ret D1: RA unchanged");
++        check(ctx.raAt(63) == entryValue(0, 0x5555), "ret D1: RA unchanged");
 +    }
 +    // D2: count > 1, decrement only.
 +    {
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(2, 0);
-+        ctx.ra[62] = entryValue(1, 0x5555);
-+        ctx.ra[63] = entryValue(3, 0x4444);
++        ctx.raAt(0) = ra0Value(2, 0);
++        ctx.raAt(62) = entryValue(1, 0x5555);
++        ctx.raAt(63) = entryValue(3, 0x4444);
 +        resetCounters(ctx);
 +        WordSpec w;
 +        w.rdha = 5;
@@ -1906,25 +1970,27 @@ index 0000000..1cd0059
 +        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
 +        check(fault == exec::Fault::None, "ret D2: fault %s",
 +              faultName(fault));
-+        check(ctx.ra[63] == entryValue(2, 0x4444),
++        check(ctx.raAt(63) == entryValue(2, 0x4444),
 +              "ret D2: count decremented");
-+        check(((ctx.ra[0] >> 48) & 0x3F) == 2, "ret D2: RACNT unchanged");
-+        check(ctx.ra[62] == entryValue(1, 0x5555),
++        check(((ctx.raAt(0) >> 48) & 0x3F) == 2, "ret D2: RACNT unchanged");
++        check(ctx.raAt(62) == entryValue(1, 0x5555),
 +              "ret D2: lower entries unchanged");
 +        check(ctx.ip == 0x4444, "ret D2: IP = ra63[47:0]");
 +        check(ctx.rd[5] == ~uint64_t(0), "ret D2: rdha = sext(imms18)");
 +        check(ctx.writes.size() == 2,
 +              "ret D2: ra63 + rdha writes only");
 +    }
-+    // D3: count == 1, pop and move the remaining entries up.
++    // D3: count == 1, pop; the ring base moves back, no entry is copied.
 +    {
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(3, 0);
-+        ctx.ra[61] = entryValue(1, 0x1111);
-+        ctx.ra[62] = entryValue(1, 0x2222);
-+        ctx.ra[63] = entryValue(1, 0x3333);
++        ctx.raAt(0) = ra0Value(3, 0);
++        ctx.raAt(61) = entryValue(1, 0x1111);
++        ctx.raAt(62) = entryValue(1, 0x2222);
++        ctx.raAt(63) = entryValue(1, 0x3333);
++        const uint64_t newTopSlot = ctx.ra[exec::ras::phys(0, 62)];
++        const uint64_t poppedSlot = ctx.ra[exec::ras::phys(0, 63)];
 +        resetCounters(ctx);
 +        WordSpec w;
 +        w.rdha = 5;
@@ -1932,11 +1998,16 @@ index 0000000..1cd0059
 +        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
 +        check(fault == exec::Fault::None, "ret D3: fault %s",
 +              faultName(fault));
-+        check(ctx.ra[63] == entryValue(1, 0x2222) &&
-+                  ctx.ra[62] == entryValue(1, 0x1111),
-+              "ret D3: entries moved up");
-+        check(((ctx.ra[0] >> 48) & 0x3F) == 2,
++        check(ctx.raAt(63) == entryValue(1, 0x2222) &&
++                  ctx.raAt(62) == entryValue(1, 0x1111),
++              "ret D3: remaining entries are one ring position up");
++        check(((ctx.raAt(0) >> 48) & 0x3F) == 2,
 +              "ret D3: RACNT 3 -> 2");
++        check(ctx.ringBase == 62, "ret D3: hidden ring base -1 (wraps 0->62)");
++        check(ctx.ra[exec::ras::phys(0, 62)] == newTopSlot,
++              "ret D3: new top's physical slot untouched (no copy)");
++        check(ctx.ra[exec::ras::phys(0, 63)] == poppedSlot,
++              "ret D3: popped slot not rewritten");
 +        check(ctx.ip == 0x3333, "ret D3: IP = popped address");
 +        check(ctx.rd[5] == 7, "ret D3: rdha = imms18");
 +    }
@@ -1945,7 +2016,7 @@ index 0000000..1cd0059
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(0, 0);
++        ctx.raAt(0) = ra0Value(0, 0);
 +        resetCounters(ctx);
 +        WordSpec w;
 +        w.rdha = 5;
@@ -1961,7 +2032,7 @@ index 0000000..1cd0059
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(0, 0x2000);
++        ctx.raAt(0) = ra0Value(0, 0x2000);
 +        const uint64_t memEntry = entryValue(0, 0x5555);
 +        for (unsigned i = 0; i < 8; ++i)
 +            ctx.mem[0x2000 + i] = (memEntry >> (56 - 8 * i)) & 0xFF;
@@ -1972,7 +2043,7 @@ index 0000000..1cd0059
 +        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
 +        check(fault == exec::Fault::RasUnderflow,
 +              "ret D4b count 0 -> RasUnderflow (%s)", faultName(fault));
-+        check((ctx.ra[0] & kMask48) == 0x2000,
++        check((ctx.raAt(0) & kMask48) == 0x2000,
 +              "ret D4b count 0: MRPTR unchanged");
 +        check(ctx.writes.empty(), "ret D4b count 0: zero writes");
 +    }
@@ -1981,7 +2052,7 @@ index 0000000..1cd0059
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(0, 0x2000);
++        ctx.raAt(0) = ra0Value(0, 0x2000);
 +        const uint64_t memEntry = entryValue(1, 0x7777);
 +        for (unsigned i = 0; i < 8; ++i)
 +            ctx.mem[0x2000 + i] = (memEntry >> (56 - 8 * i)) & 0xFF;
@@ -1993,9 +2064,9 @@ index 0000000..1cd0059
 +        check(fault == exec::Fault::None, "ret D4b count 1: fault %s",
 +              faultName(fault));
 +        check(ctx.ip == 0x7777, "ret D4b count 1: IP = entry[47:0]");
-+        check((ctx.ra[0] & kMask48) == 0x2008,
++        check((ctx.raAt(0) & kMask48) == 0x2008,
 +              "ret D4b count 1: MRPTR += 8");
-+        check(((ctx.ra[0] >> 48) & 0x3F) == 0,
++        check(((ctx.raAt(0) >> 48) & 0x3F) == 0,
 +              "ret D4b count 1: RACNT stays 0");
 +        check(ctx.rd[5] == 7, "ret D4b count 1: rdha = imms18");
 +    }
@@ -2004,7 +2075,7 @@ index 0000000..1cd0059
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(0, 0x2000);
++        ctx.raAt(0) = ra0Value(0, 0x2000);
 +        const uint64_t memEntry = entryValue(3, 0x8888);
 +        for (unsigned i = 0; i < 8; ++i)
 +            ctx.mem[0x2000 + i] = (memEntry >> (56 - 8 * i)) & 0xFF;
@@ -2015,11 +2086,11 @@ index 0000000..1cd0059
 +        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
 +        check(fault == exec::Fault::None, "ret D4b count 3: fault %s",
 +              faultName(fault));
-+        check(ctx.ra[63] == entryValue(2, 0x8888),
++        check(ctx.raAt(63) == entryValue(2, 0x8888),
 +              "ret D4b count 3: ra63 = count-1 + address");
-+        check(((ctx.ra[0] >> 48) & 0x3F) == 1,
++        check(((ctx.raAt(0) >> 48) & 0x3F) == 1,
 +              "ret D4b count 3: RACNT = 1");
-+        check((ctx.ra[0] & kMask48) == 0x2008,
++        check((ctx.raAt(0) & kMask48) == 0x2008,
 +              "ret D4b count 3: MRPTR += 8");
 +        check(ctx.ip == 0x8888, "ret D4b count 3: IP = entry[47:0]");
 +    }
@@ -2029,8 +2100,8 @@ index 0000000..1cd0059
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(1, 0);
-+        ctx.ra[63] = entryValue(1, 0x9999);
++        ctx.raAt(0) = ra0Value(1, 0);
++        ctx.raAt(63) = entryValue(1, 0x9999);
 +        resetCounters(ctx);
 +        WordSpec w;
 +        w.rdha = 0;
@@ -2064,8 +2135,8 @@ index 0000000..1cd0059
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.ip = 0x1000;
-+        ctx.ra[0] = ra0Value(0, 0x2000);
-+        const uint64_t ra0Before = ctx.ra[0];
++        ctx.raAt(0) = ra0Value(0, 0x2000);
++        const uint64_t ra0Before = ctx.raAt(0);
 +        resetCounters(ctx);
 +        ctx.failReadAddr = 0x2000;
 +        WordSpec w;
@@ -2074,7 +2145,7 @@ index 0000000..1cd0059
 +        const exec::Fault fault = runWord(ctx, "ret_riii_ra", w);
 +        check(fault == exec::Fault::Memory,
 +              "ret D4b read fault -> Memory (%s)", faultName(fault));
-+        check(ctx.writes.empty() && ctx.ra[0] == ra0Before,
++        check(ctx.writes.empty() && ctx.raAt(0) == ra0Before,
 +              "ret D4b fault: RA state unchanged");
 +        check(ctx.ip == 0x1000, "ret D4b fault: PC stays at ret");
 +    }
