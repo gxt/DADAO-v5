@@ -8,9 +8,9 @@
   scope:
   - gem5
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: m20-gem5-002（2026-11-26：三处修正 + 跨引擎 27 条探针；EPERM/REQUEUE 负数/超时泄漏均可达 FAIL。剩余 EFAULT 与高负载 flake 另立 ISS-m20-004）
   title: 【P3】gem5 SE futex 细节与 Linux/QEMU 不完全一致：`FUTEX_UNLOCK_PI` 未校验调用者是否为 owner （Linux 返回 EPERM）；`FUTEX_REQUEUE` 返回值语义（唤醒+改挂之和）待与内核/QEMU 对齐； `parkOnFutex` 在等待队列 deadline 分支提前返回时漏 `delete FutexWaiter`（宿主内存小泄漏）。 语料当前不可达；随下一次 futex 任务修。
 - id: ISS-361
   scope:
@@ -147,3 +147,12 @@
   closed_in: null
   resolved_by: null
   title: '【P1】gem5 SE 72/72 全量长尾仍未全绿（m20-gem5-003 重分诊后剩余项）：原 ISS-361 的「挂死」前提不成立——`clocale_mbfuncs` 单核 2,992,041,018 inst / 2514 s 正常退出，修复后 1933 s pass；3 个抽样（ffbench 1667 s、backprop 2174 s、sieve 3363 s）pass。剩余：72/72 全量未重跑；最大 `JM/lencod` 历史 18132 s@32 并发仍可能超 3600 s；`regression/raise-race`（fork/信号，48 h）未验证；M13 预算/并发口径（archive 写 `--jobs 48 --gem5-timeout 3600`，任务书曾写 32+120 s）需重新裁定。处置：先定「夜跑/长尾预算与并发」口径，再按该口径跑 72/72；最大例与 raise-race 单列诊断。'
+- id: ISS-m20-004
+  scope:
+  - gem5
+  - testcases
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P3】gem5 SE futex 剩余项（m20-gem5-002 复核）：① `FUTEX_WAKE`/`FUTEX_REQUEUE` 对未映射 `uaddr`/`uaddr2` 不返回 `EFAULT`（Linux `get_futex_key` 会）；② 跨引擎探针 `requeue.neg-wake-woken` 依赖 100 ms 停靠窗，高负载下偶发 `want=2 got=1`（空载 5/5 全绿，只假红不假绿）。处置：补 futex key 地址校验；探针改用确定性的唤醒/停靠同步，不复用时间窗。'
