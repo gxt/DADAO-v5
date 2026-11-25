@@ -34,7 +34,6 @@
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
 | m18-spec-001 | 2–4 h | cg4 `scratch_regs_num` 缺省值：每个非 reserved cfx = 2（QEMU/gem5/RTL 由 4 改 2）；spec/契约 + 探针 |
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
-| m18-linux-017 | 3–4 h | `clock_nanosleep(TIMER_ABSTIME)` 整机停摆（KERNEL_BUG） |
 | m18-linux-018 | 2–3 h | 套件环境补齐（TMPFS/MEMFD、非 root uid、`/proc/iomem`；SUITE_ENV） |
 
 > **已作废（2026-11-23，ADR-0060）**：`m18-qemu-002`（monitor-first QEMU）reviewer Accepted 但**不合入 master**，分支留参考；`m18-qemu-003`（旧探针迁 monitor-first）未开工、被 hart-first 取代。
@@ -45,6 +44,7 @@
 | --- | --- | --- | --- |
 | m18-infra-004 | 2026-11-25 09:05 | 2–3 h | `issues.yaml` 按里程碑分册（left + m16…m19）；存量旧号冻结、新增 `ISS-<file>-NNN`；多文件读取器与消费方改造 |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
+| m18-linux-017 | 2026-11-25 16:53 | 3–4 h | `clock_nanosleep(TIMER_ABSTIME)` 停摆复评（015 里 `timers-nanosleep` 已 6/6 PASS；若不复现即作废） |
 
 ## 已验证
 
