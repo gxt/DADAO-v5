@@ -28,20 +28,6 @@ format: 1
 #   `run_suite.py --only mm-map-populate` runs are PASS with SUITE CASE END and
 #   no rwsem warning; suite.yaml's baseline for this case is PASS again.
 rows:
-  - id: mm-mlock2-tests
-    class: KERNEL_BUG
-    verdict: SIGNAL
-    case_output: "SUITE CASE END mm-mlock2-tests rc=139 status=signal"
-    evidence: >-
-      The program prints only its TAP header and plan (1..15) and then takes
-      SIGSEGV (rc=139) before the first sub-test result: `mlock2_(3 * page_size,
-      MLOCK_ONFAULT)` did not fail with ENOSYS, so the test proceeds into
-      test_mlock_lock() and the process dies inside it. No userspace assertion
-      was reached, so this is a kernel (or libc/kernel ABI) fault, not a test
-      assumption.
-    recheck: >-
-      Rerun `run_suite.py --only mm-mlock2-tests` after the mlock2/MLOCK_ONFAULT
-      path is fixed; the per-sub-test output then says which case dies.
   - id: mm-mremap-dontunmap
     class: SUITE_ENV
     verdict: FAIL
@@ -85,17 +71,3 @@ rows:
     recheck: >-
       Rerun `run_suite.py --only futex-wait-timeout` after futex_waitv lands; the
       row disappears when the case passes.
-  - id: timers-nanosleep
-    class: KERNEL_BUG
-    verdict: HOST_TIMEOUT
-    case_output: "TAP version 13\n1..12"
-    evidence: >-
-      The program prints its TAP header and plan and then nothing at all — not
-      one kernel line, no guest alarm, no case end. The first sub-test calls
-      clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, now+10ns); the machine stops
-      making progress there, which is why the case is marked `stall: true` and
-      runs in its own boot (otherwise every later case would be lost).
-    recheck: >-
-      Rerun `run_suite.py --only timers-nanosleep` after the absolute-time sleep
-      path is fixed; a live machine then either passes the sub-test or names a
-      failing clock.

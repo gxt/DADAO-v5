@@ -26,7 +26,7 @@ cases:
     dir: mm
     prog: mlock2-tests
     timeout: 60
-    expect: SIGNAL
+    expect: PASS
   - id: mm-mremap-dontunmap
     dir: mm
     prog: mremap_dontunmap
@@ -47,13 +47,14 @@ cases:
     prog: futex_wait_timeout
     timeout: 90
     expect: FAIL
-  # Runs last on purpose: the absolute-time `clock_nanosleep(CLOCK_REALTIME,
-  # TIMER_ABSTIME, now+10ns)` wedges the machine (no console output at all, so
-  # neither the guest-side alarm nor the host can attribute the case), recorded
-  # as KERNEL_BUG in triage.yaml.
+  # Kept in its own boot as a safety net: the absolute-time
+  # `clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, now+10ns)` used to wedge the
+  # machine.  It now completes (4/4 runs PASS after the m18-linux-022/024 async
+  # delivery work), so the baseline is PASS; the separate boot still protects
+  # the other cases if the wedge ever reappears.
   - id: timers-nanosleep
     dir: timers
     prog: nanosleep
     timeout: 60
-    expect: HOST_TIMEOUT
+    expect: PASS
     stall: true
