@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..1d1b287c4
+index 000000000..3cc578e4d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
-@@ -0,0 +1,517 @@
+@@ -0,0 +1,542 @@
 +//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -200,12 +200,23 @@ index 000000000..1d1b287c4
 +    // The PC-relative hi/lo kinds keep their own "requires a symbol operand"
 +    // diagnostic for the folded case; a difference is rejected here for them
 +    // as well.
++    //
++    // A *single* symbol that folded to an absolute constant is not a written
++    // difference: it is a `.set` equate whose value is a number the source
++    // computed (`.set VD, L1-L0`; ISS-430), so it must not be reported as one
++    // and is encodable, exactly as the ABS48 immediate path already does
++    // (parseImmediate keeps the same `isa<MCSymbolRefExpr>` distinction).  An
++    // equate to an address (`.set ADDR, L1`) does not fold -- it keeps AddSym
++    // and takes the relocation/in-place path below -- so the folded shape is
++    // unambiguous.
 +    if (Kind >= llvm::DADAO::DADAO_FK_PCRel_12 &&
 +        Kind <= llvm::DADAO::DADAO_FK_PCREL_LO && Asm->hasFinalLayout()) {
 +      const bool IsPcrelHiLo = Kind == llvm::DADAO::DADAO_FK_PCREL_HI ||
 +                               Kind == llvm::DADAO::DADAO_FK_PCREL_LO;
++      const bool IsEquatedValue = isa<MCSymbolRefExpr>(Fixup.getValue());
 +      if (Target.getSubSym() ||
-+          (!IsPcrelHiLo && Fixup.isPCRel() && !Target.getAddSym())) {
++          (!IsPcrelHiLo && Fixup.isPCRel() && !Target.getAddSym() &&
++           !IsEquatedValue)) {
 +        reportSymbolDifference(Fixup, Kind);
 +        return true; // error reported: do not emit a relocation
 +      }
@@ -246,6 +257,20 @@ index 000000000..1d1b287c4
 +
 +    const MCSymbol *Add = Target.getAddSym();
 +    const MCSymbol *Sub = Target.getSubSym();
++
++    // A single equated symbol that folded to an absolute constant names the
++    // value itself, not a target address: encode it as written (a byte
++    // displacement), with no PC subtraction.  A written `A - B` never reaches
++    // here (rejected above), so the only folded, symbol-free operand left is
++    // this value form.
++    if (!Add && !Sub) {
++      if (isa<MCSymbolRefExpr>(Fixup.getValue())) {
++        Value = Target.getConstant();
++        return true;
++      }
++      return std::nullopt;
++    }
++
 +    if (!Add || Sub || Add->isUndefined() || Add->isAbsolute())
 +      return std::nullopt;
 +

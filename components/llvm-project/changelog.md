@@ -592,3 +592,7 @@
 - **2026-11-25 m20-llvm-002**
   - 摘要：**汇编期拒绝跨寄存器组的文本组（ISS-m20-001）**：`DADAOAsmParser::parseRegGroup` 原用寄存器枚举 id 差值推导 `{start:end}` 的个数，而枚举中 RD 的 64 个寄存器之后紧跟 RF（RA→RB 同理），`ra2rd {rd63:rf61}, {ra63:rb61}` 因此被算成 63 个元素、绕过 `mreg_range_overflow`，汇编为 `0x40BBFFFF`（起始 63 + 63 > 64，应 ILLI）。现按组文本解析起始/结束寄存器所在寄存器组：两者不同组 ⇒ 硬报错（诊断含 `mreg_range_overflow`）；同组时个数由组内硬件编码（每组 0..63）计算并判 `起始 + 个数 > 64`（不环绕、不截断）。合法组（`{rf63}`、`{rf1:rf63}`、`{rf32:rf47}`、`{rd0:rd62}` 等）编码逐字节不变；`m20-llvm-001` 的 MC 反汇编判据未改动。新增 lit `reg-group-bank.s`（RD/RF/RB/RA 起始的跨组负例 + count 64 越界 + `end < start` + 合法边界）；`ra.s` 的 `0x40BBFFFF` 改由 `.dd.t32` 钉住（该文本组已不可汇编）。补丁 1 份改，`series` 99 不变。
   - 执行者：engineer
+
+- **2026-11-25 m20-llvm-003**
+  - 摘要：**`.set` Absolute 符号作值操作数（ISS-430）**：`m14-llvm-006` 已让 ABS48 立即数路径放行单符号 equate（`.set VD, L1-L0` + `set.zw` 编码 4），但 `evaluateFixup` 的 PC 相对判据仍把「单符号 equate 折成常量」与「源码写出的 `A - B`」同等对待——`jump`/`br.*`/`ld.o [rb0, …]` 用 `VD` 时按 symbol difference 拒绝，且文案把单符号操作数称作符号差。现 `evaluateFixup` 以 `isa<MCSymbolRefExpr>(Fixup.getValue())` 区分两者（与 `parseImmediate` 同一判据）：折成绝对常量的 equate 按写出的值编码（字节位移，不减 IP）；`A - B` 写出形式、未解析/跨段 equate 仍拒绝。超出字段宽度时给出值/宽度诊断（`branch/jump target out of range for a N-bit PC-relative immediate`）。新增 lit `set-abs-sym-ok.s`（`set.zw`/ABS12/REL12/`jump`/`br.eq`/`br.z`/`call` 与同值字面量逐字节一致、负值与地址 equate 对照、无重定位）与 `set-abs-sym-err.s`（未定义/跨段 equate 仍报 symbol difference、越界为值诊断、写出 `A - B` 仍拒）。补丁 1 份改，`series` 99 不变。
+  - 执行者：engineer
