@@ -9,7 +9,9 @@ independently-derived expected value (it does NOT rely on lit exit codes):
     cat crt0_user.s <prog>.s -> <prog>.s     (single TU; the stub is
                                                  re-targeted at `.text` so the
                                                  `call main` resolves without a
-                                                 linker -- see _read_raw_crt0)
+                                                 linker -- see _read_raw_crt0;
+                                                 program globals are localized
+                                                 -- see _localize_defined_globals)
     llvm-mc --triple=dadao -filetype=obj       -> <prog>.o
     llvm-objcopy -O binary --only-section=.text.start --only-section=.text
                                                -> <prog>.bin
@@ -191,6 +193,45 @@ def _read_raw_crt0(path: str) -> str:
     return rewritten
 
 
+# ``llc`` marks every externally visible program function ``.globl``: ``main``
+# plus any helper the IR leaves at external linkage (``add3``, ``sum18`` ...).
+# ``m14-llvm-007`` keeps emitting a relocation for a *global* symbol even when
+# it is defined in the same section (the linked-ELF pipelines need that: the
+# linker must be able to interpose, e.g. crt0's ``call [rb0, main]``).  The raw
+# pipeline has no linker and ``objcopy`` does not apply relocations, so every
+# program-defined global must become TU-local before crt0+program is assembled:
+# a ``.local`` symbol in the same section is resolved by the assembler itself.
+# Names that are *not* defined in the text stay ``.globl`` (externally
+# declared); if one were referenced, the SHT_RELA check below still fails
+# closed, so no unresolved relocation can slip through silently.
+_GLOBL_DIRECTIVE_RE = re.compile(
+    r'^(?P<indent>[ \t]*)\.globl(?P<sep>[ \t]+)'
+    r'(?P<name>[A-Za-z_.$][A-Za-z0-9_.$]*)(?P<tail>[ \t]*(?:@@[^\n]*)?)$',
+    re.MULTILINE)
+_LABEL_DEFINITION_RE = re.compile(
+    r'^[ \t]*(?P<name>[A-Za-z_.$][A-Za-z0-9_.$]*)[ \t]*:', re.MULTILINE)
+
+
+def _localize_defined_globals(text: str) -> str:
+    """Rewrite ``.globl`` of TU-defined symbols to ``.local`` (raw pipeline).
+
+    Only names defined in ``text`` are rewritten; a ``.globl`` naming an
+    undefined (external) symbol is left alone.  The rewrite is textual and
+    per-symbol (``llc`` emits one name per directive), so an unexpected form is
+    left untouched and the post-assembly SHT_RELA check reports it as an
+    unresolved relocation instead of being silently "fixed".
+    """
+    defined = {m.group("name") for m in _LABEL_DEFINITION_RE.finditer(text)}
+
+    def _repl(match):
+        if match.group("name") not in defined:
+            return match.group(0)
+        return (match.group("indent") + ".local" + match.group("sep")
+                + match.group("name") + match.group("tail"))
+
+    return _GLOBL_DIRECTIVE_RE.sub(_repl, text)
+
+
 def _elf_relocation_section_types(path: str):
     """Return the ELF section types of relocation sections (SHT_REL*/RELR).
 
@@ -275,13 +316,15 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
         return res
 
     # 2. crt0 + prog -> combined single TU .s.  The stub is re-targeted at
-    #    ``.text`` (see _read_raw_crt0): the program lands in ``.text`` too, so
-    #    the ``call [rb0, main]`` is resolved by the assembler -- no linker
-    #    exists in this pipeline.
+    #    ``.text`` (see _read_raw_crt0) and the program's ``.globl`` symbols are
+    #    localized (see _localize_defined_globals): the program lands in
+    #    ``.text`` too, so ``call [rb0, main]`` and every intra-TU helper call
+    #    are resolved by the assembler -- no linker exists in this pipeline.
     try:
         crt0_text = _read_raw_crt0(tools["crt0"])
         with open(prog_s, "r", encoding="utf-8") as fh:
             prog_text = fh.read()
+        prog_text = _localize_defined_globals(prog_text)
         with open(combined_s, "w", encoding="utf-8") as fh:
             fh.write(crt0_text)
             if not crt0_text.endswith("\n"):
