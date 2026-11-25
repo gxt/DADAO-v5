@@ -43,6 +43,7 @@
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "vastdcache_tables.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 
 @@ 期望一次故障并回到 `\resume`：TEST_FAULTV = cause，失败码 = 点号（= 槽索引）。
 .macro EXPECT_FAULT cause, point, resume
@@ -74,6 +75,8 @@
 .endm
 
 	__TEST_BEGIN
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 	set.rb	rb25, HMON_BASE
 	set.rb	rb22, TEST_PAD
 	st.o	rb22, [rb25, 0xF8]		@@ 固件 hmon 的返回地址槽
@@ -234,6 +237,13 @@ dc_rd_ok2:
 	__CHECK_RD 29, rd5, PTE_PAGE_NEW
 
 	__TEST_END
+	@@ 放行块（cfx_hmon/hypv 下打开目标 cfx 的 hypv 源掩码）
+	.text
+	.balign 4
+perm_mon:
+	PERM_OPEN	cfx_ptw
+	PERM_MON_CLOSE
+
 	__TEST_SECTIONS
 
 	@@ 核内 SRAM 里的 8 B 指令字（`ld.o` 从 SRAM 读，不经 D-Cache）

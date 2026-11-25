@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..2518741
+index 0000000..4f0e710
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,2034 @@
+@@ -0,0 +1,2016 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -120,24 +120,25 @@ index 0000000..2518741
 +// reads/writes as CFXREG — never as a silent zero.  A `cfxha` that names no
 +// implemented cfx is CFXREG as well.
 +//
-+// The two-axis `cfxreg` mask (`cg0`-`cg3` rc2) is **stored** here for cfx0/cfx2
-+// (`DADAO-12` §3, `ADR-0045` D1/D2), but its enforcement is not switched on in
-+// this profile yet: the chipyard boot chain runs the test body as `cfx_power`
-+// (cfx63), and the spec's reset masks allow only `cfx_hmon` (bit3), so enforcing
-+// the check would deny the body every cfx0/cfx2 (and existing cfx4/cfx5) access.
-+// `m16-chipyard-020` brings the U/S entry chain that runs the body inside its
-+// monitor; enforcement lands with that routing (recorded in the task's
-+// completion section).
++// The two-axis `cfx` authority (`<mode>_cfxreg`/`<mode>_cfxtrap` source mask
++// plus the `cg3 rc12` `cg_reg_deleg` bitmap, `DADAO-12` §3, `ADR-0045` D1/D2)
++// is **enforced in every run mode** (`m17-chipyard-001`, `DIV-07` closed).
++// In hypv the mask row is the cfx's legacy `cg3 rc0`-`rc3` set (Kaiwu-Tiny has
++// no other row and its body runs as `cfx_power`; the Vast delivery chain hands
++// the body to `cfx_hmon`); a test body opens the target cfx's masks before it
++// touches an undeclared cfx, which is the test-side preparation recorded as
++// `DIV-07`'s `close_when`.  U/J/S rows keep the per-mode rows of the monitor
++// common face and stay fail-closed for a cfx without one (`DIV-09`).
 +//
-+// `excp_cause_id` is a *layered* encoding (`DADAO-12` §3.6, `contract-see`
-+// §6.1/§6.1.1, `ADR-0056` D1–D4): `[15:0]` is the one-hot cause class,
-+// `[31:16]` is reserved for future cause classes, and the sub-cause lives in
-+// the 16-bit wyde the class *owns* — `CFXPERM` in wyde2 `[47:32]`, `CFXMEM` in
-+// wyde3 `[63:48]`, one-hot inside that wyde, with the other wyde and the
-+// reserved bits inside the wyde at zero.  `GewuCauseId` below is the single
-+// copy of that bit table (both the encoder the cores use and the structure
-+// check at this frame-write point read it); the layout is not a core constant,
-+// it is the spec's, so it is fixed here rather than in `GewuParams`.
++// `excp_cause_id` is a **flat bitmap** (`DADAO-12` §3.6, `contract-see`
++// §6.1/§6.1.1, `ADR-0062` D1–D3): one exception sets exactly one bit of the
++// 64-bit word.  `[15:0]` is the one-hot synchronous cause (`CFXMEM` = bit 1,
++// `CFXPERM` = bit 7); `[39:32]` is the PTW permission bitmap, `[55:48]`/`[56]`
++// the PTW miss/memory bitmap; `[31:16]`, `[39]`, `[47:40]`, `[57]` and
++// `[63:58]` are reserved.  `GewuCauseId` below is the single copy of that bit
++// table (both the encoders the cores use and the structure check at this
++// frame-write point read it); the layout is not a core constant, it is the
++// spec's, so it is fixed here rather than in `GewuParams`.
 +
 +package gewu
 +
@@ -145,108 +146,86 @@ index 0000000..2518741
 +import chisel3.util._
 +
 +/**
-+  * The `excp_cause_id` sub-cause table and its structural rules
-+  * (`contract-see` §6.1.1, bit-for-bit with `DADAO-12` §3.6;
-+  * `ADR-0056` D2/D3).
++  * The flat `excp_cause_id` bitmap (`contract-see` §6.1.1, bit-for-bit with
++  * `DADAO-12` §3.6; `ADR-0062` D1–D3).
 +  *
-+  * A sub-cause index is **wyde-local** (absolute bit = wyde base + index):
-+  * `CFXPERM` sub-causes live in wyde2 (`[47:32]`), `CFXMEM` sub-causes in wyde3
-+  * (`[63:48]`).  Encoders pass the wyde-local one-hot; the placement is decided
-+  * by the cause class, so a caller can never put a sub-cause in the wrong wyde
-+  * by hand — and `wellFormed` rejects a finished id that violates the layout.
++  * One exception sets **exactly one** bit of the 64-bit word:
++  *
++  *   `[15:0]`   one-hot synchronous cause (`CFXMEM` = bit 1, `CFXPERM` = bit 7)
++  *   `[31:16]`  reserved (asynchronous sources do not occupy this word)
++  *   `[39:32]`  permission bitmap: HSJU / R / W / X denial
++  *   `[47:40]`  reserved
++  *   `[55:48]`  miss/memory bitmap; `[56]` A/D write-back failure
++  *   `[57]`/`[63:58]` reserved
++  *
++  * The constants below are **absolute bit positions** of `excp_cause_id` — this
++  * table is the one copy the cores and the frame-write check read.  `[39]
++  * NCFXPERM` and `[57] NONPTW` are deleted: a cfx source-mask denial is plain
++  * `CFXPERM` and a non-page-table access fault is plain `CFXMEM` (`ADR-0062`
++  * D3).  A PTW fault sets one bitmap bit and leaves `[15:0]` zero (D2).
 +  */
 +object GewuCauseId {
-+  // Low 16 bits: cause classes (`contract-see` §6.1, `DADAO-12` §3.6 (一)).
-+  /** `CFXMEM` — memory / core-internal access fault. */
++  // `[15:0]`: synchronous causes (`contract-see` §6.1, `DADAO-12` §3.6 (一)).
++  /** `CFXMEM` — non-PTW core-internal access fault. */
 +  val MEM_BIT = 1
-+  /** `CFXPERM` — cfx two-axis permission denial. */
++  /** `CFXPERM` — cfx source-mask denial. */
 +  val PERM_BIT = 7
 +
-+  // wyde2 `[47:32]` — `CFXPERM` sub-causes (`contract-see` §6.1.1).
-+  val PERM_NUPERM = 0 // [32] HSJU: user mode not allowed
-+  val PERM_NJPERM = 1 // [33] HSJU: jail mode not allowed
-+  val PERM_NSPERM = 2 // [34] HSJU: supv mode not allowed
-+  val PERM_NHPERM = 3 // [35] HSJU: hypv mode not allowed
-+  val PERM_NRPERM = 4 // [36] read, page R = 0
-+  val PERM_NWPERM = 5 // [37] write, page W = 0
-+  val PERM_NXPERM = 6 // [38] fetch, page X = 0
-+  val PERM_NCFXPERM = 7 // [39] cfx source mask refused (cfxtrap/cfxreg/cfxexe)
++  // `[39:32]`: permission bitmap (`contract-see` §6.1.1).
++  val PERM_NUPERM = 32 // HSJU: user mode not allowed
++  val PERM_NJPERM = 33 // HSJU: jail mode not allowed
++  val PERM_NSPERM = 34 // HSJU: supv mode not allowed
++  val PERM_NHPERM = 35 // HSJU: hypv mode not allowed
++  val PERM_NRPERM = 36 // read, page R = 0
++  val PERM_NWPERM = 37 // write, page W = 0
++  val PERM_NXPERM = 38 // fetch, page X = 0
 +
-+  // wyde3 `[63:48]` — `CFXMEM` sub-causes (`contract-see` §6.1.1).
-+  val MEM_IGPTRAP = 0 // [48] fetch: L1 P=0,SP=0 or L2 P=0
-+  val MEM_ISPTRAP = 1 // [49] fetch: L1 P=0,SP=1 (superpage missing)
-+  val MEM_IGPFTRAP = 2 // [50] fetch: L2 P=1 and the GPF small-page bit = 0
-+  val MEM_ISPFTRAP = 3 // [51] fetch: L1 P=1,SP=1 and the SPF small-page bit = 0
-+  val MEM_DGPTRAP = 4 // [52] data: L1 P=0,SP=0 or L2 P=0
-+  val MEM_DSPTRAP = 5 // [53] data: L1 P=0,SP=1 (superpage missing)
-+  val MEM_DGPFTRAP = 6 // [54] data: L2 P=1 and the GPF small-page bit = 0
-+  val MEM_DSPFTRAP = 7 // [55] data: L1 P=1,SP=1 and the SPF small-page bit = 0
-+  val MEM_ADWBFAIL = 8 // [56] PTE A/D write-back failed
-+  val MEM_NONPTW = 9 // [57] non-page-table memory fault (ptw_enable = 0, …)
-+
-+  /** wyde2 base (`[47:32]`). */
-+  val WYDE2_SHIFT = 32
-+  /** wyde3 base (`[63:48]`). */
-+  val WYDE3_SHIFT = 48
-+  /** One sub-cause wyde (`contract-see` §6.1.1 "按 16 位 wyde 分段"). */
-+  val WYDE_BITS = 16
-+  /** wyde2 bits above the 8-bit permission byte are reserved (`[47:40]`). */
-+  val PERM_RESERVED = 8
-+  /** wyde3 bits above `NONPTW` are reserved (`[63:58]`). */
-+  val MEM_RESERVED = 10
-+  /** `[31:16]` is reserved for future cause classes (`DADAO-12` §3.6 (二)). */
-+  val FUTURE_CAUSE_BITS = 16
-+
-+  private def classBit(bit: Int): UInt = (BigInt(1) << bit).U(16.W)
++  // `[55:48]`/`[56]`: miss / memory bitmap (`contract-see` §6.1.1).
++  val MEM_IGPTRAP = 48 // fetch: L1 P=0,SP=0 or L2 P=0
++  val MEM_ISPTRAP = 49 // fetch: L1 P=0,SP=1 (superpage missing)
++  val MEM_IGPFTRAP = 50 // fetch: L2 P=1 and the GPF small-page bit = 0
++  val MEM_ISPFTRAP = 51 // fetch: L1 P=1,SP=1 and the SPF small-page bit = 0
++  val MEM_DGPTRAP = 52 // data: L1 P=0,SP=0 or L2 P=0
++  val MEM_DSPTRAP = 53 // data: L1 P=0,SP=1 (superpage missing)
++  val MEM_DGPFTRAP = 54 // data: L2 P=1 and the GPF small-page bit = 0
++  val MEM_DSPFTRAP = 55 // data: L1 P=1,SP=1 and the SPF small-page bit = 0
++  val MEM_ADWBFAIL = 56 // PTE A/D write-back failed
 +
 +  /**
-+    * Place a wyde-local sub-cause one-hot into the wyde its cause class owns.
-+    *
-+    * A cause without a sub-cause wyde (`CFXTRAP`, `CFXREG`, `CFXESC`, `ILLI`,
-+    * `UNDI`, `RASOF`, `RASUF`, `MALIGN`, `IALIGN`) must pass `sub = 0`; passing a
-+    * non-zero `sub` for such a cause would silently drop it, which is exactly
-+    * what `wellFormed` then reports at the frame-write point.
++    * Reserved bits, always zero (`DADAO-12` §3.6 (五)): `[31:16]`, `[39]`,
++    * `[47:40]`, `[57]` and `[63:58]`.
 +    */
-+  def encode(cause: UInt, sub: UInt,
-+             memBit: Int = MEM_BIT, permBit: Int = PERM_BIT): UInt = {
-+    val c = cause.pad(64)
-+    val cls = cause(15, 0)
-+    val wyde = sub.pad(WYDE_BITS)
-+    val isMem = cls === classBit(memBit)
-+    val isPerm = cls === classBit(permBit)
-+    c | Mux(isMem, wyde << WYDE3_SHIFT,
-+      Mux(isPerm, wyde << WYDE2_SHIFT, 0.U(64.W)))
-+  }
++  val RESERVED: BigInt =
++    (BigInt("ffff", 16) << 16) | (BigInt(1) << 39) |
++      (BigInt("ff", 16) << 40) | (BigInt(1) << 57) |
++      (BigInt("3f", 16) << 58)
++
++  /** One-hot word of an absolute bitmap bit (`0` for a negative position). */
++  def bit(bit: Int): UInt =
++    (if (bit < 0) BigInt(0) else BigInt(1) << bit).U(64.W)
 +
 +  /**
-+    * The structural rules of a finished `excp_cause_id` (`DADAO-12` §3.6 (五),
-+    * `ADR-0056` D2/D3), as one predicate:
-+    *
-+    *   - `[15:0]` is exactly one cause bit;
-+    *   - `[31:16]` is zero (reserved for future cause classes);
-+    *   - `CFXMEM`: wyde3 is exactly one bit inside `[57:48]`, `[63:58]` is zero,
-+    *     and wyde2 is zero;
-+    *   - `CFXPERM`: wyde2 is exactly one bit inside `[39:32]`, `[47:40]` is zero,
-+    *     and wyde3 is zero;
-+    *   - every other cause: both wydes are zero.
++    * The synchronous cause implied by a PTW fault bitmap (`ADR-0062` D2/D3):
++    * **any** page-table fault bit — permission (`[38:32]`) or miss/memory
++    * (`[55:48]`/`[56]`) — stands alone with `[15:0] = 0` (neither `CFXPERM`
++    * nor `CFXMEM` is set); no bitmap bit at all is the non-PTW core access
++    * fault, i.e. plain `CFXMEM`.
 +    */
-+  def wellFormed(causeId: UInt, memBit: Int = MEM_BIT,
-+                 permBit: Int = PERM_BIT): Bool = {
-+    val cls = causeId(15, 0)
-+    val wyde2 = causeId(47, 32)
-+    val wyde3 = causeId(63, 48)
-+    val isMem = cls === classBit(memBit)
-+    val isPerm = cls === classBit(permBit)
-+    val oneClass = PopCount(cls) === 1.U
-+    val noFuture = causeId(31, FUTURE_CAUSE_BITS) === 0.U
-+    val memSubOk = PopCount(wyde3) === 1.U &&
-+      wyde3(WYDE_BITS - 1, MEM_RESERVED) === 0.U && wyde2 === 0.U
-+    val permSubOk = PopCount(wyde2) === 1.U &&
-+      wyde2(WYDE_BITS - 1, PERM_RESERVED) === 0.U && wyde3 === 0.U
-+    val noneOk = wyde2 === 0.U && wyde3 === 0.U
-+    oneClass && noFuture &&
-+      Mux(isMem, memSubOk, Mux(isPerm, permSubOk, noneOk))
-+  }
++  def causeOfBitmap(bitmap: UInt): UInt =
++    Mux(bitmap =/= 0.U, 0.U(64.W), bit(MEM_BIT))
++
++  /** Finished id of a PTW fault: the implied cause plus the bitmap bit. */
++  def encodePtw(bitmap: UInt): UInt = causeOfBitmap(bitmap) | bitmap
++
++  /**
++    * The flat structural rules of a finished `excp_cause_id` (`DADAO-12`
++    * §3.6 (五); `ADR-0062` D1), as one predicate: exactly one bit of the
++    * 64-bit word is set and every reserved bit is zero.  The single-bit rule
++    * subsumes the former class/wyde pairing — a low cause cannot carry a
++    * bitmap bit, and two bitmap bits cannot coexist.
++    */
++  def wellFormed(causeId: UInt): Bool =
++    PopCount(causeId) === 1.U && (causeId & RESERVED.U(64.W)) === 0.U
 +}
 +
 +/**
@@ -457,20 +436,22 @@ index 0000000..2518741
 +    */
 +  pmem: Option[GewuPmemParams] = None,
 +  /**
-+    * `m16-chipyard-020`: enable the DADAO-12 §5.2 run-mode entry routing and
-+    * the two-axis `cfxreg` authority checks.
++    * `m16-chipyard-020`: enable the DADAO-12 §5.2 run-mode entry routing.
 +    *
 +    * Off (`Kaiwu-Tiny`, whose profile has no U/S/J mode at all — `§Kaiwu` §2
 +    * keeps the run mode at hypv and routes every general trap to ILLI) keeps
-+    * the pre-020 behaviour bit for bit: the entry target is always the frame
-+    * monitor and the run mode never leaves `hypvMode`.  On (`Kaiwu-Vast`) the
-+    * target of a synchronous exception or asynchronous interrupt is the
++    * the pre-020 routing behaviour bit for bit: the entry target is always the
++    * frame monitor and the run mode never leaves `hypvMode`.  On (`Kaiwu-Vast`)
++    * the target of a synchronous exception or asynchronous interrupt is the
 +    * monitor of the *exception-time* run mode (`U→cfx0`, `J→cfx1`, `S→cfx2`,
 +    * `H→cfx3`, §5.2 step 1), the new run mode is the target cfx's
-+    * `<mode>_switch_run_mode` (step 6), `trap` may name any implemented cfx
-+    * (step 1) and `cfx2rd`/`cfx2rc`/`trap` are refused by the target cfx's
-+    * `<mode>_cfxreg`/`<mode>_cfxtrap` source mask plus the `cg3 rc12`
-+    * `cg_reg_deleg` bitmap (`ADR-0045`, `contract-see` §3).
++    * `<mode>_switch_run_mode` (step 6) and `trap` may name any implemented cfx
++    * (step 1).
++    *
++    * The two-axis `cfxreg`/`cfxtrap` authority checks (`<mode>_cfxreg`/
++    * `<mode>_cfxtrap` source mask plus the `cg3 rc12` `cg_reg_deleg` bitmap,
++    * `ADR-0045`, `contract-see` §3) do **not** depend on this flag: they run in
++    * every run mode, Kaiwu-Tiny included (`m17-chipyard-001`, `DIV-07`).
 +    */
 +  modeEntry: Boolean = false
 +) {
@@ -631,7 +612,7 @@ index 0000000..2518741
 +  val implemented = Output(Bool())
 +  /** Two-axis denial of the addressed row for `cfx2rd`/`cfx2rc`
 +    * (`<mode>_cfxreg` source mask + `cg3 rc12` `cg_reg_deleg`); the caller
-+    * reports `CFXPERM` `[39] NCFXPERM` **before** the row's own CFXREG rule. */
++    * reports plain `CFXPERM` **before** the row's own CFXREG rule. */
 +  val permDenied = Output(Bool())
 +  /** Two-axis denial of `trap` on the addressed cfx (`<mode>_cfxtrap`). */
 +  val trapDenied = Output(Bool())
@@ -1770,13 +1751,14 @@ index 0000000..2518741
 +  // `cg_reg_deleg` bitmap (bit = addressed cg, no self exemption,
 +  // `contract-see` §3).  Self bypasses the cfx axis only.
 +  //
-+  // Scope: the mask/deleg enforcement is applied to the U and S rows only.
-+  // This RTL's fixed BootROM handoff (`spec/Kaiwu §6.2`) leaves the test body
-+  // as `cfx_power` in hypv, and the four `hypv_*` masks reset to "cfx_hmon
-+  // only" (`ADR-0045 D4`) — enforcing the hypv row here would refuse the
-+  // body's own first access and would also break the cfx4/cfx5 probes.  The
-+  // gap is recorded in the task's completion notes (QEMU's boot chain starts
-+  // the body as `cfx_hmon` and therefore can enforce every row).
++  // Every run mode is enforced (`m17-chipyard-001`; `DIV-07` closed).  In hypv
++  // the mask row is the cfx's legacy `cg3 rc0`-`rc3` set: Kaiwu-Tiny's only
++  // row (its body runs as `cfx_power`, and the reset masks let it reach
++  // `cfx_hmon`), and the Vast delivery chain hands the body to `cfx_hmon`.
++  // A test body opens the masks of the cfx it touches first — that is the
++  // test-side preparation the divergence's `close_when` asks for.  The U/J/S
++  // rows keep the monitor common face's per-mode rows and stay fail-closed for
++  // a cfx without one (`DIV-09`).
 +  private val addrIsCur = curImplemented && io.addr.ha === curCfx
 +  private val sourceBit = (1.U(gp.dataBits.W) << curCfx)(gp.dataBits - 1, 0)
 +  private def legacyMaskOf(id: Int, kind: Int): UInt =
@@ -1785,7 +1767,8 @@ index 0000000..2518741
 +  private val targetIsCommon: Bool = Mux1H(hit, gp.cfx.map { c =>
 +    if (commonById.contains(c.id)) true.B else false.B
 +  })
-+  /** The addressed cfx's `<mode>_<kind>` source mask word (U/S rows). */
++  /** The addressed cfx's `<mode>_<kind>` source mask word (U/J/S rows); in
++    * hypv every cfx uses its legacy `cg3 rc0`-`rc3` word. */
 +  private def targetMask(kind: Int): UInt = Mux1H(hit, gp.cfx.map { c =>
 +    commonById.get(c.id) match {
 +      case Some(e) => Mux(runMode <= 2.U, e.regs.mask(modeRowIdx)(kind),
@@ -1797,19 +1780,18 @@ index 0000000..2518741
 +  private val targetDeleg: UInt = Mux1H(hit, gp.cfx.map { c =>
 +    commonById.get(c.id).map(_.regs.deleg).getOrElse(allOnes)
 +  })
-+  /** U and S rows only (see the scope note above). */
-+  private val modeEnforced = gp.modeEntry.B && runMode =/= gp.hypvMode.U
-+  // A U/S access to a cfx without `<mode>` rows has no mask to allow it:
++  // A U/J/S access to a cfx without `<mode>` rows has no mask to allow it:
 +  // fail closed (the register rules still report CFXREG for the row itself).
-+  private val cfxAxisDenied = !addrIsCur &&
-+    (!targetIsCommon || ((targetMask(2) & sourceBit) =/= 0.U))
++  // In hypv the legacy word is the row, so a non-common cfx is checked there.
++  private val rowAvailable = targetIsCommon || runMode === gp.hypvMode.U
++  private def axisDenied(kind: Int): Bool = !addrIsCur &&
++    (!rowAvailable || ((targetMask(kind) & sourceBit) =/= 0.U))
 +  private val delegDenied = runMode === 2.U && ((targetDeleg >> io.addr.cg)(0))
 +  io.implemented := implemented
-+  io.permDenied := modeEnforced && implemented && (cfxAxisDenied || delegDenied)
++  io.permDenied := implemented && (axisDenied(2) || delegDenied)
 +  // `trap` checks only the target's `<mode>_cfxtrap`; the delegation bitmap is
 +  // a direct-access rule (`contract-see` §3; QEMU `helper_cfx_trap` matches).
-+  io.trapDenied := modeEnforced && implemented && !addrIsCur &&
-+    (!targetIsCommon || ((targetMask(0) & sourceBit) =/= 0.U))
++  io.trapDenied := implemented && axisDenied(0)
 +
 +  // ---- asynchronous delivery (`ADR-0061` D1/D3/D5/D6, hart-first) --------
 +  // Every asynchronous source is delivered to the same `cfx_hart` supv entry,
@@ -2022,18 +2004,18 @@ index 0000000..2518741
 +  }
 +
 +  // ---- `excp_cause_id` structure at the frame-write point ------------------
-+  // `ADR-0056` D2/D3 (`contract-see` §6.1.1): a missing sub-cause, a sub-cause
-+  // in the wrong wyde, two sub-cause bits, or a bit in a reserved field is a
-+  // **design** error, not a guest-visible fault, so it must stop the simulation
-+  // by name instead of silently shipping a frame the handler cannot decode.
-+  // This is the single write point of `cg5 rc2`, so no core can bypass it.
++  // `ADR-0062` D1 (`contract-see` §6.1.1): two bits set, or a bit in a reserved
++  // field (`[31:16]`, `[39]`, `[47:40]`, `[57]`, `[63:58]`), is a **design**
++  // error, not a guest-visible fault, so it must stop the simulation by name
++  // instead of silently shipping a frame the handler cannot decode.  This is
++  // the single write point of `cg5 rc2`, so no core can bypass it.
 +  //
 +  // Two channels on purpose: the `assert` is the failure (unconditional and
 +  // fatal: `$error` under Verilator, independent of `+verbose`), the `printf`
 +  // carries the offending value on the `PRINTF_COND` channel the harness turns
 +  // on with `+verbose` (the same channel as every `WumingCore:` trace).
 +  assert(!(io.excp.valid && !GewuCauseId.wellFormed(io.excp.cause)),
-+    "GewuFile: malformed excp_cause_id (contract-see 6.1.1 / ADR-0056 D2-D3; one class bit, [31:16] reserved, one sub-cause bit in the owned wyde, the other wyde zero)")
++    "GewuFile: malformed excp_cause_id (contract-see 6.1.1 / ADR-0062 D1; exactly one bit, [31:16]/[39]/[47:40]/[57]/[63:58] reserved zero)")
 +  when(io.excp.valid && !GewuCauseId.wellFormed(io.excp.cause)) {
 +    printf(p"GewuFile: ERROR: malformed excp_cause_id 0x${Hexadecimal(io.excp.cause)}\n")
 +  }

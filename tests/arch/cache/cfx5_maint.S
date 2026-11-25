@@ -28,8 +28,11 @@
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "cfx5_maint_tables.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 
 	__TEST_BEGIN
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 	set.rb	rb20, HMON_BASE
 	set.rb	rb21, abort
 	st.o	rb21, [rb20, 0xF8]		@@ 未预期异常 ⇒ 显式失败（不是死循环）
@@ -418,6 +421,14 @@ abort:
 	__EXIT 126
 
 	@@ PA 段内容：页表 / 数据初值 / 代码行（`+loadmem` 按 p_paddr 装入）
+	@@ 放行块（cfx_hmon/hypv 下打开目标 cfx 的 hypv 源掩码）
+	.text
+	.balign 4
+perm_mon:
+	PERM_OPEN	cfx_ptw
+	PERM_OPEN	cfx_cache
+	PERM_MON_CLOSE
+
 	.section .pt_l1, "aw"
 	.dd.o64	PTE_L1
 	.section .pt_l2, "aw"

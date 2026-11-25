@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingTlb.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTlb.scala
 new file mode 100644
-index 0000000..5a59b2b
+index 0000000..5032f60
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTlb.scala
-@@ -0,0 +1,439 @@
+@@ -0,0 +1,456 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" first-level TLB (m16-chipyard-008).
@@ -93,8 +93,8 @@ index 0000000..5a59b2b
 +  val superpage = Bool()
 +  val pa = UInt(64.W)
 +  val fault = Bool()
-+  val perm = Bool()
-+  val sub = UInt(GewuCauseId.WYDE_BITS.W)
++  /** One bit of the flat `excp_cause_id` bitmap, or 0 (`ADR-0062` D1/D2). */
++  val bitmap = UInt(64.W)
 +}
 +
 +/** Commit one successful hit's local A/D update (`§2.2.5` TLB-14). */
@@ -164,17 +164,35 @@ index 0000000..5a59b2b
 +  def fragBit(superpage: Bool, va: UInt): UInt =
 +    Mux(superpage, 8.U + va(28, 26), 8.U + va(15, 13))
 +
-+  /** Missing-page class (spec order step 2 / step 4). */
-+  def missPageSub(isFetch: Bool, superpage: Bool): UInt =
++  /** Missing-page class (spec order step 2 / step 4), flat bitmap bit. */
++  def missPageBitmap(isFetch: Bool, superpage: Bool): UInt =
 +    Mux(superpage,
-+      Mux(isFetch, GewuCauseId.MEM_ISPTRAP.U, GewuCauseId.MEM_DSPTRAP.U),
-+      Mux(isFetch, GewuCauseId.MEM_IGPTRAP.U, GewuCauseId.MEM_DGPTRAP.U))
++      Mux(isFetch, GewuCauseId.bit(GewuCauseId.MEM_ISPTRAP),
++        GewuCauseId.bit(GewuCauseId.MEM_DSPTRAP)),
++      Mux(isFetch, GewuCauseId.bit(GewuCauseId.MEM_IGPTRAP),
++        GewuCauseId.bit(GewuCauseId.MEM_DGPTRAP)))
 +
-+  /** Missing-fragment class (step 3 / step 5). */
-+  def missFragSub(isFetch: Bool, superpage: Bool): UInt =
++  /** Missing-fragment class (step 3 / step 5), flat bitmap bit. */
++  def missFragBitmap(isFetch: Bool, superpage: Bool): UInt =
 +    Mux(superpage,
-+      Mux(isFetch, GewuCauseId.MEM_ISPFTRAP.U, GewuCauseId.MEM_DSPFTRAP.U),
-+      Mux(isFetch, GewuCauseId.MEM_IGPFTRAP.U, GewuCauseId.MEM_DGPFTRAP.U))
++      Mux(isFetch, GewuCauseId.bit(GewuCauseId.MEM_ISPFTRAP),
++        GewuCauseId.bit(GewuCauseId.MEM_DSPFTRAP)),
++      Mux(isFetch, GewuCauseId.bit(GewuCauseId.MEM_IGPFTRAP),
++        GewuCauseId.bit(GewuCauseId.MEM_DGPFTRAP)))
++
++  /** HSJU denial of the running mode (`[35:32]`, `ADR-0062` D2).  The PTE
++    * stores H/S/U/J in bits 63..60, so the mode index selects the bit. */
++  def hsjuBitmap(runMode: UInt): UInt = VecInit(Seq(
++    GewuCauseId.bit(GewuCauseId.PERM_NUPERM),
++    GewuCauseId.bit(GewuCauseId.PERM_NJPERM),
++    GewuCauseId.bit(GewuCauseId.PERM_NSPERM),
++    GewuCauseId.bit(GewuCauseId.PERM_NHPERM)))(runMode)
++
++  /** R/W/X denial (`[38:36]`, `ADR-0062` D2). */
++  def rwxBitmap(isFetch: Bool, isWrite: Bool): UInt =
++    Mux(isFetch, GewuCauseId.bit(GewuCauseId.PERM_NXPERM),
++      Mux(isWrite, GewuCauseId.bit(GewuCauseId.PERM_NWPERM),
++        GewuCauseId.bit(GewuCauseId.PERM_NRPERM)))
 +
 +  def pageBaseOf(pte: UInt, superpage: Bool): UInt =
 +    Mux(superpage, Cat(pte(55, 29), 0.U(29.W)), Cat(pte(55, 16), 0.U(16.W)))
@@ -317,14 +335,11 @@ index 0000000..5a59b2b
 +  private val hitSuper = sel.superpage
 +  private val hitFragOk = sel.pte(WumingTlbRules.fragBit(hitSuper, la))
 +  private val hitHsjuOk = (sel.pte >> (60.U + io.runMode))(0)
++  private val hitWrite = if (p.instruction) false.B else io.look.bits.isWrite
++  private val hitFetch = if (p.instruction) true.B else false.B
 +  private val hitRwxOk =
 +    if (p.instruction) sel.pte(5)
 +    else Mux(io.look.bits.isWrite, sel.pte(6), sel.pte(7))
-+  private val hsjuSub = GewuCauseId.PERM_NUPERM.U + io.runMode
-+  private val rwxSub =
-+    if (p.instruction) GewuCauseId.PERM_NXPERM.U
-+    else Mux(io.look.bits.isWrite,
-+      GewuCauseId.PERM_NWPERM.U, GewuCauseId.PERM_NRPERM.U)
 +
 +  io.hit.hit := io.look.valid && hitAny
 +  io.hit.idx := hitIdx
@@ -332,11 +347,13 @@ index 0000000..5a59b2b
 +  io.hit.pa := sel.pageBase | WumingTlbRules.pageOffset(hitSuper, la)
 +  io.hit.fault := io.look.valid && hitAny &&
 +    !(hitFragOk && hitHsjuOk && hitRwxOk)
-+  // Spec order: a missing fragment is `CFXMEM`, HSJU/R/W/X are `CFXPERM`.
-+  io.hit.perm := Mux(!hitFragOk, false.B, !(hitHsjuOk && hitRwxOk))
-+  io.hit.sub := Mux(!hitFragOk,
-+    WumingTlbRules.missFragSub(if (p.instruction) true.B else false.B, hitSuper),
-+    Mux(!hitHsjuOk, hsjuSub, rwxSub))
++  // Spec order: a missing fragment is a miss class (`[48..55]`), HSJU and
++  // R/W/X are permission classes (`[32..38]`); the class selects the implied
++  // synchronous cause (`ADR-0062` D2/D3).
++  io.hit.bitmap := Mux(!hitFragOk,
++    WumingTlbRules.missFragBitmap(hitFetch, hitSuper),
++    Mux(!hitHsjuOk, WumingTlbRules.hsjuBitmap(io.runMode),
++      WumingTlbRules.rwxBitmap(hitFetch, hitWrite)))
 +
 +  // ---- a successful hit's A/D update (the access happened) -----------
 +  when(io.touch.valid) {

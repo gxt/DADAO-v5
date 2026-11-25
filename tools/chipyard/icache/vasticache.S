@@ -30,6 +30,7 @@
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "vasticache_tables.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 
 @@ 调一个被缓存（翻译后）的代码块：rb6 = 目标 VA、rb7 = 返回地址。
 @@ 块尾 `jump [rb7, rd0, 0]` 回到探针（核内 SRAM，直连总线、不进缓存）。
@@ -56,6 +57,8 @@
 .endm
 
 	__TEST_BEGIN
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 
 	@@ PTBR = 0（PA 0 的 L1 表），开 PTW
 	set.rd	rd6, 0
@@ -98,6 +101,13 @@
 	__CHECK_RD 12, rd5, M_A3
 
 	__TEST_END
+	@@ 放行块（cfx_hmon/hypv 下打开目标 cfx 的 hypv 源掩码）
+	.text
+	.balign 4
+perm_mon:
+	PERM_OPEN	cfx_ptw
+	PERM_MON_CLOSE
+
 	__TEST_SECTIONS
 
 	@@ ---- 被缓存的代码块（每个 64 B 一行；地址由 .lds 钉在生成器常量上）----

@@ -36,6 +36,7 @@
 	.endif
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 	.include "ptw_sig_tables.inc"
 
 @@ ---------------------------------------------------------------------------
@@ -101,6 +102,8 @@
 .endm
 
 __TEST_BEGIN
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 	set.rb	rb20, HMON_BASE		@@ 固定固件 hmon 的 cause 槽/返回槽
 
 	@@ 页表在镜像里预置（PT_L1/PT_L1B/PT_L2），这里只装 PTBR/开 PTW/清 TLB。
@@ -340,7 +343,7 @@ c7_ok:
 	__EXIT	0
 
 .elseif PTW_CASE == 9
-	@@ ---- 009：ptw_enable=0 ⇒ CFXMEM[57] NONPTW + info=访存地址；TLB 旁路 ----
+	@@ ---- 009：ptw_enable=0 ⇒ 只置 CFXMEM（无高位位图）+ info=访存地址；TLB 旁路 ----
 	LDV	rd5, 0
 	__VERIFY_RD	46, rd5, M1
 	set.rd	rd6, 0
@@ -359,7 +362,7 @@ c9_ok:
 	__EXIT	0
 
 .elseif PTW_CASE == 10
-	@@ ---- 010：页表未映射 ⇒ CFXMEM + DGPTRAP / IGPTRAP ----
+	@@ ---- 010：页表未映射 ⇒ 只置 DGPTRAP / IGPTRAP（CFXMEM=0） ----
 	ARM_FAULT	c10a_ok
 c10a_fault:
 	LDV	rd5, VA1
@@ -481,3 +484,9 @@ c13_ok:
 .else
 	.error	"PTW_CASE must be 1..13"
 .endif
+
+	@@ 放行块（cfx_hmon/hypv 下把 cfx_ptw 的 hypv 源掩码打开）
+	.balign 4
+perm_mon:
+	PERM_OPEN	cfx_ptw
+	PERM_MON_CLOSE

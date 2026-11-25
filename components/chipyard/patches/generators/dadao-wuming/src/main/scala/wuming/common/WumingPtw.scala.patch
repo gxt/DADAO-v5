@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala
 new file mode 100644
-index 0000000..e1ced03
+index 0000000..ead57d8
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala
-@@ -0,0 +1,592 @@
+@@ -0,0 +1,595 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" page-table walker + first-level TLB (m16-chipyard-007/008).
@@ -22,8 +22,8 @@ index 0000000..e1ced03
 +//
 +// Sub-cause selection follows `DADAO-12` §2.2.6 in spec order (missing page →
 +// missing fragment → HSJU → R/W/X); the bit numbers come from
-+// `gewu.GewuCauseId` (the single copy of the table, `ADR-0056`), never from
-+// literals here.
++// `gewu.GewuCauseId` (the single copy of the flat table, `ADR-0062`), never
++// from literals here.
 +//
 +// A/D is *local* (`DADAO-12` §2.2.5, `contract-tlb` TLB-13…TLB-16): a fill
 +// copies the PTE's A/D into the local copy and clears the pending bits; an
@@ -31,9 +31,10 @@ index 0000000..e1ced03
 +// pending bit; a pending bit reaches memory only as an atomic OR on
 +// clean/flush/replacement.  The OR is a read-modify-write of the PTE, so the I
 +// and D tables can each hold pending bits for the same PTE without either
-+// update clearing the other.  A write-back the bus refuses is
-+// `CFXMEM [56] ADWBFAIL` with `cause_info` = the PTE physical address, and the
-+// entry (with its pending bits) is kept — never silently dropped.
++// update clearing the other.  A write-back the bus refuses is the `[56]
++// ADWBFAIL` bitmap bit (parent cause 0, `ADR-0062` D1/D2) with `cause_info` =
++// the PTE physical address, and the entry (with its pending bits) is kept —
++// never silently dropped.
 +//
 +// `m16-chipyard-008` adds the first-level TLB: two `WumingTlb` instances (one
 +// per access side, in-core and per hart, `contract-tlb` TLB-01/TLB-38).  A hit
@@ -60,7 +61,7 @@ index 0000000..e1ced03
 +  paRamBase: BigInt,
 +  paRamSize: BigInt,
 +  /** Read-only BootROM window: a page table may be *read* there, so a
-+    * clean/flush write-back to it fails as `CFXMEM [56] ADWBFAIL`
++    * clean/flush write-back to it fails as the `[56] ADWBFAIL` bit
 +    * (`DADAO-12` §4.5, `contract-tlb` TLB-16). */
 +  romBase: BigInt,
 +  romSize: BigInt,
@@ -85,10 +86,10 @@ index 0000000..e1ced03
 +    * (§2.2.1/§2.2.2 step 4).  Only meaningful when `fault = 0`. */
 +  val pa = UInt(64.W)
 +  val fault = Bool()
-+  /** `true` = `CFXPERM` (wyde2), `false` = `CFXMEM` (wyde3). */
-+  val perm = Bool()
-+  /** Wyde-local one-hot sub-cause (`GewuCauseId` index). */
-+  val sub = UInt(GewuCauseId.WYDE_BITS.W)
++  /** One bit of the flat `excp_cause_id` bitmap, or 0 for the non-PTW core
++    * access fault (`ADR-0062` D1/D2).  The implied synchronous cause is
++    * derived from the bit's region (`GewuCauseId.encodePtw`). */
++  val bitmap = UInt(64.W)
 +  /** `excp_cause_info`: the access address, or the PTE physical address for
 +    * `ADWBFAIL` (`contract-tlb` TLB-33). */
 +  val info = UInt(64.W)
@@ -190,14 +191,12 @@ index 0000000..e1ced03
 +  private val respValid = RegInit(false.B)
 +  private val respPa = RegInit(0.U(64.W))
 +  private val respFault = RegInit(false.B)
-+  private val respPerm = RegInit(false.B)
-+  private val respSub = RegInit(0.U(GewuCauseId.WYDE_BITS.W))
++  private val respBitmap = RegInit(0.U(64.W))
 +  private val respInfo = RegInit(0.U(64.W))
 +  io.resp.valid := respValid
 +  io.resp.bits.pa := respPa
 +  io.resp.bits.fault := respFault
-+  io.resp.bits.perm := respPerm
-+  io.resp.bits.sub := respSub
++  io.resp.bits.bitmap := respBitmap
 +  io.resp.bits.info := respInfo
 +
 +  // A/D write-back context (shared by the eviction and command paths; the
@@ -253,12 +252,11 @@ index 0000000..e1ced03
 +  private val tlFail = tlFire && io.mem.resp.bits.error
 +
 +  // ---- leaf helpers ------------------------------------------------------
-+  private def respond(pa: UInt, fault: Bool, perm: Bool, sub: UInt, info: UInt): Unit = {
++  private def respond(pa: UInt, fault: Bool, bitmap: UInt, info: UInt): Unit = {
 +    respValid := true.B
 +    respPa := pa
 +    respFault := fault
-+    respPerm := perm
-+    respSub := sub
++    respBitmap := bitmap
 +    respInfo := info
 +    state := sIdle
 +  }
@@ -302,24 +300,21 @@ index 0000000..e1ced03
 +    val fragOk = pte(WumingTlbRules.fragBit(sup, v))
 +    val hsjuOk = (pte >> (60.U + io.runMode))(0)
 +    val rwxOk = Mux(reqFetch, pte(5), Mux(reqWrite, pte(6), pte(7)))
-+    val hsjuSub = GewuCauseId.PERM_NUPERM.U + io.runMode
-+    val rwxSub = Mux(reqFetch, GewuCauseId.PERM_NXPERM.U,
-+      Mux(reqWrite, GewuCauseId.PERM_NWPERM.U, GewuCauseId.PERM_NRPERM.U))
 +    val aPend = !pte(3)
 +    val dPend = reqWrite && !reqFetch && !pte(2)
 +    val vic = Mux(reqFetch, tlbI.io.victim, tlbD.io.victim)
 +
 +    when(!fragOk) {
-+      respond(0.U, true.B, false.B, WumingTlbRules.missFragSub(reqFetch, sup), v)
++      respond(0.U, true.B, WumingTlbRules.missFragBitmap(reqFetch, sup), v)
 +    }.elsewhen(!hsjuOk) {
-+      respond(0.U, true.B, true.B, hsjuSub, v)
++      respond(0.U, true.B, WumingTlbRules.hsjuBitmap(io.runMode), v)
 +    }.elsewhen(!rwxOk) {
-+      respond(0.U, true.B, true.B, rwxSub, v)
++      respond(0.U, true.B, WumingTlbRules.rwxBitmap(reqFetch, reqWrite), v)
 +    }.elsewhen(!vic.valid || !vic.dirty) {
 +      // Clean (or invalid) victim: install the leaf directly.
 +      commitFill(vic.idx, v, sup, pte, leafPtePa, aPend, dPend)
 +      respond(WumingTlbRules.pageBaseOf(pte, sup) | WumingTlbRules.pageOffset(sup, v),
-+        false.B, false.B, 0.U, v)
++        false.B, 0.U(64.W), v)
 +    }.otherwise {
 +      // Replacement writes the old entry's A/D back first (§2.2.5,
 +      // `contract-tlb` TLB-12/TLB-15).
@@ -404,17 +399,19 @@ index 0000000..e1ced03
 +      // Miss: walk (TLB-08).
 +      state := sL1Req
 +    }.elsewhen(hit.fault) {
-+      respond(0.U, true.B, hit.perm, hit.sub, reqVa)
++      respond(0.U, true.B, hit.bitmap, reqVa)
 +    }.otherwise {
 +      // Hit: the cached leaf answers, no PTE is read (TLB-07).
-+      respond(hit.pa, false.B, false.B, 0.U, reqVa)
++      respond(hit.pa, false.B, 0.U(64.W), reqVa)
 +    }
 +  }
 +
 +  // L1: `PTBR` holds `PPN[55:16]`; the entry address is `PTBR + VA[41:29]*8`.
 +  when(state === sL1Req) {
 +    when(!inPtwMemory(l1PaNow)) {
-+      respond(0.U, true.B, false.B, GewuCauseId.MEM_NONPTW.U, reqVa)
++      // A page-table page outside the windows this machine backs is a non-PTW
++      // core-internal access fault: plain `CFXMEM` (`ADR-0062` D3).
++      respond(0.U, true.B, 0.U(64.W), reqVa)
 +    }.otherwise {
 +      // The read is on the A channel (combinationally) until it is accepted.
 +      when(io.mem.req.ready) { state := sL1Wait }
@@ -422,7 +419,9 @@ index 0000000..e1ced03
 +  }
 +  when(state === sL1Wait) {
 +    when(tlFail) {
-+      respond(0.U, true.B, false.B, GewuCauseId.MEM_NONPTW.U, reqVa)
++      // A page-table page outside the windows this machine backs is a non-PTW
++      // core-internal access fault: plain `CFXMEM` (`ADR-0062` D3).
++      respond(0.U, true.B, 0.U(64.W), reqVa)
 +    }.elsewhen(tlFire) {
 +      leafPte := io.mem.resp.bits.data
 +      leafPtePa := sentPa
@@ -435,7 +434,7 @@ index 0000000..e1ced03
 +    when(!pte(0)) {
 +      // `P = 0`: `SP = 1` is a missing superpage, `SP = 0` a missing page
 +      // (`§2.2.1` step 3 / `§2.2.2` step 3).
-+      respond(0.U, true.B, false.B, WumingTlbRules.missPageSub(reqFetch, pte(1)), reqVa)
++      respond(0.U, true.B, WumingTlbRules.missPageBitmap(reqFetch, pte(1)), reqVa)
 +    }.elsewhen(pte(1)) {
 +      // Superpage: the walk ends here, `SPF` decides the fragment.
 +      decideLeaf(pte, true.B)
@@ -448,14 +447,18 @@ index 0000000..e1ced03
 +
 +  when(state === sL2Req) {
 +    when(!inPtwMemory(l2PaReg)) {
-+      respond(0.U, true.B, false.B, GewuCauseId.MEM_NONPTW.U, reqVa)
++      // A page-table page outside the windows this machine backs is a non-PTW
++      // core-internal access fault: plain `CFXMEM` (`ADR-0062` D3).
++      respond(0.U, true.B, 0.U(64.W), reqVa)
 +    }.otherwise {
 +      when(io.mem.req.ready) { state := sL2Wait }
 +    }
 +  }
 +  when(state === sL2Wait) {
 +    when(tlFail) {
-+      respond(0.U, true.B, false.B, GewuCauseId.MEM_NONPTW.U, reqVa)
++      // A page-table page outside the windows this machine backs is a non-PTW
++      // core-internal access fault: plain `CFXMEM` (`ADR-0062` D3).
++      respond(0.U, true.B, 0.U(64.W), reqVa)
 +    }.elsewhen(tlFire) {
 +      leafPte := io.mem.resp.bits.data
 +      leafPtePa := sentPa
@@ -465,7 +468,7 @@ index 0000000..e1ced03
 +  when(state === sLeafL2) {
 +    val pte = leafPte
 +    when(!pte(0)) {
-+      respond(0.U, true.B, false.B, WumingTlbRules.missPageSub(reqFetch, false.B), reqVa)
++      respond(0.U, true.B, WumingTlbRules.missPageBitmap(reqFetch, false.B), reqVa)
 +    }.otherwise {
 +      decideLeaf(pte, false.B)
 +    }
@@ -488,10 +491,10 @@ index 0000000..e1ced03
 +  }
 +  when(state === sEvGetWait) {
 +    when(tlFail) {
-+      // The write-back cannot even read the PTE: `CFXMEM [56] ADWBFAIL`,
++      // The write-back cannot even read the PTE: the `[56] ADWBFAIL` bit,
 +      // `cause_info` = the PTE physical address, victim kept (TLB-16).
 +      printf(p"WumingPtw: ad-fail kind=replace pte=0x${Hexadecimal(wbPa)} cycle=${dbgCycles}\n")
-+      respond(0.U, true.B, false.B, GewuCauseId.MEM_ADWBFAIL.U, wbPa)
++      respond(0.U, true.B, GewuCauseId.bit(GewuCauseId.MEM_ADWBFAIL), wbPa)
 +    }.elsewhen(tlFire) {
 +      wbCur := io.mem.resp.bits.data
 +      state := sEvPut
@@ -504,14 +507,14 @@ index 0000000..e1ced03
 +  when(state === sEvPutWait) {
 +    when(tlFail) {
 +      printf(p"WumingPtw: ad-fail kind=replace pte=0x${Hexadecimal(wbPa)} cycle=${dbgCycles}\n")
-+      respond(0.U, true.B, false.B, GewuCauseId.MEM_ADWBFAIL.U, wbPa)
++      respond(0.U, true.B, GewuCauseId.bit(GewuCauseId.MEM_ADWBFAIL), wbPa)
 +    }.elsewhen(tlFire) {
 +      // The victim's A/D are now in memory; install the leaf that was walked.
 +      commitFill(evIdx, reqVa, leafSuperReg, leafPte, leafPtePa,
 +        !leafPte(3), reqWrite && !reqFetch && !leafPte(2))
 +      respond(WumingTlbRules.pageBaseOf(leafPte, leafSuperReg) |
 +        WumingTlbRules.pageOffset(leafSuperReg, reqVa),
-+        false.B, false.B, 0.U, reqVa)
++        false.B, 0.U(64.W), reqVa)
 +    }
 +  }
 +

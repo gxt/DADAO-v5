@@ -113,6 +113,7 @@ def assemble(t, case_id, mode, work):
     elf = work / ("cache_rtl_%s_%d.elf" % (case_id, TMODE[mode]))
     rc, out = _run([str(t["llvm-mc"]), "--triple=dadao-unknown-elf",
                     "-filetype=obj",
+                    "-I", str(_REPO),
                     "-I", str(_REPO / "tests" / "shared" / "asm"),
                     "-I", str(work),
                     "--defsym", "CCASE=%d" % (CASES.index(case_id) + 1),

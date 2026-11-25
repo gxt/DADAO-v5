@@ -9,7 +9,7 @@
 @@     excp_cause_ip / excp_cause_info` 的保存，`escape` 的恢复；
 @@   * `trap cfxHA` 的“目标 cfx”组合（U 下 trap 到 smon、H 下 trap 到 umon）；
 @@   * U/S 下 `cfx2rd` 的两轴判权：目标 cfx 的 `<mode>_cfxreg` 源掩码 +
-@@     `cg3 rc12` `cg_reg_deleg`，拒绝 ⇒ `CFXPERM` + `[39] NCFXPERM`；
+@@     `cg3 rc12` `cg_reg_deleg`，拒绝 ⇒ `CFXPERM`（扁平位图、无 `[39]`）；
 @@ 异步中断**不在本探针**：`ADR-0061` 后异步统一投 `cfx_hart`（源位图 = 源
 @@ cfxha、掩码在当前运行模式 monitor 的 `cg8 rc1`），由 `tests/arch/hart/cfx15.S`
 @@ 按 H/S/U 三模式覆盖；本探针只保留同步进入/退出与两轴判权。
@@ -27,7 +27,7 @@
 @@ 不变量（判据侧同样使用）：
 @@   * 每一处同步异常的 `excp_cause_ip` 都记为**完整 64 位地址**，期望值
 @@     由 ELF 符号表（`llvm-nm`）给出，不从注入后的镜像反推；
-@@   * `cause_id` 记**完整 64 位**（`ADR-0056` 分层编码），期望由
+@@   * `cause_id` 记**完整 64 位**（`ADR-0062` 扁平位图），期望由
 @@     `spec/DADAO-12` + `.tao/contracts/contract-see.md §6.1.1` 现场派生；
 @@   * 签名槽顺序固定（见 checker 的 SLOTS）；任何“本该发生却没有发生”的路径都会
 @@     多记一个 FAIL 槽并以非零退出码结束（`0xE1` 无异常 / `0xE2` 误入 hmon /
@@ -38,6 +38,7 @@
 @@ **只在 `WumingVastConfig` 上跑**（Tiny 不实现 cfx0/cfx2，且无 U/S 模式）。
 
 	.include "tests/shared/asm/signature.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 
 	.equ	ENTRY,   0xffffff010100
 	.equ	SIG_BUF, 0xffffff015000
@@ -119,6 +120,8 @@ __dump_\@:
 	.text
 	.globl	_start
 _start:
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 	SIG_BEGIN SIG_BUF, SIG_N
 	set.rb	rb1, mode_word
 	ld.o	rd6, [rb1, 0]
@@ -283,7 +286,7 @@ u_resume_cg3:
 	@@ 槽 5：U 行已开放 ⇒ 访问 cfx_smon 合法
 	cfx2rd	cfx_smon, cg4, rc0, rd5
 	REC	rd5
-	@@ 槽 6–9：目标 cfx 无 U 行 / 未开放 ⇒ CFXPERM + [39]
+	@@ 槽 6–9：目标 cfx 无 U 行 / 未开放 ⇒ CFXPERM（只有 1<<7）
 	SET_EXP u_f_cfx5
 	SET_PHASE 1
 u_f_cfx5:
@@ -404,6 +407,14 @@ wrong_monitor:
 
 fail_switch:
 	FAIL	0xE3, 0xE3E3E3E3
+
+@@ 放行块（cfx_hmon/hypv 下打开目标 cfx 的 hypv 源掩码）
+	.balign 4
+perm_mon:
+	PERM_OPEN_DELEG	cfx_hart
+	PERM_OPEN_DELEG	cfx_smon
+	PERM_OPEN_DELEG	cfx_umon
+	PERM_MON_CLOSE
 
 @@ ---------------------------------------------------------------------------
 @@ 私有数据槽（随镜像装入；运行期可写）

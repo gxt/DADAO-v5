@@ -19,8 +19,8 @@
 @@    10`ptw_enable = 1` + `VA[47:42] = 0` 的读 ⇒ `CFXMEM` + 数据缺失类（本任务的
 @@       步查是占位、不映射任何页；`contract-tlb §11 ⑨b` 的 `DGPTRAP`）
 @@    11 同上但取指 ⇒ `CFXMEM` + 取指缺失类（`IGPTRAP`）
-@@    12`ptw_enable = 0` + `VA[47:42] = 0` 的读 ⇒ `CFXMEM` + `[57] NONPTW`（TLB-41）
-@@    13 同上但取指 ⇒ `CFXMEM` + `[57] NONPTW`
+@@    12`ptw_enable = 0` + `VA[47:42] = 0` 的读 ⇒ 只置 `CFXMEM`（无高位位图；TLB-41）
+@@    13 同上但取指 ⇒ 只置 `CFXMEM`（无高位位图）
 @@
 @@ 断言方式：A 段用 `__CHECK_RD`（不等即 `SYS_EXIT(点号)`）；B 段把异常帧里的
 @@ `excp_cause_id`/`excp_cause_info` 原样 `__REC` 进结果缓冲，由宿主
@@ -41,8 +41,11 @@
 @@   ld.lld -T ptw_regs.lds ptw_regs.o -o ptw_regs.elf
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 
 	__TEST_BEGIN
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 	set.rb rb20, HMON_BASE		@@ 固件 hmon 的帧槽（+0xE0/0xE8/0xF0/0xF8）
 	set.rb rb22, HMON_BASE		@@ 本探针自己的槽（+0xB0 标记、+0xB8/+0xC0 计数）
 	@@ SRAM 上电值不保证为 0 ⇒ 探针自己的槽显式清零（`tests/inst/11-cfx` 的教训）
@@ -149,7 +152,7 @@ d2_resume:
 	ld.o	rd5, [rb20, 0xF0]
 	__REC	rd5
 
-	@@ 12：ptw_enable = 0、VA[47:42] = 0 的数据读 ⇒ CFXMEM + NONPTW（TLB-41）
+	@@ 12：ptw_enable = 0、VA[47:42] = 0 的数据读 ⇒ 只置 CFXMEM（无高位位图；TLB-41）
 	set.rd	rd6, 0
 	cfx2rc	cfx_ptw, cg8, rc8, rd6
 	set.rb rb4, 0x1000
@@ -167,7 +170,7 @@ d3_resume:
 	ld.o	rd5, [rb20, 0xF0]
 	__REC	rd5
 
-	@@ 13：ptw_enable = 0、VA[47:42] = 0 的取指 ⇒ CFXMEM + NONPTW
+	@@ 13：ptw_enable = 0、VA[47:42] = 0 的取指 ⇒ 只置 CFXMEM（无高位位图）
 	set.rb rb4, 0x2000
 	.globl	d4_aip
 d4_aip:
@@ -194,3 +197,10 @@ d4_resume:
 	__TEST_END
 
 	__TEST_SECTIONS
+
+	@@ 放行块（cfx_hmon/hypv 下打开目标 cfx 的 hypv 源掩码）
+	.text
+	.balign 4
+perm_mon:
+	PERM_OPEN	cfx_ptw
+	PERM_MON_CLOSE

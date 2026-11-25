@@ -37,6 +37,7 @@
 @@ **只在 `WumingVastConfig` 上跑**（Tiny 无 cfx32）。
 
 	.include "tests/shared/asm/signature.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 
 	.ifndef	ENTRY
 	.equ	ENTRY,   0xffffff010100
@@ -220,12 +221,14 @@ __spin_\@:
 	.text
 	.globl	_start
 _start:
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 	SIG_BEGIN SIG_BUF, SIG_N
 	set.rb	rb1, phase
 	set.rd	rd6, 0
 	st.o	rd6, [rb1, 0]
 
-	@@ ---- 共用初始化（hypv：两轴判权不生效） ----
+	@@ ---- 共用初始化（hypv；目标 cfx 的 hypv 源掩码已由 perm_mon 打开） ----
 	@@ PTW：PTBR = PA 0、TLB invalid、ptw_enable = 1。QEMU/gem5 的 step5
 	@@ BootROM 已做（这里幂等）；RTL 的固定 BootROM 不做 ⇒ 统一在这里建。
 	@@ RTL 的页表由链接布局装到 PA 0（`.pt_l1`，4 个 512 MiB 超页，VA = PA）。
@@ -683,6 +686,18 @@ done_ok:
 	.dd.o64	0xc00000004000ffef	@@ PTE2: PPN 2
 	.dd.o64	0xc00000006000ffef	@@ PTE3: PPN 3
 	.endif
+
+	@@ 放行块（cfx_hmon/hypv 下打开目标 cfx 的 hypv 源掩码）
+	.text
+	.balign 4
+perm_mon:
+	PERM_OPEN	cfx_ptw
+	PERM_OPEN	cfx_cache
+	PERM_OPEN_DELEG	cfx_pmem
+	PERM_OPEN_DELEG	cfx_hart
+	PERM_OPEN_DELEG	cfx_smon
+	PERM_OPEN_DELEG	cfx_umon
+	PERM_MON_CLOSE
 
 	.data
 	.p2align 3

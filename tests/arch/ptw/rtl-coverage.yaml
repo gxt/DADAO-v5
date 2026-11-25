@@ -60,7 +60,7 @@ cases:
   arch-ptw-009:
     status: guest
     rtl_case: 9
-    note: "ptw_enable=0 ⇒ CFXMEM[57] NONPTW + cause_info=VA；TLB 旁路"
+    note: "ptw_enable=0 ⇒ 只置 CFXMEM（无高位位图）+ cause_info=VA；TLB 旁路"
 
   arch-ptw-010:
     status: guest

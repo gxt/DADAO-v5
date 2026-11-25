@@ -32,6 +32,7 @@
 @@ rb3/rb4；rb30 = 签名写指针（任何处理器都不得写）；rd16/rb16 = semihosting。
 
 	.include "tests/shared/asm/signature.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 
 	.equ	ENTRY,   0xffffff010100
 	.equ	SIG_BUF, 0xffffff015000
@@ -184,6 +185,8 @@ __burn_\@:
 	.globl	_start
 _start:
 	SIG_BEGIN SIG_BUF, SIG_N
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 	set.rb	rb1, phase
 	set.rd	rd6, 0
 	st.o	rd6, [rb1, 0]
@@ -734,6 +737,15 @@ fail_exit:
 
 done_ok:
 	DUMP_AND_EXIT 0
+
+	@@ 放行块（cfx_hmon/hypv 下打开目标 cfx 的 hypv 源掩码）
+	.balign 4
+perm_mon:
+	PERM_OPEN_DELEG	cfx_hart
+	PERM_OPEN_DELEG	cfx_pmem
+	PERM_OPEN_DELEG	cfx_smon
+	PERM_OPEN_DELEG	cfx_umon
+	PERM_MON_CLOSE
 
 	.data
 	.p2align 3

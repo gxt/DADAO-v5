@@ -28,6 +28,7 @@
 @@   ld.lld -T cfx5_regs.lds cfx5_regs.o -o cfx5_regs.elf
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 
 	@@ 控制字（只用于把字段摆进指令；判据在 checker 里从合约重算）
 	.equ CTRL_SEL_ID,     0xC000	@@ [15:14] = 11（I 与 D 都选）
@@ -45,6 +46,8 @@
 	.equ PATTERN64, 0x123456789ABCDEF0
 
 	__TEST_BEGIN
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 	set.rb rb20, HMON_BASE
 	@@ 任何未预期异常都落到 abort（cfx5 未实现时第一条访问即走这里）
 	set.rb rb21, abort
@@ -200,5 +203,12 @@ f4_resume:
 	@@ 未预期异常（含 cfx5 整体缺失）落点：显式失败，不是死循环
 abort:
 	__EXIT	126
+
+	@@ 放行块（cfx_hmon/hypv 下打开 cfx_cache 的 hypv 源掩码）
+	.text
+	.balign 4
+perm_mon:
+	PERM_OPEN	cfx_cache
+	PERM_MON_CLOSE
 
 	__TEST_SECTIONS

@@ -301,6 +301,11 @@ def emit_inc() -> str:
             out.append(".dd.o64 0")
         out.append(".endif")
         # `.org` 是绝对的；不同 case 的段只保留一个（.if 选择），故可重复。
+    # 首行 L2[0..7] 显式定义到 0x40：RTL 的 PA RAM 上电不保证为 0，未写到的 L2 槽
+    # 会读到随机 PTE（`m17-chipyard-001`：case 010 的 L2[1] 曾读成 H=1/R=0 ⇒
+    # NRPERM）。`.org` 只能前进，故在 case 表项之后补零到 0x40。
+    out.append(".org 0x38")
+    out.append(".dd.o64 0")
     out.append("")
     return "\n".join(out) + "\n"
 

@@ -18,9 +18,9 @@
 @@   触发指令地址用 `aip.si` 运行期派生（期望值不写死 `.text` 偏移）。
 @@ 不可恢复说明：bit63 置 1 后，任何从 cfx_power 到 cfx_hmon 的 `cfx2rd`/`cfx2rc` 都被拒 ⇒
 @@   本例不再回写 mask（无需恢复：其后只走 semihosting 短路 `trap cfx0`，不经 cfx 掩码）。
-@@ 已知平台分叉（不改组件，见 `m17-idl-020` 完成区）：QEMU **与 gem5** 的 `CFXPERM`
-@@   `cause_info` 给**指令编码**（`ISS-469`），chipyard 无来源掩码权限门（不报 `CFXPERM`）
-@@   ⇒ 本载体在 `check-idl`（IDL+QEMU）上红的唯一原因就是 `cause_info` 这一项。
+@@ 平台口径（`m17-qemu-001`/`m17-gem5-001`/`m17-chipyard-001` 后三方一致）：IDL/QEMU/
+@@   gem5/RTL 都在全运行模式判权（含 hypv），`CFXPERM` 的 `cause_info` 都是
+@@   触发指令地址（`ISS-469` 已修；`DIV-07` 已关闭）。
 
 	.include "tests/inst/macros/inst_test.inc"
 

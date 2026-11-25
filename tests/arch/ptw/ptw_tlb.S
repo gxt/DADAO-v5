@@ -45,9 +45,12 @@
 @@ 探针自身在核内 SRAM（`addr[47:42] ≠ 0`，不经翻译）。
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 	.include "ptw_tlb_tables.inc"
 
 	__TEST_BEGIN
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 	set.rb rb25, HMON_BASE
 	set.rb rb5, VA_L2SELF		@@ L2 表自映射页（读写 PTE）
 	set.rb rb6, VA_L1SELF		@@ L1 表自映射页
@@ -489,3 +492,10 @@ tl_or_res2:
 	__TEST_END
 
 	__TEST_SECTIONS
+
+	@@ 放行块（cfx_hmon/hypv 下打开目标 cfx 的 hypv 源掩码）
+	.text
+	.balign 4
+perm_mon:
+	PERM_OPEN	cfx_ptw
+	PERM_MON_CLOSE

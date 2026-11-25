@@ -25,6 +25,7 @@
 
 	.include "cache_rtl_tables.inc"
 	.include "signature.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 
 	.ifndef	CCASE
 	.equ	CCASE, 1
@@ -151,6 +152,11 @@
 	.text
 	.globl	_start
 _start:
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）：
+	@@ 打开 cfx_ptw/cfx_cache 与 S/U 目标 monitor 的 hypv 源掩码，使下面的
+	@@ 「模式行」写与 `trap` 不被来源掩码拒绝。
+	PERM_MON_OPEN perm_mon
+
 	@@ 页表：PTBR = 0（L1 在 PA 0；其 0x1000 号项在 PA 0x8000），开 PTW
 	set.rd	rd6, 0
 	cfx2rc	cfx_ptw, cg9, rc0, rd6
@@ -503,6 +509,16 @@ c_f8:
 c_abort:
 	EXIT	126
 .endif
+
+	@@ 放行块（cfx_hmon/hypv 下打开目标 cfx 的 hypv 源掩码）
+	.text
+	.balign 4
+perm_mon:
+	PERM_OPEN	cfx_ptw
+	PERM_OPEN	cfx_cache
+	PERM_OPEN_DELEG	cfx_smon
+	PERM_OPEN_DELEG	cfx_umon
+	PERM_MON_CLOSE
 
 	@@ 页表内容（+loadmem 按 p_paddr 装入）
 	.section .pt_l1,"aw"

@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..fd5f7db
+index 0000000..97bdfb6
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,2328 @@
+@@ -0,0 +1,2295 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -54,24 +54,24 @@ index 0000000..fd5f7db
 +// synchronous fault classes (CFXMEM/ILLI/UNDI/MALIGN/IALIGN) — each one writes
 +// the cause frame and jumps to `excp_vector` instead of terminating the core.
 +//
-+// m16-chipyard-003 encodes the `excp_cause_id` sub-cause wyde (ADR-0056 D2/D3,
-+// `contract-see` §6.1.1, `DADAO-12` §3.6): `enterHmon` takes a wyde-local
-+// sub-cause index and `GewuCauseId` places it in the wyde its class owns
-+// (`CFXPERM` → wyde2, `CFXMEM` → wyde3); `gewu`'s frame-write point rejects a
-+// malformed id by name.  This profile has no page-table walk, so every
-+// `CFXMEM` is the non-page-table sub-cause `[57] NONPTW` (`enterHmonMem`'s
-+// default); the page-fault sub-causes are unreachable here and the profile
-+// raises no `CFXPERM` at all (no source-mask permission gate).
++// `excp_cause_id` is the flat bitmap of `ADR-0062` D1–D3 (`contract-see`
++// §6.1/§6.1.1, `DADAO-12` §3.6): one exception sets exactly one bit — a
++// `[15:0]` synchronous cause (`CFXPERM` only for a cfx source-mask denial,
++// `CFXMEM` only for a non-PTW core access fault) or one `[38:32]`/`[56:48]`
++// page-table bit with `[15:0] == 0`.  `gewu`'s frame-write point rejects a
++// malformed id by name.  Kaiwu-Tiny has no page-table walk, so its `CFXMEM` is
++// plain `CFXMEM`; since `m17-chipyard-001` the cfx source-mask gate runs in
++// every run mode, so Tiny raises `CFXPERM` too (`DIV-07` closed).
 +//
 +// m16-chipyard-006 gives the core the Kaiwu-Vast address path (`useVM = true`):
 +// `PTBR`/`ASID`/`ptw_enable` are `cfx_ptw`'s registers, held in `gewu`
 +// (`DADAO-12` §4.5), and every access is routed before it may reach a bus
 +// (`contract-tlb` §10): `addr[47:42] ≠ 0` is cfx core-internal space (the
 +// three-window test, unchanged), `addr[47:42] = 0` is the memory window — with
-+// `ptw_enable = 0` it is `CFXMEM` `[57] NONPTW` and never reaches memory, with
-+// `ptw_enable = 1` it enters the walker (a placeholder in this task, reporting
-+// the missing class; `m16-chipyard-007` lands the walk and `008` the TLB).
-+// `enterMemFault` is the single place that picks the sub-cause from the route.
++// `ptw_enable = 0` it is plain `CFXMEM` and never reaches memory, with
++// `ptw_enable = 1` it enters the walker, whose faults carry one bitmap bit and
++// leave `[15:0]` zero (`m16-chipyard-007` walk, `008` TLB).
++// `enterMemFault` is the single place that raises a non-PTW access fault.
 +//
 +// m12-chipyard-009 completes control flow and the return address stack
 +// (spec/SimRISC-06, spec/SimRISC-00 §2.4):
@@ -456,11 +456,10 @@ index 0000000..fd5f7db
 +  gewu.io.escape.frame := d.escFrame
 +  gewu.io.escape.valid := false.B
 +  val cfxRegOk = Mux(d.cfxWrite, gewu.io.writeOk, gewu.io.readOk)
-+  // Two-axis authority (`DADAO-12` §5.2 (一), `m16-chipyard-020`): the target
-+  // cfx's `<mode>_cfxreg` source mask / `cg3 rc12` delegation is checked
-+  // **before** the row's own validity, and a denial is `CFXPERM` `[39]`, not
-+  // `CFXREG`.  On a machine without the mode routing the output is constant
-+  // false, so Tiny keeps the pre-020 CFXREG-only behaviour.
++  // Two-axis authority (`DADAO-12` §5.2 (一), `m16-chipyard-020`; every run
++  // mode since `m17-chipyard-001`): the target cfx's `<mode>_cfxreg` source
++  // mask / `cg3 rc12` delegation is checked **before** the row's own validity,
++  // and a denial is plain `CFXPERM` (`ADR-0062` D3), not `CFXREG`.
 +  val cfxPermFault = d.isCfx2 && gewu.io.permDenied
 +  // A rejected cfx2 access is a precise fault: the destination register must
 +  // not be modified (DADAO-12 §5 "目标寄存器/内存/RA 未更新").
@@ -1345,12 +1344,11 @@ index 0000000..fd5f7db
 +    * method only declares the architectural event and drives the PC/flush it
 +    * asks for (ADR-0053 D4).
 +    *
-+    * `sub` is a **wyde-local** sub-cause index (`GewuCauseId.*`); the wyde is
-+    * chosen by the cause class (`contract-see` §6.1.1: `CFXPERM` → wyde2,
-+    * `CFXMEM` → wyde3), so a sub-cause can never land in the wrong wyde here.
-+    * A cause with no sub-cause wyde must pass -1 (the default).  `gewu`'s
-+    * frame-write point re-checks the finished id and fails by name if it is
-+    * malformed (`ADR-0056` D2/D3).
++    * `causeOneHot` is the `[15:0]` synchronous cause; a cause with no bitmap
++    * bit passes it alone (`ADR-0062` D3).  A page-table fault goes through
++    * `enterPtwFault` instead, which derives the cause from the bitmap bit.
++    * `gewu`'s frame-write point re-checks the finished id and fails by name if
++    * it is malformed (`ADR-0062` D1).
 +    *
 +    * The entry target is `gewu`'s `entryVector`, not `redirect.target`: this
 +    * method can be reached from `finish` *while* an `escape` is committing (the
@@ -1365,9 +1363,8 @@ index 0000000..fd5f7db
 +    * frame and the monitor for a handler frame).
 +    */
 +  def enterHmon(causeIpValue: UInt, causeOneHot: UInt, info: UInt,
-+                sub: Int = -1, toCurrent: Boolean = false): Unit = {
-+    val causeId = GewuCauseId.encode(causeOneHot,
-+      (if (sub < 0) BigInt(0) else BigInt(1) << sub).U(GewuCauseId.WYDE_BITS.W))
++                toCurrent: Boolean = false): Unit = {
++    val causeId = causeOneHot.pad(64)
 +    printf(p"WumingCore: excp cause=0x${Hexadecimal(causeId)} cause_ip=0x${Hexadecimal(causeIpValue(47, 0))} info=0x${Hexadecimal(info)} vector=0x${Hexadecimal(gewu.io.entryVector(47, 0))} cycle=${cycles}\n")
 +    excpValid := true.B
 +    excpTargetSel := Mux(toCurrent.B, 1.U, 0.U)
@@ -1400,71 +1397,34 @@ index 0000000..fd5f7db
 +  }
 +
 +  /**
-+    * `CFXMEM` entry with a wyde3 sub-cause (`contract-see` §6.1.1 `[63:48]`).
++    * A non-PTW core access fault: plain `CFXMEM` with no bitmap bit
++    * (`ADR-0062` D3 — core-internal or unbacked access/fetch, a storage-block
++    * fault, or a memory-window access with `ptw_enable = 0`; TLB-40/41).
 +    *
-+    * `sub` defaults to the non-page-table case `[57] NONPTW` (`DADAO-12` §3.6
-+    * (四)) — every `CFXMEM` that is not a page-table walk result.  A caller
-+    * that *is* the walker passes its own missing-class bit explicitly
-+    * (`enterMemFault` below).
++    * `cause_info` is the accessed address (`ADR-0062` D4).
 +    */
-+  def enterHmonMem(causeIpValue: UInt, info: UInt,
-+                   sub: Int = GewuCauseId.MEM_NONPTW): Unit =
-+    enterHmon(causeIpValue, (1.U << CFXMEM_BIT).pad(64), info, sub)
++  def enterHmonMem(causeIpValue: UInt, info: UInt): Unit =
++    enterHmon(causeIpValue, (1.U << CFXMEM_BIT).pad(64), info)
 +
 +  /**
-+    * Page-table fault whose sub-cause the walker computes at run time
-+    * (`m16-chipyard-007`; wyde-local one-hot index from `GewuCauseId`, so the
-+    * wyde is still chosen by the cause class here — `contract-see` §6.1.1).
++    * Page-table fault whose bitmap bit the walker computes (`m16-chipyard-007`).
 +    *
-+    * `perm` selects `CFXPERM` (wyde2) versus `CFXMEM` (wyde3), and `info` is
++    * A page-table fault bit — permission (`[38:32]`) or miss/memory
++    * (`[55:48]`/`[56]`) — stands alone with `[15:0] = 0`; no bit at all is the
++    * non-PTW core access fault, plain `CFXMEM` (`ADR-0062` D2/D3).  `info` is
 +    * the access address — or the PTE physical address for `ADWBFAIL`
 +    * (`contract-tlb` TLB-33).
 +    */
-+  def enterHmonSub(causeIpValue: UInt, perm: Bool, info: UInt, sub: UInt): Unit = {
-+    val causeOneHot = Mux(perm, (1.U << CFXPERM_BIT).pad(64),
-+      (1.U << CFXMEM_BIT).pad(64))
-+    // `sub` is a wyde-local *index*; `encode` takes the wyde as a one-hot
-+    // (`contract-see` §6.1.1).
-+    val causeId = GewuCauseId.encode(causeOneHot, (1.U << sub)(GewuCauseId.WYDE_BITS - 1, 0))
-+    printf(p"WumingCore: excp cause=0x${Hexadecimal(causeId)} cause_ip=0x${Hexadecimal(causeIpValue(47, 0))} info=0x${Hexadecimal(info)} vector=0x${Hexadecimal(gewu.io.entryVector(47, 0))} cycle=${cycles}\n")
-+    excpValid := true.B
-+    excpTargetSel := 0.U
-+    excpTargetHa := 0.U
-+    excpCause := causeId
-+    excpCauseIp := causeIpValue
-+    excpInfo := info
-+    resvValid := false.B
-+    ip := gewu.io.entryVector
-+    if (params.useVM) { vx.get.fetchDone := false.B }
-+    continueAt(gewu.io.entryVector)
-+  }
++  def enterPtwFault(causeIpValue: UInt, info: UInt, bitmap: UInt): Unit =
++    enterHmon(causeIpValue, GewuCauseId.encodePtw(bitmap), info)
 +
 +  /**
-+    * `CFXMEM` for an address the *route* rejects (`contract-tlb` §10).
-+    *
-+    *   * core-internal (`addr[47:42] ≠ 0`) or `ptw_enable = 0` on the memory
-+    *     window ⇒ `[57] NONPTW` (TLB-40/41 — non-page-table faults);
-+    *   * memory window with `ptw_enable = 1` ⇒ the address entered the walker.
-+    *     This task's walker is a placeholder that maps nothing, so the report is
-+    *     the missing class of the access (`contract-tlb` §11 ⑨b: fetch
-+    *     `[48] IGPTRAP`, data `[52] DGPTRAP`); `m16-chipyard-007` replaces the
-+    *     placeholder and keeps the same sub-cause set.
-+    *
-+    * `isFetch` selects the `I`/`D` prefix of the missing class (TLB-35).
++    * `CFXMEM` for an address the *route* rejects (`contract-tlb` §10): the
++    * core-internal window, `ptw_enable = 0`, or a translated address this
++    * machine does not back.  Every one of them is a non-PTW access fault, i.e.
++    * plain `CFXMEM` (`ADR-0062` D3).
 +    */
-+  def enterMemFault(addr: UInt, isFetch: Boolean): Unit = {
-+    if (!params.useVM) {
-+      // Kaiwu-Tiny: no `cfx_ptw` at all, so every `CFXMEM` is NONPTW.
-+      enterHmonMem(addr, addr)
-+    } else {
-+      when(!memWindow(addr) || !ptwEnable) {
-+        enterHmonMem(addr, addr)
-+      }.otherwise {
-+        enterHmonMem(addr, addr, if (isFetch) GewuCauseId.MEM_IGPTRAP
-+          else GewuCauseId.MEM_DGPTRAP)
-+      }
-+    }
-+  }
++  def enterMemFault(addr: UInt): Unit = enterHmonMem(addr, addr)
 +
 +  def finish(nextIp: UInt): Unit = {
 +    retirePulse := true.B
@@ -1513,9 +1473,9 @@ index 0000000..fd5f7db
 +          when(vastFetchNow && !vx.get.fetchDone) {
 +            // Memory window: translate before the fetch may reach a bus
 +            // (`contract-tlb` TLB-42).  `ptw_enable = 0` has no mapping at all
-+            // (TLB-41: CFXMEM `[57] NONPTW`, never a pass-through).
++            // (TLB-41: plain `CFXMEM`, never a pass-through).
 +            when(!ptwEnable) {
-+              enterMemFault(ip, isFetch = true)
++              enterMemFault(ip)
 +            }.otherwise {
 +              ptwReqValid := true.B
 +              ptwReqVa := ip
@@ -1530,7 +1490,7 @@ index 0000000..fd5f7db
 +            // The translated address is not backed physically, or a
 +            // core-internal address has no window: CFXMEM with the fetch
 +            // address as `cause_info` (spec/Kaiwu §4.4).
-+            enterMemFault(ip, isFetch = true)
++            enterMemFault(ip)
 +          }.elsewhen(fetchFire) {
 +            demandBeat := ip(addrBits - 1, 3)
 +            vx.get.fetchDone := false.B
@@ -1540,7 +1500,7 @@ index 0000000..fd5f7db
 +          when(!fetchLegal) {
 +            // No manager backs this address: CFXMEM with the fetch address as
 +            // `cause_info` (spec/Kaiwu §4.4).
-+            enterMemFault(ip, isFetch = true)
++            enterMemFault(ip)
 +          }.elsewhen(fetchFire) {
 +            demandBeat := ip(addrBits - 1, 3)
 +            state := sFwait
@@ -1593,10 +1553,10 @@ index 0000000..fd5f7db
 +          inst.pad(64))
 +      }.elsewhen(cfxPermFault) {
 +        // Two-axis denial (target cfx's `<mode>_cfxreg` source mask or the
-+        // `cg3 rc12` delegation bitmap): `CFXPERM` + `[39] NCFXPERM` to the
-+        // current run-mode monitor (`DADAO-12 §5.2 (一)`, `ADR-0045 D6`).
-+        enterHmon(ip,
-+          (1.U << CFXPERM_BIT).pad(64), ip, GewuCauseId.PERM_NCFXPERM)
++        // `cg3 rc12` delegation bitmap): plain `CFXPERM`, `cause_info` = the
++        // triggering instruction address, to the current run-mode monitor
++        // (`DADAO-12 §5.2 (一)`, `ADR-0045 D6`, `ADR-0062` D3/D4).
++        enterHmon(ip, (1.U << CFXPERM_BIT).pad(64), ip)
 +      }.elsewhen(cfxFault) {
 +        // Unsupported cfx register access -> CFXREG to the current monitor
 +        // (DADAO-12 §5.2(一)).
@@ -1637,7 +1597,7 @@ index 0000000..fd5f7db
 +        }.elsewhen(callNeedsSpill) {
 +          when(!callSpillLegal && !xlateRoute((mrptr - 8.U).pad(64))) {
 +            // C3b spill target is not backed: precise CFXMEM, no push.
-+            enterMemFault((mrptr - 8.U).pad(64), isFetch = false)
++            enterMemFault((mrptr - 8.U).pad(64))
 +          }.otherwise {
 +            // C3b: write the oldest RegRAS entry to MemRAS[MRPTR - 8] first;
 +            // the shift-push is committed when the store is accepted.
@@ -1693,7 +1653,7 @@ index 0000000..fd5f7db
 +          // D4b: RACNT == 0 and MemRAS enabled — read the entry at MRPTR first
 +          // (the RASUF/consume/refill decision is taken when it arrives).
 +          when(!retMemLegal && !xlateRoute(mrptr.pad(64))) {
-+            enterMemFault(mrptr.pad(64), isFetch = false)
++            enterMemFault(mrptr.pad(64))
 +          }.otherwise {
 +            memStore := false.B
 +            memMulti := false.B
@@ -1815,7 +1775,7 @@ index 0000000..fd5f7db
 +          // (spec/SimRISC-12 §1.1: .b=1 / .w=2 / .t=4 / .o=8).
 +          enterHmon(ip, (1.U << MALIGN_BIT).pad(64), lrscAddr)
 +        }.elsewhen(d.isLr && !lrscGetLegal && !xlateRoute(lrscAddr)) {
-+          enterMemFault(lrscAddr, isFetch = false)
++          enterMemFault(lrscAddr)
 +        }.elsewhen(d.isSc && scFailNow) {
 +          // Reservation miss: rdHB = 1, no memory access, and the reservation
 +          // is consumed either way (spec/SimRISC-12 §1.1).  The rd write is
@@ -1823,7 +1783,7 @@ index 0000000..fd5f7db
 +          resvValid := false.B
 +          finish(ip + 4.U)
 +        }.elsewhen(d.isSc && scMemFail) {
-+          enterMemFault(lrscAddr, isFetch = false)
++          enterMemFault(lrscAddr)
 +        }.otherwise {
 +          memStore := false.B
 +          memMulti := false.B
@@ -1891,7 +1851,7 @@ index 0000000..fd5f7db
 +          // checked here, before the first beat, so the fault is precise).
 +          // A memory-window access on a translating machine is judged by the
 +          // walk instead (it runs before the first beat as well).
-+          enterMemFault(memAddrNow, isFetch = false)
++          enterMemFault(memAddrNow)
 +        }.otherwise {
 +          memStore := d.isSt || d.isStm
 +          memMulti := isMulti
@@ -1939,7 +1899,13 @@ index 0000000..fd5f7db
 +      }.otherwise {
 +        if (!params.useVM) {
 +          when(d.cfxHa === gewu.io.monitorHa) {
-+            enterHmon(ip, (1.U << CFXTRAP_BIT).pad(64), inst.pad(64))
++            // The target's `<mode>_cfxtrap` source mask is enforced here too
++            // (`m17-chipyard-001`; Kaiwu-Tiny runs as `cfx_power` in hypv).
++            when(gewu.io.trapDenied) {
++              enterHmon(ip, (1.U << CFXPERM_BIT).pad(64), ip)
++            }.otherwise {
++              enterHmon(ip, (1.U << CFXTRAP_BIT).pad(64), inst.pad(64))
++            }
 +          }.otherwise {
 +            enterHmon(ip, (1.U << ILLI_BIT).pad(64), inst.pad(64))
 +          }
@@ -1949,8 +1915,9 @@ index 0000000..fd5f7db
 +          }.elsewhen(!gewu.io.implemented) {
 +            enterHmon(ip, (1.U << CFXREG_BIT).pad(64), inst.pad(64))
 +          }.elsewhen(gewu.io.trapDenied) {
-+            enterHmon(ip, (1.U << CFXPERM_BIT).pad(64), ip,
-+              GewuCauseId.PERM_NCFXPERM)
++            // `CFXPERM` with `cause_info` = the triggering instruction address
++            // (`ADR-0062` D3/D4).
++            enterHmon(ip, (1.U << CFXPERM_BIT).pad(64), ip)
 +          }.otherwise {
 +            enterTrapTo(d.cfxHa, ip, (1.U << CFXTRAP_BIT).pad(64), inst.pad(64))
 +          }
@@ -2075,8 +2042,8 @@ index 0000000..fd5f7db
 +          // write-back failure is reported on it (`TLB-16`).
 +          when(ptw.get.io.cmdDone.valid) {
 +            when(ptw.get.io.cmdDone.bits.fault) {
-+              enterHmonSub(ip, false.B, ptw.get.io.cmdDone.bits.info,
-+                GewuCauseId.MEM_ADWBFAIL.U)
++              enterPtwFault(ip, ptw.get.io.cmdDone.bits.info,
++                GewuCauseId.bit(GewuCauseId.MEM_ADWBFAIL))
 +            }.otherwise { finish(ip + 4.U) }
 +          }
 +        }.elsewhen(vx.get.kind === 4.U) {
@@ -2138,10 +2105,10 @@ index 0000000..fd5f7db
 +                // write-back is a storage fault on this machine (all cacheable
 +                // memory is writable PA RAM, so it is unreachable here); report
 +                // it explicitly instead of pretending the line was cleaned.
-+                enterHmonSub(ip, false.B,
++                enterPtwFault(ip,
 +                  Mux(c.toI, icache.get.io.cmdErrorAddr,
 +                    dcache.get.io.cmdErrorAddr),
-+                  GewuCauseId.MEM_ADWBFAIL.U)
++                  GewuCauseId.bit(GewuCauseId.MEM_ADWBFAIL))
 +              }.otherwise {
 +                c.phase := 1.U
 +              }
@@ -2150,7 +2117,7 @@ index 0000000..fd5f7db
 +        }.elsewhen(ptw.get.io.resp.valid) {
 +          val r = ptw.get.io.resp.bits
 +          when(r.fault) {
-+            enterHmonSub(ip, r.perm, r.info, r.sub)
++            enterPtwFault(ip, r.info, r.bitmap)
 +          }.elsewhen(vx.get.kind === 0.U) {
 +            // Fetch: the walk's answer is the physical beat, and `sFreq`
 +            // issues the request from it (`fetchDone` skips a second walk).
@@ -2161,8 +2128,8 @@ index 0000000..fd5f7db
 +            val paBeat = Cat(r.pa(63, 3), 0.U(3.W))
 +            when(Mux(vx.get.write, !paDataPutLegal(paBeat), !paDataGetLegal(paBeat))) {
 +              // The page maps to physical memory this machine does not back:
-+              // a storage fault, `CFXMEM [57] NONPTW` (`DADAO-12` §3.6 (四)).
-+              enterMemFault(vx.get.va, isFetch = false)
++              // a storage fault, plain `CFXMEM` (`ADR-0062` D3).
++              enterMemFault(vx.get.va)
 +            }.otherwise {
 +              vx.get.memPaBeat := paBeat
 +              state := sMreq

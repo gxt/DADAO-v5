@@ -51,9 +51,12 @@
 @@   ld.lld -T ptw_walk.lds ptw_walk.o -o ptw_walk.elf
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 	.include "ptw_walk_tables.inc"
 
 	__TEST_BEGIN
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 	set.rb rb20, HMON_BASE		@@ 固件 hmon 的帧槽（+0xE0/0xF0/0xF8）
 
 	@@ PTBR = 0（PA 0 的 L1 表），开 PTW
@@ -351,3 +354,10 @@ vw_stub:
 	jump	[rb6, rd0, 0]			@@ rb6 = 探针算好的返回地址
 
 	__TEST_SECTIONS
+
+	@@ 放行块（cfx_hmon/hypv 下打开目标 cfx 的 hypv 源掩码）
+	.text
+	.balign 4
+perm_mon:
+	PERM_OPEN	cfx_ptw
+	PERM_MON_CLOSE

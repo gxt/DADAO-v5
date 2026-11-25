@@ -39,11 +39,15 @@
 @@   ld.lld -T cfx02_regs.lds cfx02_regs.o -o cfx02_regs.elf
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 
 	.equ PATTERN64, 0x123456789ABCDEF0
 
 	__TEST_BEGIN
 	set.rb rb20, HMON_BASE
+	set.rb rb20, HMON_BASE
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 	@@ 任何未预期异常都落到 abort（cfx0/cfx2 整体缺失时第一条访问即走这里）
 	set.rb rb21, abort
 	st.o	rb21, [rb20, 0xF8]
@@ -260,5 +264,12 @@ f7_resume:
 	@@ 未预期异常（含 cfx0/cfx2 整体缺失）落点：显式失败，不是死循环
 abort:
 	__EXIT	126
+
+	@@ 放行块（cfx_hmon/hypv 下打开目标 cfx 的 hypv 源掩码）
+	.balign 4
+perm_mon:
+	PERM_OPEN_DELEG	cfx_smon
+	PERM_OPEN_DELEG	cfx_umon
+	PERM_MON_CLOSE
 
 	__TEST_SECTIONS

@@ -61,15 +61,6 @@ divergences:
     status: active
     close_when: "QEMU/gem5 补齐 cfx_pmem 的 `cg8/12/13/14`（`ISS-533`）⇒ 删本条（DMA/捕获面已由 `arch-pmem-001/002` 覆盖，本条的 cfx15 部分已移交 `DIV-17`）"
 
-  - id: DIV-07
-    kind: temporary
-    scope: [chipyard]
-    impact: "RTL 的两轴 `cfxreg`/`cfxtrap` 强制判定只作用于 U/S 行；hypv 行不强制。"
-    reason: "chipyard 的固定 BootROM（`spec/Kaiwu §6.2`）以 `cfx_power` 在 hypv 跳入测试体，规范复位掩码只允许 `cfx_hmon`（`ADR-0045 D4`）；若强制 hypv 行，测试体第一条 cfx0/cfx2（以及既有 cfx4/5）访问即 `CFXPERM`。QEMU 的 BootROM 有 hmon 阶段、测试体以 `cfx_hmon` 交付，故可全模式强制。U/S 判权与拒绝路径 `CFXPERM [39]` 不因此放宽。"
-    user_ruling: "2026-11-22（任务书：U/S 下判权）；2026-11-23 reviewer 指出这是真实偏离，permanent 定性待用户确认"
-    status: active
-    close_when: "RTL 交付链改为 cfx_hmon 源（与 QEMU 017 对齐；另立任务）"
-
   - id: DIV-11
     kind: temporary
     scope: [chipyard]

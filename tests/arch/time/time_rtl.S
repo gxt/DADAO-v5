@@ -21,10 +21,11 @@
 @@ `TMODE=3` 就地跑（hypv）；`TMODE=2/0` 用目标 monitor 的 hypv 行
 @@ `switch_run_mode` + `excp_vector` 后 `trap` 进入（同 `tests/arch/hart/cfx15.S`）。
 @@
-@@ 两轴放行（`contract-see §3`）：在 hypv（降模式前）把 `cfx_time`/`cfx_hart` 的
-@@ 三行源掩码全放开（0 = 允许所有源），并清各自 `cg3 rc12` 的对应 cg 位
-@@ （`cfx_time` → bit10、`cfx_hart` → bit8；bit3 硬件恒 1）。RTL 的 hypv 行不
-@@ 强制（`DIV-07`），S/U 行按目标 cfx 的 `<mode>_cfxreg` + deleg 正常判。
+@@ 两轴放行（`contract-see §3`）：先由 `perm_mon`（monitor 里、源 cfx = hmon）
+@@ 打开目标 cfx 的 hypv 源掩码（`DIV-07` 关闭后 hypv 也判权），body 回到
+@@ cfx_power/hypv 后把 `cfx_time`/`cfx_hart` 的三行源掩码全放开（0 = 允许所有
+@@ 源），并清各自 `cg3 rc12` 的对应 cg 位（`cfx_time` → bit10、`cfx_hart` →
+@@ bit8；bit3 硬件恒 1）。S/U 行按目标 cfx 的 `<mode>_cfxreg` + deleg 正常判。
 @@
 @@ 故障观察（`TCASE=2`）：固件 hmon 的同步异常处理把 `excp_cause_id` 写进
 @@ profile 的 fault-record 槽（`machine-vast.inc` 的 `FAULT_RECORD`）并从
@@ -36,6 +37,7 @@
 @@ **只在 `WumingVastConfig` 上跑**（Tiny 无 cfx34、无 S/U 模式）。
 
 	.include "tests/shared/asm/signature.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 
 	.equ	ENTRY,   0xffffff010100
 	.equ	SIG_BUF, 0xffffff015000
@@ -112,6 +114,10 @@ _start:
 	set.rb	rb1, sig_bytes
 	set.rd	rd6, (SIG_SLOTS * 8)
 	st.o	rd6, [rb1, 0]
+
+	@@ 测试侧放行（`DIV-07` 关闭后 hypv 也判权）：在 monitor 里把目标 cfx 的
+	@@ hypv 掩码打开；body 仍回 cfx_power / hypv 继续。
+	PERM_MON_OPEN perm_mon
 
 	@@ 两轴放行：源掩码 0（允许所有源；本 case 只读时间）
 	WCFX_IMM   cfx_time, cg0, rc2, 0
@@ -289,6 +295,15 @@ rf_w1:
 @@ ---------------------------------------------------------------------------
 done_ok:
 	DUMP_AND_EXIT 0
+
+	@@ 放行块（以 cfx_hmon / hypv 运行；只碰目标的 cg3 掩码行）
+	.balign 4
+perm_mon:
+	PERM_OPEN        cfx_time
+	PERM_OPEN_DELEG  cfx_hart
+	PERM_OPEN_DELEG  cfx_smon		@@ TMODE=2 的 trap 目标
+	PERM_OPEN_DELEG  cfx_umon		@@ TMODE=0 的 trap 目标
+	PERM_MON_CLOSE
 
 	@@ 数据（`sig_bytes` 由启动段按 case 填）
 	.data

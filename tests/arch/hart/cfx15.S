@@ -47,6 +47,7 @@
 @@ **只在 `WumingVastConfig` 上跑**（Tiny 无 cfx15、无 U/S 模式）。
 
 	.include "tests/shared/asm/signature.inc"
+	.include "tests/shared/asm/perm_hypv.inc"
 
 	.ifndef	ENTRY
 	.equ	ENTRY,   0xffffff010100
@@ -148,6 +149,8 @@ __spin_\@:
 	.text
 	.globl	_start
 _start:
+	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
+	PERM_MON_OPEN perm_mon
 	SIG_BEGIN SIG_BUF, SIG_N
 	@@ 清 `hphase`（hmon 入口分派用）与 `phase`（async handler 分派用）
 	set.rb	rb1, hphase
@@ -663,6 +666,15 @@ fail_exit:
 
 done_ok:
 	DUMP_AND_EXIT 0
+
+	@@ 放行块（cfx_hmon/hypv 下打开目标 cfx 的 hypv 源掩码）
+	.balign 4
+perm_mon:
+	PERM_OPEN_DELEG	cfx_hart
+	PERM_OPEN_DELEG	cfx_smon
+	PERM_OPEN_DELEG	cfx_umon
+	PERM_OPEN	cfx_ptw
+	PERM_MON_CLOSE
 
 	.data
 	.p2align 3

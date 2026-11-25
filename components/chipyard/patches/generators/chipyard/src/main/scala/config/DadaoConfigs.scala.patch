@@ -1,6 +1,6 @@
 diff --git a/generators/chipyard/src/main/scala/config/DadaoConfigs.scala b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 new file mode 100644
-index 0000000..0ad3af3
+index 0000000..a006253
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 @@ -0,0 +1,351 @@
@@ -156,7 +156,7 @@ index 0000000..0ad3af3
 +//
 +// Kaiwu-Vast is the same core as Kaiwu-Tiny plus a translated memory window
 +// (`WumingCoreParams.useVM = true`, `DADAO-12` §2.2): with `cfx_ptw_enable = 0`
-+// every `addr[47:42] = 0` access is `CFXMEM` `[57] NONPTW` and cfx-space
++// every `addr[47:42] = 0` access is plain `CFXMEM` and cfx-space
 +// addresses are reached exactly as on Tiny, so the two profiles share the
 +// core-internal map below and are comparable byte for byte.
 +//

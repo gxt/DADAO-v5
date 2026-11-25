@@ -1,6 +1,6 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..de6265c
+index 0000000..aeb259a
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 @@ -0,0 +1,470 @@
@@ -69,7 +69,7 @@ index 0000000..de6265c
 +  // m16-chipyard-006: does the memory window (`addr[47:42] = 0`) translate?
 +  //
 +  //   * `false` (`Kaiwu-Tiny`): no `cfx_ptw` on the machine, so the window is
-+  //     simply not backed and every access there is `CFXMEM` `[57] NONPTW`;
++  //     simply not backed and every access there is plain `CFXMEM`;
 +  //   * `true` (`Kaiwu-Vast`): the window's fate is `cfx_ptw_enable`
 +  //     (`DADAO-12` §2.2, `contract-tlb` §10 TLB-40…TLB-43) — 0 bypasses the
 +  //     TLB and faults, 1 enters the walker.
