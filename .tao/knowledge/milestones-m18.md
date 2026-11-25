@@ -30,7 +30,8 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m18-qemu-007 | 2–3 h | QEMU system 移除 `cfx_jmon`（cfx1）实现（无设计、RTL 亦无）；`trap/访问` ⇒ CFXREG；**须等内核换掉 jmon 后再合入** |
+| m18-spec-007 | 待定 | 定义「异步 escape」：从异步进入现场直接返回（语义由用户给出；**不派发**，等用户放行） |
+| m18-qemu-007 | 2–3 h | QEMU system 移除 `cfx_jmon`（cfx1）实现（无设计、RTL 亦无）；`trap/访问` ⇒ CFXREG；**须等「异步 escape」规范与内核换帧都落地后再合入** |
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
 | m18-spec-001 | 2–4 h | cg4 `scratch_regs_num` 缺省值：每个非 reserved cfx = 2（QEMU/gem5/RTL 由 4 改 2）；spec/契约 + 探针 |
