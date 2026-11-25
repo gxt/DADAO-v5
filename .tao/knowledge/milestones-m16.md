@@ -22,7 +22,6 @@
 | --- | --- | --- |
 | m16-gem5-025 | 2–3 h | gem5 `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧 + `cg9 rc6` 对齐 + Tiny 旧掩码面（ISS-533/525/DIV-18/ISS-m16-009） |
 | m16-testcases-023 | 1–2 h | 删除 ADWBFAIL 用例（页表必须在内存；`DIV-14` 删除、`DIV-04`/`ISS-515` 收口） |
-| m16-qemu-007 | 1–1.5 h | QEMU `cg9 rc6` 回归 spec-006（写落地、进入取 rc6；修 qemu-006 的相反实现） |
 | m16-chipyard-028 | 2–3 h | RTL `cg9 rc6`（switch_run_mode）对齐：RW、复位 2、异步进入取该值（`ISS-540`；等 `m16-gem5-026` 交还 `tests/arch`） |
 | m16-testcases-022 | 1–2 h | PTW 的 RTL 面在扁平 cause 对齐后修复/回归（ISS-m16-006；依赖 m17-chipyard-001） |
 
@@ -30,6 +29,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-qemu-007 | 2026-11-25 15:01 | 1–1.5 h | QEMU `cg9 rc6` 回归 spec-006（写落地、进入取 rc6） |
 | m16-chipyard-029 | 2026-11-25 14:00 | 2–4 h | Vast 当期构建 `cfx15.S` 不收敛（`_start` 反复重启）根因与修复（ISS-m16-008） |
 
 ## 已验证
