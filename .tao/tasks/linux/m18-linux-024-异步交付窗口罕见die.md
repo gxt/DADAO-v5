@@ -6,7 +6,23 @@
 **可并行分片**：否（同改 `components/linux`）
 **预估**：3–5 h
 **档位**：中改（复核 ≤40 min）
-**状态**：待开始
+**状态**：待返工
+
+## 第 1 轮进展（2026-11-25 08:3x，无代码改动；可复现与两版否决已实测）
+
+- **复现已做成**：私人重放树 + 启动 harness（跑 K6 自身输入脚本，检测 die/hang，`setsid nohup` + `*_EXIT`）。基线 flaky 实测 **2 dies/12 boots**（另一样本 2/2），签名 `K3 pf … ip=0x20000153518 va=0x8 result=die-no-vma` → `die 0xe4`。**确定性 knockout**（把返程 frame base 强制置 0）每次启动都复现 ⇒ harness 有可达 FAIL 路径。
+- **原签名根因确认**：`dadao_async_kernel_return` 以 `set.rb rb3, 0; jump [rb3, rd3, 0]` 结尾，被中断桩以**清零的 rb3** 恢复现场。改「相对转移（`jump [rb0, delta, 0]` 经只读 IP）+ 忠实恢复 rb3」后该签名 **0/12**（对照 2/12）。
+- **两版实现已建、已测、已否**（脚本/diff 留档在运行期证据目录）：
+  - **A**（tail + 入口捕获掩码 + 相对跳转）：1 个 `0x82` die + 2 hang / 10 boots ⇒ 更差，已回退；
+  - **B**（仅 tail + 相对跳转）：3 dies（2×`0x82`、1×`die 0xe1`）/ 12 boots、0 hang ⇒ 仍不可接受。
+- **剩余失败已定位但未闭合**：
+  1. `cause=CFXTRAP(0x1) ip=<kernel text> info=0x7f0802f7` → `die 0x82`：supv 帧的 `ip` 来自**陈旧的** `dadao_async_outer_cg5.cause_ip`，而 `info` 是异步 handoff 的 `trap cfx_smon,759` 指令字 ⇒ **帧由两个来源拼装**；
+  2. **hang**：`cfx2 CID=PTWMEM CIP=dadao_do_page_fault+0x17c`、`rb4=0`（`va=0x410`，NULL vma）——缺页处理自身缺页，随后 guest 在 `dadao_early_exit` 的 semihosting 后 `jump [rb0,0]` 空转；monitor dump 已抓（`MODE=2`/`PTBR`/`cfx2 GIM`/`CID/CIP`）。
+
+## 下一轮做法（第 1 轮结论，2026-11-25）
+
+返回路径按「**恢复全部寄存器 + 用 `escape` 转移（不经 GPR）**」重做：要求 supv 桩保留自己 `cg5 rc0/rc1/rc3` 的软件副本，并在 escape 前重写；掩码策略字用 `xnor.o`+`andn.w` 构造（已验证）；关闭捕获窗口时**不得**在 handoff selector 之前新增 `cfx_smon` 访问。完成后跑 12 boots；若 NULL-vma hang 仍在，用 monitor dump 追被污染的寄存器（可能需**拆成独立任务**）。
+
 
 ## 背景（`m18-linux-022` 第 3 轮返工留档，2026-11-25）
 
