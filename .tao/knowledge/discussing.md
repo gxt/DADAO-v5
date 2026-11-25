@@ -675,3 +675,17 @@
 - `ISS-466`【P3】子代理 session 因 provider 报 `Invalid API Key` 连续 3 次失败（`m16-gem5-009` 复核，session `ses_e19ef…
 - `ISS-468`【P2】`llvm-objdump` 对 `rf` 寄存器组寄存器号断言崩溃（`DADAOInstPrinter::getRegisterName` 越界），`tests/inst/*…
 - `ISS-478`【P3】子代理 provider 阻断：`m17-idl-001` 第 1 轮 reviewer session 返回 `Provider blocked the response`（…
+
+## M18 异步 escape 出口帧：任务链（用户 2026-11-26 要求显式化）
+
+**目标**：把 `m18-spec-007`（DADAO 0.8.0 / ADR-0061 R3）的出口帧落到所有实现，并按依赖串行推进，禁止“改完一个就跳”。
+
+1. **`m18-llvm-002`（链①，先做）**：LLVM/opcodes 支持 `escape cfxHA`（`imms18` 恒 0）、反汇编/legality/生成物。**所有探针与内核汇编都依赖它**；LLVM 写者先等 `m20-llvm-003` 释放。
+2. **`m18-testcases-004`（链②）**：独立派生向量（cg5/cg9 新布局、进入自动填、escape 五类判据、`rc11` 整字）；作为 QEMU/RTL/gem5/IDL/内核的共同 oracle。
+3. **`m18-qemu-008`（链③，进行中）**：QEMU 实现新布局与 escape；探针用 ① 的语法、② 的向量。
+4. **`m18-chipyard-002`（链④）** / **`m18-gem5-004`（链⑤）**：依赖 ①②，各自写者窗口串行；与 QEMU 同 ELF 签名对照。
+5. **`m18-idl-003`（链⑥）**：IDL 执行器 + `IDL-ISA §4.6` + `SimRISC-11` 渲染块（补 `m18-spec-007` 的 F3）。
+6. **`m18-linux-026`（链⑦）**：内核迁移（`cg5 rc8–rc11` 出口、`escape cfx_hart`、去 jmon、同步桩迁 `rc10`）；依赖 ③ 合入。
+7. **`m18-linux-025`（链⑧）**：负载自旋修复（等 ⑦ 的新模型）。
+8. **`m18-linux-006`（链⑨）**：LTP 两轮一致复跑（等 ⑦⑧）。
+9. **`m18-qemu-007`（链⑩）**：移除 QEMU 的 `cfx_jmon`（等 ⑦）。
