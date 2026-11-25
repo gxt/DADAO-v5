@@ -50,13 +50,13 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m18-qemu-008 | 2026-11-26 06:33 | 3–5 h | QEMU 实现异步 escape 出口（cg5 rc8–rc11、cg9 新布局、`escape cfxHA`；进入自动填、rc11 整字恢复掩码） |
-| m18-infra-004 | 2026-11-25 09:05 | 2–3 h | `issues.yaml` 按里程碑分册（left + m16…m19）；存量旧号冻结、新增 `ISS-<file>-NNN`；多文件读取器与消费方改造 |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-infra-004 | 2026-11-26 07:28 | `issues` 按里程碑分册（left+m16…m19，多重集相等）+ 收尾清理 55 条 closed（missing=0）；船后补验 Accepted |
 | m18-llvm-002 | 2026-11-26 07:27 | LLVM/opcodes `escape cfxHA`（imms18 SBZ、反汇编、legality；lit 186/186、`check-cfx-vectors` 回绿） |
 | m18-spec-007 | 2026-11-26 01:09 | 异步 escape 规范（cg5 rc8–rc11 出口、cg9 新布局、`escape cfxHA`；DADAO 0.8.0 定版、SimRISC 0.5.8-rc、ADR-0061 R3） |
 | m18-linux-017 | 2026-11-25 18:12 | **作废**（已不复现）：5/5 PASS、契约 10/10、024 后 27 次 PASS；归因待定 |
