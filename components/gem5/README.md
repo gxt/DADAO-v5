@@ -223,10 +223,15 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `getdents64` 的本机转换假定宿主 `linux_dirent64` 与 guest 同宽（64 位
   宿主成立）；`faccessat`/`faccessat2` 支持 `AT_EMPTY_PATH`（空路径按 fd
   操作、`AT_FDCWD` 取工作目录、pipe fd 按 0600 inode 判定；无该标志的空
-  路径 `ENOENT`，未知位 `EINVAL`，其余转发宿主 `faccessat2`）。**输出捕获口径**：SE 驱动分别捕获
-  stdout/stderr 再拼接，对 stderr 行序敏感的用例（如 `bison`、
-  `pcompress2`）会与 QEMU `2>&1` 交织结果产生 diff，属捕获模型差异、非
-  文件 I/O 能力问题。
+  路径 `ENOENT`，未知位 `EINVAL`，其余转发宿主 `faccessat2`）。**输出捕获口径
+  （m13-testcases-006 / m20-gem5-004）**：guest fd1/fd2 分别落两个宿主文件
+  （`--guest-stdout`/`--guest-stderr`），每次 `write`/`writev` 逐次透传、两路
+  不合并；判据按 `docs/Process-09 §17` **分通道逐字节**比对（stdout 对
+  stdout、stderr 对 stderr，各自独立），上游单流参考由拆分器按源码的 stderr
+  格式串拆两路。`ISS-362`/`ISS-367`（`neural`/`pcompress2`）的「同长度不同
+  内容」是旧驱动把两路按 stdout 在前拼接、而单流参考按 stderr 在前（上游
+  `RunSafely.sh` 单流 + stderr 无缓冲/glibc stdout 全缓冲），属捕获模型差异，
+  非 FP/格式化/截断：两例两路逐字节一致（311+40 B、82292+40 B）。
 - **文件权限（GEM5-031t，ISS-346）**：`fchmod`(52)/`fchmodat`(53)/
   `fchmodat2`(452)。锁定号表里**没有** `chmod(2)` 号——musl 的 `chmod()` 就是
   `fchmodat(AT_FDCWD, path, mode)`，QEMU 的 dadao 号表同样只有这三个——故三个
