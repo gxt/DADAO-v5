@@ -20,6 +20,8 @@
 3. **单平台假不一致**：`run_arch.py` 在只给一个平台时，不应把未跑的腿当作"不一致"（按 `ISS-m16-010` 的记录，`ref` 空集导致 `ref_ok` 恒 false）；改为显式"单平台模式：仅本平台对照 expected"，或要求至少两平台。
 4. **不回归**：`run_arch --cfx 4 --platforms qemu,gem5,chipyard` 恢复 rc=0（或按 gap 登记）；`check_ptw_rtl --selfcheck` 集合不变；`arch-cache/time/hart/pmem` 代表集不回归。
 
+5. **证据脚本的健壮性（`m16-testcases-023` 复核 finding）**：① `run.sh` 的 `[ -x "$GEM5" ]` 只验可执行位，拦不住"可执行但截断的非 ELF"（22:57 曾出现 41.8 MB 半成品）⇒ 加 `file`/ELF magic 校验；② flake 重试计数会把"注入导致的 rc=77"也算成重试 ⇒ 重试只统计非注入轮；③ inventory 的收口注槽数（13→11）与现场核对后订正。
+
 ## 不做
 
 - 不改 RTL/用例语义；
