@@ -550,9 +550,9 @@
   - gem5
   - testcases
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: m16-gem5-025（Tiny (a)：删 cg0–3 rc4 / cfxIntrMask / trap-escape 掩码保存；tiny_hmon 改测 cg8 rc1）
   title: "【P3】gem5 的 **Tiny** 配置仍暴露 `cg0–cg3 rc4` 且 trap/escape 保存/恢复掩码（QEMU/RTL/Node 已统一为 `CFXREG`、不保存恢复）；`tests/unit/gem5/tiny_hmon` 读 `cg3 rc4` 依赖该旧行为。由 `m16-gem5-025` 顺带处置（或登记 Tiny 差异）。"
 - id: ISS-m16-010
   scope:
