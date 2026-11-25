@@ -103,15 +103,24 @@ if os.path.join(_REPO, "tools", "infra") not in sys.path:
     sys.path.insert(0, os.path.join(_REPO, "tools", "infra"))
 if os.path.join(_REPO, "tests", "shared") not in sys.path:
     sys.path.insert(0, os.path.join(_REPO, "tests", "shared"))
+if os.path.join(_REPO, "tests", "arch") not in sys.path:
+    sys.path.insert(0, os.path.join(_REPO, "tests", "arch"))
 import node_probe_prelude as P  # noqa: E402
 import paths as _paths  # noqa: E402
 import signature  # noqa: E402  (签名流机制：解析/比对/word-builder 发射器，单一实现)
+from common import runlimit  # noqa: E402  (失败形态上限：ISS-522)
 
 DEFAULT_QEMU = P.default_qemu()
 QEMU = DEFAULT_QEMU
 WORKDIR = os.path.join(P.TMP_ROOT, "arch_ptw_tlb")
 SIG_OUT = os.path.join(WORKDIR, "signature.out")
-TIMEOUT = 20
+TIMEOUT = 20                             # 秒；缺省值，`DADAO_ARCH_TIMEOUT` 覆盖
+
+
+def _timeout():
+    """失败路径时限：`common/runlimit.py`（ISS-522），缺省 `TIMEOUT`。"""
+    return runlimit.timeout(TIMEOUT)
+
 
 # 签名流（m16-testcases-002）：观测点实际值的**唯一载体**（README「观测通道」）。
 # 缓冲区在 prelude 的 L1[3] 恒等超页内（0x6000_0000–0x7FFF_FFFF）⇒ 换 PTBR 前/
@@ -1653,10 +1662,12 @@ def decode_fail(check, rc):
 def run_check(check, qemu, tools=None):
     """Build the mode's image (prelude + env + body), run it, judge the check."""
     image = build_image(check, tools or toolchain(), WORKDIR)
-    rc, _log, blob = P.run(image, WORKDIR, qemu=qemu, timeout=TIMEOUT,
-                           dump=False, console_out=SIG_OUT)
+    # 失败路径时限走 `common/runlimit.py`（ISS-522）：`DADAO_ARCH_TIMEOUT` 可放宽；
+    # 本载体 dump=False（不落 `-d cpu`），`TIMEOUT` 只是缺省值。
+    rc, reason, blob = P.run(image, WORKDIR, qemu=qemu, timeout=_timeout(),
+                             dump=False, console_out=SIG_OUT)
     if rc is None:
-        return False, "TIMEOUT", b""
+        return False, reason or "TIMEOUT", b""
     if rc != 0:
         return False, decode_fail(check, rc), b""
     if not check.sig_want:
@@ -1865,9 +1876,15 @@ def main():
             print("ptw_carrier_tlb: --cfx-access 非法/重复: %r" % (CFX_ACCESS,),
                   file=sys.stderr)
             return 2
-
     if args.selfcheck:
         return selfcheck()
+
+    # 非法 `DADAO_ARCH_TIMEOUT`：具名 SETUP（rc=2），不冒 traceback（ISS-522）。
+    try:
+        _timeout()
+    except runlimit.RunLimitError as exc:
+        print("ptw_carrier_tlb: SETUP: %s" % exc, file=sys.stderr)
+        return 2
 
     cases = build_all()
     if args.list:
@@ -1879,6 +1896,15 @@ def main():
                 print("    %-22s expect=%s  %s" % (chk.label, exp, chk.desc))
         print("%d cases, %d checks" % (len(cases), sum(len(c) for *_x, c in cases)))
         return 0
+
+    if not CFX_ACCESS:
+        # 缺参不进入运行：本载体的 body 在所有模式都访问 cfx_ptw/pmem/power
+        # （`modes.yaml` 的 `cfx_access`），缺参不做权限准备 ⇒ body 第一条 cfx
+        # 访问就挂住、只能等 20 s 超时（ISS-522 残余）⇒ 具名 SETUP 拒绝。
+        print("ptw_carrier_tlb: SETUP: 需要 --cfx-access"
+              "（modes.yaml 的 cfx_access；缺参不做权限准备，拒绝运行）",
+              file=sys.stderr)
+        return 2
 
     QEMU = args.qemu or DEFAULT_QEMU
     if not os.access(QEMU, os.X_OK):

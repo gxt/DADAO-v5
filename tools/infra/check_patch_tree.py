@@ -39,6 +39,13 @@ compares the *HEAD commit* against the *patch set*.  Both are needed: 6 catches
 patches that do not reproduce the worktree, 9 catches a local commit that does
 not correspond to the patch set.
 
+**Output contract（判据只认这两条，`ISS-518`）**：信息行（`<label>: N patch(es)`、
+`source worktree absent; skipping …`、`empty patch set; …`、末尾
+`N patch set(s), M patches OK`）走 **stdout**；问题行与 `N problem(s)` 汇总走
+**stderr**，且 rc 非 0。外部判据（证据脚本）只能取 **rc** 或 `problem(s)` 行，
+**不得**把 stderr/stdout 合并后的总行数当问题数 —— `m16-qemu-002` 的
+`patch_tree_judge` 曾把「源树缺失、skipping」计为问题而假红。
+
 Empty patch set (legal first state, docs/Process-01 §2)
 -------------------------------------------------------
 A component may declare ``patch_dir``/``patch_series`` before its first patch

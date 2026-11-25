@@ -41,6 +41,10 @@
 @@     应用在 cfx_power(63)，故由 cfx_power 的向量记三槽）。Tiny 不实现 `cfx_hart`，故本
 @@     载体只判「cg9 帧选择合法但按无效帧处理」；捕获缓冲的覆盖/一帧多源语义由
 @@     `INTEG-050t/051t` 探针与 IDL 执行器自检覆盖。
+@@   ⑥ **case 12 的 fail 路径不可判定**（`ISS-473`）：旧语义下第 3 次到达后**双 lane
+@@     挂死到超时**（实测，`m15-testcases-019` 复核注入①），不是具名退出；推定原因是
+@@     该次到达已在 monitor 上下文、semihosting 不生效（未逐一取证）。正常路径不受影响；
+@@     本例不作为「fail 路径回归」用例（登记见 `m16-testcases-021` 完成区）。
 
 	.include "tests/inst/macros/inst_test.inc"
 
@@ -356,8 +360,12 @@ __mon_p0:                                      @@ cfx63 侧入口：CFXESC 落�
 	@@   第一次到达 = handler 的 escape 落点（应用已回到 cfx_power 63），
 	@@     此时再 `escape cfx_hmon` 必须被判 CFXESC（cfxha 3 ≠ inner 63）⇒ probe 入口写 cause_id；
 	@@   第二次到达 = CFXESC 经 probe 入口 escape 回来的落点 ⇒ 断言 cause_id = 1<<3。
-	@@   到达次数上限 2：旧语义下第二次 escape 会直接成功、cause_id 标记恒 0 ⇒ 第 3 次到达判红
-	@@   （不挂死，可判定失败）。
+	@@   到达次数上限 2 只作防御：旧语义下第二次 escape 会直接成功、cause_id 恒 0，
+	@@   于是第 3 次到达落到 `__fail12`。**实测（ISS-473，双 lane）：第 3 次到达后
+	@@   挂死到超时，而不是具名退出**（原因推定 = 该次到达已在 monitor 上下文、
+	@@   semihosting `trap cfx0` 不生效；未逐一取证）。故本例 fail 路径**不可用作回归判据**
+	@@   （正常路径 = 两次到达即通过，仍逐字节比较）；判别旧语义请依赖
+	@@   `m16-testcases-021` 的静态/行为断言，不要依赖本例的超时形态。
 	set.rb rb21, HMON_BASE
 	ld.o	rd8, [rb21, 0xC8]                  @@ 到达计数
 	add.si	rd8, 1
@@ -365,7 +373,7 @@ __mon_p0:                                      @@ cfx63 侧入口：CFXESC 落�
 	ld.o	rd7, [rb21, 0xC0]                  @@ probe 入口记录的 cause_id（0 = 未被调用）
 	set.rd	rd9, 2
 	cmp.uo	rd9, rd8, rd9
-	br.p	{rd9}?, [rb0, __fail12]             @@ 到达 > 2 次 ⇒ 判红（旧语义必到此）
+	br.p	{rd9}?, [rb0, __fail12]             @@ 防御：到达 > 2 次（旧语义）⇒ 见上，不可判红
 	br.z	{rd7}?, [rb0, __t12_first]
 	__CHECK_RD  12, rd7, 0x8                    @@ 第二次到达：cause_id = CFXESC（1<<3）
 	jump	[rb0, __c13]

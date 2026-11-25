@@ -60,6 +60,13 @@ if not PROFILE.get("ptw") or not PROFILE.get("hmon"):
         "only supports a profile with monitor + page-table walker "
         "(contracts/machine.yaml)" % PROFILE.name)
 
+# 统一默认 profile（ISS-518）：下游 helper 的缺省是 tiny
+# （`machine_profile.load()` 无参、`run_qemu_test._selected_profile()`），而本
+# prelude 只支持带 PTW/hmon 的 profile（Vast）。把解析结果钉进 env，漏设
+# `DADAO_TEST_PROFILE` 时不会出现「几何/机器 = Vast、下游选 Tiny」的对称假红；
+# 显式设成不支持的 profile 时上面的 SystemExit 已给出具名错误。
+os.environ["DADAO_TEST_PROFILE"] = PROFILE.name
+
 # --- machine geometry (single source: contracts/machine.yaml) ---
 RAM_BASE = PROFILE.ram_base
 RAM_END = PROFILE.ram_end

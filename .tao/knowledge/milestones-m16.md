@@ -28,12 +28,12 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m16-gem5-026 | 2026-11-25 10:28 | 4–8 h | gem5 异步捕获缓冲（R2：`cfx_hart cg9` + monitor 掩码 + pending + 一帧多源；删 `DIV-17`） |
-| m16-testcases-021 | 2026-11-25 10:02 | 1–2 h | 证据脚本与探针收尾（恒真式、默认 profile、`SEL_I/SEL_D`、挂死 fail 路径、孤儿 QEMU） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-testcases-021 | 2026-11-25 11:32 | 证据脚本与探针收尾（恒真式、profile、`SEL_I/D`、11-cfx 注释；`runlimit` 原件+RLIMIT） |
 | m16-qemu-006 | 2026-11-25 11:31 | QEMU `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧（Tiny 门控）+ `cg9 rc6` 写忽略 |
 | m16-testcases-020 | 2026-11-25 10:02 | `tests/arch` 收尾（cfx5 I+D 同选 21 槽；`runlimit` 10 s/128 MiB/1 MiB；未装载监视器 17 KB） |
 | m16-testcases-019 | 2026-11-25 08:13 | PTW S/U 覆盖 + `arch-ptw-013` signature（QEMU+gem5 三模式；RTL known-red 待 022） |
