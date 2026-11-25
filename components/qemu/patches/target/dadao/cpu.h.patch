@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..8c32a06
+index 0000000..23e8afa
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,818 @@
+@@ -0,0 +1,838 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -337,7 +337,7 @@ index 0000000..8c32a06
 + *   [15:0]   one-hot sync cause above (CFXMEM/CFXPERM never carry a high bit)
 + *   [31:16]  reserved, must be 0: asynchronous sources do not occupy
 + *            `excp_cause_id` (ADR-0061 D2), their identity is the source cfxha
-+ *            carried by cfx_hart cg9 rc3 (async_src_frame)
++ *            carried by cfx_hart cg9 rc4 (async_src_frame)
 + *   [39:32]  permission bitmap ([39] deleted, must stay 0)
 + *   [47:40]  reserved, must be 0
 + *   [55:48]  miss/memory bitmap, plus [56] ADWBFAIL ([57] deleted, must stay 0)
@@ -486,7 +486,7 @@ index 0000000..8c32a06
 +#define DADAO_PMEM_DMA_CTRL_IRQ_EN  (1ULL << 2)
 +/* Asynchronous, maskable completion/error interrupt (spec §4.9; ADR-0042
 + * D7.4).  Source identity = source cfxha 32 (DADAO-12 §5.4; ADR-0061 D2);
-+ * delivery pending lives in cfx_hart cg9 rc4 (src_pending). */
++ * delivery pending lives in cfx_hart cg9 rc5 (src_pending). */
 +#define DADAO_ASYNC_SRC_PMEM  (1ULL << DADAO_CFXHA_PMEM)    /* bit 32 */
 +
 +/* ── TLB (DADAO-12 §2.2.1/§4.5; ADR-0041) ─────────────────────────────
@@ -529,51 +529,64 @@ index 0000000..8c32a06
 +};
 +
 +/* cg0-cg3 shared ("共有") per-mode registers (DADAO-12 §3; ADR-0045 D2/D3;
-+ * ADR-0061 D5).  Four 64-bit sync source masks (rc0..rc3) and the
-+ * mode-transfer/exception registers (rc8, rc10, rc12); rc4 is not defined
-+ * (reserved, access => CFXREG), and rc5-rc7/rc9/rc11 are reserved holes and
-+ * keep no state.  The bit index of every source mask is the *source* cfxha;
-+ * self access bypasses the cfx axis but still uses the current-mode register
-+ * row (D1).  The async source mask is not here: it is the running mode
-+ * monitor's cg8 rc1 (`async_intr_mask`). */
++ * ADR-0061 R3 D4).  Four 64-bit sync source masks (rc0..rc3), the
++ * mode-transfer/exception registers at rc14/rc15 (migrated from rc8/rc10 by
++ * R3) and the hypv cg_reg_deleg at rc12; rc4 is not defined (reserved, access
++ * => CFXREG), and rc5-rc13 are reserved holes and keep no state.  The bit
++ * index of every source mask is the *source* cfxha; self access bypasses the
++ * cfx axis but still uses the current-mode register row (D1).  The async
++ * source mask is not here: it is the running mode monitor's cg8 rc1
++ * (`async_intr_mask`). */
 +typedef struct DADAOCfxModeRegs {
 +    uint64_t cfxtrap;          /* rc0  trap/escape control transfer */
 +    uint64_t cfxmem;           /* rc1  direct ld/st into this cfx */
 +    uint64_t cfxreg;           /* rc2  cfx2rd/cfx2rc */
 +    uint64_t cfxexe;           /* rc3  direct execution/fetch into this cfx */
-+    uint64_t switch_run_mode;  /* rc8  */
-+    uint64_t excp_vector;      /* rc10 */
++    uint64_t switch_run_mode;  /* rc14 (was rc8; ADR-0061 R3 D4) */
++    uint64_t excp_vector;      /* rc15 (was rc10; ADR-0061 R3 D4) */
 +    uint64_t cg_reg_deleg;     /* rc12 (cg3/hypv only, DADAO-13 §1) */
 +} DADAOCfxModeRegs;
 +
-+/* cfx_hart cg9 async frame (DADAO-12 §4.7; ADR-0061 D7).  Only cfx_hart
-+ * implements cg9; every other cfx reports CFXREG.  Seven slots: the frame
-+ * (prev_run_mode/prev_cfx_code/cause_ip), two HW/RO bitmaps indexed by the
-+ * source cfxha (TIMER = 15, PMEM_DMA = 32), the vector and the switch mode.
-+ * cg9 is the capture buffer of one entry, not a live frame: every entry
-+ * overwrites it and there is no valid bit.  rc7-rc15 are reserved (CFXREG).
-+ * There is no mask here: masks belong to the running mode monitor's cg8 rc1. */
++/* cfx_hart cg9 async entry record (DADAO-12 §4.7; ADR-0061 R3 D3).  Only
++ * cfx_hart implements cg9; every other cfx reports CFXREG.  rc0-rc3 are the
++ * entry record (same order as cg5), rc4 the captured source set, rc5 the
++ * pending source set, rc14/rc15 the async switch mode / vector (migrated from
++ * rc6/rc5).  cg9 is the capture buffer of one entry, not a live frame: every
++ * entry overwrites it and there is no valid bit.  rc6-rc13 are reserved
++ * (CFXREG).  There is no mask here: masks belong to the running mode monitor's
++ * cg8 rc1, and the escape intent of an async entry lives in cfx_hart's own
++ * cg5 rc8-rc11. */
 +typedef struct DadaoHartAsync {
 +    uint64_t prev_run_mode;          /* rc0 (2 bits: user/jail/supv/hypv) */
 +    uint64_t prev_cfx_code;          /* rc1 (6 bits: cfxha before entry) */
 +    uint64_t cause_ip;               /* rc2 (48-bit, 4-byte aligned) */
-+    uint64_t src_frame;              /* rc3 HW/RO (bit = source cfxha) */
-+    uint64_t src_pending;            /* rc4 HW/RO (bit = source cfxha) */
-+    uint64_t excp_vector;            /* rc5 (48-bit, 4-byte aligned) */
-+    /* rc6 async_switch_run_mode: RW 2-bit run mode of the next async entry
-+     * (user/jail/supv/hypv), reset 2 = supv (`DADAO-12 §4.7`/`§5.4`;
-+     * m18-spec-006, m16-qemu-007). */
++    uint64_t prev_intr_mask;         /* rc3 monitor cg8 rc1 before entry */
++    uint64_t src_frame;              /* rc4 HW/RO (bit = source cfxha) */
++    uint64_t src_pending;            /* rc5 HW/RO (bit = source cfxha) */
++    /* rc14 async_switch_run_mode: RW 2-bit run mode of the next async entry
++     * (user/jail/supv/hypv), reset 2 = supv (`DADAO-12 §4.7`/`§5.4`). */
 +    uint64_t switch_run_mode;
++    /* rc15 async_excp_vector: RW 48-bit supv async vector, low 2 bits
++     * write-ignored (`DADAO-12 §4.7`/`§5.4`). */
++    uint64_t excp_vector;
 +} DadaoHartAsync;
 +
 +/* Per-cfx cg4..cg6 (config / exception frame / scratch).  cg7 (internal
 + * space description) is a static read-only table, not per-cfx state
-+ * (DADAO-12 §3.8). */
++ * (DADAO-12 §3.8).
++ *
++ * cg5 is split in two layers (DADAO-12 §3.6; ADR-0061 R3 D2): rc0-rc3 are the
++ * entry record (hardware-written, software-read-only; a software write raises
++ * CFXREG), rc4/rc5 the cause fields, and rc8-rc11 the escape intent (copied
++ * from the entry record at entry, software-writable, the only layer `escape`
++ * reads).  `excp_pending` (old rc5) is gone. */
 +typedef struct DADAOCfxRegs {
 +    DADAOCfxModeRegs mode[4];   /* cg0..cg3 */
 +    /* cg8 rc1 (cfx0-3 only): this monitor's async source mask, bit = source
 +     * cfxha, 1 = masked, reset all-1 (DADAO-12 §4.1-§4.4; ADR-0061 D5).  It is
-+     * delivery policy, not frame state: trap/escape never save or restore it. */
++     * delivery policy, not frame state: trap never rewrites it (it only copies
++     * the pre-entry value into the escape intent) and escape restores it from
++     * cg5 rc11 (DADAO-12 §5.1/§5.3). */
 +    uint64_t async_intr_mask;
 +    DadaoHartAsync async;       /* cg9 (cfx_hart only; ADR-0061) */
 +    uint64_t cfx_id;            /* cg4 rc0 (RO) */
@@ -583,12 +596,19 @@ index 0000000..8c32a06
 +    uint64_t excp_async_num;    /* cg4 rc4 */
 +    uint64_t escape_num;        /* cg4 rc5 */
 +    uint64_t scratch_regs_num;  /* cg4 rc6 (RO) */
++    /* cg5 rc0-rc3: entry record, HW wrote / SW read-only (write => CFXREG). */
 +    uint64_t prev_run_mode;     /* cg5 rc0 */
 +    uint64_t prev_cfx_code;     /* cg5 rc1 (DADAO-12 §3.6/§5.2/§5.3) */
-+    uint64_t cause_id;          /* cg5 rc2 (RO) */
-+    uint64_t cause_ip;          /* cg5 rc3 */
-+    uint64_t cause_info;        /* cg5 rc4 (RO) */
-+    uint64_t pending;           /* cg5 rc5 */
++    uint64_t cause_ip;          /* cg5 rc2 (prev ip; was rc3) */
++    uint64_t prev_intr_mask;    /* cg5 rc3 (monitor cg8 rc1 before entry) */
++    /* cg5 rc4/rc5: cause fields (HW wrote, read back). */
++    uint64_t cause_id;          /* cg5 rc4 (RO; was rc2) */
++    uint64_t cause_info;        /* cg5 rc5 (RO; was rc4) */
++    /* cg5 rc8-rc11: escape intent (HW copies at entry, SW writable). */
++    uint64_t escape_run_mode;   /* cg5 rc8 */
++    uint64_t escape_cfx_code;   /* cg5 rc9 */
++    uint64_t escape_ip;         /* cg5 rc10 (48-bit, 4-byte aligned) */
++    uint64_t escape_intr_mask;  /* cg5 rc11 (whole word; reset all-1) */
 +    uint64_t scratch[4];        /* cg6 rc0..N-1 */
 +} DADAOCfxRegs;
 +
@@ -802,12 +822,12 @@ index 0000000..8c32a06
 +/* cfx_time + single-hart cfx_hart timer (DADAO-12 §4.7/§4.10; INTEG-050t) */
 +void dadao_hart_timer_init(CPUState *cs);
 +void dadao_hart_timer_reset(CPUDADAOState *env);
-+/* Unified async arbitration (INTEG-051t; hart-first, ADR-0061 D1/D3/R2):
-+ * every asynchronous source records its pending bit in cfx_hart cg9 rc4 (bit =
++/* Unified async arbitration (INTEG-051t; hart-first, ADR-0061 D1/D3/R2/R3):
++ * every asynchronous source records its pending bit in cfx_hart cg9 rc5 (bit =
 + * source cfxha 15/32); one instruction boundary merges all pending sources
-+ * allowed by the running mode monitor's cg8 rc1 into one capture (cg9 rc3
++ * allowed by the running mode monitor's cg8 rc1 into one capture (cg9 rc4
 + * src_frame, overwritten on every entry), delivered to cfx_hart's supv async
-+ * vector (cg9 rc5). */
++ * vector (cg9 rc15). */
 +bool dadao_async_arbitrate(CPUState *cs);
 +#endif
 +

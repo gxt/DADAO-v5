@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..12d1ab5
+index 0000000..f45b5f2
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,684 @@
+@@ -0,0 +1,700 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -228,7 +228,8 @@ index 0000000..12d1ab5
 +
 +    /* cfx_pmem SRAM/DMA reset values (DADAO-12 §4.9; ADR-0042): all zero,
 +     * no transfer in flight.  The PMEM_DMA pending bit lives in the target
-+     * cfx (cfx_pmem cg5 rc5) and is cleared by the per-cfx reset loop above. */
++     * cfx (cfx_pmem cg9 rc5 src_pending) and is cleared by the per-cfx reset
++     * loop above. */
 +    memset(env->pmem_start, 0, sizeof(env->pmem_start));
 +    memset(env->pmem_size, 0, sizeof(env->pmem_size));
 +    memset(env->pmem_attr, 0, sizeof(env->pmem_attr));
@@ -349,14 +350,23 @@ index 0000000..12d1ab5
 +        r->scratch_regs_num = 4;              /* cg4 rc6 (HW; >=2,<=64) */
 +        r->prev_run_mode = 0;                 /* cg5 rc0 */
 +        r->prev_cfx_code = 0;                 /* cg5 rc1 */
-+        r->cause_id = 0;                      /* cg5 rc2 */
-+        r->cause_ip = 0;                      /* cg5 rc3 */
-+        r->cause_info = 0;                    /* cg5 rc4 */
-+        r->pending = 0;                       /* cg5 rc5 */
-+        /* cfx_hart cg9 (DADAO-12 §4.7; ADR-0061 D7): 7 slots; the frame and
-+         * both bitmaps start 0 (no live frame, no pending source).  rc6
-+         * (async_switch_run_mode) is RW, reset 2 = supv (m18-spec-006). */
++        r->cause_ip = 0;                      /* cg5 rc2 (prev ip) */
++        r->prev_intr_mask = 0;                /* cg5 rc3 */
++        r->cause_id = 0;                      /* cg5 rc4 */
++        r->cause_info = 0;                    /* cg5 rc5 */
++        /* cg5 rc8-rc11 escape intent: reset values from DADAO-12 §3.6; rc11
++         * resets all-1 (fail-safe: every async source masked) and is restored
++         * as a whole word by `escape`. */
++        r->escape_run_mode = 0;
++        r->escape_cfx_code = 0;
++        r->escape_ip = 0;
++        r->escape_intr_mask = ~0ULL;
++        /* cfx_hart cg9 (DADAO-12 §4.7; ADR-0061 R3 D3): the entry record and
++         * both bitmaps start 0 (no capture, no pending source).  rc14
++         * (async_switch_run_mode) is RW, reset 2 = supv; rc15
++         * (async_excp_vector) resets 0. */
 +        r->async.switch_run_mode = DADAO_MODE_SUPV;
++        r->async.excp_vector = 0;
 +        /* cg6 scratch[]/cg7 left 0 (scratch undefined at reset) */
 +    }
 +
@@ -487,9 +497,15 @@ index 0000000..12d1ab5
 +                     r->scratch_regs_num, r->async_intr_mask);
 +        qemu_fprintf(f, "CFX%02d PREVM:%016" PRIx64
 +                     " CID:%016" PRIx64 " CIP:%016" PRIx64
-+                     " CINFO:%016" PRIx64 " PEND:%016" PRIx64 "\n",
++                     " CINFO:%016" PRIx64 " PIM:%016" PRIx64 "\n",
 +                     dadao_cfxha_map[i], r->prev_run_mode,
-+                     r->cause_id, r->cause_ip, r->cause_info, r->pending);
++                     r->cause_id, r->cause_ip, r->cause_info,
++                     r->prev_intr_mask);
++        qemu_fprintf(f, "CFX%02d ESCOM:%016" PRIx64
++                     " ESCIC:%016" PRIx64 " ESCIP:%016" PRIx64
++                     " ESCIM:%016" PRIx64 "\n",
++                     dadao_cfxha_map[i], r->escape_run_mode,
++                     r->escape_cfx_code, r->escape_ip, r->escape_intr_mask);
 +        for (j = 0; j < 4; j++) {
 +            qemu_fprintf(f, "CFX%02d M%d SWMODE:%016" PRIx64
 +                         " VEC:%016" PRIx64
@@ -612,14 +628,14 @@ index 0000000..12d1ab5
 +    }
 +    /*
 +     * One arbitration entry point (INTEG-051t; hart-first, ADR-0061).  The
-+     * delivery record of every asynchronous source lives in cfx_hart cg9 rc4
++     * delivery record of every asynchronous source lives in cfx_hart cg9 rc5
 +     * (bit = source cfxha: TIMER 15, PMEM_DMA 32); no monitor or source cfx
 +     * holds a pending bit.  One instruction boundary merges every pending and
-+     * allowed source into one capture (cg9 rc3 src_frame, overwritten on every
-+     * entry) delivered to cfx_hart's supv async vector (cg9 rc5/rc6).  Only a
++     * allowed source into one capture (cg9 rc4 src_frame, overwritten on every
++     * entry) delivered to cfx_hart's supv async vector (cg9 rc15/rc14).  Only a
 +     * masked source accumulates pending; mask writes and new events re-kick.
 +     * Clearing HARD unconditionally keeps the model from spinning;
-+     * cfx_hart cg9 rc4 is the only re-delivery record.
++     * cfx_hart cg9 rc5 is the only re-delivery record.
 +     */
 +    delivered = dadao_async_arbitrate(cs);
 +    cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..af91c93
+index 0000000..29b421a
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3980 @@
+@@ -0,0 +1,4049 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -2191,7 +2191,8 @@ index 0000000..af91c93
 +    return (ci < 0) ? NULL : &env->cfx[ci].async;
 +}
 +
-+/* cg0-cg3 shared per-mode register -> pointer (DADAO-12 §3; ADR-0045 D2/D3). */
++/* cg0-cg3 shared per-mode register -> pointer (DADAO-12 §3; ADR-0045 D2/D3;
++ * ADR-0061 R3 D4: switch_run_mode rc14, excp_vector rc15). */
 +static uint64_t *cfx_mode_reg(int ci, DADAOCfxModeRegs *m, int rc)
 +{
 +    switch (rc) {
@@ -2199,8 +2200,8 @@ index 0000000..af91c93
 +    case 1:  return &m->cfxmem;
 +    case 2:  return &m->cfxreg;
 +    case 3:  return &m->cfxexe;
-+    case 8:  return &m->switch_run_mode;
-+    case 10: return &m->excp_vector;
++    case 14: return &m->switch_run_mode;
++    case 15: return &m->excp_vector;
 +    case 12: return (ci >= 0) ? &m->cg_reg_deleg : NULL;   /* cg3 only */
 +    default: return NULL;
 +    }
@@ -2276,7 +2277,9 @@ index 0000000..af91c93
 +    DADAOCfxRegs *r = &env->cfx[ci];
 +
 +    if (cg <= 2) {
-+        if (rc <= 4 || (rc >= 8 && rc <= 11)) {
++        /* rc0-rc3: four sync source masks; rc4 reserved; rc5-rc13 reserved;
++         * rc14/rc15 mode switch / vector (ADR-0061 R3 D4). */
++        if (rc <= 3 || rc == 14 || rc == 15) {
 +            return cfx_mode_reg(ci, &r->mode[cg], rc);
 +        }
 +        return NULL;
@@ -2285,7 +2288,7 @@ index 0000000..af91c93
 +        if (env->inner_run_mode != DADAO_MODE_HYPV) {
 +            return NULL;   /* cg3 only in hypv (DADAO-13 §1) => CFXREG */
 +        }
-+        if ((rc <= 4) || (rc >= 8 && rc <= 12)) {
++        if (rc <= 3 || rc == 12 || rc == 14 || rc == 15) {
 +            return cfx_mode_reg(ci, &r->mode[3], rc);
 +        }
 +        return NULL;
@@ -2303,13 +2306,20 @@ index 0000000..af91c93
 +        default: return NULL;
 +        }
 +    case 5:
++        /* DADAO-12 §3.6 (ADR-0061 R3 D2): rc0-rc3 entry record (HW wrote, SW
++         * read-only => a write is CFXREG), rc4/rc5 cause fields (RO), and
++         * rc8-rc11 the escape intent (RW).  There is no `excp_pending`. */
 +        switch (rc) {
-+        case 0: return &r->prev_run_mode;
-+        case 1: return &r->prev_cfx_code;
-+        case 2: return write ? NULL : &r->cause_id;
-+        case 3: return &r->cause_ip;
-+        case 4: return write ? NULL : &r->cause_info;
-+        case 5: return &r->pending;
++        case 0: return write ? NULL : &r->prev_run_mode;
++        case 1: return write ? NULL : &r->prev_cfx_code;
++        case 2: return write ? NULL : &r->cause_ip;
++        case 3: return write ? NULL : &r->prev_intr_mask;
++        case 4: return write ? NULL : &r->cause_id;
++        case 5: return write ? NULL : &r->cause_info;
++        case 8: return &r->escape_run_mode;
++        case 9: return &r->escape_cfx_code;
++        case 10: return &r->escape_ip;
++        case 11: return &r->escape_intr_mask;
 +        default: return NULL;
 +        }
 +    case 6:
@@ -2396,6 +2406,10 @@ index 0000000..af91c93
 +    }
 +}
 +
++/* 48-bit core address mask shared by the entry-record / escape-intent address
++ * fields (cg5 rc2/rc10, cg9 rc2/rc15): DADAO-12 §3.6/§4.7. */
++#define DADAO_ESCAPE_ADDR_MASK 0x0000FFFFFFFFFFFFULL
++
 +/*
 + * DADAO-12 §5.2 synchronous exception-entry flow (steps 1-7).  `target` is
 + * the initially determined target cfxha (from step 1).  Returns the exception
@@ -2411,6 +2425,12 @@ index 0000000..af91c93
 +{
 +    uint8_t entry_mode = env->inner_run_mode;
 +    int ci = cfx_idx(env, target);
++    int mon = cfx_idx(env, entry_mode);
++    uint64_t prev_cfx = env->inner_cfx_code & 0x3F;
++    /* The mask being restored on escape is the *pre-entry* running mode
++     * monitor's cg8 rc1; when the profile has no such monitor row the value is
++     * the fail-safe all-ones (DADAO-12 §3.6 rc3/rc11, §5.2). */
++    uint64_t prev_mask = (mon >= 0) ? env->cfx[mon].async_intr_mask : ~0ULL;
 +    uint64_t vec;
 +
 +    if (ci < 0) {
@@ -2424,11 +2444,19 @@ index 0000000..af91c93
 +    } else {
 +        env->cfx[ci].excp_sync_num++;
 +    }
-+    /* step 5: save the previous run mode and current cfx (no independent
-+     * cfx-mask state).  prev_cfx_code must be sampled *before* step 6
-+     * rewrites inner_cfx_code (DADAO-12 §5.2 step 5/6). */
++    /* step 5: save the entry record (rc0-rc3) and copy the escape intent
++     * (rc8-rc11) from it (DADAO-12 §3.6/§5.2; ADR-0061 R3 D1/D2).  Both are
++     * sampled *before* step 6 rewrites inner_cfx_code.  `trap` is a
++     * synchronous entry, so the target cfx gets both layers; the pasted
++     * intent is what software may edit and the only thing `escape` reads. */
 +    env->cfx[ci].prev_run_mode = entry_mode;
-+    env->cfx[ci].prev_cfx_code = env->inner_cfx_code & 0x3F;
++    env->cfx[ci].prev_cfx_code = prev_cfx;
++    env->cfx[ci].cause_ip = cause_ip;
++    env->cfx[ci].prev_intr_mask = prev_mask;
++    env->cfx[ci].escape_run_mode = entry_mode;
++    env->cfx[ci].escape_cfx_code = prev_cfx;
++    env->cfx[ci].escape_ip = cause_ip & DADAO_ESCAPE_ADDR_MASK & ~0x3ULL;
++    env->cfx[ci].escape_intr_mask = prev_mask;
 +    /* step 6: switch run mode to the <entry_mode> switch value; the cfx
 +     * target changes but there is no cfx-mask layer to switch.
 +     * HSJU permission is re-checked on every tlb_fill against the entry, so the
@@ -2443,9 +2471,8 @@ index 0000000..af91c93
 +        env->inner_run_mode = DADAO_MODE_HYPV;
 +    }
 +    env->inner_cfx_code = (uint8_t)target;
-+    /* step 5 continued: record cause ip / id / info */
++    /* step 5 continued: record cause id / info */
 +    dadao_cause_check(cause);
-+    env->cfx[ci].cause_ip = cause_ip;
 +    env->cfx[ci].cause_id = cause;
 +    env->cfx[ci].cause_info = cause_info;
 +    /* step 7: jump to the exception vector.
@@ -2568,7 +2595,7 @@ index 0000000..af91c93
 +    }
 +
 +    if (env->pmem_dma_irq_en) {
-+        /* The delivery record is cfx_hart cg9 rc5 bit 18 (hart-first,
++        /* The delivery record is cfx_hart cg9 rc5 bit 32 (hart-first,
 +         * ADR-0061); the arbiter turns it into a cfx_hart frame. */
 +        int ci = cfx_idx(env, DADAO_CFXHA_HART);
 +
@@ -2825,7 +2852,7 @@ index 0000000..af91c93
 + * (test-machine model: 1 count = 1 ns, epoch = reset time_base_ns).  cfx_hart
 + * insn is accumulated per TB by translate.c.  The timer is one-shot and its
 + * deadline is a 64-bit absolute cfx_time value; TIMER (1 << 10) is maskable
-+ * with cause_info = 0.  A pending TIMER lives in the target cfx's cg5 rc5
++ * with cause_info = 0.  A pending TIMER lives in cfx_hart cg9 rc5
 + * (cfx_hart bit10); the unified arbiter below only selects (INTEG-051t).
 + * =================================================================== */
 +
@@ -3208,9 +3235,9 @@ index 0000000..af91c93
 +}
 +
 +/* ── Unified async arbitration (INTEG-051t; hart-first, ADR-0061 D1/D3/D5) ──
-+ * Every asynchronous source records delivery pending in cfx_hart cg9 rc4, bit
++ * Every asynchronous source records delivery pending in cfx_hart cg9 rc5, bit
 + * = source cfxha (TIMER 15 / PMEM_DMA 32).  The target is always cfx_hart's
-+ * supv async vector (cg9 rc5/rc6); neither the source cfx nor a monitor is a
++ * supv async vector (cg9 rc15/rc14); neither the source cfx nor a monitor is a
 + * pending store.  Source identity never occupies excp_cause_id.  The only
 + * mask is the *running mode* monitor's cg8 rc1 (`async_intr_mask`, bit = source
 + * cfxha, 1 = masked).  One instruction boundary merges every pending and
@@ -3248,29 +3275,44 @@ index 0000000..af91c93
 +/* DADAO-12 §5.4(五): enter one capture carrying `src_bits`.  The caller has
 + * already filtered by the running mode mask; the bits are consumed from
 + * pending and become the capture's source set.  Every entry overwrites cg9
-+ * (`prev_*`/`cause_ip`/`src_frame`), even while a previous capture is still
-+ * readable; `excp_async_num` counts entries, not sources. */
++ * (rc0-rc4), even while a previous capture is still readable, and refreshes
++ * the escape intent in cfx_hart's own cg5 rc8-rc11; hart cg5 rc0-rc3 stays
++ * untouched (ADR-0061 R3 D3).  `excp_async_num` counts entries, not sources. */
 +static bool dadao_async_enter(CPUDADAOState *env, uint64_t src_bits,
 +                              uint64_t cause_ip)
 +{
 +    DadaoHartAsync *a = dadao_hart_async(env);
 +    int ci = cfx_idx(env, DADAO_CFXHA_HART);
 +    uint8_t entry_mode = env->inner_run_mode;
++    uint64_t prev_cfx = env->inner_cfx_code & 0x3F;
++    int mon = cfx_idx(env, entry_mode);
++    /* Mask evaluated at delivery: the running mode monitor's cg8 rc1.  A
++     * profile without that monitor row falls back to the fail-safe all-ones. */
++    uint64_t prev_mask = (mon >= 0) ? env->cfx[mon].async_intr_mask : ~0ULL;
 +
 +    if (!a || ci < 0 || src_bits == 0) {
 +        return false;                   /* profile has no cfx_hart */
 +    }
-+    a->src_frame = src_bits;            /* capture: union of these sources */
-+    a->src_pending &= ~src_bits;        /* delivered: consumed from pending */
++    a->src_frame = src_bits;            /* rc4: capture = union of these sources */
++    a->src_pending &= ~src_bits;        /* rc5: delivered, consumed from pending */
 +    /* cfx_hart's async-entry counter: once per entry (D3). */
 +    env->cfx[ci].excp_async_num++;
-+    /* Overwrite the capture.  prev_cfx_code is sampled before the switch
-+     * rewrites inner_cfx_code; async_cause_ip is the next instruction address. */
++    /* Overwrite the entry record (cg9 rc0-rc3).  prev_cfx_code is sampled
++     * before the switch rewrites inner_cfx_code; async_cause_ip is the next
++     * instruction address (the boundary after the committed instruction). */
 +    a->prev_run_mode = entry_mode & 0x3;
-+    a->prev_cfx_code = env->inner_cfx_code & 0x3F;
-+    a->cause_ip = cause_ip & 0x0000FFFFFFFFFFFFULL & ~0x3ULL;  /* 48-bit, aligned */
++    a->prev_cfx_code = prev_cfx;
++    a->cause_ip = cause_ip & DADAO_ESCAPE_ADDR_MASK & ~0x3ULL;
++    a->prev_intr_mask = prev_mask;
++    /* Escape intent lives in cfx_hart's own cg5 rc8-rc11 (never its rc0-rc3):
++     * an async entry may therefore return with `escape cfx_hart`, sharing the
++     * synchronous exit (DADAO-12 §5.1/§5.4(七); ADR-0061 R3 D5). */
++    env->cfx[ci].escape_run_mode = entry_mode & 0x3;
++    env->cfx[ci].escape_cfx_code = prev_cfx;
++    env->cfx[ci].escape_ip = cause_ip & DADAO_ESCAPE_ADDR_MASK & ~0x3ULL;
++    env->cfx[ci].escape_intr_mask = prev_mask;
 +    /* Switch to cfx_hart at the async vector, in the run mode held by
-+     * `cg9 rc6` (async_switch_run_mode; RW, reset 2 = supv; §4.7/§5.4). */
++     * `cg9 rc14` (async_switch_run_mode; RW, reset 2 = supv; §4.7/§5.4). */
 +    dadao_soft_tlb_flush(env);
 +    env->inner_run_mode = a->switch_run_mode & 0x3;
 +    env->inner_cfx_code = DADAO_CFXHA_HART;
@@ -3315,7 +3357,7 @@ index 0000000..af91c93
 +    if (dadao_time_value(env) < env->hart_timer_cmp) {
 +        return;                         /* re-armed after the callback fired */
 +    }
-+    /* The expiry is an event: record it in cfx_hart cg9 rc4 bit 15 (the single
++    /* The expiry is an event: record it in cfx_hart cg9 rc5 bit 15 (the single
 +     * delivery record, bit = source cfxha) and let the arbiter deliver.  IMASK is the source-local
 +     * gate, so a masked expiry only records and waits for the ctrl write that
 +     * releases it. */
@@ -3424,9 +3466,9 @@ index 0000000..af91c93
 +    }
 +}
 +
-+/* ── cfx_hart cg9: async frame / two bitmaps (DADAO-12 §4.7;
-+ * ADR-0061 D4/D7) ────────────────────────────────────────────────────── */
-+#define DADAO_ASYNC_ADDR_MASK 0x0000FFFFFFFFFFFFULL   /* 48-bit internal addr */
++/* ── cfx_hart cg9: async entry record / two bitmaps (DADAO-12 §4.7;
++ * ADR-0061 R3 D3) ─────────────────────────────────────────────────────── */
++#define DADAO_ASYNC_ADDR_MASK DADAO_ESCAPE_ADDR_MASK   /* 48-bit internal addr */
 +
 +static bool dadao_hart_async_reg_read(CPUDADAOState *env, uint32_t rc,
 +                                      uint64_t *val)
@@ -3440,12 +3482,12 @@ index 0000000..af91c93
 +    case 0: *val = a->prev_run_mode & 0x3; return true;
 +    case 1: *val = a->prev_cfx_code & 0x3F; return true;
 +    case 2: *val = a->cause_ip & DADAO_ASYNC_ADDR_MASK; return true;
-+    case 3: *val = a->src_frame; return true;      /* HW/RO */
-+    case 4: *val = a->src_pending;
-+        return true;    /* HW/RO */
-+    case 5: *val = a->excp_vector & DADAO_ASYNC_ADDR_MASK; return true;
-+    case 6: *val = a->switch_run_mode & 0x3; return true;   /* RW (§4.7) */
-+    default:                            /* rc7-rc15 reserved => CFXREG */
++    case 3: *val = a->prev_intr_mask; return true;  /* HW/RO */
++    case 4: *val = a->src_frame; return true;       /* HW/RO */
++    case 5: *val = a->src_pending; return true;     /* HW/RO */
++    case 14: *val = a->switch_run_mode & 0x3; return true;   /* RW (§4.7) */
++    case 15: *val = a->excp_vector & DADAO_ASYNC_ADDR_MASK; return true;
++    default:                            /* rc6-rc13 reserved => CFXREG */
 +        return false;
 +    }
 +}
@@ -3459,21 +3501,23 @@ index 0000000..af91c93
 +        return false;                   /* only cfx_hart implements cg9 */
 +    }
 +    switch (rc) {
-+    case 0: a->prev_run_mode = val & 0x3; return true;
-+    case 1: a->prev_cfx_code = val & 0x3F; return true;
-+    case 2:                             /* 48-bit, low 2 bits ignored */
-+        a->cause_ip = val & DADAO_ASYNC_ADDR_MASK & ~0x3ULL;
-+        return true;
-+    case 3:                             /* src_frame: HW/RO, write ignored */
-+    case 4:                             /* src_pending: HW/RO, write ignored */
++    case 0:                             /* rc0-rc5: entry record / bitmaps are
++                                         * HW wrote, SW read-only: the write is
++                                         * ignored, no exception
++                                         * (DADAO-12 §4.7). */
++    case 1:
++    case 2:
++    case 3:
++    case 4:
++    case 5:
 +        return true;                    /* no change, no exception */
-+    case 5:                             /* 48-bit, low 2 bits ignored */
-+        a->excp_vector = val & DADAO_ASYNC_ADDR_MASK & ~0x3ULL;
-+        return true;
-+    case 6:                             /* RW 2-bit: store it (§4.7) */
++    case 14:                            /* RW 2-bit: store it (§4.7) */
 +        a->switch_run_mode = val & 0x3;
 +        return true;
-+    default:                            /* rc7-rc15 reserved => CFXREG */
++    case 15:                            /* 48-bit, low 2 bits ignored */
++        a->excp_vector = val & DADAO_ASYNC_ADDR_MASK & ~0x3ULL;
++        return true;
++    default:                            /* rc6-rc13 reserved => CFXREG */
 +        return false;
 +    }
 +}
@@ -3533,25 +3577,30 @@ index 0000000..af91c93
 +    }
 +}
 +
-+/* escape cfxha, imms18 : §5 exception-exit flow (steps 0-4).  `cfxha` is the
-+ * current cfx.  `imms18[0]` is the cg5 byte-offset bit (0 / +4) and
-+ * `imms18[1]` is the frame selector: 0 = cg5 synchronous frame, 1 = the cfx_hart
-+ * cg9 capture buffer.  Legal `imms18` values are {0, 1, 2}: 3 (cg9 + offset +4)
-+ * and any imms18[17:2] != 0 raise ILLI before any state switch; a wrong target
-+ * raises CFXESC.  cg9 is a capture buffer, not a return frame: selecting it
-+ * (imms18 = 2) is an invalid frame and also raises the current cfx's CFXESC,
-+ * leaving run mode / cfx / cg9 untouched (ADR-0061 R2 D9; DADAO-12 §5.1/§5.4(七)). */
++/* escape cfxha : §5.1/§5.3 exception-exit flow.  `cfxha` must be the current
++ * cfx and `imms18` must be 0 (SBZ; the old +0/+4 offset and cg9 frame selector
++ * are gone: DADAO-12 §5.1, ADR-0061 R3 D5).  The return run mode / cfx / ip /
++ * mask come from the current cfx's cg5 escape intent rc8-rc11 — for an async
++ * entry that is cfx_hart's own cg5 row, so sync and async share the exit.
++ *
++ * Every legality check runs before any state change: a target run mode above
++ * the current mode (privilege escalation), an unimplemented target cfx or a
++ * target mode without a monitor, and a `cause_id != 0`-style frame-validity
++ * test does *not* exist any more.  The mask restore is part of the same
++ * transition as the mode/cfx switch and the jump. */
 +void helper_cfx_escape(CPUDADAOState *env, uint32_t cfxha, uint32_t imms18,
 +                       uint64_t pc)
 +{
 +    uint64_t info = ((uint64_t)0x7E << 24) | ((uint64_t)(cfxha & 0x3F) << 18) |
 +                    (uint64_t)(imms18 & 0x3FFFF);
-+    uint32_t sel = imms18 & 0x3u;
 +    int ci;
++    int target_cfx;
++    int target_mode;
++    int mci;
++    uint64_t target_mask;
 +
-+    /* step 0: encoding check (imms18[17:2] SBZ; imms18 == 3 is cg9 + offset
-+     * +4, which no frame allows). */
-+    if ((imms18 & ~0x3u) != 0 || sel == 3) {
++    /* step 0: encoding check (`imms18` is SBZ). */
++    if (imms18 != 0) {
 +        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
 +        return;
 +    }
@@ -3560,21 +3609,29 @@ index 0000000..af91c93
 +        return;
 +    }
 +    ci = cfx_idx(env, env->inner_cfx_code);
-+    /* CFXESC: target error (cfxha must be the current cfx) or invalid frame. */
++    /* CFXESC: target error (cfxha must be the current cfx). */
 +    if (ci < 0 || cfxha != env->inner_cfx_code) {
 +        cfx_raise(env, DADAO_CAUSE_CFXESC, env->inner_cfx_code, pc, info);
 +        return;
 +    }
-+    if (sel & 0x2u) {
-+        /* imms18[1] = 1 names cg9, the capture buffer of the last entry; it is
-+         * never a return frame (the software copies it out and discards it, and
-+         * returns through smon/umon), so the selected frame is invalid: raise
-+         * CFXESC before changing any state.  Neither cg9 nor run mode / cfx
-+         * move here (no "release the frame", no counter). */
++    /* Read the escape intent (rc8-rc11) and finish every legality check before
++     * switching any state. */
++    target_mode = env->cfx[ci].escape_run_mode & 0x3;
++    target_cfx = env->cfx[ci].escape_cfx_code & 0x3F;
++    target_mask = env->cfx[ci].escape_intr_mask;
++    if (target_mode > (env->inner_run_mode & 0x3)) {
++        /* No privilege escalation on return. */
 +        cfx_raise(env, DADAO_CAUSE_CFXESC, env->inner_cfx_code, pc, info);
 +        return;
 +    }
-+    if (env->cfx[ci].cause_id == 0) {
++    if (cfx_idx(env, target_cfx) < 0) {
++        /* Target cfx not implemented by this profile. */
++        cfx_raise(env, DADAO_CAUSE_CFXESC, env->inner_cfx_code, pc, info);
++        return;
++    }
++    mci = cfx_idx(env, target_mode);    /* user->umon, jail->jmon, ... */
++    if (mci < 0) {
++        /* Target mode has no monitor row (e.g. no jmon). */
 +        cfx_raise(env, DADAO_CAUSE_CFXESC, env->inner_cfx_code, pc, info);
 +        return;
 +    }
@@ -3582,24 +3639,22 @@ index 0000000..af91c93
 +#ifndef CONFIG_USER_ONLY
 +    dadao_async_kick(env);              /* a pending source may be deliverable */
 +#endif
-+    /* cg5 step 2: restore the previous run mode and current cfx from the
-+     * frame.  Without the cfx restore a frame that received a nested async
-+     * delivery could never escape: step 6 of the nested entry moved
-+     * inner_cfx_code to the delivered cfx, so this escape's cfxha check would
-+     * fail with CFXESC (DADAO-12 §5.3 step 2). */
-+    env->inner_run_mode = env->cfx[ci].prev_run_mode & 0x3;
-+    env->inner_cfx_code = env->cfx[ci].prev_cfx_code & 0x3F;
++    /* Step 1: restore the run mode and current cfx from the escape intent.
++     * Step 2: count the escape and jump to rc10 (precise return address).
++     * Step 3: restore the target mode monitor's cg8 rc1 from rc11 as a whole
++     * word — the same transition as the mode/cfx switch and the jump, so it is
++     * in effect before the first instruction at rc10. */
++    env->inner_run_mode = (uint8_t)target_mode;
++    env->inner_cfx_code = (uint8_t)target_cfx;
 +    dadao_soft_tlb_flush(env);
-+    /* cg5 step 3: increment the escape counter */
 +    env->cfx[ci].escape_num++;
-+    /* cg5 step 4: return address = cause_ip + ((imms18 & 1) << 2); the offset
-+     * is a compile-time immediate, not an arbitrary target. */
-+    {
-+        uint64_t ret = env->cfx[ci].cause_ip + ((uint64_t)(sel & 0x1u) << 2);
-+
-+        env->pc = ret;
-+        env->rb[0] = ret;
-+    }
++    env->cfx[mci].async_intr_mask = target_mask;
++    env->pc = env->cfx[ci].escape_ip & DADAO_ESCAPE_ADDR_MASK & ~0x3ULL;
++    env->rb[0] = env->pc;
++#ifndef CONFIG_USER_ONLY
++    /* The restored mask may unblock pending async sources (DADAO-12 §5.4). */
++    dadao_async_kick(env);
++#endif
 +}
 +
 +/*
@@ -3958,16 +4013,30 @@ index 0000000..af91c93
 +        /* bit3 is hardware-fixed 1 (DADAO-13 §1): a software 0 is ignored and
 +         * the register reads back with bit3 set. */
 +        *p = ((rd == 0) ? 0 : env->rd[rd]) | (1ULL << 3);
-+    } else if (rc == 10) {
-+        /* DADAO-13 §1 (cg3 rc10; the same field exists in cg0-cg2): a write
-+         * ignores the low 2 bits (value[1:0] <- 0, 4-byte aligned), no
-+         * exception; reads return the stored value. */
++    } else if (rc == 15) {
++        /* DADAO-12 §3.4 (cg3 rc15; the same field exists in cg0-cg2 and is the
++         * async vector in cg9): a write ignores the low 2 bits
++         * (value[1:0] <- 0, 4-byte aligned), no exception; reads return the
++         * stored value. */
 +        *p = ((rd == 0) ? 0 : env->rd[rd]) & ~0x3ULL;
 +        dadao_soft_tlb_flush(env);
-+    } else if (rc == 8 && DADAO_PROFILE(env)->switch_run_mode_write_ignored) {
++    } else if (rc == 14 && DADAO_PROFILE(env)->switch_run_mode_write_ignored) {
 +        /* Kaiwu-Tiny §2: the write is ignored; the register keeps its
 +         * saved value (3 = hypv) and a read returns that saved value.  The
 +         * exception-entry path forces hypv independently. */
++    } else if (p == &env->cfx[ci].escape_run_mode) {
++        /* cg5 rc8: 2-bit target run mode (DADAO-12 §3.6). */
++        *p = ((rd == 0) ? 0 : env->rd[rd]) & 0x3ULL;
++    } else if (p == &env->cfx[ci].escape_cfx_code) {
++        /* cg5 rc9: 6-bit target cfxha. */
++        *p = ((rd == 0) ? 0 : env->rd[rd]) & 0x3FULL;
++    } else if (p == &env->cfx[ci].escape_ip) {
++        /* cg5 rc10: 48-bit return ip, low 2 bits ignored (4-byte aligned). */
++        *p = ((rd == 0) ? 0 : env->rd[rd]) &
++             DADAO_ESCAPE_ADDR_MASK & ~0x3ULL;
++    } else if (p == &env->cfx[ci].escape_intr_mask) {
++        /* cg5 rc11: whole-word async source mask restored by `escape`. */
++        *p = (rd == 0) ? 0 : env->rd[rd];
 +    } else {
 +        *p = (rd == 0) ? 0 : env->rd[rd];
 +        /* Any cfx2rc write may change a two-axis permission mask

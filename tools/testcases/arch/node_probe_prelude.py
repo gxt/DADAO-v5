@@ -318,7 +318,9 @@ def power_segment(extra=None):
     step runs in hmon.  `extra` is probe-specific power-mode setup: it runs
     after the vector install and before the trap.
     """
-    ins = load_rd(22, RESET_PC + H_OFF) + [cfx2rc(3, 3, 10, 22)]
+    # R3 (DADAO-12 §3.4, ADR-0061 R3 D4): the hypv exception vector moved from
+    # rc10 to rc15; rc10 is reserved (access => CFXREG).
+    ins = load_rd(22, RESET_PC + H_OFF) + [cfx2rc(3, 3, 15, 22)]
     if extra:
         ins += list(extra)
     ins += [trap(3, 0)]

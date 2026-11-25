@@ -7,6 +7,7 @@
 |------|------|
 | `run_m5_e2e.py` | SEE/semihosting + cfx 权限端到端驱动（llvm-mc → objcopy → qemu + bootrom；`--inject` 自检） |
 | `min_rom_probe_*.py` / `.sh` | min-ROM 场景探针（各自内嵌 ROM 程序 + `-d cpu` 观测；期望值手推自 `spec/`+`contracts/`） |
+| `min_rom_probe_m18qemu008.py` | **异步 escape 出口（`ADR-0061` R3，`DADAO-12` 0.8.0）**：21 例 / 150 断言，纯 word 编码（不依赖汇编器 `escape` 语法）——`cg5 rc0`–`rc3` 写 ⇒ `CFXREG`、`rc8`–`rc11` RW 且 `rc11` 复位全 1；`cg0`–`cg3` 四行**各自**验证 `rc14`/`rc15` 生效与旧 `rc8`/`rc10` ⇒ `CFXREG`（槽位/复位值/低 2 位规则现场取自 `DADAO-12 §3.1–§3.4`）、`cg9` 的 `rc0`–`rc5`/`rc14`/`rc15` 与 `rc6`–`rc13` ⇒ `CFXREG`、`cg9 rc0`–`rc5` 写忽略；同步 `trap` 与异步进入的写入集合；`escape` 正常返回（mode/cfx/ip/mask）、`rc11` 整字恢复、`imms18≠0` ⇒ `ILLI`、错 cfxha/未实现目标/升权 ⇒ `CFXESC`、`escape_num`+1；`--self-test` 逐断言注入可达 FAIL；`--qemu/--case` |
 | `min_rom_probe_integ046t.py` | step5 BootROM 链探针（power→hmon→smon、vector/PTW/PTE/双向 VA-PA、poison、`0xB1`–`0xB7` 反例；`--qemu/--bootrom-image/--only/--list`，默认读 `.dadao/tests/bootrom/step5/`） |
 | `min_rom_probe_integ047t.py` | cfx_pmem DMA 的 SBI 契约探针（FID 6/7/8；内嵌 provider 为**测试专用，非生产实现**；`--doc` 离线表形态 + runtime 用例；`--qemu/--only/--list`） |
 | `min_rom_probe_integ048t.py` | `cfx_<name>_hypv_cg_reg_deleg` 强制检查探针（supv 按目标 cfx 的 64 位 cg 位图判定 ⇒ `CFXPERM`、cg3 无例外、bit3 恒 1、不豁免 self、hypv/user 不受约束、power BootROM 只读；`--qemu/--only/--list`） |
@@ -19,6 +20,9 @@
 
 - 用例**资产**（`.s` 向量 + `expected.yaml`）在 `tests/arch/<cfx>/`；本目录只放驱动，
   不放用例数据。
+- 探针的**模型代际**：`min_rom_probe_m18qemu008.py` 已按 `ADR-0061` R3；其余异步/异常
+  探针（`046t`、`integ050t`、`integ051t`、`async_094t`）仍按 R2 的 `cg5`/`cg9` 槽位与
+  `escape imms18`，等 `m18-testcases-004` 统一改写（汇编器已改为 `escape cfxHA`）。
 - 门控：`make check-arch-smoke`（L2）/ `make check-arch`（L3）。
 - 迁移期的旧路径薄 wrapper 已在 `TESTCASES-084t` 删除；现行入口只有本目录。
 - 探针的 QEMU 默认值是 `.work/build/qemu/qemu-system-dadao`（历史约定，M1–M6 期）；
