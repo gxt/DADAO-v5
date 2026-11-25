@@ -258,7 +258,7 @@ RTL（`m16-chipyard-016/017`）均已实现 cfx5；`run_arch.py --cfx 5` 的三�
 - **寄存器面**：有。`m16-chipyard-021` 落 cfx_hart cg8 + cg9 十六 rc；`m16-chipyard-024` 改到 `ADR-0061`（cg9 七槽、mask 归 monitor）；`m16-chipyard-026` 改到 R2（捕获缓冲、无帧门控、`escape imms18=2 ⇒ CFXESC`）。
 - **命令与副作用**：有。TIMER 投 `cfx_hart` supv 单向量；`src_frame`/`src_pending` 位 = 源 cfxha。
 - **异常与子原因**：有。R2 捕获缓冲语义（每次进入整体覆盖）。
-- **现有测试载体**：`tests/arch/hart/cfx15.S`（RTL 承载 `cfx15.lds` + `check_hart_rtl.py`；`arch-hart-001` hmon 80 槽、`arch-hart-002` smon/umon 40 槽）。
+- **现有测试载体**：`tests/arch/hart/cfx15.S`（RTL 承载 `cfx15.lds` + `check_hart_rtl.py`；`arch-hart-001` hmon 89 槽（含 `cg9 rc6` 写回/进入模式）、`arch-hart-002` smon/umon 40 槽）。
 - **现有门控**：`run_arch --case arch-hart-001/002 --platforms chipyard`（`m16-testcases-013`）。
 
 ---

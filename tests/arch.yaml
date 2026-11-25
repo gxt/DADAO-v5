@@ -389,7 +389,7 @@
 # cfx_hart（cfxha 15）TIMER 异步捕获（m16-testcases-013，R2）。
 # 载体 `arch/hart/cfx15.S` 与 RTL 共用同一份 case 源；QEMU 用 flat bin（ENTRY
 # 0x0010_0000），RTL 用 cfx15.lds。001 = hmon/hypv 寄存器面 + 捕获/覆盖/escape/
-# jump 精确点（80 槽）；002 = 同一捕获流程在 smon/supv 与 umon/user（40 槽）。
+# jump 精确点 + `cg9 rc6` 写/进入模式（89 槽）；002 = 同一捕获流程在 smon/supv 与 umon/user（40 槽）。
 - id: arch-hart-001
   file: arch/hart/check_hart.py
   kind: driver

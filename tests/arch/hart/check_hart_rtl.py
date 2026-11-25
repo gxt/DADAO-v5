@@ -147,7 +147,7 @@ def selfcheck():
         for case_id, modes in CASES.items():
             for mode in modes:
                 _, exp = build(mode, tools, work)
-                want = 80 if case_id == "arch-hart-001" else 40
+                want = 89 if case_id == "arch-hart-001" else 40
                 if len(exp) != want:
                     problems.append("%s/%s: 期望 %d 槽 ≠ %d"
                                     % (case_id, mode, len(exp), want))

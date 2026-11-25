@@ -13,7 +13,7 @@ flat bin 从 `ENTRY=0x0010_0000` 装入；RTL 用 `cfx15.lds` 的
 供 `run_arch.py` 做跨平台逐槽比较（QEMU/RTL 的原始地址不同，不能直接比）。
 
 用例：
-  * `arch-hart-001`（hmon/hypv，80 槽）：cg8 寄存器面 + 保留/非法编码 +
+  * `arch-hart-001`（hmon/hypv，89 槽）：cg8 寄存器面 + 保留/非法编码 +
     屏蔽→pending→放行 + 捕获/覆盖/RO/`escape` + jump 目标精确点；
   * `arch-hart-002`（smon/supv、umon/user，40 槽）：同一捕获/覆盖/`escape`/
     jump 流程，掩码取当前模式 monitor（cfx_smon / cfx_umon）。
@@ -100,8 +100,9 @@ def build(mode, tools, work):
            "-defsym", "SIG_BUF=%#x" % SIG_BUF,
            "-defsym", "EXITB=%#x" % EXITB,
            "-defsym", "HMON_BASE=%#x" % HMON_BASE]
-    if mode == "umon":
+    if mode in ("umon", "hmon"):
         # QEMU step5 页表在 PA 0；把镜像所在超页置 U=1（仅 QEMU 承载）。
+        # hmon 只用于 `cg9 rc6=0` 的 user 进入场景（arch-hart-001 尾段）。
         cmd += ["-defsym", "PTW_UMAP=1"]
     rc, out = _run(cmd + [str(SRC), "-o", str(obj)], 60)
     if rc != 0:
@@ -200,7 +201,7 @@ def selfcheck():
         for case_id, modes in CASES.items():
             for mode in modes:
                 _, _, exp, _ = build(mode, tools, work)
-                want = 80 if case_id == "arch-hart-001" else 40
+                want = 89 if case_id == "arch-hart-001" else 40
                 if len(exp) != want:
                     problems.append("%s/%s: 期望 %d 槽 ≠ %d"
                                     % (case_id, mode, len(exp), want))

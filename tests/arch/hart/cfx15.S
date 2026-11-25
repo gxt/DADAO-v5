@@ -5,7 +5,8 @@
 @@   * cg8 管理寄存器：hart_id / cycle / insn / timer_cmp / timer_ctrl；
 @@   * cg9 **七槽**捕获缓冲：rc0 prev_run_mode / rc1 prev_cfx_code / rc2 cause_ip /
 @@     rc3 src_frame（HW/RO，位 = 源 cfxha）/ rc4 src_pending（HW/RO）/
-@@     rc5 excp_vector / rc6 switch_run_mode（固定 supv = 2）；rc7–rc15 reserved；
+@@     rc5 excp_vector / rc6 switch_run_mode（RW、复位 2 = supv、
+@@     异步进入取该值）；rc7–rc15 reserved；
 @@   * 两个位图**软件写忽略、读回不变、不产生异常**（不报 CFXREG）；
 @@   * 来源掩码在**当前运行模式 monitor** 的 `cg8 rc1`（bit15 = 源 cfxha 15，
 @@     0 = 允许 / 1 = 屏蔽）：屏蔽期只置 `src_pending` 的 bit15，解除后补投；
@@ -69,7 +70,7 @@
 
 	@@ 每个镜像的签名槽数（与 checker 的 `expected()` 一一对应）
 	.if TMODE == 3
-	.equ	SIG_SLOTS, 80
+	.equ	SIG_SLOTS, 89
 	.else
 	.equ	SIG_SLOTS, 40
 	.endif
@@ -187,9 +188,10 @@ _start:
 	@@ cg3 rc12 delegation：放开 cg4/cg5/cg8/cg9（bit3 硬件恒 1）
 	WCFX_IMM   cfx_hart, cg3, rc12, 0xFFFFFFFFFFFFFCC7
 
-	.if TMODE == 0
+	.if TMODE == 0 || TMODE == 3
 	.ifdef	PTW_UMAP
 	@@ QEMU step5 页表在 PA 0；镜像所在的 512 MiB 超页置 HSJU=0xF（U=1）
+	@@ H 体尾段要进 user（`cg9 rc6=0`）取指/写签名，与 U 模式体同一份约定。
 	set.rd	rd6, 0xF00000000000FFEF
 	set.rb	rb2, 0
 	st.o	rd6, [rb2, 0]
@@ -210,7 +212,7 @@ _start:
 @@ ---------------------------------------------------------------------------
 setup_h:
 	set.rb	rb1, sig_bytes
-	set.rd	rd6, 80*8
+	set.rd	rd6, 89*8
 	st.o	rd6, [rb1, 0]
 	WCFX_LABEL cfx_hmon, cg3, rc10, h_entry
 	WCFX_IMM   cfx_hmon, cg3, rc8, 3
@@ -307,11 +309,24 @@ h_body:
 	REC	rd5
 	@@ 恢复真向量（后面的 timer 投递必须落到 async_entry）
 	WCFX_LABEL cfx_hart, cg9, rc5, async_entry
-	@@ 17 rc6 switch：固定 supv（2）；只读回（写忽略行为由 QEMU 差异登记）
+	@@ 17 rc6 switch：RW、复位 2 = supv；写 0/1/3 落地、读回同值
+	cfx2rd	cfx_hart, cg9, rc6, rd5
+	REC	rd5
+	WCFX_IMM   cfx_hart, cg9, rc6, 0
+	cfx2rd	cfx_hart, cg9, rc6, rd5
+	REC	rd5
+	WCFX_IMM   cfx_hart, cg9, rc6, 1
+	cfx2rd	cfx_hart, cg9, rc6, rd5
+	REC	rd5
+	WCFX_IMM   cfx_hart, cg9, rc6, 3
+	cfx2rd	cfx_hart, cg9, rc6, rd5
+	REC	rd5
+	@@ 恢复复位值（后面的 timer 投递按 rc6 = 2 进 supv）
+	WCFX_IMM   cfx_hart, cg9, rc6, 2
 	cfx2rd	cfx_hart, cg9, rc6, rd5
 	REC	rd5
 
-	@@ 18-26 保留 rc（cg9 rc7 / rc8 / rc15）⇒ CFXREG：cause_id / cause_info / 见证
+	@@ 22-30 保留 rc（cg9 rc7 / rc8 / rc15）⇒ CFXREG：cause_id / cause_info / 见证
 	cfx2rd	cfx_hart, cg9, rc7, rd5
 	set.rd	rd5, 0xC0DE0013
 	REC	rd5
@@ -607,7 +622,11 @@ async_jump:
 	set.rd	rd5, 1
 	REC	rd5
 	set.rd	rd20, 0
+	.if TMODE == 3
+	jump	[rb0, rc6_setup]
+	.else
 	jump	[rb0, done_ok]
+	.endif
 
 jump_retry:
 	add.si	rd13, 1
@@ -625,6 +644,79 @@ jump_fail:
 	set.rd	rd5, 0xBAD00002
 	REC	rd5
 	jump	[rb0, fail_exit]
+
+
+.if TMODE == 3
+@@ ---------------------------------------------------------------------------
+@@ 异步进入的运行模式 = `cg9 rc6`（`m18-spec-006`；与 `m16-chipyard-028` 同场景）
+@@ 在 supv 下依次：rc6=0 ⇒ 进入应为 user（下一次进入的 prev 证明）；rc6=2 ⇒
+@@ 进入应为 supv（再下一次的 prev 证明）。timer 到期落在 BURN 内，本组只判
+@@ 「进入后的运行模式」，不判投递边界地址。
+@@ ---------------------------------------------------------------------------
+rc6_setup:
+	WCFX_IMM   cfx_hart, cg8, rc5, 0
+	WCFX_IMM   cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM   cfx_hart, cg9, rc6, 0
+	WCFX_LABEL cfx_hart, cg9, rc5, rc6_u_entry
+	cfx2rd	cfx_hart, cg8, rc2, rd5
+	add.si	rd5, 150
+	cfx2rc	cfx_hart, cg8, rc4, rd5
+	WCFX_IMM   cfx_hart, cg8, rc5, 1
+	BURN	rd7, rb1
+	@@ BURN 内未投递 ⇒ 红
+	set.rd	rd5, 0xDEAD0007
+	REC	rd5
+	jump	[rb0, fail_exit]
+
+rc6_u_entry:
+	@@ rc6=0：进入读数 = 0；prev = supv（进入前在 supv）
+	cfx2rd	cfx_hart, cg9, rc6, rd5
+	REC	rd5
+	cfx2rd	cfx_hart, cg9, rc0, rd5
+	REC	rd5
+	@@ 从 user 再投递一次（rc6=2）：下一次进入的 prev = user 即证明本次进 user
+	WCFX_IMM   cfx_hart, cg8, rc5, 0
+	WCFX_IMM   cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM   cfx_hart, cg9, rc6, 2
+	WCFX_LABEL cfx_hart, cg9, rc5, rc6_s_entry
+	cfx2rd	cfx_hart, cg8, rc2, rd5
+	add.si	rd5, 150
+	cfx2rc	cfx_hart, cg8, rc4, rd5
+	WCFX_IMM   cfx_hart, cg8, rc5, 1
+	BURN	rd21, rb3
+	set.rd	rd5, 0xDEAD0008
+	REC	rd5
+	jump	[rb0, fail_exit]
+
+rc6_s_entry:
+	@@ prev = user（rc6=0 那次确实进 user）；rc6 读数 = 2
+	cfx2rd	cfx_hart, cg9, rc0, rd5
+	REC	rd5
+	cfx2rd	cfx_hart, cg9, rc6, rd5
+	REC	rd5
+	@@ 从 supv 再投递一次（rc6 仍 2）：下一次进入的 prev = supv
+	WCFX_IMM   cfx_hart, cg8, rc5, 0
+	WCFX_IMM   cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
+	WCFX_LABEL cfx_hart, cg9, rc5, rc6_h_entry
+	cfx2rd	cfx_hart, cg8, rc2, rd5
+	add.si	rd5, 150
+	cfx2rc	cfx_hart, cg8, rc4, rd5
+	WCFX_IMM   cfx_hart, cg8, rc5, 1
+	BURN	rd7, rb1
+	set.rd	rd5, 0xDEAD0009
+	REC	rd5
+	jump	[rb0, fail_exit]
+
+rc6_h_entry:
+	@@ prev = supv（rc6=2 那次确实进 supv）；收尾
+	cfx2rd	cfx_hart, cg9, rc0, rd5
+	REC	rd5
+	WCFX_IMM   cfx_hart, cg8, rc5, 0
+	WCFX_IMM   cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
+	WCFX_LABEL cfx_hart, cg9, rc5, async_entry
+	jump	[rb0, done_ok]
+
+.endif
 
 
 @@ ---------------------------------------------------------------------------

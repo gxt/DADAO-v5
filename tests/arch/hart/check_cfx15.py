@@ -308,7 +308,7 @@ def expected(root, mode, syms):
             ("async src_frame = TIMER source bit", src_bit),
             ("async src_pending after delivery = 0", 0),
             ("async vector read = cfx_hart cg9 rc5", vec),
-            ("async switch read = fixed supv", 2),
+            ("async switch read = cg9 rc6 (2)", 2),
             ("cfx_hart excp_async_num = 1 frame", 1),
             ("escape imms18=2: cg5 cause = CFXESC", cfxesc),
             ("escape imms18=2: cg5 cause_info = escape encoding", esc2),
@@ -362,7 +362,11 @@ def expected(root, mode, syms):
             ("cg9 src_frame write ignored (HW/RO)", 0),
             ("cg9 src_pending write ignored (HW/RO)", 0),
             ("cg9 vector <- all ones (48b, low2=0)", 0xFFFFFFFFFFFF & ~0x3),
-            ("cg9 switch reads 2 (fixed supv)", 2),
+            ("cg9 rc6 reset = 2 (supv)", 2),
+            ("cg9 rc6 <- 0 reads 0", 0),
+            ("cg9 rc6 <- 1 reads 1", 1),
+            ("cg9 rc6 <- 3 reads 3", 3),
+            ("cg9 rc6 restore 2 reads 2", 2),
             ("CFXREG: read cg9 rc7 (cause)", cfxreg),
             ("CFXREG: read cg9 rc7 (info)", rd(ha, 9, 7, 5)),
             ("CFXREG: read cg9 rc7 witness", 0xC0DE0013),
@@ -390,7 +394,15 @@ def expected(root, mode, syms):
             ("masked timer pending = source bit", src_bit),
             ("masked timer src_frame = capture buffer (0)", 0),
         ]
-        return head + handler(42, M["hypv"], C["hmon"], sym("wait_begin"))
+        rc6_mode = [
+            ("async rc6=0: entry reads rc6 = 0", 0),
+            ("async rc6=0: prev_run_mode = supv", M["supv"]),
+            ("async rc6=2 from user: prev_run_mode = user", M["user"]),
+            ("async rc6=2 from user: entry reads rc6 = 2", 2),
+            ("async rc6=2: prev_run_mode = supv", M["supv"]),
+        ]
+        return head + handler(46, M["hypv"], C["hmon"],
+                              sym("wait_begin")) + rc6_mode
 
     prev_mode = M["user"] if mode == M["user"] else M["supv"]
     prev_cfx = C["umon"] if mode == M["user"] else C["smon"]

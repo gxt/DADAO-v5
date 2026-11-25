@@ -7,7 +7,7 @@
  *
  *   ENTRY + 0x0000  .text   探针代码（≤ 16 KiB）
  *   ENTRY + 0x4000  .data   sig_bytes
- *   ENTRY + 0x5000  SIG_BUF（80 槽 = 640 B）
+ *   ENTRY + 0x5000  SIG_BUF（001 = 89 槽 / 002 = 40 槽；缓冲 96 槽 = 768 B）
  *   ENTRY + 0x5800  EXITB
  */
 

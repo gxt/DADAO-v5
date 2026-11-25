@@ -440,6 +440,10 @@
   - 摘要：**`cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧 + `cfx_hart cg9 rc6` 写忽略（`ISS-533/525/536`；`spec/DADAO-12 §4.9/§4.12/§4.7`）**。`target/dadao/{cpu.h,cpu.c}`：`CPUDADAOState` 增 `pmem_start/size/attr[64]`（`DADAO_PMEM_REGIONS=64`，复位 0）；`DadaoHartAsync` 删 `switch_run_mode` 存储。`target/dadao/helper.c`：新增 `dadao_pmem_reg_{read,write}()`——`cg8 rc0 pmem_exist` 读全 1（测试机约定 64 区域全存在）、写 ⇒ `CFXREG`；`cg12/13/14 rc0..63` 为 64 位 RW 存储，其余 cg8 rc ⇒ `CFXREG`；`cfx2rd/rc` 在 cg15 前接线该面；`cfx_power cg8 rc1` 写被接受（按 `§4.12` bit0 关机 / bit1 硬复位 / bit2 软复位落 QEMU run state；写 0 无动作），读仍 ⇒ `CFXREG`；**写分支按 profile 门控**：`DadaoProfile.power_ctrl`（Vast true / Tiny false），Tiny 按 `spec/Kaiwu §3` 落回通用路径 ⇒ `CFXREG`（不设静默桩）；`cg9 rc6` 读回恒 supv(2)、写被接受且不生效，`dadao_async_enter()` 固定投递 supv。`tests/arch/{pmem,power}` 与 `expected-divergences.yaml DIV-06` 同步 QEMU 侧现状（gem5 仍未补齐，close_when 收窄不删除）。补丁 3 份改（`target/dadao/{cpu.c,cpu.h,helper.c}`）。
   - 执行者：engineer
 
+- **2026-11-25 `m16-qemu-007`**
+  - 摘要：**`cfx_hart cg9 rc6`（`async_switch_run_mode`）回归 `m18-spec-006`：RW、复位 2、异步进入取该值**。`target/dadao/cpu.h`：`DadaoHartAsync` 恢复 `switch_run_mode` 存储（2 位，复位 2 = supv）。`target/dadao/cpu.c`：复位置 `switch_run_mode = supv`。`target/dadao/helper.c`：`cg9 rc6` 读回存储值、写 `val & 0x3` 落地（不再是「写接受、忽略、恒 2」）；`dadao_async_enter()` 的进入模式改为 `switch_run_mode & 0x3`（删除硬编码 supv 与 Tiny 的 hypv 覆盖——Tiny 无 cfx_hart，不可达）。`tests/arch/hart/cfx15.S`：`arch-hart-001` 增加 rc6 复位 2、写 0/1/3 读回、supv 下 rc6=0/2 连续投递并以 `prev_run_mode` 证明进入模式（89 槽）；`check_cfx15.py`/`check_hart.py`/`check_hart_rtl.py`/`expected.yaml`/README 同步。`tests/arch/expected-divergences.yaml`：`DIV-18` 收窄为 RTL/gem5（QEMU 已对齐）。补丁 3 份改（`target/dadao/{cpu.c,cpu.h,helper.c}`）。
+  - 执行者：engineer
+
 ## M17
 
 - **2026-11-24 `m17-qemu-001`**

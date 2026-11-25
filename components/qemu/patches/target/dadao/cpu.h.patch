@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..9acc859
+index 0000000..8c32a06
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,817 @@
+@@ -0,0 +1,818 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -560,9 +560,10 @@ index 0000000..9acc859
 +    uint64_t src_frame;              /* rc3 HW/RO (bit = source cfxha) */
 +    uint64_t src_pending;            /* rc4 HW/RO (bit = source cfxha) */
 +    uint64_t excp_vector;            /* rc5 (48-bit, 4-byte aligned) */
-+    /* rc6 async_switch_run_mode is fixed supv (2): writes are accepted and
-+     * ignored, reads return 2, and delivery always enters supv, so it has no
-+     * state (`DADAO-12 §4.7`; m16-qemu-006). */
++    /* rc6 async_switch_run_mode: RW 2-bit run mode of the next async entry
++     * (user/jail/supv/hypv), reset 2 = supv (`DADAO-12 §4.7`/`§5.4`;
++     * m18-spec-006, m16-qemu-007). */
++    uint64_t switch_run_mode;
 +} DadaoHartAsync;
 +
 +/* Per-cfx cg4..cg6 (config / exception frame / scratch).  cg7 (internal

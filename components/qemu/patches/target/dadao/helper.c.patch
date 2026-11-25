@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..9174a9d
+index 0000000..af91c93
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3982 @@
+@@ -0,0 +1,3980 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -3269,13 +3269,10 @@ index 0000000..9174a9d
 +    a->prev_run_mode = entry_mode & 0x3;
 +    a->prev_cfx_code = env->inner_cfx_code & 0x3F;
 +    a->cause_ip = cause_ip & 0x0000FFFFFFFFFFFFULL & ~0x3ULL;  /* 48-bit, aligned */
-+    /* Switch to cfx_hart's supv async mode/vector (ADR-0061 D1; §4.7 rc6 is
-+     * fixed supv, software writes to it are accepted and ignored). */
++    /* Switch to cfx_hart at the async vector, in the run mode held by
++     * `cg9 rc6` (async_switch_run_mode; RW, reset 2 = supv; §4.7/§5.4). */
 +    dadao_soft_tlb_flush(env);
-+    env->inner_run_mode = DADAO_MODE_SUPV;
-+    if (!DADAO_PROFILE(env)->user_mode) {
-+        env->inner_run_mode = DADAO_MODE_HYPV;
-+    }
++    env->inner_run_mode = a->switch_run_mode & 0x3;
 +    env->inner_cfx_code = DADAO_CFXHA_HART;
 +    env->lock_valid = 0;                /* exception entry clears LR/SC */
 +    env->pc = a->excp_vector & ~0x3ULL;
@@ -3447,7 +3444,7 @@ index 0000000..9174a9d
 +    case 4: *val = a->src_pending;
 +        return true;    /* HW/RO */
 +    case 5: *val = a->excp_vector & DADAO_ASYNC_ADDR_MASK; return true;
-+    case 6: *val = DADAO_MODE_SUPV; return true;   /* fixed supv (§4.7) */
++    case 6: *val = a->switch_run_mode & 0x3; return true;   /* RW (§4.7) */
 +    default:                            /* rc7-rc15 reserved => CFXREG */
 +        return false;
 +    }
@@ -3473,8 +3470,9 @@ index 0000000..9174a9d
 +    case 5:                             /* 48-bit, low 2 bits ignored */
 +        a->excp_vector = val & DADAO_ASYNC_ADDR_MASK & ~0x3ULL;
 +        return true;
-+    case 6:                             /* fixed supv: accepted, ignored */
-+        return true;                    /* read stays 2, delivery stays supv */
++    case 6:                             /* RW 2-bit: store it (§4.7) */
++        a->switch_run_mode = val & 0x3;
++        return true;
 +    default:                            /* rc7-rc15 reserved => CFXREG */
 +        return false;
 +    }

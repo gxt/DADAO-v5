@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..693a312
+index 0000000..12d1ab5
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,683 @@
+@@ -0,0 +1,684 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -354,8 +354,9 @@ index 0000000..693a312
 +        r->cause_info = 0;                    /* cg5 rc4 */
 +        r->pending = 0;                       /* cg5 rc5 */
 +        /* cfx_hart cg9 (DADAO-12 §4.7; ADR-0061 D7): 7 slots; the frame and
-+         * both bitmaps start 0 (no live frame, no pending source).  rc6 is
-+         * fixed supv and has no state (m16-qemu-006). */
++         * both bitmaps start 0 (no live frame, no pending source).  rc6
++         * (async_switch_run_mode) is RW, reset 2 = supv (m18-spec-006). */
++        r->async.switch_run_mode = DADAO_MODE_SUPV;
 +        /* cg6 scratch[]/cg7 left 0 (scratch undefined at reset) */
 +    }
 +
