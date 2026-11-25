@@ -197,9 +197,9 @@
   - testcases
   - chipyard
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: won't-fix（用户 2026-11-25：页表必须在内存、不构建 ADWBFAIL 用例）
   title: 【P2·GAP】`ADWBFAIL`（`CFXMEM` 子原因 `[56]`）在正常路径**不可达**：PA RAM 全可写，三平台只能靠故障注入；RTL 有 `CASE_ADWB` 手工镜像，QEMU/gem5 无测试专用注入钩子。用户 2026-11-22 裁定 **C：不单列 M16 用例，登记 GAP**；保留 RTL 手工证据，不在 `tests/arch` 做三方签名。若将来要三方覆盖，需给 QEMU/gem5 加注入开关（独立任务）。
 - id: ISS-516
   scope:
