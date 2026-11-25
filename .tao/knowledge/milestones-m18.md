@@ -30,7 +30,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m18-linux-025 | 3–5 h | 用户态异步投递在 LTP 负载下自旋（≈70%，`ISS-m18-001` 族）；阻塞 `m18-linux-006` 验收 6；须私有旧版 QEMU |
+| m18-linux-025 | 3–5 h | 用户态异步投递在 LTP 负载下自旋（≈70%，`ISS-m18-001` 族）；**等 026 内核移植后在新模型上修**（用户裁定 B） |
 | m18-qemu-007 | 2–3 h | QEMU system 移除 `cfx_jmon`（cfx1）实现（无设计、RTL 亦无）；`trap/访问` ⇒ CFXREG；**须等「异步 escape」规范与内核换帧都落地后再合入** |
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
