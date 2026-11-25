@@ -1831,6 +1831,7 @@ def selfcheck():
 
 def main():
     global QEMU, MODE, CFX_ACCESS
+    os.makedirs(WORKDIR, exist_ok=True)
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--only", default=None,
                     help="case id, case name, or <case id>/<check label>")
