@@ -298,8 +298,8 @@ def derive_trace(records, image, decoder):
             rd8_taint = False
         if rd8_taint:
             rd8_skips += 1
-        dst, val, skipped = tc.reg_delta(a["banks"], b["banks"], ra_ok,
-                                         rd8_ok=not rd8_taint)
+        dst, val, skipped, skips = tc.reg_delta(a["banks"], b["banks"], ra_ok,
+                                                rd8_ok=not rd8_taint)
         ra_skips += skipped
         exc = None
         for cfx in (3, 63):
@@ -309,8 +309,10 @@ def derive_trace(records, image, decoder):
                 frame = b["cfx5"].get(cfx, [0] * 5)
                 exc = tc.exc_object(cfx, frame[1], frame[2], frame[3])
                 break
-        out.append(tc.make_record(i + 1, a["pc"], word, op_id, mnemonic,
-                                  dst, val, exc))
+        rec = tc.make_record(i + 1, a["pc"], word, op_id, mnemonic,
+                             dst, val, exc)
+        rec["skip"] = skips                  # 比较用：E4 跳过的 RA 条目名
+        out.append(rec)
         states.append({"mode": b["mode"], "cfx": b["cfx"]})
     return {"records": out, "states": states, "ra_ok": ra_ok,
             "rd8_taint": rd8_taint, "unresolved": unresolved,

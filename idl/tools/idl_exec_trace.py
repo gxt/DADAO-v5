@@ -94,13 +94,15 @@ def build_trace(elf, bootrom, init_state=None, max_steps=2_000_000,
                 records[-1]["exc"] = exc
             states[-1] = {"mode": machine.mode, "cfx": machine.cfx_code}
             continue
-        dst, val, skipped = tc.reg_delta(before, after, ra_ok,
-                                         rd8_ok=not rd8_taint)
+        dst, val, skipped, skips = tc.reg_delta(before, after, ra_ok,
+                                                rd8_ok=not rd8_taint)
         ra_skips += skipped
         insn = machine.dec.decode(obs["word"])
-        records.append(tc.make_record(
+        rec = tc.make_record(
             len(records) + 1, obs["pc"], obs["word"], obs["id"],
-            insn.mnemonic if insn is not None else None, dst, val, exc))
+            insn.mnemonic if insn is not None else None, dst, val, exc)
+        rec["skip"] = skips              # 比较用：E4 跳过的 RA 条目名
+        records.append(rec)
         states.append({"mode": machine.mode, "cfx": machine.cfx_code})
         if max_records is not None and len(records) >= max_records:
             break
@@ -147,7 +149,7 @@ def self_test():
     after["rd"][0] = 0
     after["ra"][63] = 9                              # 有效区 ⇒ 列出
     after["ra"][1] = 9                               # 有效区外 ⇒ 不列出
-    dst, val, skipped = tc.reg_delta(banks, after, ra_ok)
+    dst, val, skipped, _ = tc.reg_delta(banks, after, ra_ok)
     eq("delta_rd", dst[:1], ["rd5"])
     eq("delta_no_rb0", "rb0" in dst, False)
     eq("delta_ra_valid", "ra63" in dst, True)
@@ -158,14 +160,14 @@ def self_test():
     ra_ok2 = tc.init_ra_ok(banks2)
     after2 = {b: list(v) for b, v in banks2.items()}
     after2["ra"][0] = 0x0002_0000_0000_0000
-    dst2, _, skipped2 = tc.reg_delta(banks2, after2, ra_ok2)
+    dst2, _, skipped2, _ = tc.reg_delta(banks2, after2, ra_ok2)
     eq("ra_promoted_not_listed", "ra63" in dst2, False)
     eq("ra_promoted_skipped_count", skipped2, 2)     # ra62/ra63 均未定义
     # rd8：semihosting 之后整条记录跳过
     banks3 = {b: [0] * 64 for b in tc.BANKS}
     after3 = {b: list(v) for b, v in banks3.items()}
     after3["rd"][8] = 0xDEADBEEF
-    dst3, _, _ = tc.reg_delta(banks3, after3, set(), rd8_ok=False)
+    dst3, _, _, _ = tc.reg_delta(banks3, after3, set(), rd8_ok=False)
     eq("rd8_skipped", "rd8" in dst3, False)
     # 异常对象字段
     exc = tc.exc_object(3, 0x200000000000002, 0x1000, 0x1000)
