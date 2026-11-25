@@ -494,3 +494,14 @@
   closed_in: null
   resolved_by: null
   title: "【P2·flake】当期 Vast 构建上 `cfx15.S` 偶发挂死：`m16-chipyard-029` 复核两次 `+verbose` 实测各有 1/3 次在 99607 cycle 挂死（其余 104765 cycle 正常完成、80 槽）；与 verbose 无确定相关，原因未定位。需在多轮重复下量化频率并定位（启动链/中断边界/探针时序），排除与 028 的 rc6/异步路径交互。"
+- id: ISS-m16-012
+  scope:
+  - chipyard
+  - qemu
+  - gem5
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P1·跨里程碑】`m18-spec-007`（`24f3fdb2`，2026-11-26 01:09，`DADAO-12` 升 0.8.0）重排了异步层，M16 刚对齐的三实现与探针全部过时：① `cg9` 新布局（rc0–rc5 入口记录 HW/RO、rc6–13 reserved、rc14 switch、rc15 vector）；② `cg5` 重排（rc0–rc3 prev_*、rc4 cause id、rc5 cause info、rc8–rc11 出口意图）；③ `escape cfxHA` 的 `imms18` 必须为 0，旧 `+0/+4` 与 cg9 frame selector 作废、返回地址取 `cg5 rc10`。影响：RTL（028）、QEMU（qemu-007）、gem5（gem5-025）的 cg9/escape 实现与 `tests/arch/hart`、`tests/arch/pmem`（013/014）、`check_cfx15` oracle 均不符 ⇒ `run_arch --self-test` 在 master 已 rc=1（oracle 断言旧 `HW/RW`），`check-arch-vast` 无法跑。需按 spec-007 全链重对齐（方向=改实现/oracle，不回退 spec）。"
