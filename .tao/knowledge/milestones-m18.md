@@ -33,7 +33,6 @@
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
 | m18-spec-001 | 2–4 h | cg4 `scratch_regs_num` 缺省值：每个非 reserved cfx = 2（QEMU/gem5/RTL 由 4 改 2）；spec/契约 + 探针 |
-| m18-chipyard-001 | 3–5 h | RTL `escape` frame selector 语义（cg9；等 M16 chipyard 批次） |
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
 | m18-linux-017 | 3–4 h | `clock_nanosleep(TIMER_ABSTIME)` 整机停摆（KERNEL_BUG） |
 | m18-linux-018 | 2–3 h | 套件环境补齐（TMPFS/MEMFD、非 root uid、`/proc/iomem`；SUITE_ENV） |
@@ -53,6 +52,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-chipyard-001 | 2026-11-25 12:20 | **作废**（ADR-0061 R2 取代）：`escape imms18[1]=1` ⇒ 当前 cfx `CFXESC`，cg9 只作捕获缓冲；RTL 语义已由 `m16-chipyard-021/024/026` 交付，rc6 残余对齐另立 `m16-chipyard-028` |
 | m18-spec-006 | 2026-11-25 12:02 | `cg9 rc6` 口径统一（复位 2、进入取 rc6；用户裁定①）+ `check_cfx15` 兼容新旧措辞；27/27、注入 49/49 |
 | m18-idl-002 | 2026-11-25 09:06 | IDL 执行器 cg9 新模型（七槽/源位 cfxha/monitor mask/整体覆盖/escape cg9 ⇒ CFXESC）；`check-idl` 274/274、self-test 68/68 |
 | m18-linux-023 | 2026-11-25 07:05 | Linux 侧异常解码适配扁平位图（K1 113/113、K2 170/170、K5 5/5；删 NCFXPERM/NONPTW；K6 残余红归 024/ISS-539） |
