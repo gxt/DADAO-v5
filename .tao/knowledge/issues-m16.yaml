@@ -541,9 +541,9 @@
   - chipyard
   - testcases
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: m16-chipyard-029（根因=旧 ELF 误报：m17 前 `cfx15.S` 缺 `perm_hypv.inc`，与 m17 后 RTL 错配；当期探针+当期 RTL 80/40/40 全绿，无 RTL 缺陷）
   title: "【P1】共享 `.work/source/chipyard` 当期构建（`13ef828`，11-25 10:10，Vast sim `53c367f6…`）上 `tests/arch/hart/cfx15.S` 不收敛：`+max-cycles=8e6` 内 `$stop`/0 槽，`1.05M` cycle 内 `_start` 重启 881 次；11-24 17:50 旧构建（`f39a0c6`，缺 023/027/m17-chipyard-001）同一 ELF <300k cycle 完成、80 槽过 oracle ⇒ 新补丁集组合引入。阻断 gem5-026 的当期复跑、025/028/022/023 的 RTL 腿与 M16 `check-arch-vast`。由 `m16-chipyard-029` 定位/修复。"
 - id: ISS-m16-009
   scope:
@@ -563,3 +563,12 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`tests/arch/ptw/check_ptw_rtl.py` 缺 `--mode` 支持，而 `modes.yaml` 声明 ptw 三模式 ⇒ `run_arch --cfx 4 --platforms chipyard` rc=1（driver rc=2）；在 `b9622776`（m17 前）同样存在 ⇒ 基线红。另：单平台 `run_arch`（只给 `--platforms chipyard`）会对未跑的 QEMU/gem5 腿报假「跨平台不一致」，单平台回归应直调 `check_*_rtl.py` 或让 `run_arch` 识别单平台。`m16-chipyard-029` 复核发现。"
+- id: ISS-m16-011
+  scope:
+  - chipyard
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2·flake】当期 Vast 构建上 `cfx15.S` 偶发挂死：`m16-chipyard-029` 复核两次 `+verbose` 实测各有 1/3 次在 99607 cycle 挂死（其余 104765 cycle 正常完成、80 槽）；与 verbose 无确定相关，原因未定位。需在多轮重复下量化频率并定位（启动链/中断边界/探针时序），排除与 028 的 rc6/异步路径交互。"
