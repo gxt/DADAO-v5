@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.hh b/src/arch/dadao/inst.hh
 new file mode 100644
-index 0000000..9b88ee2
+index 0000000..2b9de1f
 --- /dev/null
 +++ b/src/arch/dadao/inst.hh
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,93 @@
 +// DADAO StaticInst (B0 decode + B1/B2/B3/B4/B5/B6/B7 execution).
 +#
 +// One instruction class carries the decode result.  Batches B1 (load/store),
@@ -33,6 +33,12 @@ index 0000000..9b88ee2
 +  private:
 +    DadaoISA::ExtMachInst word;
 +    DadaoISA::decode::DecodedInst decoded;
++
++    /** ``decoded`` is the semihosting trap entry.  The id check is done once
++     *  per static instruction in the constructor: execute() runs it for every
++     *  executed instruction, and the string_view/strlen pair was measurable
++     *  on the SE interpreter's hot path. */
++    bool semihostTrap = false;
 +
 +    std::string generateDisassembly(
 +            Addr pc, const loader::SymbolTable *symtab) const override;

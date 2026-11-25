@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b5.cc b/src/arch/dadao/exec/b5.cc
 new file mode 100644
-index 0000000..5d10321
+index 0000000..9cf3952
 --- /dev/null
 +++ b/src/arch/dadao/exec/b5.cc
-@@ -0,0 +1,550 @@
+@@ -0,0 +1,558 @@
 +// DADAO gem5 B5 execution core -- implementation.
 +//
 +// The 29 B5 ids are dispatched through the table below, by `entry->id` (never
@@ -113,6 +113,14 @@ index 0000000..5d10321
 +
 +constexpr size_t kNumSpecs = sizeof(kSpecs) / sizeof(kSpecs[0]);
 +static_assert(kNumSpecs == 29, "B5 must cover exactly the 29 contract ids");
++
++/** Entry-indexed form used by the execution path; see SpecsByEntry. */
++const B5Spec *
++b5SpecForEntry(const decode::DecodeEntry *entry)
++{
++    static const SpecsByEntry<B5Spec, kNumSpecs> table(kSpecs);
++    return table.get(entry);
++}
 +
 +/** A batch-5 instruction this table cannot execute is a contract or
 + * implementation mismatch.  Trap instead of silently succeeding. */
@@ -344,7 +352,7 @@ index 0000000..5d10321
 +    if (!inst.ok() || inst.entry->batch != 5)
 +        return Fault::NotB5;
 +
-+    const B5Spec *spec = b5SpecForId(inst.entry->id);
++    const B5Spec *spec = b5SpecForEntry(inst.entry);
 +    if (spec == nullptr)
 +        internalError("uncovered batch-5 id");
 +

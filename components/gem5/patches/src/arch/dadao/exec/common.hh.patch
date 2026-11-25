@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/common.hh b/src/arch/dadao/exec/common.hh
 new file mode 100644
-index 0000000..4911586
+index 0000000..c7c1c3e
 --- /dev/null
 +++ b/src/arch/dadao/exec/common.hh
-@@ -0,0 +1,130 @@
+@@ -0,0 +1,208 @@
 +// DADAO gem5 execution core: shared register access for the B1-B7 batches.
 +//
 +// Plain C++ (no gem5 headers), like the B0 decode core, so the same code is
@@ -20,6 +20,7 @@ index 0000000..4911586
 +#include <cstddef>
 +#include <cstdint>
 +#include <string_view>
++#include <vector>
 +
 +#include "arch/dadao/decode/decode.hh"
 +
@@ -113,6 +114,15 @@ index 0000000..4911586
 + *
 + * Callers must treat false as a hard failure (ILLI / panic), never as a zero
 + * value: a missing field means the contract and the implementation disagree.
++ *
++ * The execution cores look the same field names up on every execution of a
++ * static instruction, so a linear name scan per operand is measurable in the
++ * SE interpreter (the field names are addressable literals at each call site).
++ * A small direct-mapped cache keyed by the decoded entry plus the literal's
++ * address and length turns the steady state into one pointer comparison; a
++ * miss runs the original scan and refills the entry, so an answer can never
++ * differ from the scan.  gem5's simulation loop is single-threaded, like the
++ * standalone assertion harnesses.
 + */
 +inline bool
 +fieldValue(const decode::DecodedInst &inst, std::string_view name,
@@ -120,14 +130,82 @@ index 0000000..4911586
 +{
 +    if (!inst.ok() || name.empty())
 +        return false;
++
++    struct CacheSlot
++    {
++        const decode::DecodeEntry *entry = nullptr;
++        const char *name = nullptr;
++        size_t length = 0;
++        uint8_t index = 0;
++    };
++    static constexpr unsigned kCacheSlots = 512;
++    static CacheSlot cache[kCacheSlots];
++
++    const uintptr_t entryAddr = reinterpret_cast<uintptr_t>(inst.entry);
++    const uintptr_t nameAddr = reinterpret_cast<uintptr_t>(name.data());
++    const unsigned slot = static_cast<unsigned>(
++        ((entryAddr >> 4) ^ nameAddr ^ (name.size() << 1)) &
++        (kCacheSlots - 1));
++    CacheSlot &cached = cache[slot];
++    if (cached.entry == inst.entry && cached.name == name.data() &&
++        cached.length == name.size()) {
++        out = inst.fieldValues[cached.index];
++        return true;
++    }
++
 +    for (unsigned i = 0; i < inst.numFields; ++i) {
 +        if (std::string_view(decode::fieldDesc(*inst.entry, i).name) == name) {
 +            out = inst.fieldValues[i];
++            cached = CacheSlot{inst.entry, name.data(), name.size(),
++                               static_cast<uint8_t>(i)};
 +            return true;
 +        }
 +    }
 +    return false;
 +}
++
++/** Resolve an execution-core spec from the decoded entry in constant time.
++ *
++ * `specForId()` scans the id strings of a whole batch (up to 63 for B4), and
++ * the SE dispatcher called it on every executed instruction; that scan was the
++ * dominant per-instruction cost of the interpreter.  A `DecodedInst` always
++ * carries a pointer into the generated decode table, whose position is stable,
++ * so the mapping is built once per spec table (by id, matching the old scan)
++ * and then indexed by the entry's position.  An entry outside the table (or a
++ * spec id the decode table does not know) still yields nullptr, i.e. the
++ * uncovered-id error path is unchanged.
++ */
++template <class Spec, size_t N>
++class SpecsByEntry
++{
++  public:
++    explicit SpecsByEntry(const Spec (&specs)[N])
++    {
++        const decode::DecodeEntry *base = decode::entries();
++        byEntry.assign(decode::entryCount(), nullptr);
++        for (const Spec &spec : specs) {
++            const decode::DecodeEntry *entry = decode::entryById(spec.id);
++            if (entry != nullptr) {
++                byEntry[static_cast<size_t>(entry - base)] = &spec;
++            }
++        }
++    }
++
++    const Spec *
++    get(const decode::DecodeEntry *entry) const
++    {
++        const decode::DecodeEntry *base = decode::entries();
++        const uintptr_t addr = reinterpret_cast<uintptr_t>(entry);
++        const uintptr_t start = reinterpret_cast<uintptr_t>(base);
++        const uintptr_t end = start + decode::entryCount() * sizeof(*base);
++        if (entry == nullptr || addr < start || addr >= end)
++            return nullptr;
++        return byEntry[static_cast<size_t>(entry - base)];
++    }
++
++  private:
++    std::vector<const Spec *> byEntry;
++};
 +
 +} // namespace exec
 +} // namespace DadaoISA

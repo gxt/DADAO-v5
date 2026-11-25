@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b2.cc b/src/arch/dadao/exec/b2.cc
 new file mode 100644
-index 0000000..de6f84a
+index 0000000..8de76b5
 --- /dev/null
 +++ b/src/arch/dadao/exec/b2.cc
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,200 @@
 +// DADAO gem5 B2 execution core -- implementation.
 +//
 +// The 8 B2 ids are dispatched through the table below (no mnemonic guessing:
@@ -100,13 +100,21 @@ index 0000000..de6f84a
 +    return nullptr;
 +}
 +
++/** Entry-indexed form used by the execution path; see SpecsByEntry. */
++const B2Spec *
++b2SpecForEntry(const decode::DecodeEntry *entry)
++{
++    static const SpecsByEntry<B2Spec, kNumSpecs> table(kSpecs);
++    return table.get(entry);
++}
++
 +Fault
 +executeB2(const decode::DecodedInst &inst, RegAccess &ctx)
 +{
 +    if (!inst.ok() || inst.entry->batch != 2)
 +        return Fault::NotB2;
 +
-+    const B2Spec *spec = b2SpecForId(inst.entry->id);
++    const B2Spec *spec = b2SpecForEntry(inst.entry);
 +    if (spec == nullptr)
 +        internalError("uncovered batch-2 id");
 +

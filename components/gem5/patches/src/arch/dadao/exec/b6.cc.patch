@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b6.cc b/src/arch/dadao/exec/b6.cc
 new file mode 100644
-index 0000000..7025a4d
+index 0000000..f8be118
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6.cc
-@@ -0,0 +1,423 @@
+@@ -0,0 +1,431 @@
 +// DADAO gem5 B6 execution core -- implementation.
 +//
 +// The 30 B6 ids are dispatched through the table below, by `entry->id` (never
@@ -107,6 +107,14 @@ index 0000000..7025a4d
 +
 +constexpr size_t kNumSpecs = sizeof(kSpecs) / sizeof(kSpecs[0]);
 +static_assert(kNumSpecs == 30, "B6 must cover exactly the 30 contract ids");
++
++/** Entry-indexed form used by the execution path; see SpecsByEntry. */
++const B6Spec *
++b6SpecForEntry(const decode::DecodeEntry *entry)
++{
++    static const SpecsByEntry<B6Spec, kNumSpecs> table(kSpecs);
++    return table.get(entry);
++}
 +
 +/** A batch-6 instruction this table cannot execute is a contract or
 + * implementation mismatch.  Trap instead of silently succeeding. */
@@ -350,7 +358,7 @@ index 0000000..7025a4d
 +    if (!inst.ok() || inst.entry->batch != 6)
 +        return Fault::NotB6;
 +
-+    const B6Spec *spec = b6SpecForId(inst.entry->id);
++    const B6Spec *spec = b6SpecForEntry(inst.entry);
 +    if (spec == nullptr)
 +        internalError("uncovered batch-6 id");
 +

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b1.cc b/src/arch/dadao/exec/b1.cc
 new file mode 100644
-index 0000000..7135788
+index 0000000..95524ce
 --- /dev/null
 +++ b/src/arch/dadao/exec/b1.cc
-@@ -0,0 +1,333 @@
+@@ -0,0 +1,341 @@
 +// DADAO gem5 B1 execution core -- implementation.
 +//
 +// The 38 B1 ids are dispatched through the table below (no mnemonic guessing:
@@ -208,6 +208,14 @@ index 0000000..7135788
 +    return nullptr;
 +}
 +
++/** Entry-indexed form used by the execution path; see SpecsByEntry. */
++const B1Spec *
++specForEntry(const decode::DecodeEntry *entry)
++{
++    static const SpecsByEntry<B1Spec, kNumSpecs> table(kSpecs);
++    return table.get(entry);
++}
++
 +Fault
 +executeB1(const decode::DecodedInst &inst, B1Context &ctx)
 +{
@@ -217,7 +225,7 @@ index 0000000..7135788
 +    // An uncovered B1 id is a contract/implementation mismatch: trap (ILLI)
 +    // instead of silently succeeding.  b1_test asserts the covered set equals
 +    // the live B1 set, so this branch is unreachable for a coherent table.
-+    const B1Spec *spec = specForId(inst.entry->id);
++    const B1Spec *spec = specForEntry(inst.entry);
 +    if (spec == nullptr)
 +        return Fault::Illegal;
 +

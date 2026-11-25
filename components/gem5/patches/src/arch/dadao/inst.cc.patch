@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..b8b5bd6
+index 0000000..43762a0
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,1010 @@
+@@ -0,0 +1,1030 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -140,7 +140,7 @@ index 0000000..b8b5bd6
 +{
 +    if (!DadaoISA::ISA::anyReservationHeld())
 +        return;
-+    auto *mine = dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr());
++    auto *mine = static_cast<DadaoISA::ISA *>(tc->getIsaPtr());
 +    // Copy first: clearReservations() shrinks the holder list.
 +    std::vector<DadaoISA::ISA *> hit;
 +    for (DadaoISA::ISA *isa : DadaoISA::ISA::reservationHolders()) {
@@ -185,17 +185,36 @@ index 0000000..b8b5bd6
 +        return RegId(DadaoISA::floatRegClass, idx);
 +    }
 +
-+    static std::vector<bool>
++    static const std::vector<bool> &
 +    allBytes(unsigned bytes)
 +    {
-+        return std::vector<bool>(bytes, true);
++        // A DADAO element access is 1, 2, 4 or 8 bytes, and every byte of it
++        // is enabled.  The tables are static: gem5's ExecContext takes the
++        // byte enables by const reference, and building a fresh vector on
++        // every load/store was one heap allocation per memory instruction.
++        static const std::vector<bool> b1(1, true);
++        static const std::vector<bool> b2(2, true);
++        static const std::vector<bool> b4(4, true);
++        static const std::vector<bool> b8(8, true);
++        switch (bytes) {
++          case 1: return b1;
++          case 2: return b2;
++          case 4: return b4;
++          case 8: return b8;
++          default:
++            panic("DADAO exec: %u-byte memory access is not an element size",
++                  bytes);
++        }
 +    }
 +
 +    DadaoISA::ISA *
 +    isa() const
 +    {
-+        // One ISA object per thread (B6 reservation state lives there).
-+        auto *isa = dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr());
++        // One ISA object per thread (B6 reservation state lives there).  A
++        // DADAO StaticInst only ever runs on a DadaoISA thread, so the
++        // downcast is static, like gem5's other ISA StaticInst helpers; a
++        // dynamic_cast here is measurable on every executed instruction.
++        auto *isa = static_cast<DadaoISA::ISA *>(tc->getIsaPtr());
 +        if (isa == nullptr)
 +            panic("DADAO exec: thread ISA object is not a DadaoISA::ISA");
 +        return isa;
@@ -204,7 +223,7 @@ index 0000000..b8b5bd6
 +    DadaoISA::ISA *
 +    dadaoIsa() const
 +    {
-+        return dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr());
++        return static_cast<DadaoISA::ISA *>(tc->getIsaPtr());
 +    }
 +
 +    static bool nodeActive(DadaoISA::ISA *isa)
@@ -763,6 +782,7 @@ index 0000000..b8b5bd6
 +{
 +    size(4);
 +    if (decoded.ok()) {
++        semihostTrap = std::string_view(decoded.entry->id) == "trap_ciii_cfx";
 +        const bool fp = std::string(decoded.entry->scope) == "fp";
 +        flags[IsInteger] = !fp;
 +        flags[IsFloating] = fp;
@@ -820,7 +840,7 @@ index 0000000..b8b5bd6
 +    // Node instruction-boundary bookkeeping: count instructions, emit the
 +    // optional PC/MODE trace, and deliver one pending async source before the
 +    // instruction runs (single-hart, AtomicSimpleCPU granularity).
-+    auto *isa = dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr());
++    auto *isa = static_cast<DadaoISA::ISA *>(tc->getIsaPtr());
 +    // The latency hook runs from advanceInst(), after advancePC(); record the
 +    // address of *this* instruction while it is still the pc state.  A block
 +    // transfer may take `rb0` (= current IP) as its base, which no register
@@ -875,7 +895,7 @@ index 0000000..b8b5bd6
 +    // run can carry one as well (DadaoSEWorkload.semihosting; NULL by
 +    // default).  With no responder the SE path falls through unchanged and the
 +    // trap reaches the execution core, which panics as before.
-+    if (std::string_view(decoded.entry->id) == "trap_ciii_cfx") {
++    if (semihostTrap) {
 +        uint64_t immu18 = 0;
 +        if (exec::fieldValue(decoded, "immu18", immu18) &&
 +            (immu18 & 0x3FF00) == 0x3FF00) {

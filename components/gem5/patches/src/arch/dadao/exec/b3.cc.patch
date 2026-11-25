@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b3.cc b/src/arch/dadao/exec/b3.cc
 new file mode 100644
-index 0000000..d6df748
+index 0000000..df6f74e
 --- /dev/null
 +++ b/src/arch/dadao/exec/b3.cc
-@@ -0,0 +1,623 @@
+@@ -0,0 +1,631 @@
 +// DADAO gem5 B3 execution core -- implementation.
 +//
 +// The 42 B3 ids are dispatched through the table below (no mnemonic guessing:
@@ -228,13 +228,21 @@ index 0000000..d6df748
 +    return nullptr;
 +}
 +
++/** Entry-indexed form used by the execution path; see SpecsByEntry. */
++const B3Spec *
++b3SpecForEntry(const decode::DecodeEntry *entry)
++{
++    static const SpecsByEntry<B3Spec, kNumSpecs> table(kSpecs);
++    return table.get(entry);
++}
++
 +Fault
 +executeB3(const decode::DecodedInst &inst, RegAccess &ctx)
 +{
 +    if (!inst.ok() || inst.entry->batch != 3)
 +        return Fault::NotB3;
 +
-+    const B3Spec *spec = b3SpecForId(inst.entry->id);
++    const B3Spec *spec = b3SpecForEntry(inst.entry);
 +    if (spec == nullptr)
 +        internalError("uncovered batch-3 id");
 +
