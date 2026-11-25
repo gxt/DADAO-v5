@@ -183,15 +183,6 @@
   closed_in: null
   resolved_by: null
   title: 【P2】QEMU 的 `cfx2rd`/`cfxtrap` 掩码拒绝时 `CFXPERM` 的 `cause_info` 给的是**指令编码**，而 `contract-see §6.1` / `DADAO-12 §4.1` 要求 = **触发指令地址**（与 `excp_cause_ip` 同值）。影响：三平台 `CFXPERM` 的 `cause_info` 不一致（gem5/chipyard 按契约给地址），内核诊断打印的单位会错。来源：`m14-testcases-006` 固件复核时发现（非本任务范围）。处置建议：单立 qemu 任务修 `helper.c` 的拒绝路径 + 补探针（负例断言 `cause_info == excp_cause_ip`）。备注：`m17-idl-020` 实测 gem5 同样给指令编码（原正文称 gem5 正确）；且 2026-11-24 起按扁平位图改造，修法需按 ADR-0062 执行。
-- id: ISS-504
-  scope:
-  - testcases
-  - picolibc
-  milestone: M15
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】picolibc 自测 harness `run_picolibc_tests_tiny.py` 的 `.done` 复用键在 qemu 引擎下 `sim_md5` 恒为 `None`（`obs` 只在 chipyard 分支产生），`info.get("sim_md5") == sim_md5` 退化为 `None == None` ⇒ **换库/换 lds 后仍复用旧判决**（`m15-infra-009` 报 `pass=6` 即此因）。处置：把被测输入指纹（`libc.a` + 安装版 lds + 工具链）纳入 key，或给 harness 加 `--force`/`--no-reuse`；在此之前证据脚本须先删运行期 `run/` 目录。
 - id: ISS-505
   scope:
   - testcases
@@ -219,11 +210,4 @@
   resolved_by: null
   title: 【P2】LLVM DADAO **CodeGen 侧** `DADAORegisterInfo.cpp` 仍以 `DADAO::RBSP`（= SP）作 RA 寄存器，与 MC 侧（`ra63`，DWARF 255）不一致；当前无消费者（grep 证实），但形态上是同一口径两处真源。建议后续统一并补断言。
 
-- id: ISS-430
-  scope:
-  - llvm
-  milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】`m14-llvm-005` 后 `.set VD, L1-L0` 再 `set.zw rbX, wpN, VD` 由「静默 0」变为**报错**（`VD` 是 Absolute 符号、本可编码 4）。禁静默是对的，但把「已由 `.set` 固化为绝对符号」的操作数也一并拒了，属表达能力回退；诊断文案还把它称作 symbol difference（其实是单符号操作数）。建议：对 `.set` 定义的 Absolute 符号放行，或至少改文案 + lit 固化。
+

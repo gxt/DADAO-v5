@@ -113,3 +113,20 @@
   closed_in: M20
   resolved_by: m20-testcases-003（2026-11-25：stm.t rd/rf 与 stm.w rd 各补 63 例，rf0 源注释明确完整 64 位；check-inst-asm 274/274、check-idl 274/274、check-case-ledger rc=0）
   title: '【P3】`stm.t`/`stm.w` 缺 `immu6=63` 边界用例：`stm.b_rrri_rd` 与 `stm.o_rrri_{rd,rf,ra,rb}` 已由 `m17-testcases-006` 补齐 63 例，但 `stm.t_rrri_rd`/`stm.t_rrri_rf`/`stm.w_rrri_rd` 仍无 `immu6=63`；同时 `stm.t_rrri_rf` 的 rf0 源注释只说 FCSR 字段、未明确“读出完整 64 位（本指令只存低 32 位）”。现场 `git blame` 显示相关行由 `b69347fc` 更新，RD 注释已为“读出 0”，不再有“0/当前指令地址”。处置：三个文件各补 1 个 63 链例（首/中/尾 + 下一单元未写），并明确 rf0 源读出宽度；同步 case-ledger/signature 生成物。'
+- id: ISS-430
+  scope:
+  - llvm
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P2】`m14-llvm-005` 后 `.set VD, L1-L0` 再 `set.zw rbX, wpN, VD` 由「静默 0」变为**报错**（`VD` 是 Absolute 符号、本可编码 4）。禁静默是对的，但把「已由 `.set` 固化为绝对符号」的操作数也一并拒了，属表达能力回退；诊断文案还把它称作 symbol difference（其实是单符号操作数）。建议：对 `.set` 定义的 Absolute 符号放行，或至少改文案 + lit 固化。'
+- id: ISS-504
+  scope:
+  - testcases
+  - picolibc
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P2】picolibc 自测 harness `run_picolibc_tests_tiny.py` 的 `.done` 复用键在 qemu 引擎下 `sim_md5` 恒为 `None`（`obs` 只在 chipyard 分支产生），`info.get("sim_md5") == sim_md5` 退化为 `None == None` ⇒ **换库/换 lds 后仍复用旧判决**（`m15-infra-009` 报 `pass=6` 即此因）。处置：把被测输入指纹（`libc.a` + 安装版 lds + 工具链）纳入 key，或给 harness 加 `--force`/`--no-reuse`；在此之前证据脚本须先删运行期 `run/` 目录。'
