@@ -20,7 +20,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m16-gem5-025 | 2–3 h | gem5 `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧 + `cg9 rc6` 对齐 + Tiny 旧掩码面（ISS-533/525/DIV-18/ISS-m16-009） |
 | m16-testcases-023 | 1–2 h | 删除 ADWBFAIL 用例（页表必须在内存；`DIV-14` 删除、`DIV-04`/`ISS-515` 收口） |
 | m16-testcases-022 | 1–2 h | PTW 的 RTL 面在扁平 cause 对齐后修复/回归（ISS-m16-006；依赖 m17-chipyard-001） |
 
@@ -28,6 +27,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-gem5-025 | 2026-11-25 17:54 | 2–3 h | gem5 `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧 + `cg9 rc6` 对齐 + Tiny 旧掩码面 |
 
 ## 已验证
 
