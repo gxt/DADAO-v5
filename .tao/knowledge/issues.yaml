@@ -1572,7 +1572,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2·待裁定】gem5 仍是 ADR-0061 R2 前的异步模型（无 `cfx_hart cg9`），`m16-testcases-013` 的 cfx15 异步只有 QEMU+RTL 两方逐槽（登记 `DIV-17`）。M16「三方一致」在裁定前不成立：需用户选择 ① 豁免（`DIV-17` 改 permanent/conditional，M16 收口接受 gem5 无异步面）或 ② 立 gem5 R2 迁移任务（异步捕获缓冲 + 掩码/pending，归 M18）。"
+  title: "【P2·裁定 B】gem5 仍是 ADR-0061 R2 前的异步模型（无 `cfx_hart cg9`），`m16-testcases-013` 的 cfx15 异步只有 QEMU+RTL 两方逐槽（登记 `DIV-17`）。M16「三方一致」在裁定前不成立：需用户选择 ① 豁免（`DIV-17` 改 permanent/conditional，M16 收口接受 gem5 无异步面）或 ② 立 gem5 R2 迁移任务（异步捕获缓冲 + 掩码/pending，归 M18）。 **用户 2026-11-25 裁定 B：由 `m18-gem5-004`「gem5 异步捕获缓冲（ADR-0061 R2）」承接，合入后删 `DIV-17`。**"
 - id: ISS-538
   scope:
   - linux
