@@ -36,7 +36,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
-| m16-gem5-026 | 2026-11-25 15:05 | gem5 异步捕获缓冲（R2：`cg9` 七槽、掩码归 monitor、一帧多源；`DIV-17` 删除，三方 6/6） |
+| m16-gem5-026 | 2026-11-25 14:24 | gem5 异步捕获缓冲（R2：`cg9` 七槽、掩码归 monitor、一帧多源；`DIV-17` 删除，三方 6/6） |
 | m16-testcases-021 | 2026-11-25 11:32 | 证据脚本与探针收尾（恒真式、profile、`SEL_I/D`、11-cfx 注释；`runlimit` 原件+RLIMIT） |
 | m16-qemu-006 | 2026-11-25 11:31 | QEMU `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧（Tiny 门控）+ `cg9 rc6` 写忽略 |
 | m16-testcases-020 | 2026-11-25 10:02 | `tests/arch` 收尾（cfx5 I+D 同选 21 槽；`runlimit` 10 s/128 MiB/1 MiB；未装载监视器 17 KB） |
