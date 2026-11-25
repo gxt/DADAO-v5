@@ -17,7 +17,7 @@
 
 1. **`cfx_pmem` 寄存器面**（按 `§4.9`）：`cg8 rc0 pmem_exist`（RO）；`cg12/13/14 rc0–63` start/size/attr（RW）；保留 rc ⇒ `CFXREG`；与 RTL 的取值口径一致（测试机约定 64 区域）。
 2. **`cfx_power_ctrl` 写侧**：写被接受（不产生异常）、读 ⇒ `CFXREG`；若 spec 定义了副作用，按 spec 落。
-3. **`cfx_hart cg9 rc6` 写忽略（ISS-536 / DIV-18 的 QEMU 部分）**：`async_switch_run_mode` 写被接受但**不生效**（读回恒 2，投递时固定 supv），与 RTL「写接受、忽略」一致；spec 的「写忽略」明文由 M18 的 spec 任务补，本任务只改实现。
+3. **`cfx_hart cg9 rc6` 写忽略（ISS-m16-003 / DIV-18 的 QEMU 部分）**：`async_switch_run_mode` 写被接受但**不生效**（读回恒 2，投递时固定 supv），与 RTL「写接受、忽略」一致；spec 的「写忽略」明文由 M18 的 spec 任务补，本任务只改实现。
 
 3. **探针/三方**：`tests/arch/pmem/` 与 `tests/arch/power/` 的 QEMU 侧期望同步；核 `DIV-06`/`DIV-13` 的 `close_when` 是否可收窄（不擅自删除）。
 4. **不回归**：`check-patch-tree` qemu 段 0 problem、`make_patch.py qemu` 幂等、cfx5/cfx15 代表集。

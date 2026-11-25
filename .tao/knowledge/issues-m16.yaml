@@ -218,7 +218,7 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`m16-chipyard-017` 的 cfx5 维护探针缺「I+D 同选 + 合法操作」用例（`CTRL_ID_*` 只有 none/非法）⇒ `CACHE-21` 先 I 后 D 只有静态核验。建议在 cfx5 用例（`m16-testcases-009`/`017`）补一条双侧同选用例。
-- id: ISS-518
+- id: ISS-m16-001
   scope:
   - qemu
   - testcases
@@ -306,7 +306,7 @@
   closed_in: null
   resolved_by: null
   title: 【P4】`chipyard_engine` 默认不传 `+verbose`，`ptw_walk`/`ptw_tlb` 的日志事件读不到；当前以记录面为判据（已覆盖验收），建议给引擎加可选 verbose 开关，便于后续按日志断言。
-- id: ISS-530
+- id: ISS-m16-002
   scope:
   - spec
   - testcases
@@ -358,7 +358,7 @@
   closed_in: null
   resolved_by: null
   title: 【P4·backlog】`cfx_pmem` 的 PA→SRAM DMA 直读未实现（`m16-testcases-009` 遗留）：D 侧可见性目前用 invalidate/flush 后重填读回观察；直读路径（DMA 主动读 PA 写 SRAM）需另立子用例与 RTL/探针支持。
-- id: ISS-536
+- id: ISS-m16-003
   scope:
   - qemu
   - spec
@@ -367,7 +367,7 @@
   closed_in: null
   resolved_by: null
   title: 【P2】QEMU 的 `cfx_hart cg9 rc6`（`async_switch_run_mode`）写被接受并**生效**（投递时 `inner_run_mode = 写入值`；写 0 ⇒ 异步入 user），而 `§4.7` 要求固定 supv(2)、`§5.4` 要求入口 supv 单向量；RTL 为「写接受、忽略」。另：`§4.7` 只对 `rc3/rc4` 明文写「写忽略」，`rc6` 未明写 ⇒ 建议 spec 补一行。归属：QEMU 修复 + spec 措辞（M18 会话，承接 `m18-qemu-006`；对应 `DIV-18` 的 `close_when`）。
-- id: ISS-537
+- id: ISS-m16-004
   scope:
   - gem5
   milestone: M16
@@ -375,7 +375,7 @@
   closed_in: null
   resolved_by: null
   title: 【P2·裁定 B】gem5 仍是 ADR-0061 R2 前的异步模型（无 `cfx_hart cg9`），`m16-testcases-013` 的 cfx15 异步只有 QEMU+RTL 两方逐槽（登记 `DIV-17`）。M16「三方一致」在裁定前不成立：需用户选择 ① 豁免（`DIV-17` 改 permanent/conditional，M16 收口接受 gem5 无异步面）或 ② 立 gem5 R2 迁移任务（异步捕获缓冲 + 掩码/pending，归 M16）。 **用户 2026-11-25 裁定 B：由 `m16-gem5-026`「gem5 异步捕获缓冲（ADR-0061 R2）」承接，合入后删 `DIV-17`。**
-- id: ISS-538
+- id: ISS-m16-005
   scope:
   - chipyard
   - infra
@@ -384,7 +384,7 @@
   closed_in: null
   resolved_by: null
   title: 【P2】共享 `.work/source/chipyard` 落后于 master：2026-11-25 04:27 的补丁序列（`b555b0a`）不含 `m16-chipyard-027`（`WumingCache.tagBits` 仍是 48），而 Vast sim（05:03，md5 `da61cb6b…`）由该树构建 ⇒ `m16-testcases-019` 的 `arch-ptw-013` RTL 三方逐槽 BLOCKED（多段 `loadmem` 挂死）。需在写者空闲后 `apply_series` 重放到当前 master 并重建，或明确「验收一律用隔离树」的流程。
-- id: ISS-539
+- id: ISS-m16-006
   scope:
   - chipyard
   - spec

@@ -11,7 +11,7 @@
 ## 背景
 
 - `ISS-529`：`chipyard_engine` 默认不传 `+verbose`，`ptw_walk`/`ptw_tlb` 的日志事件读不到；当前以记录面为判据（已覆盖验收）。
-- `ISS-530`：spec 措辞改动连续两次打断 `tests/arch` 自检（`power_vast.py` 用 `### 3.9` 当边界、`check_cfx15.py` 两处文案断言），根因是 spec 任务收尾没跑下游解析器自检。
+- `ISS-m16-002`：spec 措辞改动连续两次打断 `tests/arch` 自检（`power_vast.py` 用 `### 3.9` 当边界、`check_cfx15.py` 两处文案断言），根因是 spec 任务收尾没跑下游解析器自检。
 
 ## 要做
 

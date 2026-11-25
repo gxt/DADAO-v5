@@ -41,7 +41,7 @@
 
 ## 完成区
 
-> ⚠ **RTL 侧为已知红（用户 2026-11-25 裁定 B，`ISS-539`）**：`arch-ptw-013`
+> ⚠ **RTL 侧为已知红（用户 2026-11-25 裁定 B，`ISS-m16-006`）**：`arch-ptw-013`
 > **保留 signature**、接受 RTL known-red。根因：RTL 的 `excp_cause_id` 仍是
 > **ADR-0056 的两级 wyde**，`m17-spec-002`（ADR-0062）已改扁平位图 ⇒ 用例的
 > `CAUSE_*` guest 断言在 RTL 上必红（隔离树实测：013 `SYS_EXIT code=0x3`、
@@ -49,11 +49,11 @@
 > **`m17-chipyard-001`（RTL 对齐扁平位图）** 合入后进行；本任务**不主张**该项
 > 已在 RTL 上通过。
 
-**测试结果**：QEMU+gem5 全绿：`run_arch --cfx 4 --platforms qemu,gem5 --mode {hmon,smon,umon}` 各 15/15，逐 case QEMU==gem5 签名流逐字节相同（三模式各 30 次比对）；`arch-ptw-013` 的三槽 = `0x1122334455667788 / 0x2 / 0x180000000040`（与 `expected.yaml`、RTL 生成器一致）。`arch-ptw-011` 各模式检查数 hmon=5 / smon=7 / umon=7（S/U 轴）。静态：`check_tlb --selfcheck`、`gen_ptw_sig_tables --selfcheck`（4 签名 case / 13 槽）、`check_ptw_rtl --selfcheck`（signature=4、guest=9、gap=2）全 PASS。**RTL 侧 known-red（裁定 B / `ISS-539`）**：RTL 的 cause 仍是 ADR-0056 口径，`m16-testcases-022` 在 `m17-chipyard-001` 后修复/回归，见遗留 1。
+**测试结果**：QEMU+gem5 全绿：`run_arch --cfx 4 --platforms qemu,gem5 --mode {hmon,smon,umon}` 各 15/15，逐 case QEMU==gem5 签名流逐字节相同（三模式各 30 次比对）；`arch-ptw-013` 的三槽 = `0x1122334455667788 / 0x2 / 0x180000000040`（与 `expected.yaml`、RTL 生成器一致）。`arch-ptw-011` 各模式检查数 hmon=5 / smon=7 / umon=7（S/U 轴）。静态：`check_tlb --selfcheck`、`gen_ptw_sig_tables --selfcheck`（4 签名 case / 13 槽）、`check_ptw_rtl --selfcheck`（signature=4、guest=9、gap=2）全 PASS。**RTL 侧 known-red（裁定 B / `ISS-m16-006`）**：RTL 的 cause 仍是 ADR-0056 口径，`m16-testcases-022` 在 `m17-chipyard-001` 后修复/回归，见遗留 1。
 **修改文件**：`tests/arch/ptw/{ptw_carrier_tlb.py,check_tlb.py,expected.yaml,gen_ptw_sig_tables.py,ptw_sig.S,rtl-coverage.yaml,README.md}`、`tests/arch/modes.yaml`、`tests/arch/README.md`、`tests/arch/PLAN.md`、`tests/arch/vast-arch-inventory.md`、`tests/arch/common/{env-umon/env.S,env/cfx_perm.inc,env-README.md,env-MIGRATION.md}`、`tools/testcases/arch/node_probe_prelude.py`；证据脚本与日志放运行期证据目录（`run.sh` / `logs/`，不入库）。
 **验收结果**：运行期证据目录内的 `run.sh` → `31 PASS / 0 FAIL / 1 EXPECTED-RED`，退出码 3（known-red 不计 PASS，不算通过）。门控：`check-tests-index` rc=0（504 条）、`check-tasks` rc=0、`check-index-blobs` rc=0、`run_arch --self-test` rc=0；`make check-knowledge-refs` rc=1，但**失败集与基线（`git archive HEAD` 导出树现场跑）逐行相同**（`FAIL (1 悬空小节级互指)`、15 条明细、`item diff: []`；基线 = `milestones-m17.md:36 ADR-0063`），本任务文档不含具体 `.work/**` 路径（`具体路径 (不可复现): 0`）。注入（每条真红 + `cp`+md5 还原回绿）：①`rtl-coverage.yaml` 013 退回 gap ⇒ `check_ptw_rtl --selfcheck` 红；②`ENV_PERM_ALLOW` 只清 hmon 行 ⇒ `arch-ptw-011 --mode smon` 红；③任务书塞一条具体 `.work/**` 路径 ⇒ knowledge-refs 失败集 != 基线（`item diff` 命中该行、判定 `1 具体 .work/** 引用不可复现`）。
 **新发现/坑**：① 环境「打开」只清源 cfx_hmon(3) 位，而以**监视器 cfx**（cfx_smon/cfx_umon）身份运行的故障处理程序访问声明的 cfx 会 `CFXPERM` ⇒ 新增 `ENV_PERM_ALLOW`；处理程序应留在**触发模式**（非 hypv），掩码即与 body 相同。② umon 的 U 页拷贝是 do-while（0 会下溢死循环）⇒ 加 0 计数前置判断；进 user 的向量要用 body 真实地址（新增 `ENV_UENTRY`）。③ 改 L1[3] 的 U 位后必须 `invalid|all`（hypv 阶段可能已按 0xC 填过条目）⇒ `ENV_TLB_INVALIDATE`。④ 签名流要与运行模式无关 ⇒ 测试页 PTE 取 `HSJU=H|S|U`（0xD），否则 `expected.yaml` 的槽值要按模式分叉。⑤ `/tmp` 是 16G **共享** tmpfs：4 MiB 镜像/长 `-d cpu` 日志必须落 `.work/`（本次曾写满 /tmp）。⑥ 共享源树里的 Vast 仿真器是**别人的构建产物**（md5 随时被重建改掉），在它上面多段 `loadmem` 镜像会停在 init、连 `[WumingLoadMem]` 行都不打印（`m17-chipyard-001` 的 `ptw_walk` 同现象）⇒ 不能拿它判断 RTL 行为；隔离树重建后镜像能正常加载（`5 PT_LOAD … 4191/4191` 回读校验通过），RTL 的真实红是 cause 口径（ADR-0056 vs ADR-0062），不是仿真器。
-**遗留问题**：① **RTL 侧 known-red（用户 2026-11-25 裁定 B：`arch-ptw-013` 保留 signature、接受 RTL known-red，`ISS-539`）**：RTL 的 `excp_cause_id` 仍是 ADR-0056（两级 wyde），`m17-spec-002`/ADR-0062 已改扁平位图 ⇒ `CAUSE_*` guest 断言在 RTL 上必红（**隔离树实测**：`[WumingLoadMem] 5 PT_LOAD … 4191/4191` 回读校验通过、`arch-ptw-013` `SYS_EXIT code=0x3`、`arch-ptw-009 rc=47`、`011 rc=54`，同一根因；不是仿真器问题）。**闭合路径 = `m16-testcases-022`「PTW 测试的 RTL 面在扁平 cause 对齐后修复/回归」，在 `m17-chipyard-001` 合入后修复/回归**（届时跑运行期证据目录内的 `run.sh --rtl`：行为断言、无产物 md5 依赖）。② `014`/`015` 仍为 RTL gap（本任务不做）。③ cfx4 的 RTL 承载仍只跑 hmon（`DIV-09`：cfx4 无 `<mode>` 行），S/U 的 RTL 面未覆盖。
+**遗留问题**：① **RTL 侧 known-red（用户 2026-11-25 裁定 B：`arch-ptw-013` 保留 signature、接受 RTL known-red，`ISS-m16-006`）**：RTL 的 `excp_cause_id` 仍是 ADR-0056（两级 wyde），`m17-spec-002`/ADR-0062 已改扁平位图 ⇒ `CAUSE_*` guest 断言在 RTL 上必红（**隔离树实测**：`[WumingLoadMem] 5 PT_LOAD … 4191/4191` 回读校验通过、`arch-ptw-013` `SYS_EXIT code=0x3`、`arch-ptw-009 rc=47`、`011 rc=54`，同一根因；不是仿真器问题）。**闭合路径 = `m16-testcases-022`「PTW 测试的 RTL 面在扁平 cause 对齐后修复/回归」，在 `m17-chipyard-001` 合入后修复/回归**（届时跑运行期证据目录内的 `run.sh --rtl`：行为断言、无产物 md5 依赖）。② `014`/`015` 仍为 RTL gap（本任务不做）。③ cfx4 的 RTL 承载仍只跑 hmon（`DIV-09`：cfx4 无 `<mode>` 行），S/U 的 RTL 面未覆盖。
 
 ## 审阅记录
 
@@ -114,7 +114,7 @@
 | F2 `run.sh` 只比 `悬空:` 子集，F1 打不红 | ✅已修 | 新增 `knowledge_compare`/`knowledge_checks`：基线 = `git archive HEAD` 导出树现场跑同一工具；判据 = **明细项集合 + 结果行类别/计数**全等；新增注入 C（任务书塞具体 `.work` 路径）复用它证明可达 FAIL | `logs/knowledge-diff.log`（`baseline-identical: True`、`item diff: []`）；`logs/injC-red.log`（`item diff` 命中注入行、`False`）；`logs/run-default.log` 的注入 C 三行 |
 | F3 遗留① 根因/闭合路径错误（错归因 sim 状态） | ✅已修 | 改为：RTL 仍 ADR-0056 两级 wyde，`m17-spec-002`/ADR-0062 已扁平化 ⇒ `CAUSE_*` guest 断言必红；闭合 = `m17-chipyard-001` 合入后复跑；并写入隔离树实测证据（`5 PT_LOAD … 4191/4191`、013 `SYS_EXIT code=0x3`、009 rc=47、011 rc=54） | 同上三处（完成区顶部警示、新发现⑥、遗留①、自审第 9 行） |
 | F5 `--rtl` 绑死构建产物 md5 ⇒ 无可达 PASS | ✅已修 | 删 `SIM_MD5_EXPECTED` 与 md5 断言，改为 `[INFO]` 记录；`--rtl` 只剩行为断言（`check_ptw_rtl --only arch-ptw-013` + 3 槽） | `grep -c SIM_MD5_EXPECTED run.sh` = 0；`run.sh --rtl` 在 RTL 对齐后可达 PASS（当前预期红，见遗留①） |
-| F4 013 的 signature/gap 归属 | ➡按裁定 | 用户 2026-11-25 裁定 **B**：**保留 signature**、接受 RTL known-red（`ISS-539`），由 `m16-testcases-022` 在 `m17-chipyard-001` 后修复/回归；`rtl-coverage.yaml`/`expected.yaml` 的 013 不回退 | `rtl-coverage.yaml` 013 = `status: signature` / `rtl_case: 13`；`expected.yaml` 013 三槽在 |
+| F4 013 的 signature/gap 归属 | ➡按裁定 | 用户 2026-11-25 裁定 **B**：**保留 signature**、接受 RTL known-red（`ISS-m16-006`），由 `m16-testcases-022` 在 `m17-chipyard-001` 后修复/回归；`rtl-coverage.yaml`/`expected.yaml` 的 013 不回退 | `rtl-coverage.yaml` 013 = `status: signature` / `rtl_case: 13`；`expected.yaml` 013 三槽在 |
 
 返工后 `run.sh`：`31 PASS / 0 FAIL / 1 BLOCKED`（rc=3，BLOCKED = RTL 口径滞后）。
 
@@ -123,11 +123,11 @@
 - **归属不变**：`arch-ptw-013` 保持 `signature`（`rtl-coverage.yaml` 未改；
   `expected.yaml` 的 013 三槽未改）。
 - **标签**：证据脚本里 013 的 RTL 项由 `[BLOCKED]` 改为
-  `[EXPECTED-RED (ISS-539)]`（仍是「不计 PASS」，退出码仍非 0），并先打印一行
+  `[EXPECTED-RED (ISS-m16-006)]`（仍是「不计 PASS」，退出码仍非 0），并先打印一行
   根因：`ADR-0062 扁平 cause vs RTL ADR-0056，待 m17-chipyard-001`；汇总行由
   `BLOCKED` 改为 `NOT-PASS (… expected-red=1 …)`，退出码 3。`--rtl` 仍为**行为
   硬断言**（供 `m16-testcases-022` 闭合后转绿，不绑产物 md5）。
-- **文档**：完成区顶部警示、测试结果末句、遗留① 均写入裁定 B + `ISS-539` +
+- **文档**：完成区顶部警示、测试结果末句、遗留① 均写入裁定 B + `ISS-m16-006` +
   `m16-testcases-022`（在 `m17-chipyard-001` 后修复/回归）；遗留①不再出现
   「恢复 sim 即可闭合」的措辞。
 - **复核**：任务书不含具体运行期路径（`grep -nE '\.work/[A-Za-z0-9]' ` 命中 0）；
@@ -137,7 +137,7 @@
 ### 第 2 轮 reviewer 验收
 
 **重跑（reviewer 亲自执行，以下均为真实输出/退出码）**
-1. 仓库根执行运行期证据目录内的 `run.sh` → **rc=3**、`31 PASS / 0 FAIL / 1 EXPECTED-RED / 0 BLOCKED`（与完成区一致；013 的 RTL 项为 `[EXPECTED-RED (ISS-539)]`，不计 PASS、退出码非 0）。
+1. 仓库根执行运行期证据目录内的 `run.sh` → **rc=3**、`31 PASS / 0 FAIL / 1 EXPECTED-RED / 0 BLOCKED`（与完成区一致；013 的 RTL 项为 `[EXPECTED-RED (ISS-m16-006)]`，不计 PASS、退出码非 0）。
 2. QEMU+gem5：三模式各 `PASS（15 case × 2 平台）`、`checked 15 cases; mismatches: []` ×3；013 三槽 `0x1122334455667788 0x2 0x180000000040`；011 = `5/5`、`7/7`、`7/7`。
 3. 门控独立重跑：`check-tests-index` rc=0（504 条）、`check-tasks` rc=0、`check-index-blobs` rc=0（357 new-file OK）、`run_arch --self-test` rc=0。
 4. **F1**：任务书 `grep -nE '\.work/[A-Za-z0-9]'` **0 命中**；`check-knowledge-refs` 当前 `具体路径 (不可复现): 0`、`结果: FAIL (1 悬空小节级互指)` = 本树 `git archive HEAD` 基线（本树基线仍含 `milestones-m17.md:36 ADR-0063`，master 是否已补 ADR 与本判据无关——按「本树 vs 本树 HEAD」判一致）。

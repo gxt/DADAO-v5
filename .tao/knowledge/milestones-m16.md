@@ -20,7 +20,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m16-testcases-022 | 1–2 h | PTW 的 RTL 面在扁平 cause 对齐后修复/回归（ISS-539；依赖 m17-chipyard-001） |
+| m16-testcases-022 | 1–2 h | PTW 的 RTL 面在扁平 cause 对齐后修复/回归（ISS-m16-006；依赖 m17-chipyard-001） |
 | m16-gem5-025 | 2–3 h | gem5 `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧（ISS-533/525） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）

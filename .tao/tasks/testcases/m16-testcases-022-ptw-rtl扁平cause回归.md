@@ -18,7 +18,7 @@
 
 1. **前置确认**：`m17-chipyard-001` 已合入且 RTL 的 `excp_cause_id` 为扁平位图（跑一条最小 `CAUSE_*` 探针确认）。
 2. **RTL 回归**：`arch-ptw-009/011/013` 在 `run_arch --platforms chipyard`（H/S/U 或声明的模式）下转绿；`arch-ptw-002/007`（DIV-14）不回归；`check_ptw_rtl --selfcheck` 的 signature/guest/gap 集合与本任务后的登记一致。
-3. **登记收尾**：删除/收窄 `ISS-539` 的 RTL known-red 说明；若 `m16-testcases-019` 的 BLOCKED/EXPECTED-RED 文案需要更新，一并改为"已闭合"。
+3. **登记收尾**：删除/收窄 `ISS-m16-006` 的 RTL known-red 说明；若 `m16-testcases-019` 的 BLOCKED/EXPECTED-RED 文案需要更新，一并改为"已闭合"。
 4. **不回归**：`tests/arch/ptw/` 的 QEMU/gem5 面不变；`DIV-14` 保持；`check-tests-index`/`check-tasks`/`check-knowledge-refs`（基线悬空见当时状态）。
 
 ## 不做

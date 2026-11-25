@@ -19,7 +19,7 @@
    - `merge-tree` 判据在无提交时恒真：改为"改动集 ∩ `HEAD..master`"兜底；
    - Tiny FIRRTL 计数在文件缺失时默认 0：缺文件应判红/显式跳过，不得静默；
    - `bin.qemu.install_eq_build` 在 `QEMU=` 覆盖时两侧同路径：覆盖时显式标 `N/A`，不得恒真。
-2. **默认 profile 与信息行（ISS-518）**
+2. **默认 profile 与信息行（ISS-m16-001）**
    - `patch_tree_judge` 把"源树缺失、skipping"信息行计为问题 ⇒ 按 `check_patch_tree.py` 的信息行清单对齐；
    - `integ042t` 的 `_MACH` 默认 tiny 与 `node_probe_prelude` 默认 vast 不一致 ⇒ 统一默认 profile（或强制显式），漏设时给具名错误而非对称假红。
 3. **探针写反（ISS-519②）**：`m16-qemu-001` 探针的 `SEL_I`/`SEL_D` 与 `cache_ctrl[15:14]`（2=I、1=D）写反 ⇒ 补正，并在该例加一条能暴露的断言。

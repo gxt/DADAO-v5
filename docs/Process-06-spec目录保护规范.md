@@ -83,4 +83,4 @@
 
 ## 10. spec 措辞改动的下游解析器自检（MUST）
 
-spec/契约正文的措辞或章节编号改动可能打断下游解析器（`tests/arch/power/power_vast.py` 曾以 `### 3.9` 作 §3.8 的边界、`tests/arch/hart/check_cfx15.py` 有两处文案断言，`ISS-530`）：此类任务收尾**必须**跑 `make check-arch-self-test`（L1，已在 `make check` 内；即 `run_arch.py --self-test`，不启动模拟器）并 rc=0，方可交付验收。
+spec/契约正文的措辞或章节编号改动可能打断下游解析器（`tests/arch/power/power_vast.py` 曾以 `### 3.9` 作 §3.8 的边界、`tests/arch/hart/check_cfx15.py` 有两处文案断言，`ISS-m16-002`）：此类任务收尾**必须**跑 `make check-arch-self-test`（L1，已在 `make check` 内；即 `run_arch.py --self-test`，不启动模拟器）并 rc=0，方可交付验收。
