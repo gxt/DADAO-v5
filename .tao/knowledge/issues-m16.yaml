@@ -554,3 +554,12 @@
   closed_in: null
   resolved_by: null
   title: "【P3】gem5 的 **Tiny** 配置仍暴露 `cg0–cg3 rc4` 且 trap/escape 保存/恢复掩码（QEMU/RTL/Node 已统一为 `CFXREG`、不保存恢复）；`tests/unit/gem5/tiny_hmon` 读 `cg3 rc4` 依赖该旧行为。由 `m16-gem5-025` 顺带处置（或登记 Tiny 差异）。"
+- id: ISS-m16-010
+  scope:
+  - testcases
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`tests/arch/ptw/check_ptw_rtl.py` 缺 `--mode` 支持，而 `modes.yaml` 声明 ptw 三模式 ⇒ `run_arch --cfx 4 --platforms chipyard` rc=1（driver rc=2）；在 `b9622776`（m17 前）同样存在 ⇒ 基线红。另：单平台 `run_arch`（只给 `--platforms chipyard`）会对未跑的 QEMU/gem5 腿报假「跨平台不一致」，单平台回归应直调 `check_*_rtl.py` 或让 `run_arch` 识别单平台。`m16-chipyard-029` 复核发现。"
