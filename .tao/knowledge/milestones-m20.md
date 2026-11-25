@@ -20,13 +20,20 @@
 ## 待开始（未开工）
 
 | 编号 | 预估时间 | 一句改动 |
-| --- | --- | --- |
+| --- | --- | --- | --- |
 | m20-infra-001 | 2–3 h | 四方差分与夜跑基准定义（参与集/比对口径/GAP 裁决/成员与时长上限；一条命令可复现） |
+| m20-gem5-001 | 1–2 h | `nodeEscape` 补 `savedIntrValid` 守卫（ISS-472；等 `m16-gem5-026` 收尾） |
+| m20-gem5-002 | 2–3 h | gem5 SE futex 三处细节对齐（ISS-345；无泄漏/EPERM/REQUEUE 返回值） |
+| m20-gem5-003 | 4–8 h | gem5 SE 长尾挂死定位与修复（ISS-361；先修 `clocale_mbfuncs` 单例） |
+| m20-gem5-004 | 4–8 h | gem5 SE 输出差异定位与修复（ISS-362 + ISS-367；`neural`/`pcompress2`） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m20-testcases-001 | 2026-11-25 15:18 | 1–2 h | 修 `test-codegen` raw 单 TU 的 `main` 重定位（ISS-509） |
+| m20-testcases-002 | 2026-11-25 15:18 | 1 h | `check-inst-macro-scope`/扫描器接受列 0 断言行（ISS-461） |
+| m20-llvm-001 | 2026-11-25 15:18 | 2–4 h | `llvm-objdump` 对非法 rf 组编码不崩溃（ISS-468） |
 
 ## 已验证
 

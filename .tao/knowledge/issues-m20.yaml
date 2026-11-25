@@ -34,9 +34,9 @@
   scope:
   - gem5
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: m13-gem5-002（2026-11-25 现场复核：`tinyEnter` 已强制 `runMode=3`；`cg3` 非 hypv ⇒ `CFXREG`；`check_tiny_hmon` 的 cg3/switch_run_mode 断言全 PASS）
   title: 【P2】gem5 `tinyEnter` 直接取 `switch_run_mode` 作为新运行模式：guest 先把该寄存器写成 !=3 再触发同步异常，就会**离开 hypv**；QEMU 对非 user profile 强制 `HYPV`（引 `Kaiwu §2` 「Tiny 运行模式恒 hypv」）。同时 gem5 未实现 `cg3 仅 hypv 可访问`（`DADAO-13 §1`）。 影响：三平台差分时 Tiny 的越权路径会分叉。建议在 M13 差分（`m13-integ-002`/`003`）前修， 改动量小（`tinyEnter` 强制 HYPV + cg3 访问检查）。 证据：`m13-gem5-001` reviewer 第 1 轮 finding 3。
 - id: ISS-367
   scope:
@@ -67,9 +67,9 @@
   scope:
   - gem5
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: m16-gem5-009 + m18-gem5-003（2026-11-25 现场复核：`check_tiny_hmon` rc=0 / 213 checks / 45 records；cause_id 已按扁平位图，oracle 已改 45 条）
   title: 【P2】`tools/gem5/check_tiny_hmon.py` 有与 semihosting 无关的预存在红（`m15-testcases-018` 复核时发现）：期望 `cause_id = 0x2`，而引擎自 `m16-gem5-009` 起给 18 位子原因 `0x200000000000002`（cause 与 wyde 子原因合写）；record 34 起错位、条数 43 vs 42。影响：该脚本的结论不可直接用于 hmon 验收。处置建议：按 `DADAO-12 §3.6` 的 18 位口径改期望（或比较时只取低 16 位 cause），并核对条数差异的来源；单独立 gem5 任务。
 - id: ISS-472
   scope:
@@ -84,9 +84,9 @@
   - gem5
   - infra
   milestone: M20
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M20
+  resolved_by: N/A（2026-11-25 现场复核：gem5 段 106 patch / 0 problem；当前总 rc=1 的 8 problem 全为在途 qemu/musl 漂移，按 ISS-463 同族处理，不属本条）
   title: 【P3】`check-patch-tree` 在 master 上**基线红**（非任务引入）：gem5 段（`src/arch/dadao/node_cfx.cc`/`node_cfx.hh` 的源树本地 commit 与补丁集不一致，assertion ⑨/⑥）。**musl 段已由 `m18-infra-003` 闭合**：原 10 条（`arch/dadao/{atomic_arch.h,bits/signal.h,pthread_arch.h}`、`src/thread/dadao/syscall_cp.s`、`src/signal/dadao/restore.s`）按 `docs/Process-01` 重放源树（删源树 → `make fetch` → `apply_series.py --component musl`）后 0 problem；该漂移曾使 `sigaction.o` 不含 `SA_RESTORER`（0x04000000）⇒ 信号投递 SIGSEGV。`m15-testcases-023` 证据按「错误集与主仓基线逐行相同」判 KNOWN-RED。处置：按 `docs/Process-01` 从源树重导 gem5 补丁（或还原源树到补丁集），重导后跑 `check-patch-tree` 回绿。
 - id: ISS-509
   scope:
