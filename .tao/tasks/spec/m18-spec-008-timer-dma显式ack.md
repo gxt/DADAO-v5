@@ -6,7 +6,7 @@
 **可并行分片**：否
 **预估**：待定（讨论完成后再标定）
 **档位**：中改（异步源 ack 语义 + 三实现）
-**状态**：**讨论中（不派发）**
+**状态**：待开始（等 `m18-linux-026` 收口后派发）
 **执行环境**：本地
 
 ## 背景
@@ -90,6 +90,39 @@
 6. ack 与 `pending` 的关系：投递仍清 pending；ack 只清源事件（或 ack 也清 pending 残留？）。
 7. 内核侧改动面（`time.c` 的 ack 路径、`dadao_async_ack_sources`、K2 探针）。
 8. QEMU/RTL/gem5/IDL 的同步任务与顺序；版本是否随 0.8.0（已定版）另起。
+
+## 目标
+
+1. **`DADAO-12`**
+   - `cfx_hart`：异步捕获组由 `cg9` 移到 **`cg15`**（`rc0` prev mode / `rc1` prev cfx / `rc2` prev ip / `rc3` prev intr mask / `rc4` 本次源集合 / `rc5` 原始 pending 汇总 / `rc14` switch / `rc15` vector；`rc6`–`rc13` reserved）；删除 `cg9` 的异步用途（`cg9` 归 reserved/其它用途）。
+   - 四个 monitor（umon/jmon/smon/hmon）：`async_intr_mask` 由 `cg8 rc1` 移到 **`cg15 rc3`**（64 位、位 = 源 cfxha、1 = 屏蔽、复位全 1）；`cg8 rc1` 归 reserved。
+   - **`cfx_hart cg16`**：`rc0` timer ctrl（仅 bit0 `ENABLE`）、`rc1` timer cmp、`rc16` mask、`rc17` pending、`rc18` ack（W1C）；删除 `cg8 rc4/rc5` 的 timer 定义（归 reserved ⇒ `CFXREG`）。
+   - **`cfx_pmem cg16`**：`rc16` mask、`rc17` pending、`rc18` ack；子事件合并 bit0（“传输结束”= `DONE|ERROR`）；`cg15` DMA 引擎寄存器中 **删除 `dma_ctrl.IRQ_EN`**（位按保留读 0/写忽略）。
+   - **语义**：pending 事件置位、**ack 才清**、进入不清；mask 1=屏蔽、复位全 1；ack 幂等、保留位忽略；异步进入判定 = 逐源 `(pending & ~源mask) != 0` 且 monitor `cg15 rc3[源cfxha]==0` 且（timer `ENABLE=1`），多源合并一次进入；`cg15 rc4` = 源 cfxha 位集合，`rc5` = 原始 pending 汇总。
+   - `escape` 语义不变，`rc11` 写入目标改为目标模式 monitor 的 **`cg15 rc3`**；`cg5 rc3`（prev intr mask）快照同一行。
+   - **术语**：删除“投递/delivery pending/投递即清”提法，统一“事件 / 异步进入 / ack”。
+   - `cg16` 仅在 `cfx_hart`/`cfx_pmem` 实现，其它 cfx 访问 ⇒ `CFXREG`。
+2. **`DADAO-22`**：相关 SBI/示例（DMA、timer）按新寄存器与新 ack 口径同步。
+3. **`contract-see`/`contract-syscall`/`contract-cfx-aliases`**：同步 `cg15`/`cg16` 布局、ack/mask/pending、术语；别名表/opcodes/legality 重生成（ISA 编码不变）。
+4. **`ADR-0064`**：新立，取代 `ADR-0061 D5/D6`（mask 唯一归 monitor、投递即清）；`ADR-0061 R3` 出口帧继续有效。
+5. **版本**：`DADAO-12`/`DADAO-22` → **`0.8.1-rc`**；`contract-see` 同步；`SimRISC` 不变。
+
+## 验收
+
+1. spec/契约门控：`check-spec-*`、`check-contracts-*`、`check-manifests-guard`、`check-cfx-aliases`/`-alias-table`、`check-opcodes-repro`、`check-legality-*`、`check-knowledge-refs` rc=0。
+2. 全文一致性：`cg9` 无异步用途、`cg8 rc1` 无 mask 用途、`cg8 rc4/rc5` 无 timer 用途、`dma_ctrl.IRQ_EN` 0 处；“投递”措辞现行正文 0 处（历史变更记录可留）；`cg15 rc3`/`cg16 rc16-18` 在 `DADAO-12`/契约/别名表一致。
+3. `escape rc11` 目标行改为 `cg15 rc3` 且 `cg5 rc3` 快照同步；`cg15 rc4/rc5` 聚合语义写清。
+4. ADR-0064 落地并显式 supersede；版本三处一致（`0.8.1-rc`）。
+5. 可达 FAIL ≥2 路（如把 `cg15 rc3` 写回 `cg8 rc1`、把 pending 改回“进入即清”）⇒ 一致性扫描红，`cp`+md5 还原。
+6. 完成区 ≤30 行；状态 → `待验收`。
+
+## 硬约束
+
+1. 独立 worktree；不提交 git；证据脚本 = 运行期证据目录内 `run.sh`。
+2. 只动 spec/契约/ADR/索引 + 本任务书；不改实现组件/`tests/**`/`idl/**`。
+3. 语义严格按「已确定」1–20，不自行扩展；`cp`+md5 还原。
+4. **派发时机**：`m18-linux-026` 收口后再派（用户裁定 A）。
+5. 术语「bank = 寄存器组」；完成区不写具体运行期路径。
 
 ## 完成区
 
