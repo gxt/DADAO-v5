@@ -1,6 +1,6 @@
 # SBI（主管系统二进制接口）
 
-> **版本：0.8.0**（与 SEE 版本号一致，同步更新）
+> **版本：0.8.1-rc**（与 SEE 版本号一致，同步更新）
 
 SBI 定义不同核芯功能扩展之间的功能调用。大部分功能调用在同一运行模式（主管模式）进行，仅少数需要访问特权硬件资源的服务才会提升到 H-mode 执行。
 
@@ -269,7 +269,7 @@ cfx_hart 为 Hart 管理部件，提供 hart ID 与每 hart 的定时器比较�
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_HART_GET_ID | — | rd8 = id | 返回当前 hart 编号 |
-| 1 | SBI_HART_SET_TIMER | rd16 = timeout | — | 设置本 hart 的定时器比较值（64 位绝对时间，单位同 cfx_time_value） |
+| 1 | SBI_HART_SET_TIMER | rd16 = timeout | — | 设置本 hart 的定时器比较值（64 位绝对时间，单位同 cfx_time_value）；写 `cg16 rc1` 并置 `cg16 rc0` 的 bit0 `ENABLE`；中断放行另由 `cg16 rc16` mask 控制 |
 
 > 初始化方式与其他 cfx 一致：探测 cfx_hart 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_hart 为 per-hart cfx，每个 hart 独立初始化。
 
@@ -300,12 +300,12 @@ cfx_hart_supv_excp_handler:
 cfx_hart_unknown:
     escape cfx_hart
 
-cfx_hart_async_excp_handler:                     @@ 由 cfx_hart cg9 rc15（async_excp_vector）进入，不是本 cfx 的同步向量
-    @@ 异步进入瞬间已把源集合捕获进 cfx_hart cg9（位 = 源 cfxha：TIMER=15、PMEM_DMA=32）
-    cfx2rd  cfx_hart_async_src_frame, rd2        @@ 本次捕获的源集合
-    @@ TIMER：rd2 的 bit15 置位时回 cfx_hart cg8 rc5 读 ISTATUS
-    @@ PMEM_DMA：rd2 的 bit32 置位时回 cfx_pmem cg15 rc4 读 dma_status（含 ERR_CODE）
-    @@ 关中断窗口：把 cg9（prev_*/prev_ip/src_frame）与 cg5 rc8–rc11、GPR 搬到本任务现场（task_pt_regs）
+cfx_hart_async_excp_handler:                     @@ 由 cfx_hart cg15 rc15（async_excp_vector）进入，不是本 cfx 的同步向量
+    @@ 异步进入瞬间已把源集合捕获进 cfx_hart cg15（位 = 源 cfxha：TIMER=15、PMEM_DMA=32）
+    cfx2rd  cfx_hart_async_src_frame, rd2        @@ 本次进入的源集合
+    @@ TIMER：rd2 的 bit15 置位时读 cfx_hart cg16 rc17（pending）；处理后在 escape 前写 cfx_hart cg16 rc18（ack，W1C）
+    @@ PMEM_DMA：rd2 的 bit32 置位时读 cfx_pmem cg16 rc17（pending）；处理后在 escape 前写 cfx_pmem cg16 rc18（ack）；并按需读 cg15 rc4（dma_status，含 ERR_CODE）
+    @@ 关中断窗口：把 cg15（prev_*/prev_ip/src_frame）与 cg5 rc8–rc11、GPR 搬到本任务现场（task_pt_regs）
     @@ 也可不 handoff：用 hart 的 cg5 rc8–rc11 出口意图执行 escape cfx_hart 直接返回
     trap    cfx_smon, 0x0                        @@ handoff 到 smon；本处不返回，用户/内核返回走 smon/umon 正常路径
 
@@ -329,13 +329,13 @@ cfx_hart_get_id:
 
 cfx_hart_set_timer:
     @@ rd16 = timeout（绝对时间，单位同 cfx_time_value）
-    cfx2rc  cfx_hart_timer_cmp, rd16                 @@ 写比较值即清除本次匹配条件
-    set.rd   rd2, 1                                  @@ bit0=ENABLE，IMASK=0
-    cfx2rc  cfx_hart_timer_ctrl, rd2
+    cfx2rc  cfx_hart_timer_cmp, rd16                 @@ 写比较值只重新 arm deadline，不清 pending
+    set.rd   rd2, 1                                  @@ bit0=ENABLE
+    cfx2rc  cfx_hart_timer_ctrl, rd2                 @@ 使能定时器；timer mask 由 cg16 rc16 控制（默认全 1 = 屏蔽）
     escape cfx_hart
 
 @@ `cfx_hart_timer_int` 为旧同步定时器入口，已删除：定时器与 PMEM_DMA 的异步中断不进入本 cfx 的同步分派，
-@@ 入口见 §7.1 的 `cfx_hart_async_excp_handler`（捕获缓冲 → `trap cfx_smon`，不用 `escape` 返回）。
+@@ 入口见 §7.1 的 `cfx_hart_async_excp_handler`（cg15 捕获 → `trap cfx_smon` 或 `escape cfx_hart` 返回）。
 ```
 
 ## 8. LLC管理（cfx_llc）
@@ -367,6 +367,8 @@ cfx_pmem 为存储器管理部件，S-mode 可查询 hypv 固件设置的物理�
 > 初始化方式与其他 cfx 一致：探测 cfx_pmem 的存在性，设置异常向量并按 `cfxtrap` 来源 mask 授权（supv 源 = bit 2）。cfx_pmem 的 PM 区域配置由 hypv 固件在 H-mode 初始化阶段完成（见 HBI）。
 
 > `SBI_PMEM_DMA_*` 只做「忙判定 + 寄存器搬运 + 状态回读」：`START` 返回 0 仅表示**调用完成且当时不忙**（硬件可能在 `START` 时即判定非法并置 `ERROR`/`ERR_CODE`、`BUSY` 保持 0），调用方须读 `STATUS` 判定传输结果；`START` 不清 `DONE`/`ERROR`，`STATUS` 不做 W1C。SRAM 基址与大小固定（`DADAO-12 §4.9`），因此**不提供** `SBI_PMEM_GET_SRAM`。
+
+> **中断面（`cg16`）**：`PMEM_DMA` 的 mask/pending/ack 在 `cfx_pmem cg16 rc16/rc17/rc18`（bit0 = 传输结束，`DONE` 或 `ERROR`）。SBI 不封装中断 ack；异步 handler 读 `cg16 rc17`、处理后在 `escape` 前写 `cg16 rc18`（W1C）。`cg16 rc18` 只清中断 pending，不清 `dma_status`；`dma_ctrl` 的 bit2 保留（读 0/写忽略）。
 
 cfx_pmem 的异常入口处理：
 
@@ -743,6 +745,10 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 ## 附录：版本与变更记录
 
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
+
+### 0.8.1-rc（未发布）
+
+- **timer/DMA 显式 ack 同步（内容改，新开 0.8.1-rc）**：随 SEE 的源侧 pending/mask/ack 修订，SBI 的 timer 初始化与异步入口示例改为——`cfx_hart cg16 rc0` 只写 bit0 `ENABLE`、`rc1` 写比较值，不再有 `IMASK`/`ISTATUS`；`cfx_hart cg16 rc16/rc17/rc18` 为 timer 的 mask/pending/ack，`cfx_pmem cg16 rc16/rc17/rc18` 为 DMA 的 mask/pending/ack；handler 按 `cfx_hart cg15 rc4` 的源 cfxha 位回源读 `pending`、处理后在 `escape` 前写 `ack`（W1C）。`PMEM_DMA` 的 `dma_ctrl` 的 bit2 保留（读 0/写忽略），传输结束由 `cg16 rc17` bit0 表达，`dma_status` 的 `DONE`/`ERROR`/`ERR_CODE` 仍由自身 W1C 清。**功能码、入参、返回值与错误码未变**。
 
 ### 0.8.0（2026-11-26）
 

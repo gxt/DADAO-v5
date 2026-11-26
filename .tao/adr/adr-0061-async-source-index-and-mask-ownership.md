@@ -1,6 +1,6 @@
 # ADR-0061: 异步中断模型修订（掩码归 monitor、源索引统一 cfxha、cg9 精简为软件只读）
 
-**状态**：Accepted（2026-11-23；用户确认"统一"并批准派发 `m18-spec-004`；D5 掩码更名、D6 pending 跟随源事件、D12 版本按本 ADR 草案执行，spec-004 复核时如与预期不符再改）；2026-11-23 R2 裁定修订 cg9 为捕获缓冲、`escape` 不再异步返回，见「R2 修订」段；2026-11-26 R3 修订：cg5 rc8–rc11 出口 + 异步 escape，见「R3 修订」段
+**状态**：Accepted（2026-11-23；用户确认"统一"并批准派发 `m18-spec-004`；D5 掩码更名、D6 pending 跟随源事件、D12 版本按本 ADR 草案执行，spec-004 复核时如与预期不符再改）；2026-11-23 R2 裁定修订 cg9 为捕获缓冲、`escape` 不再异步返回，见「R2 修订」段；2026-11-26 R3 修订：cg5 rc8–rc11 出口 + 异步 escape，见「R3 修订」段；2026-11-26：`cg9` 捕获组与 monitor mask 位置由 `adr-0064-interrupt-source-pending-mask-ack.md`（`ADR-0064`）取代（D5/D6 被取代，R3 出口帧继续有效）
 **日期**：2026-11-23
 **关联**：`ADR-0060`（Accepted；本 ADR 取代其 D2/D3 的 cg9 表与释放语义、D6 的掩码归属、D7 的「保留 cause 17/18」；D0/D1/D4/D5/D9 继续有效并 Super­sede 记录待 Accepted 后追加）；`ADR-0059`（已 Superseded）；`m18-spec-002`、`m18-qemu-004`、`m16-chipyard-021`、`m16-chipyard-020`、`m18-spec-007`；`ISS-500`、`ISS-498`
 

@@ -7,7 +7,7 @@
 #          reg    <name> <cfxha> <cg> <rc-base> <rc-count> [canonical]
 #          array  <name-base> <cfxha> <cg> <rc-base> <count> <stride> [canonical]
 # Read at run time from <exe-dir>/../share/dadao/cfx-aliases.txt (or $DADAO_CFX_ALIAS_FILE / --dadao-cfx-alias=).
-# scalars=12 regs=1330
+# scalars=12 regs=1336
 scalar cfx_umon 0 canonical
 scalar cfx_jmon 1 canonical
 scalar cfx_smon 2 canonical
@@ -67,7 +67,7 @@ array cfx_umon_space_desc 0 7 0 16 4 canonical
 array cfx_umon_space_start 0 7 1 16 4 canonical
 array cfx_umon_space_size 0 7 2 16 4 canonical
 array cfx_umon_space_attr 0 7 3 16 4 canonical
-reg cfx_umon_async_intr_mask 0 8 1 1 canonical
+reg cfx_umon_async_intr_mask 0 15 3 1 canonical
 reg cfx_jmon_user_cfxtrap 1 0 0 1 canonical
 reg cfx_jmon_user_cfxmem 1 0 1 1 canonical
 reg cfx_jmon_user_cfxreg 1 0 2 1 canonical
@@ -115,7 +115,7 @@ array cfx_jmon_space_desc 1 7 0 16 4 canonical
 array cfx_jmon_space_start 1 7 1 16 4 canonical
 array cfx_jmon_space_size 1 7 2 16 4 canonical
 array cfx_jmon_space_attr 1 7 3 16 4 canonical
-reg cfx_jmon_async_intr_mask 1 8 1 1 canonical
+reg cfx_jmon_async_intr_mask 1 15 3 1 canonical
 reg cfx_smon_user_cfxtrap 2 0 0 1 canonical
 reg cfx_smon_user_cfxmem 2 0 1 1 canonical
 reg cfx_smon_user_cfxreg 2 0 2 1 canonical
@@ -163,7 +163,7 @@ array cfx_smon_space_desc 2 7 0 16 4 canonical
 array cfx_smon_space_start 2 7 1 16 4 canonical
 array cfx_smon_space_size 2 7 2 16 4 canonical
 array cfx_smon_space_attr 2 7 3 16 4 canonical
-reg cfx_smon_async_intr_mask 2 8 1 1 canonical
+reg cfx_smon_async_intr_mask 2 15 3 1 canonical
 reg cfx_hmon_user_cfxtrap 3 0 0 1 canonical
 reg cfx_hmon_user_cfxmem 3 0 1 1 canonical
 reg cfx_hmon_user_cfxreg 3 0 2 1 canonical
@@ -211,7 +211,7 @@ array cfx_hmon_space_desc 3 7 0 16 4 canonical
 array cfx_hmon_space_start 3 7 1 16 4 canonical
 array cfx_hmon_space_size 3 7 2 16 4 canonical
 array cfx_hmon_space_attr 3 7 3 16 4 canonical
-reg cfx_hmon_async_intr_mask 3 8 1 1 canonical
+reg cfx_hmon_async_intr_mask 3 15 3 1 canonical
 reg cfx_ptw_user_cfxtrap 4 0 0 1 canonical
 reg cfx_ptw_user_cfxmem 4 0 1 1 canonical
 reg cfx_ptw_user_cfxreg 4 0 2 1 canonical
@@ -367,16 +367,19 @@ array cfx_hart_space_attr 15 7 3 16 4 canonical
 reg cfx_hart_hart_id 15 8 0 1 canonical
 reg cfx_hart_cycle 15 8 2 1 canonical
 reg cfx_hart_insn 15 8 3 1 canonical
-reg cfx_hart_timer_cmp 15 8 4 1 canonical
-reg cfx_hart_timer_ctrl 15 8 5 1 canonical
-reg cfx_hart_async_prev_run_mode 15 9 0 1 canonical
-reg cfx_hart_async_prev_cfx_code 15 9 1 1 canonical
-reg cfx_hart_async_cause_ip 15 9 2 1 canonical
-reg cfx_hart_async_prev_intr_mask 15 9 3 1 canonical
-reg cfx_hart_async_src_frame 15 9 4 1 canonical
-reg cfx_hart_async_src_pending 15 9 5 1 canonical
-reg cfx_hart_async_switch_run_mode 15 9 14 1 canonical
-reg cfx_hart_async_excp_vector 15 9 15 1 canonical
+reg cfx_hart_async_prev_run_mode 15 15 0 1 canonical
+reg cfx_hart_async_prev_cfx_code 15 15 1 1 canonical
+reg cfx_hart_async_cause_ip 15 15 2 1 canonical
+reg cfx_hart_async_prev_intr_mask 15 15 3 1 canonical
+reg cfx_hart_async_src_frame 15 15 4 1 canonical
+reg cfx_hart_async_src_pending 15 15 5 1 canonical
+reg cfx_hart_async_switch_run_mode 15 15 14 1 canonical
+reg cfx_hart_async_excp_vector 15 15 15 1 canonical
+reg cfx_hart_timer_ctrl 15 16 0 1 canonical
+reg cfx_hart_timer_cmp 15 16 1 1 canonical
+reg cfx_hart_timer_mask 15 16 16 1 canonical
+reg cfx_hart_timer_pending 15 16 17 1 canonical
+reg cfx_hart_timer_ack 15 16 18 1 canonical
 reg cfx_pmem_user_cfxtrap 32 0 0 1 canonical
 reg cfx_pmem_user_cfxmem 32 0 1 1 canonical
 reg cfx_pmem_user_cfxreg 32 0 2 1 canonical
@@ -433,6 +436,9 @@ reg cfx_pmem_dma_dst 32 15 1 1 canonical
 reg cfx_pmem_dma_size 32 15 2 1 canonical
 reg cfx_pmem_dma_ctrl 32 15 3 1 canonical
 reg cfx_pmem_dma_status 32 15 4 1 canonical
+reg cfx_pmem_dma_mask 32 16 16 1 canonical
+reg cfx_pmem_dma_pending 32 16 17 1 canonical
+reg cfx_pmem_dma_ack 32 16 18 1 canonical
 reg cfx_llc_user_cfxtrap 33 0 0 1 canonical
 reg cfx_llc_user_cfxmem 33 0 1 1 canonical
 reg cfx_llc_user_cfxreg 33 0 2 1 canonical

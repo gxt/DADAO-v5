@@ -6,7 +6,7 @@
 **可并行分片**：否
 **预估**：待定（讨论完成后再标定）
 **档位**：中改（异步源 ack 语义 + 三实现）
-**状态**：待开始（等 `m18-linux-026` 收口后派发）
+**状态**：已验证
 **执行环境**：本地
 
 ## 背景
@@ -126,8 +126,67 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：证据脚本 22/22（17 门控 + 38 文件扫描 + 4 路注入）；`check-arch-self-test` 恢复基线 `self-test: FAIL（2 项）`（`check_hart`/`check_pmem_dma`，两侧同因缺 llvm-mc）
+**修改文件**：`spec/DADAO-12-SEE-主管系统运行环境.md`、`spec/DADAO-22-SBI-主管系统二进制接口.md`、`spec/Kaiwu-测试机运行环境.md`、`spec/DADAO-23-HBI-超管系统二进制接口.md`、`spec/.manifests.toml`、`README.md`、`.tao/contracts/contract-see.md`、`.tao/contracts/contract-cfx-aliases.md`、`contracts/cfx-aliases.txt`、`.tao/adr/adr-0064-…md`（新增）、`.tao/adr/adr-0061-…md`（取代指针）、`tests/arch/common/check_mode_env.py`
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- F1：`check_mode_env.py` L145 正则改为接受 `(?:cg8 rc1|cg15 rc3)`，**探针已随规范同步**、断言未删；注入 `cg16 rc3` ⇒ probe FAIL、`cp`+md5 还原 PASS；`check-arch-self-test` 由 3 项恢复 **2 项基线**（无新增 KNOWN-RED）。
+- F2：Kaiwu L92（mask→`cg15 rc3`+`cg16`）、L108（删 `IRQ_EN`，改 `cg16` 中断面）、L148/L152（escape 目标→`cg15 rc3`）；DADAO-23 L25（`cg15`）、L26（`cg15 rc3`+`cg16`）、L53（`cg15`/`cg15 rc3`）；两册活正文 `cg8 rc1`/`cg9` 异步/`投递`/`IRQ_EN` 清零，manifests 重算。
+- F3：扫描面扩至 38 文件（`spec/*.md` 23 + `.tao/contracts/*.md` 15，逐文件在变更记录截断），断言 **132** 条；补「`cg15 rc3` 复位全 1」「`cg16 rc18` W1C」断言；注入 ② 复位改 0、③ W1C→W0C 均转 FAIL，`cp`+md5 还原回绿。
+- 门控：`check-spec-*`、`check-contracts-*`、`check-manifests-guard`、`check-cfx-aliases`/`-alias-table`、`check-opcodes-repro`、`check-legality-*`、`check-knowledge-refs` 全 rc=0；别名 1336 regs、opcodes 263 不变、三处 `0.8.1-rc`。
+**新发现/坑**：`contract-see` 版本头含 `-rc` 时 `check_spec_drift` 走 ADR-sourced 分支；`cg8 rc1` 文本扫描须用 `(?!\d)` 排除 `cg8 rc10/rc11`；IDL-ISA/SimRISC-11 的旧口径由 `m18-idl-004` 覆盖，扫描以显式 known-red 名单排除。
+**遗留问题**：KNOWN-RED（归波2）：QEMU/RTL/gem5/IDL 执行器、Linux 内核补丁、`check_hart`/`check_pmem_dma` 探针仍按 0.8.0 寄存器面；`check-arch-self-test` 的 2 项红为基线既有（缺 llvm-mc），非本任务引入。spec/契约活正文无遗留。
+
+## 审阅记录
+
+### 第 1 轮 engineer 自审
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| `cg5` 退出伪码仍写 `temp_monitor.cg8_rc1` | ✅已修 | 改为 `temp_monitor.cg15_rc3` | 全文 `cg8_rc1` 0 命中；证据脚本 rc=0 |
+| 一致性扫描只查文本 `cg8 rc1`，表行 `\| 8 \| 1 \|` 注入假绿 | ✅已修 | 增加表行判据（`cg8 rc1` mask 行 / `cg8 rc4/5` timer 行 / `cg9` async 行） | 注入 1 转 FAIL、cp+md5 还原回绿 |
+| `IRQ_EN` 在历史变更记录与新说明中残留 | ✅已修 | 两册全文清零（保留“bit2 保留”表述） | `grep -c IRQ_EN` 两册 = 0；扫描 rc=0 |
+| `dma_ctrl` bit2 读回/写忽略口径未写全 | ✅已修 | §4.9 表与段补“读 0/写忽略” | 门控 + 扫描 rc=0 |
+| DADAO-22 `SBI_HART_SET_TIMER` 未体现 `cg16 rc0/rc1/mask` | ✅已修 | 说明补 `ENABLE`/cmp/mask 口径；示例注释同步 | 门控 + 扫描 rc=0 |
+| `timer_mask` 复位全 1 与“SBI 示例直接可用”存在易误读 | ⏸延后 | 不改语义（用户已定复位全 1）；由内核 init 清 mask | 任务书「已确定 13」；§4.7/§5.4 已写清 |
+
+### 第 1 轮 reviewer 验收
+
+**重跑记录（reviewer 本人执行，workdir = 任务 worktree，提交 `c342c3f0`）**
+- 仓库根执行运行期证据目录内的 `run.sh`（默认注入）：17 项门控（`check-spec-{drift,numbering,changelog,refs,purity,cite-targets,codeblocks}`、`check-contracts-{dir,pending}`、`check-contract-relocs`、`check-manifests-guard`、`check-cfx-aliases`、`check-cfx-alias-table`、`check-opcodes-repro`、`check-legality-{drift,invariants}`、`check-knowledge-refs`）逐项 `rc=0` + `PASS consistency scan rc=0` + 2 路注入「红→cp+md5 回绿」⇒ `── summary: pass=20 fail=0 ──`、`EXIT=0`。
+- `make -k check` @ `c342c3f0` 与 @ 基线 `a362345b`（干净检出）逐段 diff：失败集 = isa-coverage / arch-self-test / syscall-abi / milestones-fresh / width-sizes / components / interface / linux-toolchain / writer-guards / temp-dirs；**除 `check-arch-self-test` 外逐段相同**（isa-coverage 两侧同为缺 llvm-mc；syscall-abi/width-sizes/components/linux-toolchain 同为缺工具链；milestones-fresh 9 项、writer-guards `W5b`、temp-dirs 6 项、interface `294≠309` 两侧一致）；`check-knowledge-refs` 基线红（`ADR-0064` 悬空 2）→ 本任务转绿。
+- `check-arch-self-test`：基线 `self-test: FAIL（2 项）` → 现 `FAIL（3 项）`；新增 `tests/arch/common/check_mode_env.py`，其 L145 正则要求 `contract-see §3` 含「`cfx0`–`cfx3` 的 `cg8 rc1`（异步来源掩码）初值全 1」，本任务把该句改成 `cg15 rc3` ⇒ 失配；另 2 项（`check_hart`/`check_pmem_dma`）两侧同为缺 llvm-mc。
+- 独立注入 3 路（各 `cp` 备份 + md5 前后校验、恢复后 md5 相等、回绿）：① `escape rc11` 目标句 `cg15 rc3`→`cg8 rc1` ⇒ `SKIP_GATES=1 INJECT=0` 跑 `run.sh` **EXIT=1**（marker 缺失）；② `cg15 rc3` 复位 `全1`→`0` ⇒ **EXIT=0 不红**；③ `cg16 rc18` ack `W1C`→`W0C` ⇒ **EXIT=0 不红**。
+- 38 文件现场枚举（`spec/*.md` ∪ `.tao/contracts/*.md`、逐文件在变更记录处截断）：`IRQ_EN` 1 = `spec/Kaiwu` L108；现行正文「投递」4 = Kaiwu L108、`DADAO-23` L25/L26、`IDL-ISA` L354；`cg8 rc1` 掩码/escape 目标 7 = Kaiwu L92/L148/L152、DADAO-23 L26/L53、IDL-ISA L312/L354、`SimRISC-11` L86；`cg9` 异步 5 = DADAO-23 L25/L53、IDL-ISA L350/L353/L357（`Toolchain-01`/`contract-asm`/`contract-isa` 的 `cg9` 帧选择位属 `m18-spec-007` 已披露的旧 escape 语法，不计）。
+- 范围：`git show --name-only c342c3f0` 与完成区声明 10 文件逐字一致；`components/**`/`tests/**`/`idl/**` 命中 0；`git ls-remote --heads origin m18-spec-008` 空（未 push）；开工/收尾 `git status --porcelain -uall` 均空，9 个交付文件 md5 与开工值逐个相等（仅本任务书因本记录改动）；状态 `待验收`；完成区 11 行 ≤30。
+- 版本/别名/编码：三处 `0.8.1-rc`；`git diff a362345b..HEAD -- spec/SimRISC*` 空、`contracts/opcodes.yaml` 未动（263 条）；别名表 1336 regs（专有 52）与 `gen_cfx_alias_table` 现场输出一致。
+
+**约束核验**：硬约束 1–5 全守（独立 worktree、未提交未推送、只动 spec/契约/ADR/索引+本任务书、`cp`+md5 还原、无运行期路径入文、术语「寄存器组」）。验收 1/3/4/5/6 我方重跑通过：`cg15 rc0–rc5/rc14/rc15` + `rc6–rc13` reserved、`cg9` 正文无异步用途；四 monitor `cg15 rc3` 64 位/位=源 cfxha/1=屏蔽/复位全 1、`cg8 rc1` 归 reserved、`escape rc11`→`cg15 rc3`、`cg5 rc3` 快照同步、§5.4 逐源求值；`cfx_hart cg16` rc0 仅 ENABLE/rc1 cmp/rc16/17/18、`cfx_pmem cg16` bit0 = `DONE|ERROR`、两册 `IRQ_EN` 0 处、`cg8 rc4/rc5` reserved；pending 事件置位/ack 才清/进入不清、ack 幂等保留位忽略、多源合并、`cg15 rc4/rc5` 聚合、使能即检、DMA ack 只清 pending；ADR-0064 D1–D8 逐条对应已确定 1–20 并显式 supersede `ADR-0061` D5/D6、`ADR-0061` 状态行有指针；`contract-syscall` 无旧口径残留。
+
+**判决：Needs Revision**
+- **F1（阻断·门控/退出码）**：`make check` 与基线**不逐行相同**且新增红未登记——`check-arch-self-test` 2→3 项（`check_mode_env`，根因本任务改 `contract-see`），完成区「遗留问题」未点名、`issues-m18.yaml` 中 `grep -c "ADR-0064\|m18-spec-008"` = 0 ⇒ 违反 AGENTS.md §4「失败须登记 KNOWN-RED + issue」（同模块 `m18-spec-005` 验收 5 即「`make check` 与基线逐行相同」）。改法：完成区补该 KNOWN-RED（基线 2→现 3、探针名、根因、归 `m18-testcases-005`）+ 登记 issue 或写明由 architect 收尾登记；`tests/**` 超本任务硬约束，不要求本任务改探针。
+- **F2（阻断·语义）**：验收 2「全文一致性」按 `m18-spec-004` 复审确立的 38 文件口径不成立——`spec/Kaiwu` 4 行（含指导软件使用**已删除**的 `IRQ_EN`、把掩码写到**已 reserved** 的 `cg8 rc1`）与 `spec/DADAO-23` 3 行（`cg9` 捕获、`cg8 rc1` 掩码与 escape 目标、投递）现行正文与 `DADAO-12` 新口径直接矛盾；**两册无任何后续任务覆盖、完成区零披露、issue 零登记**（IDL-ISA/SimRISC-11 已由 `m18-idl-004` 覆盖，须写明）。改法二选一：本任务内改两册活正文并重算 manifests（硬约束 2 允许面内），或完成区逐条枚举行号 + 登记 issue/后续任务（`m18-spec-004` F3 模式）。
+- **F3（随修·证据脚本）**：`run.sh` 扫描面仅 5 文件（先例 38 文件、断言 ≥30），且验收 4 的「`cg15 rc3` 复位全 1」「`rc18` W1C」两维度无断言（注入 ②③ 不红）⇒ 扩扫描面 + 补两条可达 FAIL 断言并注入回绿。
+
+### 第 2 轮 engineer 自审
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `check_mode_env` 仍断言 `cg8 rc1` 位置 | ✅已修 | L145 正则接受 `(?:cg8 rc1|cg15 rc3)`，断言保留 | 注入 `cg16 rc3` ⇒ probe FAIL、cp+md5 还原 PASS；`check-arch-self-test` 2 项基线 |
+| F2 Kaiwu/DADAO-23 活正文旧口径 | ✅已修 | Kaiwu L92/108/148/152；DADAO-23 L25/26/53 改 `cg15`/`cg15 rc3`/`cg16`，删 `IRQ_EN` | 38 文件扫描 0 残留（IDL-ISA/SimRISC-11 按 known-red 排除）；manifests 重算 |
+| F3 扫描面/断言不足 | ✅已修 | 扫描 38 文件、断言 132；补复位全 1 与 W1C 断言 | 注入 ②复位 0、③W1C→W0C 均 FAIL，cp+md5 还原回绿；证据 22/22 |
+
+### 第 2 轮 reviewer 验收
+
+**重跑记录（reviewer 本人执行，workdir = 任务 worktree，提交 `43dfc3fe`）**
+- **F1**：`python3 tests/arch/common/check_mode_env.py --selfcheck` ⇒ `selfcheck PASS`、EXIT=0；`make check-arch-self-test` ⇒ `self-test: FAIL（2 项）`（`arch/hart/check_hart.py`、`arch/pmem/check_pmem_dma.py`，与基线同因缺 llvm-mc）= 基线。断言未删、非恒真：独立注入（`contract-see` 初值句 `全1`→`全0`）⇒ probe **EXIT=1**「缺 cg15 rc3 异步来源掩码初值句」，`cp`+md5 还原 ⇒ EXIT=0。**判定：改探针可替代上轮「登记 KNOWN-RED + issue」**——根因（探针钉旧位置）被消除、`tests/arch/common/check_mode_env.py` 为已授权扩围的单点文件、断言保留且可达 FAIL；登记仅在无法改根因时才必要。
+- **F2**：`git show 43dfc3fe` 逐行核：Kaiwu L92（mask→`cg15 rc3` + 源侧 `cg16 rc16/17/18`）、L108（删 `IRQ_EN` 指导→`cg16` 中断面、删「投递」）、L148/L152（escape 目标→`cg15 rc3`）；DADAO-23 L25/L26/L53（`cg9`→`cg15`、`cg8 rc1`→`cg15 rc3`、补 `cg16` 复位口径、删「投递」）。reviewer 独立 38 文件正文统计：`IRQ_EN`=0；`投递` 仅 `IDL-ISA` L354（known-red）；两册正文 `投递/IRQ_EN/cg8 rc1/cg9` 命中全 0。`sha256sum` 我方重算 Kaiwu/DADAO-23 = 清单登记值，`check-manifests-guard` rc=0。
+- **F3**：`run.sh` 打印 `scan files=38 (spec=23, contracts=15) assertions=131` + 计数断言 ⇒ `CONSISTENCY: PASS (assertions=132)` ≥30；`summary: pass=22 fail=0`、`EXIT=0`（17 门控逐项 rc=0，含 `check-cfx-alias-table`/`check-opcodes-repro`/`check-knowledge-refs`）；4 路内置注入均红→`cp`+md5 回绿。**注入 ②（复位 `全1`→`0`）③（`W1C`→`W0C`）reviewer 单独重跑**：均 `EXIT=1`（上轮同两路为 EXIT=0），还原 md5 相等、回绿 `EXIT=0`。
+- **自设注入（新角度）**：Kaiwu L92 回写 `cg15 rc3`→`cg8 rc1` ⇒ `SKIP_GATES=1 INJECT=0` 跑 `run.sh` **EXIT=1**（`cg8 rc1 still used as mask`）⇒ `cp`+md5 还原 ⇒ EXIT=0（`assertions=132`）。
+- **范围**：`git show --name-only 43dfc3fe` = 5 文件（任务书、`spec/Kaiwu-测试机运行环境.md`、`spec/DADAO-23-HBI-超管系统二进制接口.md`、`spec/.manifests.toml`、`tests/arch/common/check_mode_env.py`），与完成区声明一致（任务书为隐含项，同第 1 轮口径）；无 `components/**`/`idl/**`/内核/其它 `tests/**`；`git ls-remote --heads origin m18-spec-008` 空（未 push）；注入前后 `git status --porcelain -uall` 均空；状态 `待验收`。
+- **`make -k check` @`43dfc3fe` vs 基线失败集**：`diff` ⇒ **IDENTICAL（10 项：isa-coverage / arch-self-test / syscall-abi / milestones-fresh / width-sizes / components / interface / linux-toolchain / writer-guards / temp-dirs）**，无新增红；`check-arch-self-test` 段 = 基线 2 项；`check-knowledge-refs` PASS（0 悬空、0 具体 `.work/**` 引用）。
+
+**约束核验**：硬约束 1–5 守（本轮扩围 `tests/arch/common/check_mode_env.py` 已由主会话授权、单点、断言未弱化、未动实现/IDL/内核）；`cp`+md5 还原全绿；完成区 ≤30 行、无运行期路径入文；第 1 轮审阅记录未被改写。
+
+**观察（不阻断）**：① `check_mode_env.py` L145 用 `(?:cg8 rc1|cg15 rc3)` 容忍旧写法，单看可放过「回退到 `cg8 rc1`」，但 `run.sh` §2.5 另有钉死 `cg15 rc3` 的专句断言（可达 FAIL），整体仍守；② 完成区「修改文件」未列任务书本身（与第 1 轮一致，属隐含项）。
+
+**判决：Accepted**

@@ -89,7 +89,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 每个核芯功能扩展提供 cg0–cg7 共有寄存器，规范相同；其中 cg0–cg3 为 `user`/`jail`/`supv`/`hypv` 各自的 12 个模式寄存器，cg4–cg6 为配置/现场/暂存寄存器。`cg7` 为内部空间描述寄存器（[DADAO-12 §3.8]）：每 4 个 rc 描述一个内部空间，字段按**数组** `space_{desc,start,size,attr}[i]`（`i = 0..15`）定义，未实现空间以 `exists=0` 表示，全部只读、写触发 `CFXREG`。[DADAO-12 §3. 共有寄存器设计规范]
 
-- 每个 cfx 的 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe`（`rc0`–`rc3`）为四类 64 位同步来源 mask：**0=允许，1=屏蔽**，位索引=源 cfx；自身只绕过 cfx 轴。`rc4` **不定义（保留，访问 ⇒ `CFXREG`）**；异步来源掩码 = `cfx0`–`cfx3` 的 `cg8 rc1`（`cfx_<monitor>_async_intr_mask`，位 = 源 cfxha，0=允许、1=屏蔽，复位全 1）。[DADAO-12 §3. 共有寄存器设计规范]
+- 每个 cfx 的 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe`（`rc0`–`rc3`）为四类 64 位同步来源 mask：**0=允许，1=屏蔽**，位索引=源 cfx；自身只绕过 cfx 轴。`rc4` **不定义（保留，访问 ⇒ `CFXREG`）**；异步来源掩码 = `cfx0`–`cfx3` 的 `cg15 rc3`（`cfx_<monitor>_async_intr_mask`，位 = 源 cfxha，0=允许、1=屏蔽，复位全 1）；源侧中断面在源 cfx 的 `cg16 rc16/17/18`（mask/pending/ack）。[DADAO-12 §3. 共有寄存器设计规范][DADAO-12 §4.7 cfx_hart - hart management][DADAO-12 §4.9 cfx_pmem - physical memory management]
 - `switch_run_mode` 为陷入时切换的运行模式。[DADAO-12 §3. 共有寄存器设计规范]
 - cfx 来源掩码拒绝触发 `CFXPERM`（`1<<7`，进入当前模式 monitor），escape 帧/目标错误触发 `CFXESC`（`1<<3`，进入当前 cfx）；reserved cfxha 的 `trap`/`escape`/`cfx2rd`/`cfx2rc` 见下条。[DADAO-12 §4. 专有寄存器设计规范]
 - **`trap`/`escape`/`cfx2rd`/`cfx2rc` 到不同 cfxha 的两条互斥口径**（`§1.2`/`§7.1` 与实现共同遵守）：
@@ -105,7 +105,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
   - **`Kaiwu-Tiny`**：实现 **`cfx_power`（cfx63，启动移交）** 与 **`cfx3`（`hmon`，同步异常向量）**，提供其 cg0–cg7 共有寄存器与异常向量；`cfx_power`（cfx63）用于启动移交（`power → hmon`）。**不实现 `cfx2`（smon）/`cfx32`（pmem）/`cfx4`（ptw）/`cfx5`（cache）/`cfx33`（llc）/`cfx34`（time）等其它 cfx**。cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 对未实现 cfx ⇒ `CFXREG`；非 semihosting 的 `trap cfx_hmon`（`cfxha=3`，`immu18 < 0x3FF00`）按 `DADAO-12 §5.2` 进入 hmon 向量（`CFXTRAP`）；`trap`/`escape` 到未实现 cfx ⇒ `ILLI`（进入 hmon 向量，见 `§4.4`）。**semihosting 判定只看 `immu18`（`§5.1`），与 `cfxha` 无关**。
   - **`Kaiwu-Vast`**：实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；并实现 **`cfx32`（`pmem`）的 64 KiB SRAM 与 `cg15` DMA**（`DADAO-12 §2.1`、`§4.9`），以及 **`cfx5`（`cache`）的寄存器与维护命令**（`DADAO-12 §4.6`；本机约定见 `§3.2`）。
   - 上述范围为**测试机约定**（控制首版成本），**不构成对上游 `DADAO-12`/`DADAO-13` 架构的 cfx 数量/编号限制**。[DADAO-12 §1. 运行模式与核芯功能扩展]
-- **测试机 `cfx_pmem` DMA 约定（仅 Vast）**：DMA 只在 `cfx_pmem` SRAM 与物理存储器之间搬运，异步完成（软件须轮询 `dma_status.BUSY` 或使能 `IRQ_EN`）；DMA 可读 RAM 与 boot ROM、只可写 RAM，其余 PA 属 `PA_FAULT`；`PMEM_DMA` 的源身份 = `cfx_pmem` 的 cfxha 32（**不占 `excp_cause_id`**），统一投递本 hart 的 `cfx_hart`（cfxha 15，单 hart）。[DADAO-12 §4.9]
+- **测试机 `cfx_pmem` DMA 约定（仅 Vast）**：DMA 只在 `cfx_pmem` SRAM 与物理存储器之间搬运，异步完成（软件须轮询 `dma_status.BUSY`，或使用 `cg16 rc16` mask / `rc17` pending / `rc18` ack 中断面）；DMA 可读 RAM 与 boot ROM、只可写 RAM，其余 PA 属 `PA_FAULT`；`PMEM_DMA` 的源身份 = `cfx_pmem` 的 cfxha 32（**不占 `excp_cause_id`**），统一在本 hart 的 `cfx_hart`（cfxha 15，单 hart）执行异步进入。[DADAO-12 §4.9 cfx_pmem - physical memory management]
 - 对**不存在**的核芯功能扩展（其 cfx 寄存器）的访问触发 **`CFXREG`**；reserved cfxha（集见 `§1.2`）的 `trap`/`escape`/`cfx2rd`/`cfx2rc` 仍按 `§1.2`/`§5` 触发当前运行模式 monitor 的 `ILLI`（口径见本节「两条互斥口径」）。[DADAO-22 §3. 系统信息（smon）][DADAO-12 §5. 异常进入与异常退出]
 
 - **`cfx_power`（cfx63）的 `cg7` 与 `cg8`/`rc1`（测试机约定）**：
@@ -145,11 +145,11 @@ TLB 属 `cfx_ptw`，其匹配键、命中检查、填充条件、A/D 维护与�
 
 ### 4.2 `escape` → 异常退出流程
 
-`escape cfxHA` 完成异常退出：按当前 cfx 的 `cg5 rc8`–`rc11` 出口意图恢复运行模式/cfx、跳转 `rc10`，并按 `rc11` 整字恢复目标模式 monitor 的 `cg8 rc1`；`imms18` 必须为 0（非 0 ⇒ `ILLI`）。同步与异步**共用**该出口：异步进入把出口意图填进 `cfx_hart cg5 rc8`–`rc11`，handler 可执行 `escape cfx_hart` 返回被中断现场（`rc10` = 已提交指令之后的 `rb0`，**不重放**）。[DADAO-12 §5.1 指令行为说明][DADAO-12 §5.3 异常退出流程][DADAO-12 §5.4 异步中断进入与退出][SimRISC-11]
+`escape cfxHA` 完成异常退出：按当前 cfx 的 `cg5 rc8`–`rc11` 出口意图恢复运行模式/cfx、跳转 `rc10`，并按 `rc11` 整字恢复目标模式 monitor 的 `cg15 rc3`；`imms18` 必须为 0（非 0 ⇒ `ILLI`）。同步与异步**共用**该出口：异步进入把出口意图填进 `cfx_hart cg5 rc8`–`rc11`，handler 可执行 `escape cfx_hart` 返回被中断现场（`rc10` = 已提交指令之后的 `rb0`，**不重放**）。[DADAO-12 §5.1 指令行为说明][DADAO-12 §5.3 异常退出流程][DADAO-12 §5.4 异步中断进入与退出][SimRISC-11]
 
 被调方执行 `escape cfxha` 返回（返回地址取 `cg5 rc10`）；返回 trap 指令的下一条指令前先把 `rc10` 写为 `excp_cause_ip + 4`。[DADAO-22 §1. 调用约定]
 
-- **`escape` 的目标 cfx 恒为当前 cfx；退出后当前 cfx 恢复为异常前的值**：`DADAO-12 §5.3` 原文为「`escape` 指令编码中指定了 `cfxha`，它必须是当前执行的核芯功能扩展（`inner_cfx_code`）；返回 cfx、运行模式与 IP 均取自当前 cfx 的异常帧」；其硬件语义（`§5.3` 步骤 0–3）在 `cfxha != inner_cfx_code` 时先报**当前 cfx** 的 `CFXESC`；通过后从出口意图恢复 `inner_run_mode ← cg5 rc8`、`inner_cfx_code ← cg5 rc9`、`IP ← cg5 rc10`，递增 `escape_num`，并按 `cg5 rc11` 整字恢复目标模式 monitor 的 `cg8 rc1`；`trap` 本身不改写该掩码（只把进入前值抄入 `rc11`）。故 `escape` 的**目标**恒为当前 cfx（即发起 `escape` 的 cfx），而**退出后的当前 cfx** 恢复为异常发生前的值。任何进入的异步事件会改写 `inner_cfx_code`，该恢复保证本帧后续 `escape` 仍能正确匹配目标。[DADAO-12 §5.3 异常退出流程]
+- **`escape` 的目标 cfx 恒为当前 cfx；退出后当前 cfx 恢复为异常前的值**：`DADAO-12 §5.3` 原文为「`escape` 指令编码中指定了 `cfxha`，它必须是当前执行的核芯功能扩展（`inner_cfx_code`）；返回 cfx、运行模式与 IP 均取自当前 cfx 的异常帧」；其硬件语义（`§5.3` 步骤 0–3）在 `cfxha != inner_cfx_code` 时先报**当前 cfx** 的 `CFXESC`；通过后从出口意图恢复 `inner_run_mode ← cg5 rc8`、`inner_cfx_code ← cg5 rc9`、`IP ← cg5 rc10`，递增 `escape_num`，并按 `cg5 rc11` 整字恢复目标模式 monitor 的 `cg15 rc3`；`trap` 本身不改写该掩码（只把进入前值抄入 `rc11`）。故 `escape` 的**目标**恒为当前 cfx（即发起 `escape` 的 cfx），而**退出后的当前 cfx** 恢复为异常发生前的值。任何进入的异步事件会改写 `inner_cfx_code`，该恢复保证本帧后续 `escape` 仍能正确匹配目标。[DADAO-12 §5.3 异常退出流程]
 
 ### 4.3 两条路对照
 

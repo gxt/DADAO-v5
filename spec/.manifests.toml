@@ -7,7 +7,7 @@ recursive = false
 sha256 = "d3d05155cbffcf8ab1ce1f9cfcd867811ea028dad9f7f5f6774442c83b9f492d"
 
 [files."DADAO-12-SEE-主管系统运行环境.md"]
-sha256 = "210745457118d0a87d5a1d80874294c91bb7fb67a5a5793f6bee987d5e8f8c7f"
+sha256 = "a502d2f9b906e42a272a8a070b3dcc42ba91c3e8d6dfae7a613827a92a5368f8"
 
 [files."DADAO-13-HEE-超管系统运行环境.md"]
 sha256 = "37c5bc7994dbb629abcf9b64d8e672cd71330cf122d1f28bc7435fc095635588"
@@ -16,16 +16,16 @@ sha256 = "37c5bc7994dbb629abcf9b64d8e672cd71330cf122d1f28bc7435fc095635588"
 sha256 = "f753c7ff117d7b7c7d6278f45d5719a5ebd4c2c19222e2f4925f3f334f2087e9"
 
 [files."DADAO-22-SBI-主管系统二进制接口.md"]
-sha256 = "3cff2e9392883c3add0502fe1ab47096f6d407d17ebc9b10804224571783b41b"
+sha256 = "2bfb4b52eba63a6003340a07e2a382cc10fec87c8c220749c606feccd91d18fc"
 
 [files."DADAO-23-HBI-超管系统二进制接口.md"]
-sha256 = "d1ab44ee10daaf2a5d2d9d8568e4f5a4c9ae3f5e057d3c6dfb64e743d2def470"
+sha256 = "578b8fb9c8c4cba112af7c23ad265141c33ce74ec8c32561d0522f31951c53d6"
 
 [files."IDL-ISA语义描述语言与语义库.md"]
 sha256 = "01b0a1df1f8f4c3085ce7adf63f875bfceebf96e69d28fe2e99174bef2b82739"
 
 [files."Kaiwu-测试机运行环境.md"]
-sha256 = "3192e1e011c40de509e9c8dfd3aa7454e18937c6392e387f5c4295cc4242f7cd"
+sha256 = "3d691751456edfa8b1ab725415348799f95b085edf053d97a65efde05ec286c5"
 
 [files."README.md"]
 sha256 = "d2cb26a8cf8260075eb0473bd3d76d469fbc25d521df627173d9cbe21787d855"

@@ -142,8 +142,8 @@ def expected_signature(root: Path) -> list:
     """
     see = (root / ".tao" / "contracts" / "contract-see.md").read_text(
         encoding="utf-8")
-    if not re.search(r"`cfx0`–`cfx3` 的 `cg8 rc1`（异步来源掩码）初值全 1", see):
-        raise SetupError("contract-see §3 缺 cg8 rc1 异步来源掩码初值句")
+    if not re.search(r"`cfx0`–`cfx3` 的 `(?:cg8 rc1|cg15 rc3)`（异步来源掩码）初值全 1", see):
+        raise SetupError("contract-see §3 缺 cg15 rc3 异步来源掩码初值句")
     kaiwu = (root / "spec" / "Kaiwu-测试机运行环境.md").read_text(
         encoding="utf-8")
     if "`cfx0` 没有内部空间" not in kaiwu:
