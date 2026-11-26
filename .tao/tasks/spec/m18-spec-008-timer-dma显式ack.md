@@ -33,6 +33,11 @@
 
 5. **用户 2026-11-26 明确 timer 布局**：`TIMER` 移到 **`cfx_hart cg10`**：`rc0` = timer ctrl、`rc1` = timer cmp、`rc13` = ack（W1C）、`rc14` = mask、`rc15` = pending。三个独立寄存器（ack/mask/pending），不再与 `cg8` 混放；`cg9` 的集中 pending/src_frame 与 monitor `cg8 rc1` 掩码的最终去留待定。DMA 的对应布局待定。
 
+6. **用户 2026-11-26 澄清**：
+   - `cg9 rc4`（本次源集合）与 `rc5`（pending 汇总）**保留**，作为聚合视图，避免 handler 逐个读源；不是冗余。
+   - **源 mask 与 `*mon` 的 mask 不冲突、互不替代**：源 mask 是设备自己的 gate，monitor `cg8 rc1` 是运行模式 gate，两者独立（投递同时受两者约束）。
+   - **`escape` 语义不变**：`rc11` 仍整字写目标运行模式 monitor 的 `cg8 rc1`；与源 mask 无关。
+
 ## 待裁定（逐条讨论）
 
 1. `ISTATUS` 置位条件：**到期边沿置位**（每个 armed deadline 只置一次，之后不重复）还是 `cmp<=now` 的持续电平？前者才使 ack 有意义。
