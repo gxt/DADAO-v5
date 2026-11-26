@@ -52,6 +52,9 @@
 
 9. **DMA ack 范围（用户 2026-11-26 选 B）**：`cg16 rc18` 的 ack 只清**中断 pending**；`dma_status` 的 `DONE/ERROR/ERR_CODE` 仍由 `dma_status` 自己的 W1C 清。**澄清**：这不是“两条中断 ack”——`rc18` 是唯一的中断 ack；`dma_status` 的 W1C 只是**引擎状态清理**，两者对象不同，软件可以先 `rc18` ack 中断、再按需清 status。
 
+10. **timer `ENABLE` 门控事件产生（用户 2026-11-26 选 A）**：`ENABLE=0` 时到期不置 pending；写 `cmp` 只改 deadline、不清 pending（清只靠 `rc18`）。
+11. **术语（用户 2026-11-26）**：“投递（delivery）”概念模糊、无实际意义，**取消该提法**；统一称 **“异步进入（async entry）”**——在指令边界上，若存在任一源 `pending & ~源mask` 且 monitor mask 放行（timer 还要求 `ENABLE=1`），硬件执行一次“异步进入”：写 `cg9` 捕获/`hart cg5` 出口意图、切到 `cfx_hart`、跳 `cg9 rc15`。spec/契约/ADR 的 `投递` 措辞随之清理。
+
 ## 待裁定（逐条讨论）
 
 1. `ISTATUS` 置位条件：**到期边沿置位**（每个 armed deadline 只置一次，之后不重复）还是 `cmp<=now` 的持续电平？前者才使 ack 有意义。
