@@ -44,6 +44,7 @@
 - **中断删除（2026-11-26 用户确认）**：删除 `cfx_hart` 的 `1<<8 IPI`；删除 `cfx_power` 异常原因表后三项 `1<<8 POWEROFF`/`1<<9 HARD_RESET`/`1<<10 SOFT_RESET`；`cfx_uart` 只保留 UART32/33 的 cg16 异步子事件，删除 UART0–31 中断行。
 - **每 cfx 的异常原因表（2026-11-26 用户确认）**：所有**非 reserved** cfx 都统一包含五种同步原因：`1<<0 CFXTRAP`、`1<<1 CFXMEM`、`1<<2 CFXREG`、`1<<3 CFXESC`、`1<<7 CFXPERM`；`cfx_ptw` 也包含（不再只有 CFXTRAP/CFXESC）。reserved cfx 不实现寄存器面，不列原因表。
 - **版本与 ADR（2026-11-26 用户确认）**：本批以 **0.8.1 定版**（`DADAO-12` 等从 `0.8.1-rc` 收为 `0.8.1`，相关 contracts/版本锁同步）；**不立 ADR**。
+- **测试策略（2026-11-26 用户确认）**：不新增专门的 `PTWFAULT`/`PTWFAIL` 测试用例；复用现有 PTW 故障用例，把期望改为 `PTWFAULT 1<<15` 并断言 `cfx_ptw cg8 rc4` 的 fault id。其余 cg/rc/编号/名称迁移以生成器刷新 + 最小代表集为主（`cfx_ptw cg8 rc4`、`cfx_uart cg16 bit32/33`、`cfx_power` 五种原因、`cfx_hart` 无 IPI、UART 两实例），不重造全量矩阵；`PTWFAIL` 的 0/多位由软件处理，不作为测试目标。
 - **`cfx_ptw cg8 rc4` 位映射（2026-11-26 用户确认）**：`bit0..7` = MISSIGP/MISSISP/MISSIGPF/MISSISPF/MISSDGP/MISSDSP/MISSDGPF/MISSDSPF；`bit8..14` = NUPERM/NJPERM/NSPERM/NHPERM/NRPERM/NWPERM/NXPERM；`bit15` = **PTWFAIL**（原 ADWBFAIL 的 PTE 物理访问/回写失败）。读到 0 或多位的处理由**软件**定义。
 - **并入 `m18-spec-001` 的既有口径**（原任务待开始，未实施）：每个**非 reserved** cfx 的 `scratch_regs_num` 缺省值 = **2**（范围 2..64）；reserved cfx 不实现该寄存器（访问仍 `CFXREG`）；原 QEMU/gem5/chipyard 的默认 4 改为 2，相关 `tests/arch`/`tests/inst/11-cfx` 期望与探针随本批统一调整。该任务不再单独派发，内容全部并入本总纲。
 
@@ -64,8 +65,23 @@
 ## 待讨论问题（先记录，不自行裁决）
 
 1. **新 cg6（旧 cg7）**：搬移是否保持“每 4 rc 一个空间、16 块、只读”全部语义？新 cg6 是否还有 reserved/扩展空间。
-2. **PTWFAIL / PTWFAULT**：所有 PTW 相关 fault 的细节放 `cfx_ptw cg8 rc4`，one-hot `[15:0]`；同步异常表只留 `PTWFAULT`（`1<<15`）；高位 PTW 位图删除。监视器读取选现有 delegation（`cfx_ptw cg3 rc12` bit8=0；`cg2 rc2` 仅放行 cfx2，不放行 cfx0/cfx1；hmon 为 hypv 直接读）；`trap cfx_ptw` 仅 fallback。仍待定：HBI 初始化清单、零/多位非法判据、写入/清除/嵌套/多 hart 语义、高位位图删除后的 handler/测试迁移、`cause_info` 口径、无专用测试时如何证明一致。注意命名红线：`PTWFAULT` 是 cause，`PTWFAIL` 是 cg8 rc4 的 bit15。
-3. **测试策略**：除“PTWFAULT/PTWFAIL 不新增专用用例”外，其余名称/编号/cg 迁移是否补最小回归；哪些测试只需生成器刷新、哪些需新向量。
+2. **PTWFAIL / PTWFAULT**：结构/映射/访问路径/测试策略已定（见“已决口径”）。仍待实现层确认：HBI 初始化清单、`cfx_ptw cg8 rc4` 的写入/清除/嵌套/多 hart 具体行为、`cause_info` 口径。命名红线：`PTWFAULT` 是 cause，`PTWFAIL` 是 `cg8 rc4` 的 bit15。
+
+## 模块任务拆分（待派发，不建 worktree）
+
+| 波次 | 任务 | 范围 |
+| --- | --- | --- |
+| W1 | `m20-spec-002` | spec 正文 + contracts + cfx 别名/合法性 + 0.8.1 版本锁 |
+| W1 | `m20-idl-001` | IDL 的 cfx 语义/cause 名称/向量与锁 |
+| W1 | `m20-llvm-004` | LLVM cfx 别名/汇编反汇编/lit |
+| W1 | `m20-infra-002` | cfx 别名/ledger/门控生成器与迁移工具 |
+| W2 | `m20-qemu-001` | QEMU cfx 寄存器面/cause/PTW/UART/time/hart/power |
+| W2 | `m20-gem5-005` | gem5 同上 |
+| W3 | `m20-chipyard-002` | RTL cfx 寄存器/decoder/cause/PTW/UART/time/hart/power |
+| W4 | `m20-linux-001` | Linux/SEE：cfx 访问、cause 解码、PTW、UART/time |
+| W5 | `m20-testcases-006` | tests/inst 11-cfx、tests/arch、unit/gem5、签名/case-ledger/四方 |
+
+依赖关系：W1 全部依赖本总纲；W2 依赖 W1；W3 依赖 W1（可与 W2 并行，但验收排后）；W4 依赖 W2；W5 依赖 W2/W3。**当前只建任务书/台账，不派发。**
 
 ## 约束
 
@@ -79,4 +95,4 @@
 **修改文件**：本任务书
 **验收结果**：待用户讨论
 **新发现/坑**：
-**遗留问题**：cg4/cg5/cg6/cg7 映射已定（旧 cg7→新 cg6、scratch 2..16/rc63 向下、缺省 2、cg4 rc0–5 / cg5 rc0–3 之外的 reserved）；PTW 采用 `PTWFAULT 1<<15` + `cfx_ptw cg8 rc4` one-hot，16 位映射、软件处理 0/多位、delegation（仅放行 cfx2）已定；cfx 编号（删 llc、33/34 reserved、time=62/uart=61、无旧别名）已定；UART32/UART33 用 cg32/cg33、bit32/bit33、cg16 用 bit32/33、异步源 cfxha61 已定；中断删除（IPI/power 后三项/UART0–31）与每 cfx 五种原因（含 CFXPERM）已定；版本 0.8.1 定版、不立 ADR 已定；测试策略与 cg6 细节仍待讨论；影响模块任务未拆。
+**遗留问题**：规格口径（cg4–7、PTW、编号、UART、中断、CFXPERM、版本、测试策略）已定；模块任务已拆为 9 件待派发；实现层待确认仅剩 `cfx_ptw cg8 rc4` 的写/清/嵌套/多 hart 行为、HBI 初始化清单与 `cause_info` 细化。

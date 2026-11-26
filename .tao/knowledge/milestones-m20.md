@@ -21,7 +21,16 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m20-spec-001 | 2–3 h | cfx 寄存器布局与异常原因总纲（用户 10 条；仅记录/影响盘点，待 M16/M17 收口后由用户派发） |
+| m20-spec-001 | 2–3 h | cfx 寄存器布局与异常原因总纲（已决口径；待 M16/M17 收口后由用户派发） |
+| m20-spec-002 | 4–8 h | cfx 规格正文 + 契约 + 别名/合法性 + 0.8.1 版本锁（W1） |
+| m20-idl-001 | 2–4 h | IDL cfx 语义/cause 名称/向量迁移（W1） |
+| m20-llvm-004 | 2–4 h | LLVM cfx 别名/汇编反汇编/lit（W1） |
+| m20-infra-002 | 2–4 h | cfx 生成器/ledger/门控迁移（W1） |
+| m20-qemu-001 | 4–8 h | QEMU cfx 寄存器/异常/UART/time/hart/power（W2） |
+| m20-gem5-005 | 4–8 h | gem5 cfx 寄存器/异常/UART/time/hart/power（W2） |
+| m20-chipyard-002 | 8–12 h | RTL cfx 寄存器/decoder/异常/UART/time/hart/power（W3） |
+| m20-linux-001 | 4–8 h | Linux/SEE cfx 访问、cause、PTW、UART/time（W4） |
+| m20-testcases-006 | 4–8 h | cfx 测试向量/签名/四方迁移（W5） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
