@@ -30,6 +30,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m18-spec-008 | 待定 | timer/DMA **显式 ack**（用户裁定 A/A1：ISTATUS 粘滞 W1C、cmp 只 re-arm；DMA DONE/ERROR W1C=ack）；**讨论中，不派发** |
 | m18-chipyard-002 | 4–6 h | **链④** RTL 异步 escape 出口（依赖 ①②；等 M16 chipyard 写者窗口） |
 | m18-gem5-004 | 3–4 h | **链⑤** gem5 异步 escape 出口（依赖 ①②） |
 | m18-linux-025 | 3–5 h | 用户态异步投递在 LTP 负载下自旋（≈70%，`ISS-m18-001` 族）；**等 026 内核移植后在新模型上修**（用户裁定 B） |
