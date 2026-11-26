@@ -55,6 +55,8 @@
 10. **timer `ENABLE` 门控事件产生（用户 2026-11-26 选 A）**：`ENABLE=0` 时到期不置 pending；写 `cmp` 只改 deadline、不清 pending（清只靠 `rc18`）。
 11. **术语（用户 2026-11-26）**：“投递（delivery）”概念模糊、无实际意义，**取消该提法**；统一称 **“异步进入（async entry）”**——在指令边界上，若存在任一源 `pending & ~源mask` 且 monitor mask 放行（timer 还要求 `ENABLE=1`），硬件执行一次“异步进入”：写 `cg9` 捕获/`hart cg5` 出口意图、切到 `cfx_hart`、跳 `cg9 rc15`。spec/契约/ADR 的 `投递` 措辞随之清理。
 
+12. **源 mask/ack 的写权限（用户 2026-11-26 选 B）**：按各 cfx 的 `<mode>_cfxreg` 两轴矩阵放行；**默认只 supv/hypv**，平台可按需把某个源开放给 user/jail；user 读 pending 不受限（RO）。
+
 ## 待裁定（逐条讨论）
 
 1. `ISTATUS` 置位条件：**到期边沿置位**（每个 armed deadline 只置一次，之后不重复）还是 `cmp<=now` 的持续电平？前者才使 ack 有意义。
