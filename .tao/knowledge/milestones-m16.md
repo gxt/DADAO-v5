@@ -26,12 +26,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-chipyard-033 | 2026-11-27 06:13 | 4–8 h | RTL `WumingRegFile` RegRAS 改环形缓冲（恢复：002/003 已合入、写者已交还） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-033 | 2026-11-27 07:48 | RTL `WumingRegFile` RegRAS 改环形缓冲（`base` 隐藏 6 位 + `phys(i)=1+((base+i)%63)`；架构视图逐例一致，两路注入可达 FAIL） |
 | m16-chipyard-031 | 2026-11-26 03:34 | RTL `cfx_power_ctrl` 写侧（写接受、bit0/1/2 结束仿真、读 `CFXREG`；`arch-power-001` 36 槽） |
 | m16-testcases-024 | 2026-11-26 01:23 | `tests/arch` 收尾二（tmp 0/0、`check_ptw_rtl --mode`、单平台模式、`gem5bin` ELF 校验） |
 | m16-gem5-027 | 2026-11-26 01:05 | gem5 RegRAS 改环形缓冲（去搬移；同 QEMU `ra_phys()` 约定；15/15 RAS 探针） |
