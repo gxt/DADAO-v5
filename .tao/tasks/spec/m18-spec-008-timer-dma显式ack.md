@@ -57,6 +57,8 @@
 
 12. **源 mask/ack 的写权限（用户 2026-11-26 选 B）**：按各 cfx 的 `<mode>_cfxreg` 两轴矩阵放行；**默认只 supv/hypv**，平台可按需把某个源开放给 user/jail；user 读 pending 不受限（RO）。
 
+13. **源 mask 极性与复位（用户 2026-11-26 选 A）**：`1` = 屏蔽、**复位全 1**；`pending` 复位 0；`ack` 读 0、写 1 清位。内核 init 时按需放开源 mask。
+
 ## 待裁定（逐条讨论）
 
 1. `ISTATUS` 置位条件：**到期边沿置位**（每个 armed deadline 只置一次，之后不重复）还是 `cmp<=now` 的持续电平？前者才使 ack 有意义。
