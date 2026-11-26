@@ -1,3 +1,5 @@
+**追加（m18-spec-009）**：保持 `当前模式 ≤ cg15 rc14` 的进入上限（继承自 002）。
+
 # m18-chipyard-003: RTL 每源 pending/mask/ack（cg15/cg16）
 
 **模块**：chipyard

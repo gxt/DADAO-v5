@@ -9,6 +9,8 @@
 **状态**：待开始
 **执行环境**：本地（QEMU system `-M kaiwu-vast`）
 
+**追加（m18-spec-009）**：异步进入判定加 `当前模式 ≤ cg15 rc14`；默认 supv 下 hypv 不被异步打断（内核当前不跑 hypv，此项为规范一致性）。
+
 ## 背景
 
 `m18-spec-007` 已把出口改为 `cg5 rc8`–`rc11` + `escape cfxHA`，`cg9` 重排（`rc0`–`rc3` 记录、`rc4` 源集合、`rc5` pending、`rc14` switch、`rc15` vector）。`m18-qemu-008` 实现该模型。

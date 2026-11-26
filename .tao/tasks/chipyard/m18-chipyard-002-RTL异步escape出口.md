@@ -9,6 +9,8 @@
 **状态**：待开始
 **执行环境**：本地（chipyard `WumingTiny/Vast`）
 
+**追加（m18-spec-009）**：异步进入须加 `当前模式 ≤ cg15 rc14` 上限；默认 supv 不打断 hypv。
+
 ## 背景
 
 `m18-spec-007`/`ADR-0061 R3` 把出口改为 `cg5 rc8`–`rc11` + `escape cfxHA`，`cg9` 重排（`rc0`–`rc4`、`rc14`/`rc15`），`cg0`–`cg3` 的 switch/vector 改 `rc14`/`rc15`。RTL 仍是 R2：`switchMode`/`vector` 在 `rc8`/`rc10`、`cg5 rc0/1/3` 可写、无出口意图字段、`escape` 带偏移。
