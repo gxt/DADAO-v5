@@ -16,10 +16,9 @@
   E2 取指异常 QEMU **不出记录**，其异常归并到前一条指令（区间边界一致）；
   E3 semihosting「无返回」服务（`SYS_WRITEC`/`SYS_EXIT*`）与 `SYS_CLOCK` 的 `rd8`
      不是架构语义（QEMU 写 `0xdeadbeef` / 宿主时钟）⇒ 该步起 `rd8` 退出比对；
-  E4 `ra1..ra63` 在 `RACNT` 有效区外**内容未定义**（`spec/SimRISC-00 §2.4`）⇒
-     只比有效区；内容来源未定义的条目（有效区外提升，或 `call`/`ret` 整栈搬移
-     自未定义来源）不参与比对。两侧各记一份跳过集，比较时取**并集**后成对剔除
-     `dst`/`val`（两侧物理布局不同 ⇒ 单侧跳过不代表另一侧可判为差异）。
+  E4 全 64 槽（`ra0` + `ra1..ra63`）按值比：统一环形约定（`phys(i) = 1 +
+     ((base + i) % 63)`，`spec/SimRISC-00 §2.4.3` 与各平台实现）保证窗口外
+     残留槽也逐槽一致，不再有窗口过滤或跳过集。
 
 用法：
 
@@ -111,33 +110,12 @@ def load_cases(path):
     return out
 
 
-def _without_skip(rec, skip):
-    """成对剔除 `dst`/`val` 中命中 `skip` 的条目（E4：来源未定义）。"""
-    dst = rec.get("dst") or []
-    val = rec.get("val") or []
-    if not skip:
-        return dst, val
-    kept = [(name, value) for name, value in zip(dst, val)
-            if name not in skip]
-    return [name for name, _ in kept], [value for _, value in kept]
-
-
 def compare_records(qrecs, erecs):
     if len(qrecs) != len(erecs):
         return "记录数 %d != QEMU %d" % (len(erecs), len(qrecs))
     for i, (q, e) in enumerate(zip(qrecs, erecs)):
-        # 两侧各自记录「被 E4 跳过」的 RA 条目；取并集后成对剔除。
-        # 单侧跳过 ⇒ 该条目在另一侧本不应参与比较（物理布局不同）。
-        skip = set(q.get("skip") or ()) | set(e.get("skip") or ())
-        qdst, qval = _without_skip(q, skip)
-        edst, eval_ = _without_skip(e, skip)
         for key in FIELDS:
-            if key == "dst":
-                got, want = qdst, edst
-            elif key == "val":
-                got, want = qval, eval_
-            else:
-                got, want = q.get(key), e.get(key)
+            got, want = q.get(key), e.get(key)
             if got != want:
                 return ("第 %d 条（pc %s）%s: exec %r != QEMU %r"
                         % (i + 1, q.get("pc"), key, want, got))
@@ -192,7 +170,6 @@ def run_case(case, cfg):
         "records": len(etrace["records"]),
         "duplicates": obs["duplicates"],
         "fetch_faults": etrace["fetch_faults"],
-        "ra_skips": max(qtrace["ra_skips"], etrace["ra_skips"]),
         "rd8_skips": etrace["rd8_skips"],
         "unresolved": qtrace["unresolved"],
         "qemu_rc": obs["qemu_rc"], "exit_code": etrace["exit_code"],
@@ -365,12 +342,12 @@ def main(argv=None):
     for case in cases:
         rec = run_case(case, cfg)
         records.append(rec)
-        print("[%s] %-22s %-8s records=%s dup=%s ffetch=%s ra_skip=%s "
+        print("[%s] %-22s %-8s records=%s dup=%s ffetch=%s "
               "rd8_skip=%s %s"
               % ("PASS" if rec["ok"] else "FAIL", rec["id"],
                  rec.get("category", ""), rec.get("records", "-"),
                  rec.get("duplicates", "-"), rec.get("fetch_faults", "-"),
-                 rec.get("ra_skips", "-"), rec.get("rd8_skips", "-"),
+                 rec.get("rd8_skips", "-"),
                  rec["detail"]))
     npass = sum(1 for r in records if r["ok"])
     if not args.only and len(records) < 20:

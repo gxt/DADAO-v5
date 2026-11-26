@@ -43,7 +43,8 @@ DEFAULT_QEMU = REPO_ROOT / ".dadao" / "cross-toolchain" / "bin" / "qemu-system-d
 
 _BANK_RE = re.compile(r"(RD|RB|RF|RA)\[(\d\d)\]: ([0-9a-f]{16})")
 _CFX5_RE = re.compile(r"CFX(\d\d) PREVM:([0-9a-f]+) CID:([0-9a-f]+) "
-                      r"CIP:([0-9a-f]+) CINFO:([0-9a-f]+) PEND:([0-9a-f]+)")
+                      r"CIP:([0-9a-f]+) CINFO:([0-9a-f]+) "
+                      r"(?:PEND|PIM):([0-9a-f]+)")
 _CFX4_RE = re.compile(r"CFX(\d\d) ID:[0-9a-f]+ VER:[0-9a-f]+ "
                       r"TRAPN:([0-9a-f]+) SYNCN:([0-9a-f]+) "
                       r"ASYNCN:([0-9a-f]+) ESCN:([0-9a-f]+)")
@@ -274,9 +275,7 @@ def derive_trace(records, image, decoder):
     """`records` = 入口起的记录（折叠后）；返回 trace 与统计。"""
     out = []
     states = []
-    ra_ok = tc.init_ra_ok(records[0]["banks"])
     rd8_taint = False
-    ra_skips = 0
     rd8_skips = 0
     unresolved = 0
     for i in range(len(records) - 1):
@@ -298,9 +297,8 @@ def derive_trace(records, image, decoder):
             rd8_taint = False
         if rd8_taint:
             rd8_skips += 1
-        dst, val, skipped, skips = tc.reg_delta(a["banks"], b["banks"], ra_ok,
-                                                rd8_ok=not rd8_taint)
-        ra_skips += skipped
+        dst, val = tc.reg_delta(a["banks"], b["banks"],
+                                rd8_ok=not rd8_taint)
         exc = None
         for cfx in (3, 63):
             prev4 = a["cfx4"].get(cfx, [0, 0, 0, 0])
@@ -311,12 +309,11 @@ def derive_trace(records, image, decoder):
                 break
         rec = tc.make_record(i + 1, a["pc"], word, op_id, mnemonic,
                              dst, val, exc)
-        rec["skip"] = skips                  # 比较用：E4 跳过的 RA 条目名
         out.append(rec)
         states.append({"mode": b["mode"], "cfx": b["cfx"]})
-    return {"records": out, "states": states, "ra_ok": ra_ok,
+    return {"records": out, "states": states,
             "rd8_taint": rd8_taint, "unresolved": unresolved,
-            "ra_skips": ra_skips, "rd8_skips": rd8_skips}
+            "rd8_skips": rd8_skips}
 
 
 def observe(elf, bootrom, qemu=None, keep_log=None):
@@ -366,7 +363,7 @@ def main(argv=None):
     summary = {"elf": str(args.elf), "instructions": len(trace["records"]),
                "duplicates": obs["duplicates"],
                "raw_from_entry": obs["raw_from_entry"],
-               "ra_skips": trace["ra_skips"], "rd8_skips": trace["rd8_skips"],
+               "rd8_skips": trace["rd8_skips"],
                "unresolved": trace["unresolved"], "parts": parts,
                "bytes": writer.bytes}
     Path(args.entry_out).write_text(json.dumps(obs["entry"]),

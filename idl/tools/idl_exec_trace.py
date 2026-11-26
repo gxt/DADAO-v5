@@ -43,23 +43,25 @@ def _cg4(machine):
 
 
 def _exc_of_step(machine, cg4_before):
-    """本步异常：取发生计数增量的 cfx 的 cg5（cause_id/cause_ip/cause_info）。"""
+    """本步异常：取发生计数增量的 cfx 的 cg5（cause_id/cause_ip/cause_info）。
+
+    IDL `Cfx.cg5` 布局：`PREV_MODE/PREV_CFX/PREV_IP/PREV_INTR_MASK/CAUSE_ID/
+    CAUSE_INFO`（`idl_exec.CG5_*`）；QEMU dump 的 `CID/CIP/CINFO` 与
+    `CAUSE_ID`/`PREV_IP`/`CAUSE_INFO` 对应。
+    """
     for cfx in CFX_WATCH:
         now = machine.cfx[cfx].cg4[2:5]
         if now != cg4_before[cfx]:
             frame = machine.cfx[cfx].cg5
-            return tc.exc_object(cfx, frame[2], frame[3], frame[4])
+            return tc.exc_object(
+                cfx, frame[idl_exec.CG5_CAUSE_ID],
+                frame[idl_exec.CG5_PREV_IP], frame[idl_exec.CG5_CAUSE_INFO])
     return None
 
 
 def _snapshot(machine):
-    """架构（逻辑）视图快照：`banks["ra"]` 是环形物理槽，须经 `machine.get` 换算。
-
-    与 `tc.snapshot(machine)` 的字段面相同（四组全 64 槽），只是 RA 按逻辑视图取，
-    使 `tc.reg_delta` 的「整栈搬移」判定继续按逻辑下标工作。
-    """
-    snap = machine.snapshot()
-    return {bank: snap[bank] for bank in tc.BANKS}
+    """架构（逻辑）视图快照：四组全 64 槽，RA 按环形映射换算（sim §2.4.3）。"""
+    return tc.snapshot(machine)
 
 
 def build_trace(elf, bootrom, init_state=None, max_steps=2_000_000,
@@ -67,17 +69,15 @@ def build_trace(elf, bootrom, init_state=None, max_steps=2_000_000,
     """跑一个镜像，返回逐指令 trace 与统计。
 
     返回 `{"records": [...], "states": [...], "exit_code", "output",
-    "steps", "fetch_faults", "ra_skips", "rd8_skips", "halted"}`。
+    "steps", "fetch_faults", "rd8_skips", "halted"}`。
     """
     machine = idl_exec.new_machine(profile, bootrom=Path(bootrom))
     idl_exec.load_elf(machine, str(elf))
     if init_state is not None:
         machine.load_state(init_state)
-    ra_ok = tc.init_ra_ok(machine.banks)
     rd8_taint = False
     records, states = [], []
     fetch_faults = 0
-    ra_skips = 0
     rd8_skips = 0
     while not machine.halted and machine.steps < max_steps:
         before = _snapshot(machine)
@@ -104,14 +104,11 @@ def build_trace(elf, bootrom, init_state=None, max_steps=2_000_000,
                 records[-1]["exc"] = exc
             states[-1] = {"mode": machine.mode, "cfx": machine.cfx_code}
             continue
-        dst, val, skipped, skips = tc.reg_delta(before, after, ra_ok,
-                                                rd8_ok=not rd8_taint)
-        ra_skips += skipped
+        dst, val = tc.reg_delta(before, after, rd8_ok=not rd8_taint)
         insn = machine.dec.decode(obs["word"])
         rec = tc.make_record(
             len(records) + 1, obs["pc"], obs["word"], obs["id"],
             insn.mnemonic if insn is not None else None, dst, val, exc)
-        rec["skip"] = skips              # 比较用：E4 跳过的 RA 条目名
         records.append(rec)
         states.append({"mode": machine.mode, "cfx": machine.cfx_code})
         if max_records is not None and len(records) >= max_records:
@@ -127,7 +124,7 @@ def build_trace(elf, bootrom, init_state=None, max_steps=2_000_000,
     return {"records": records, "states": states,
             "exit_code": machine.exit_code,
             "output": bytes(machine.output), "steps": machine.steps,
-            "fetch_faults": fetch_faults, "ra_skips": ra_skips,
+            "fetch_faults": fetch_faults,
             "rd8_skips": rd8_skips, "halted": machine.halted}
 
 
@@ -143,41 +140,35 @@ def write_trace(records, out, max_bytes=tc.DEFAULT_MAX_BYTES):
 
 
 def self_test():
-    """trace 口径自检：RA 有效区、rd0/rb0、写回集合与异常对象。"""
+    """trace 口径自检：全 64 槽按值比（含窗口外残留）、rd0/rb0、rd8 跳过、异常对象。"""
     checks = []
 
     def eq(name, got, want):
         checks.append((name, got == want, got, want))
 
     banks = {b: [0] * 64 for b in tc.BANKS}
-    banks["ra"][0] = 0x0003_0000_0000_0000          # RACNT=3 ⇒ ra61..63 有效
-    ra_ok = tc.init_ra_ok(banks)
-    eq("ra_init_valid", sorted(ra_ok), [61, 62, 63])
+    banks["ra"][0] = 0x0003_0000_0000_0000          # RACNT=3（窗口 ra61..63）
     after = {b: list(v) for b, v in banks.items()}
     after["rd"][5] = 7
     after["rb"][0] = 0x1234                          # rb0: 永不列出
     after["rd"][0] = 0
-    after["ra"][63] = 9                              # 有效区 ⇒ 列出
-    after["ra"][1] = 9                               # 有效区外 ⇒ 不列出
-    dst, val, skipped, _ = tc.reg_delta(banks, after, ra_ok)
+    after["ra"][63] = 9                              # 窗口内 ⇒ 列出
+    after["ra"][1] = 9                               # 窗口外残留 ⇒ 也列出（全 64 槽）
+    dst, val = tc.reg_delta(banks, after)
     eq("delta_rd", dst[:1], ["rd5"])
     eq("delta_no_rb0", "rb0" in dst, False)
-    eq("delta_ra_valid", "ra63" in dst, True)
-    eq("delta_ra_invalid", "ra1" in dst, False)
+    eq("delta_ra_window", "ra63" in dst, True)
+    eq("delta_ra_window_outside", "ra1" in dst, True)
     eq("delta_values", val[0], "0x0000000000000007")
-    # 有效区外条目提升进有效区（未写）⇒ 内容来源未定义，不参与比对/不列写回
-    banks2 = {b: [0] * 64 for b in tc.BANKS}
-    ra_ok2 = tc.init_ra_ok(banks2)
-    after2 = {b: list(v) for b, v in banks2.items()}
-    after2["ra"][0] = 0x0002_0000_0000_0000
-    dst2, _, skipped2, _ = tc.reg_delta(banks2, after2, ra_ok2)
-    eq("ra_promoted_not_listed", "ra63" in dst2, False)
-    eq("ra_promoted_skipped_count", skipped2, 2)     # ra62/ra63 均未定义
+    # 窗口外槽值不变 ⇒ 不列出（只比「值变化」，不是无条件全列）
+    after["ra"][1] = banks["ra"][1]
+    dst2, _ = tc.reg_delta(banks, after)
+    eq("delta_ra_window_outside_unchanged", "ra1" in dst2, False)
     # rd8：semihosting 之后整条记录跳过
     banks3 = {b: [0] * 64 for b in tc.BANKS}
     after3 = {b: list(v) for b, v in banks3.items()}
     after3["rd"][8] = 0xDEADBEEF
-    dst3, _, _, _ = tc.reg_delta(banks3, after3, set(), rd8_ok=False)
+    dst3, _ = tc.reg_delta(banks3, after3, rd8_ok=False)
     eq("rd8_skipped", "rd8" in dst3, False)
     # 异常对象字段
     exc = tc.exc_object(3, 0x200000000000002, 0x1000, 0x1000)
@@ -215,7 +206,6 @@ def main(argv=None):
     summary = {"elf": str(args.elf), "instructions": len(trace["records"]),
                "steps": trace["steps"],
                "fetch_faults": trace["fetch_faults"],
-               "ra_skips": trace["ra_skips"],
                "rd8_skips": trace["rd8_skips"],
                "exit_code": trace["exit_code"],
                "output_bytes": len(trace["output"]),

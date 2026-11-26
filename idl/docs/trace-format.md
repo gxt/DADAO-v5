@@ -28,7 +28,9 @@
 `dst`/`val` 是**写回集合**而不是指令操作数字段：同值写回不可观测（两侧同规则），不列出。两条不变量：
 
 - `rb0` 永不列出（`rb0` = IP，由 `pc` 承载）；`rd0` 永不列出（恒 0，写丢弃）。
-- `ra1..ra63` 只列 **`RACNT` 有效区内**（`ra[64−RACNT .. 63]`）的条目；有效区外内容未定义（`spec/SimRISC-00 §2.4`），即使被硬件改动也不列出。
+- `ra1..ra63` 是逻辑视图的**全部 64 槽**（`ra0` 另按值比）：统一环形约定（映射
+  `phys(i) = 1 + ((base + i) % 63)`，`spec/SimRISC-00 §2.4.3` 与各平台实现）保证
+  窗口外残留槽也逐槽一致，因此窗口内外的值变化都按值列入。
 
 ## 2. 派生口径（两侧一致）
 
@@ -41,21 +43,21 @@
 ### 2.1 已知限制（`m17-idl-021` 记录，M20 复用时必须知道）
 
 - **`id`/`mn` 不是独立证据**：两侧都由 `contracts/opcodes.yaml` 的**同一张**编码表译码（QEMU 侧不用其反汇编，见 `idl/tools/idl_qemu_trace.py`）。因此两侧 `id`/`mn` 相等只证明「同一指令字经同一张表译成同一 id」，**不能**证明编码表本身与 ISA 一致——该字段的证据力由此让位；编码表与语义的一致性由其它判据承担（`check-idl` 的签名槽对 `tests/data/inst-signature/expected.tsv` 逐槽比对，期望值由 `.S` 内联常量派生）。
-- **E3/E4 放宽量（skip 覆盖率）**：`idl_check_trace.py` 逐例打印 `rd8_skip`/`ra_skip`；全清单（274 例）在 2026-11-25 实测为 **249457 条指令记录**，其中
+- **E3 放宽量（`rd8` 跳过覆盖率）**：`idl_check_trace.py` 逐例打印 `rd8_skip`；全清单（274 例）在 2026-11-25 实测为 **249457 条指令记录**，其中
   - `rd8_skip` = **149766/249457 条记录（60.0%）**——链例在每个检查点用 semihosting 打印，`SYS_WRITEC` 之后 `rd8` 长期处于「不可比」态（E3 的 taint 只在非 semihosting 指令重新写入 `rd8` 且值变化时解除）；
-  - `ra_skip` = **72462 个条目**（≈0.29 条目/记录；每条记录最多 63 个 `ra` 比较点，分母上界 249457×63 ≈ 15.7M ⇒ ≈0.46%）——E4 只丢「来源未定义」的条目（有效区外提升、`call`/`ret` 整栈搬移自未定义来源）。
-  - 口径：`rd8_skip` 计**记录数**、`ra_skip` 计**条目数**，都随用例集变化，引用须用脚本当次输出、不得写死。**覆盖率偏大的直接含义**：这两项被放宽的字段（`rd8` 值、有效区外 `ra`）证据力弱，M20 复用本格式时不得把它们当独立功能证明，`rd8`/`ra` 相关指令的功能判据须另配签名槽/定向用例。
+  - 口径：`rd8_skip` 计**记录数**，随用例集变化，引用须用脚本当次输出、不得写死。**覆盖率偏大的直接含义**：`rd8` 值证据力弱，M20 复用本格式时不得把它当独立功能证明，`rd8` 相关指令的功能判据须另配签名槽/定向用例。
+  - **E4 不再放宽**（`m17-idl-024`）：全 64 槽按值比，无 `ra_skip` 统计；窗口外残留槽由统一环形约定保证一致。2026-11-25 记录的旧 `ra_skip` 数据（E4 跳过集）已作废。
 
 ## 3. QEMU 逐指令比对口径与文档化等价
 
 QEMU 侧命令固定为 `-accel tcg,one-insn-per-tb=on -d cpu -D <log>`（QEMU 11 system 模式无 `-singlestep`）。`-d cpu` 每条记录是该指令**执行前**的状态，所以第 i 条指令的效果 = `record[i+1] − record[i]`；入口 = 第一条 `PC == e_entry` 的记录。
 
-以下四类等价**必须**逐条计数（`check_trace_parity.py` 输出 `dup/ffetch/ra_skip/rd8_skip`）：
+以下四类等价**必须**逐条计数（`check_trace_parity.py` 输出 `dup/ffetch/rd8_skip`）：
 
 - **E1（连续重复记录）**：QEMU TB 日志会偶发「同 PC 且状态逐字段相同」的连续记录；折叠。计数 = `dup`。
 - **E2（取指异常不出记录）**：`IALIGN`/取指 `CFXMEM` 的目标地址没有 QEMU 记录，其异常帧落在下一条（handler）记录上；执行器侧没有独立指令记录，异常归并到**前一条**指令。计数 = `ffetch`。
 - **E3（semihosting 定义值）**：`SYS_WRITEC`/`SYS_EXIT*` 无返回值，QEMU 写 `rd8=0xdeadbeef`（`common_semi_dead_cb`，实现约定）；`SYS_CLOCK` 返回宿主时钟（`contract-semihosting §3`：自启动起百分秒，运行间不可复现）。二者都不是架构语义 ⇒ 该步起 `rd8` 退出比对；后续若被非 semihosting 指令重新写入且值变化，恢复比对。计数 = `rd8_skip`（记录数）。
-- **E4（RAS 未定义区）**：`ra1..ra63` 在 `RACNT` 有效区外内容未定义（`spec/SimRISC-00 §2.4`）；QEMU 的物理缓冲布局（弹出时移动条目）与执行器（保留旧值）不同，两者都合规。只比有效区；「内容来源未定义」的条目不参与比对——包括从有效区外**提升**进有效区的条目，以及 `call`/`ret` **整栈搬移**自未定义来源的条目（搬移不是写，可比性按来源槽继承）；直接写仍参与。两侧派生各记跳过集，比较器取**并集**后成对剔除 `dst`/`val`。计数 = `ra_skip`（条目数，信息量）。
+- **E4（全 64 槽按值比）**：`ra0` + `ra1..ra63` 全部按逻辑视图逐槽比；统一环形约定（映射 `phys(i) = 1 + ((base + i) % 63)`，`spec/SimRISC-00 §2.4.3` 与各平台实现）保证窗口外残留槽也逐槽一致。没有窗口过滤、来源继承或跳过集；`ra_skip` 统计已删除。
 
 除这四类外**不得**放宽：记录数、`pc/insn/id/mn/dst/val/exc`、每条后的 `mode`/`cfx`、退出码、semihosting 字节流都必须相等。
 
@@ -93,4 +95,4 @@ python3 idl/tools/idl_check_trace.py --images <镜像目录> \
     --sample-records 6 --sample-check idl/docs/trace-sample.jsonl
 ```
 
-自检：`python3 idl/tools/idl_exec_trace.py --self-test`（RA 有效区、`rb0`/`rd0`、写回集合、异常对象）。
+自检：`python3 idl/tools/idl_exec_trace.py --self-test`（全 64 槽按值比、窗口外残留槽列入、`rb0`/`rd0`、`rd8` 跳过、异常对象）。
