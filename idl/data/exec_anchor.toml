@@ -367,7 +367,7 @@ sha256 = "8a31e0e8d84db5cee0fb6db122de0e92a1da1a3c50cb769eebdfaf751fc39921"
 id = "escape_ciii_cfx"
 book = "SimRISC-11.idl"
 impl = "_op_escape"
-sha256 = "7068b8851c027873dec52aec2a06b10c2ec76f345efae126c773c7dc0518c643"
+sha256 = "5428db74f2f11e3e68a22c1ee65002c4cb6facc9e0c978e0f6af6e746dd90426"
 
 [[op]]
 id = "ext.so_orri_rd"
