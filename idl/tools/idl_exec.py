@@ -420,11 +420,26 @@ class Cfx:
 
 
 class Machine:
+    """RegRAS 用**环形缓冲 + 隐藏基准**（ADR-0012 D7.5 / spec/SimRISC-00 §2.4.3）。
+
+    物理槽 `ra[0]` = `ra0` 头 `{SBZ,RACNT,MRPTR}`（不占窗口、不参与映射）；
+    `ra[1..63]` 是环形数据槽。逻辑 RA 下标 `i` 的物理位置由隐藏基准
+    `ras_base`（0..62，复位 0，不可架构访问）决定：`1 + (ras_base + i) % 63`
+    ——与 QEMU `ra_phys()` / gem5 `ras::phys()` 同式，`call` 压栈 `+1`、
+    `ret` 弹栈 `−1`（模 63），因此搬栈只动基准、不搬条目。
+
+    `banks["ra"]` 因此是**物理**视图；架构读写/快照导出（`get`/`set`/
+    `snapshot`）一律经 `_ra_phys()` 换算成**逻辑**视图。
+    """
+
+    RAS_SLOTS = 63                           # 环形数据槽 ra1..ra63
+
     def __init__(self, profile, mem):
         self.profile = profile
         self.mem = mem
         self.dec = Decoder()
         self.banks = {b: [0] * 64 for b in ("rd", "rb", "rf", "ra")}
+        self.ras_base = 0                    # 隐藏基准（逻辑↔物理换算用，非架构状态）
         self.banks["rf"][0] = RF0_RESET      # spec/SimRISC-00 §2.3.1 只读 qNaN 位
         self.ip = 0
         self.mode = MODE_HYPV
@@ -466,6 +481,16 @@ class Machine:
                                profile["bootrom_size"], 0b101)
 
     # -- 寄存器组 ----------------------------------------------------------
+    def _ra_phys(self, idx):
+        """逻辑 RA 下标 → 物理槽号：`0` = `ra0` 头，其余 `1 + (base + i) % 63`。
+
+        与 QEMU `ra_phys()` / gem5 `ras::phys()` 同式（`i ∈ 1..63`）。
+        """
+        idx &= 63
+        if idx == 0:
+            return 0
+        return 1 + (self.ras_base + idx) % self.RAS_SLOTS
+
     def get(self, bank, idx):
         idx &= 63
         if bank == "rd":
@@ -475,7 +500,7 @@ class Machine:
         if bank == "rf":
             return self.banks["rf"][idx]
         if bank == "ra":
-            return self.banks["ra"][idx]
+            return self.banks["ra"][self._ra_phys(idx)]
         raise ExecError("unknown bank %r" % (bank,))
 
     def set(self, bank, idx, value):
@@ -506,7 +531,7 @@ class Machine:
                 self.banks["ra"][0] = ((self.banks["ra"][0] & 0xFFC0_0000_0000_0000)
                                        | (value & 0x003F_FFFF_FFFF_FFFF))
             else:
-                self.banks["ra"][idx] = value
+                self.banks["ra"][self._ra_phys(idx)] = value
             return
         raise ExecError("unknown bank %r" % (bank,))
 
@@ -526,59 +551,66 @@ class Machine:
         ra0 = self.banks["ra"][0]
         self.banks["ra"][0] = (ra0 & ~MASK48) | (ptr & MASK48)
 
-    def _ras_entries(self):
-        n = self.racnt
-        return [self.banks["ra"][i] for i in range(64 - n, 64)]
-
-    def _ras_store(self, entries):
-        n = len(entries)
-        self._set_racnt(n)
-        for k, entry in enumerate(entries):
-            self.banks["ra"][64 - n + k] = entry
+    def _ras_top(self):
+        """逻辑栈顶槽（`ra63`）的物理槽号。"""
+        return self._ra_phys(63)
 
     def ras_push(self, ret_addr):
-        """spec/SimRISC-00 §2.4.1 C1–C3b（精确：判定/访存全部先于 RA 修改）。"""
+        """spec/SimRISC-00 §2.4.1 C1–C3b（精确：判定/访存全部先于 RA 修改）。
+
+        环形缓冲：C1/C2 只改栈顶槽；C3a/C3b 只**写一个槽 + 基准 +1**，
+        既有条目保持原物理槽（不再整体重排）。
+        """
         ret_addr &= MASK48
         n = self.racnt
+        top_phys = self._ras_top()
+        top = self.banks["ra"][top_phys]
         if n == 0:
-            self._ras_store([(1 << 48) | ret_addr])
+            # C1：空栈 ⇒ 直接写逻辑栈顶槽（基准不动）。
+            self.banks["ra"][top_phys] = (1 << 48) | ret_addr
+            self._set_racnt(1)
             return
-        top = self.banks["ra"][63]
         if (top & MASK48) == ret_addr and ((top >> 48) & 0xFFFF) < 0xFFFF:
-            self.banks["ra"][63] = top + (1 << 48)
+            # C2：递归折叠（同址）⇒ 栈顶计数 +1。
+            self.banks["ra"][top_phys] = top + (1 << 48)
             return
         entry = (1 << 48) | ret_addr
-        entries = self._ras_entries()
         if n < 63:
-            entries.append(entry)
-            self._ras_store(entries)
+            # C3a：基准 +1 让出新的逻辑栈顶槽，只写该槽。
+            self.ras_base = (self.ras_base + 1) % self.RAS_SLOTS
+            self.banks["ra"][self._ras_top()] = entry
+            self._set_racnt(n + 1)
             return
-        # C3b：RACNT == 63。
+        # C3b：RACNT == 63 ⇒ 栈底（逻辑 1）溢出到 MemRAS；按**旧**基准读栈底。
         ptr = self.mrptr
         if ptr == 0:
             raise Fault("RasOf", info=ret_addr)
-        bottom = entries[0]
+        bottom = self.banks["ra"][self._ra_phys(64 - n)]
         newptr = (ptr - 8) & MASK48
         # 先访存（可能精确异常），再改 RA。
         self.mem.write_memory(64, newptr, bottom)
-        entries = entries[1:] + [entry]
+        self.ras_base = (self.ras_base + 1) % self.RAS_SLOTS
+        self.banks["ra"][self._ras_top()] = entry
         self._set_mrptr(newptr)
-        self._ras_store(entries)
 
     def ras_pop(self):
         """spec/SimRISC-00 §2.4.2 D1–D4b（精确）。"""
         n = self.racnt
         if n > 0:
-            top = self.banks["ra"][63]
+            top_phys = self._ras_top()
+            top = self.banks["ra"][top_phys]
             cnt = (top >> 48) & 0xFFFF
             if cnt == 0:
                 raise Fault("RasUf")
             if cnt > 1:
-                self.banks["ra"][63] = top - (1 << 48)
+                # D2：递归折叠 ⇒ 栈顶计数 −1。
+                self.banks["ra"][top_phys] = top - (1 << 48)
                 return top & MASK48
-            entries = self._ras_entries()[:-1]
+            # D3：弹出栈顶 ⇒ 基准 −1（既有条目保持原物理槽）。
             target = top & MASK48
-            self._ras_store(entries)
+            self.ras_base = (self.ras_base + self.RAS_SLOTS
+                             - 1) % self.RAS_SLOTS
+            self._set_racnt(n - 1)
             return target
         ptr = self.mrptr
         if ptr == 0:
@@ -592,9 +624,10 @@ class Machine:
         if cnt == 1:
             self._set_mrptr(newptr)
             return target
-        entries = [((cnt - 1) << 48) | target]
+        # D4b（count > 1）：回填逻辑栈顶槽，RACNT = 1（基准不动）。
+        self.banks["ra"][self._ras_top()] = ((cnt - 1) << 48) | target
         self._set_mrptr(newptr)
-        self._ras_store(entries)
+        self._set_racnt(1)
         return target
 
     # -- 保留标记（spec/SimRISC-12 §1「保留机制」） ------------------------
@@ -934,6 +967,7 @@ class Machine:
 
     # -- 快照 --------------------------------------------------------------
     def snapshot(self):
+        """架构（逻辑）视图：`get("ra", i)` 已按环形映射换算到物理槽。"""
         return {
             "ip": self.ip & MASK64,
             "mode": self.mode,
@@ -949,17 +983,21 @@ class Machine:
         """装入初始架构状态（QEMU 观测面）：只写寄存器组，不启发式修正。
 
         `rf0`/`ra0` 的只读位保持观测值（运行期写入仍走 `set` 的写语义）。
+        入口态给的是**逻辑** RA 视图（`ra0` + `ra1..ra63`）⇒ 基准归 0 后按映射
+        落到物理槽（环形布局相对基准等价，入口基准本身不影响后续语义）。
         """
         self.ip = state["ip"] & MASK64
         self.mode = state.get("mode", MODE_HYPV) & 0x3
         self.cfx_code = state.get("cfx", 63) & 0x3F
+        self.ras_base = 0
         for bank in ("rd", "rb", "rf", "ra"):
             for i, val in enumerate(state[bank]):
                 if bank == "rb" and i == 0:
                     continue
                 if bank == "rd" and i == 0:
                     continue
-                self.banks[bank][i] = val & MASK64
+                phys = self._ra_phys(i) if bank == "ra" else i
+                self.banks[bank][phys] = val & MASK64
 
 
 # 每个 operation 的语义按 idl/*.idl 的正文实现；id 与 contracts/opcodes.yaml 同源。
@@ -2759,6 +2797,44 @@ def self_test():
     m2.ras_push(0x200)
     eq("ras_recursion_fold", (m2.get("ra", 63) >> 48) & 0xFFFF, 2)
     eq("ras_pop_fold", m2.ras_pop(), 0x200)
+
+    # 4b. RegRAS 环形缓冲（ADR-0012 D7.5）：基准 ±1、物理槽不搬移、回绕
+    m6 = _mk_machine()
+    m6.ras_push(0x100)                       # C1：空栈，基准不动
+    eq("ras_ring_base_c1", m6.ras_base, 0)
+    m6.ras_push(0x200)                       # C3a：只写一槽 + 基准 +1
+    eq("ras_ring_base_c3a", m6.ras_base, 1)
+    eq("ras_ring_no_move",
+       (m6.banks["ra"][1] & MASK48, m6.banks["ra"][2] & MASK48), (0x100, 0x200))
+    eq("ras_ring_logical_window",
+       [m6.get("ra", i) & MASK48 for i in (62, 63)], [0x100, 0x200])
+    eq("ras_ring_pop", (m6.ras_pop(), m6.ras_base), (0x200, 0))
+    m6.ras_push(0x300)
+    m6.ras_base = 62                         # 基准 62 再压栈 ⇒ 回绕到 0
+    m6.ras_push(0x400)
+    eq("ras_ring_wrap_up", (m6.ras_base, m6.get("ra", 63) & MASK48),
+       (0, 0x400))
+    eq("ras_ring_wrap_down", (m6.ras_pop(), m6.ras_base), (0x400, 62))
+    # C3b/D4b：满栈溢出只搬栈底（MemRAS），其余条目物理槽不变
+    m8 = _mk_machine()
+    for k in range(1, 64):
+        m8.set("ra", k, (1 << 48) | (0x1000 + k))
+    m8._set_racnt(63)
+    m8._set_mrptr(0xFFFF_FF01_7800)
+    before = [m8.banks["ra"][i] for i in range(1, 64)]
+    m8.ras_push(0x999)
+    eq("ras_c3b_racnt", m8.racnt, 63)
+    eq("ras_c3b_top", m8.get("ra", 63) & MASK48, 0x999)
+    eq("ras_c3b_spill",
+       m8.mem.read_memory(64, 0xFFFF_FF01_77F8) & MASK48, 0x1001)
+    eq("ras_c3b_bottom", m8.get("ra", 1) & MASK48, 0x1002)
+    eq("ras_c3b_one_slot_written",
+       [i for i in range(1, 64) if m8.banks["ra"][i] != before[i - 1]], [2])
+    m8.mem.write_memory(64, 0xFFFF_FF01_7800, (3 << 48) | 0x777)
+    m8._set_racnt(0)
+    m8._set_mrptr(0xFFFF_FF01_7800)
+    eq("ras_d4b_target", m8.ras_pop(), 0x777)
+    eq("ras_d4b_refill", (m8.racnt, m8.get("ra", 63) >> 48), (1, 2))
 
     # 5. 异常进入：MALIGN ⇒ hmon 向量 + 帧
     m3 = _mk_machine()

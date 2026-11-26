@@ -52,6 +52,16 @@ def _exc_of_step(machine, cg4_before):
     return None
 
 
+def _snapshot(machine):
+    """架构（逻辑）视图快照：`banks["ra"]` 是环形物理槽，须经 `machine.get` 换算。
+
+    与 `tc.snapshot(machine)` 的字段面相同（四组全 64 槽），只是 RA 按逻辑视图取，
+    使 `tc.reg_delta` 的「整栈搬移」判定继续按逻辑下标工作。
+    """
+    snap = machine.snapshot()
+    return {bank: snap[bank] for bank in tc.BANKS}
+
+
 def build_trace(elf, bootrom, init_state=None, max_steps=2_000_000,
                 max_records=None, profile="tiny"):
     """跑一个镜像，返回逐指令 trace 与统计。
@@ -70,11 +80,11 @@ def build_trace(elf, bootrom, init_state=None, max_steps=2_000_000,
     ra_skips = 0
     rd8_skips = 0
     while not machine.halted and machine.steps < max_steps:
-        before = tc.snapshot(machine)
+        before = _snapshot(machine)
         cg4_before = _cg4(machine)
         machine.step()
         obs = machine.last_step
-        after = tc.snapshot(machine)
+        after = _snapshot(machine)
         service = machine.semihost_service
         if service in _IMPL_DEFINED_SERVICES:
             rd8_taint = True
