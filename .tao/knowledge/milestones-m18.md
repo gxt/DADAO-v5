@@ -30,7 +30,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m18-spec-008 | 2–3 h | timer/DMA **显式 ack**（用户裁定 A/A1：ISTATUS 粘滞 W1C、cmp 只 re-arm；DMA DONE/ERROR W1C=ack）；**讨论中，不派发** |
 | m18-qemu-009 | 3–4 h | **波2-③** QEMU 迁移每源 pending/mask/ack（cg15 捕获、cg15 rc3 mask、cg16 源接口） |
 | m18-testcases-005 | 3–4 h | **波2-②** 源接口向量（cg15/cg16、ack/mask/pending、进入判定；依赖 spec-008） |
 | m18-chipyard-003 | 4–6 h | **波2-④** RTL 源接口与 cg15（依赖 005；等 M16 chipyard 写者） |
@@ -54,7 +53,8 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
-| m18-linux-026 | 2026-11-26 08:18 | 4–6 h | 内核迁移异步 escape（去 jmon、`cg5 rc8–rc11` 出口、同步桩迁 `rc10`）；不等 IDL/gem5/RTL |
+| m18-spec-008 | 2026-11-26 12:40 | 2–3 h | **波2-①** 每源 pending/mask/ack（cg15 捕获、cg15 rc3 mask、cg16 源接口、ack 才清、ADR-0064、0.8.1-rc） |
+| m18-linux-026 | 2026-11-26 08:18 | 4–6 h | 内核迁移异步 escape（去 jmon、`cg5 rc8–rc11` 出口）；**暂停，等波2 spec-008/qemu-009/testcases-005 后重启**（目标 0.8.1-rc） |
 
 ## 已验证
 
