@@ -8,9 +8,10 @@
     `ERR_CODE` one-hot：`spec/DADAO-12 §4.9`、`spec/Kaiwu §1.1/§3`；
   * DMA 与 D-cache 的一致性（软件 `clean`/`invalidate` 的顺序与粒度）：
     `spec/DADAO-12 §4.9`「DMA 与 D-cache 的一致性（软件负责）」+ `§4.6`；
-  * 源身份 = 源 cfxha（`TIMER` = 15、`PMEM_DMA` = 32）、monitor `cg8 rc1`
-    掩码、`cg9` 捕获缓冲 / 每次进入整体覆盖 / 同一界多源一次进入：
-    `spec/DADAO-12 §4.7`、`§5.4`、`ADR-0061`、`contract-see §3`；
+  * 源身份 = 源 cfxha（`TIMER` = 15、`PMEM_DMA` = 32）、monitor `cg15 rc3`
+    掩码、源 `cg16` mask/pending/ack、`cg15` 捕获缓冲 / 每次进入整体覆盖 /
+    同一界多源一次进入：`spec/DADAO-12 §4.7`、`§4.9`、`§5.4`、`ADR-0064`、
+    `contract-see §3`；
   * `escape cfxHA` 的 `imms18` SBZ、`cg5 rc8`–`rc11` 出口意图与三类拒绝：`§5.1`/`§5.3`；
   * `CFXREG`/`CFXESC`/`ILLI` 位号：`contract-see §6.1`；
   * `cfx2rd`/`cfx2rc`/`escape` 编码：`contracts/opcodes.yaml`；
@@ -80,12 +81,12 @@ def facts(root):
         raise OracleError("spec §4.9: PA-interval granularity not found")
 
     # §5.4（三）：同一界多源一次进入、位图并集、每次进入整体覆盖。
-    if not re.search(r"\*\*一次性\*\*进入\*\*同一次捕获\*\*", spec):
+    if not re.search(r"\*\*一次性\*\*.*同一次捕获", spec):
         raise OracleError("spec §5.4: same-boundary single capture not found")
     if "位图并集" not in spec:
         raise OracleError("spec §5.4: bitmap union wording not found")
     if not re.search(r"每次异步进入都整体覆盖|每次进入整体覆盖", spec):
-        raise OracleError("spec §5.4: 'every entry overwrites cg9' not found")
+        raise OracleError("spec §5.4: 'every entry overwrites cg15' not found")
 
     return f
 

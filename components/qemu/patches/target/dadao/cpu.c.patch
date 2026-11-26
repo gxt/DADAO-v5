@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..f45b5f2
+index 0000000..7bb08f3
 --- /dev/null
 +++ b/target/dadao/cpu.c
 @@ -0,0 +1,700 @@
@@ -227,9 +227,8 @@ index 0000000..f45b5f2
 +    memset(env->tlb, 0, sizeof(env->tlb));
 +
 +    /* cfx_pmem SRAM/DMA reset values (DADAO-12 §4.9; ADR-0042): all zero,
-+     * no transfer in flight.  The PMEM_DMA pending bit lives in the target
-+     * cfx (cfx_pmem cg9 rc5 src_pending) and is cleared by the per-cfx reset
-+     * loop above. */
++     * no transfer in flight.  The source owns cg16 rc16/rc17/rc18: mask
++     * resets all-1 (masked), pending 0 (ADR-0064 D1/D3). */
 +    memset(env->pmem_start, 0, sizeof(env->pmem_start));
 +    memset(env->pmem_size, 0, sizeof(env->pmem_size));
 +    memset(env->pmem_attr, 0, sizeof(env->pmem_attr));
@@ -244,7 +243,8 @@ index 0000000..f45b5f2
 +    env->pmem_dma_ctrl = 0;
 +    env->pmem_dma_status = 0;
 +    env->pmem_dma_dir = 0;
-+    env->pmem_dma_irq_en = 0;
++    env->pmem_dma_mask = DADAO_PMEM_DMA_EVENT;
++    env->pmem_dma_pending = 0;
 +    env->pmem_dma_cfx_off = 0;
 +    env->pmem_dma_pa = 0;
 +    env->pmem_dma_len = 0;
@@ -252,6 +252,8 @@ index 0000000..f45b5f2
 +    env->hart_insn = 0;
 +    env->hart_timer_cmp = 0;
 +    env->hart_timer_ctrl = 0;
++    env->hart_timer_mask = DADAO_HART_TIMER_EVENT;
++    env->hart_timer_pending = 0;
 +#endif
 +
 +    /* rd0 hardwired to 0 (already zero from memset) */
@@ -338,8 +340,8 @@ index 0000000..f45b5f2
 +                mr->cg_reg_deleg = 0;
 +            }
 +        }
-+        /* cg8 rc1 async_intr_mask: cfx0-3 only, all-1 at reset (masked until
-+         * software opens a source; DADAO-12 §4.1-§4.4, ADR-0061 D5). */
++        /* cg15 rc3 async_intr_mask: cfx0-3 only, all-1 at reset (masked until
++         * software opens a source; DADAO-12 §4.1-§4.4, ADR-0064 D6). */
 +        r->async_intr_mask = (cfxha < 4) ? ~0ULL : 0;
 +        r->cfx_id = cfxha;                    /* cg4 rc0 (HW) */
 +        r->version = 0x00010000ULL;           /* cg4 rc1 (HW; test-machine value) */
@@ -361,10 +363,9 @@ index 0000000..f45b5f2
 +        r->escape_cfx_code = 0;
 +        r->escape_ip = 0;
 +        r->escape_intr_mask = ~0ULL;
-+        /* cfx_hart cg9 (DADAO-12 §4.7; ADR-0061 R3 D3): the entry record and
-+         * both bitmaps start 0 (no capture, no pending source).  rc14
-+         * (async_switch_run_mode) is RW, reset 2 = supv; rc15
-+         * (async_excp_vector) resets 0. */
++        /* cfx_hart cg15 (DADAO-12 §4.7; ADR-0064 D5): the entry record and
++         * captured source set start 0.  rc14 (async_switch_run_mode) is RW,
++         * reset 2 = supv; rc15 (async_excp_vector) resets 0. */
 +        r->async.switch_run_mode = DADAO_MODE_SUPV;
 +        r->async.excp_vector = 0;
 +        /* cg6 scratch[]/cg7 left 0 (scratch undefined at reset) */
@@ -627,15 +628,14 @@ index 0000000..f45b5f2
 +        return false;
 +    }
 +    /*
-+     * One arbitration entry point (INTEG-051t; hart-first, ADR-0061).  The
-+     * delivery record of every asynchronous source lives in cfx_hart cg9 rc5
-+     * (bit = source cfxha: TIMER 15, PMEM_DMA 32); no monitor or source cfx
-+     * holds a pending bit.  One instruction boundary merges every pending and
-+     * allowed source into one capture (cg9 rc4 src_frame, overwritten on every
-+     * entry) delivered to cfx_hart's supv async vector (cg9 rc15/rc14).  Only a
-+     * masked source accumulates pending; mask writes and new events re-kick.
-+     * Clearing HARD unconditionally keeps the model from spinning;
-+     * cfx_hart cg9 rc5 is the only re-delivery record.
++     * One arbitration entry point (hart-first; ADR-0064 D4).  Each source
++     * owns cg16 rc16/17/18 (TIMER = cfx_hart, PMEM_DMA = cfx_pmem); pending
++     * is sticky and ack-only.  One instruction boundary merges every allowed
++     * source into one capture (cfx_hart cg15 rc4 src_frame, overwritten on every
++     * entry) delivered to cfx_hart's supv async vector (cg15 rc15/rc14).  The
++     * running-mode monitor's cg15 rc3 masks a whole source; mask writes and new
++     * events re-kick.  Clearing HARD unconditionally keeps the model from
++     * spinning; source pending is the only re-delivery record.
 +     */
 +    delivered = dadao_async_arbitrate(cs);
 +    cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);

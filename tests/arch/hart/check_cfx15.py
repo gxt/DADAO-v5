@@ -2,7 +2,7 @@
 """check_cfx15.py — `tests/arch/hart/cfx15.S` 的独立判据
 （`m16-chipyard-021` 起，`m18-testcases-004` 改到 R3）。
 
-R3（`spec/DADAO-12 §3.6/§5.1/§5.3/§5.4`）：`cg9` rc0–rc5 是入口记录/捕获缓冲
+0.8.1（`spec/DADAO-12 §3.6/§5.1/§5.3/§5.4`）：`cg15` rc0–rc5 是入口记录/捕获缓冲
 （每次进入整体覆盖，无 `frame_valid`）；`cg5 rc8`–`rc11` 是出口意图，异步返回与
 同步共用 `escape cfxHA`；`imms18` 必须为 0（非 0 ⇒ `ILLI`），升权/目标未实现/
 `cfxha` 不符 ⇒ 当前 cfx 的 `CFXESC`。
@@ -12,9 +12,9 @@ R3（`spec/DADAO-12 §3.6/§5.1/§5.3/§5.4`）：`cg9` rc0–rc5 是入口记�
   * `cfx_hart` 的 cfxha（15）与运行模式编码：`spec/DADAO-12` §1；
   * `cg8` 行号 / `timer_ctrl` 位 / 源身份 = 源 cfxha（`TIMER` = 15）：
     `spec/DADAO-12` §4.7 与 §5.4（一）；
-  * `cg9` 七槽的行号 / 访问属性 / 位宽、位图“软件只读（写忽略）”与
+  * `cg15` 入口记录/捕获槽的行号 / 访问属性 / 位宽、位图“软件只读（写忽略）”与
     “每次进入整体覆盖 / 无 `frame_valid`”：`spec/DADAO-12` §4.7 与 §5.4（二）(三)；
-  * 来源掩码在 `cfx0`–`cfx3 cg8 rc1`、复位全 1、`0=允许/1=屏蔽`：
+  * 来源掩码在 `cfx0`–`cfx3 cg15 rc3`、复位全 1、`0=允许/1=屏蔽`：
     `spec/DADAO-12` §4.1–§4.4 与 §5.4（一）；
   * `escape` 的 `imms18` SBZ、`rc8`–`rc11` 出口意图与三类拒绝（升权/目标未实现/`cfxha` 不符）：
     `spec/DADAO-12` §5.1/§5.4（七）；
@@ -42,7 +42,7 @@ import yaml
 
 SPEC = "spec/DADAO-12-SEE-主管系统运行环境.md"
 CONTRACT = ".tao/contracts/contract-see.md"
-ADR = ".tao/adr/adr-0061-async-source-index-and-mask-ownership.md"
+ADR = ".tao/adr/adr-0064-interrupt-source-pending-mask-ack.md"
 
 # Probe inputs (not oracle values): the pattern the register face writes, the
 # source mask with bit 15 open, and the two escape encodings the probe feeds in.
@@ -122,11 +122,11 @@ def facts(root):
         raise OracleError("contract-see mask bit %d != TIMER cfxha %d"
                           % (mask_bit, timer_ha))
 
-    # cg9 table (spec §4.7, ADR-0061 R3): rc0-rc5 entry record (HW/RO),
-    # rc14/rc15 configuration (RW); rc6-rc13 reserved.
+    # cg15 table (spec §4.7, ADR-0064 D5): rc0-rc5 entry record (HW/RO),
+    # rc14/rc15 configuration (RW); rc6-rc13 reserved.  cg9 is reserved now.
     rows = {}
     for rc, _name, regname, _init, access, note in re.findall(
-            r"^\|\s*9\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|\s*"
+            r"^\|\s*15\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|\s*"
             r"(cfx_hart_async_[a-z_]+)\s*\|\s*([^|]*)\|\s*([^|]*)\|\s*([^|]*)\|",
             spec, re.M):
         rows[regname] = (int(rc), access.strip(), note.strip())
@@ -147,12 +147,14 @@ def facts(root):
             raise OracleError("spec §4.7: %s must be %s, is %s"
                               % (name, access, rows[name][1]))
     if len(rows) != len(expect_rows):
-        raise OracleError("spec §4.7: cg9 must have %d defined slots, parsed %d"
+        raise OracleError("spec §4.7: cg15 must have %d defined slots, parsed %d"
                           % (len(expect_rows), len(rows)))
-    if not re.search(r"^\|\s*9\s*\|\s*6–13\s*\|\s*reserved", spec, re.M):
-        raise OracleError("spec §4.7: cg9 rc6-rc13 reserved row not found")
+    if not re.search(r"^\|\s*15\s*\|\s*6–13\s*\|\s*reserved", spec, re.M):
+        raise OracleError("spec §4.7: cg15 rc6-rc13 reserved row not found")
+    if not re.search(r"`cg9` 归 reserved|`cg9` 不再用于异步", spec):
+        raise OracleError("spec §4.7: cg9 reserved rule not found")
     # rc0-rc5 are written by hardware only; a software write is ignored without
-    # an exception (m18-spec-007 / ADR-0061 R3 D3).
+    # an exception (m18-spec-008 / ADR-0064 D5).
     for name, (_rc, _access, cell) in (
             (n, v) for n, v in rows.items() if v[0] <= 5):
         if "软件只读" not in cell and "软件写忽略" not in cell:
@@ -190,12 +192,12 @@ def facts(root):
         raise OracleError("spec §5.1: no privilege-escalation rule")
     if not re.search(r"整字", spec):
         raise OracleError("spec §5.3: rc11 whole-word restore not stated")
-    if not re.search(r"异步进入只写 `cfx_hart cg9 rc0`–`rc4`", spec):
+    if not re.search(r"异步进入只写 `cfx_hart cg15 rc0`–`rc4`", spec):
         raise OracleError("spec §3.6: async write set not stated")
 
-    # The async source mask row lives on cfx0-cfx3 (`cg8 rc1`, reset all ones).
+    # The async source mask row lives on cfx0-cfx3 (`cg15 rc3`, reset all ones).
     mask_rows = re.findall(
-        r"^\|\s*8\s*\|\s*1\s*\|\s*async intr mask\s*\|\s*"
+        r"^\|\s*15\s*\|\s*3\s*\|\s*async intr mask\s*\|\s*"
         r"cfx_(umon|jmon|smon|hmon)_async_intr_mask\s*\|\s*([^|]*)\|\s*"
         r"([^|]*)\|\s*([^|]*)\|", spec, re.M)
     if sorted(name for name, _, _, _ in mask_rows) != \
@@ -208,19 +210,21 @@ def facts(root):
         if "当前运行模式" not in note:
             raise OracleError("spec §4.%s: mask must follow the running mode"
                               % name)
+    if not re.search(r"`cg8 rc1` 归 reserved", spec):
+        raise OracleError("spec §4.1-§4.4: cg8 rc1 must be reserved")
     # `cg0`-`cg3 rc4` is not defined any more (`ADR-0061` D5).
     if not re.search(r"`rc4`\s*不定义（保留，访问触发 `CFXREG`）", spec):
         raise OracleError("spec §3: rc4 must be reserved (CFXREG)")
 
-    # ADR-0061 R3 is the decision this probe implements.
-    if not re.search(r"R3", adr):
-        raise OracleError("ADR-0061 R3 not found")
+    # ADR-0064 is the decision this probe implements.
+    if not re.search(r"D5|cg15", adr):
+        raise OracleError("ADR-0064 cg15 decision not found")
     if not re.search(r"escape cfxHA", spec):
         raise OracleError("spec: escape cfxHA form not found")
     if not re.search(r"`imms18` 必须为 \*\*0\*\*", spec):
         raise OracleError("spec §5.1: imms18 SBZ rule not found")
     if not re.search(r"每次异步进入都整体覆盖|每次进入整体覆盖", spec):
-        raise OracleError("spec §4.7/§5.4: 'every entry overwrites cg9' missing")
+        raise OracleError("spec §4.7/§5.4: 'every entry overwrites cg15' missing")
     if not re.search(r"没有“帧活动期”|没有\"帧活动期\"", spec):
         raise OracleError("spec §5.4: 'no frame phase' missing")
     if not re.search(r"frame_valid", spec):

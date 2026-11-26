@@ -40,7 +40,7 @@ SPEC = "spec/DADAO-12-SEE-主管系统运行环境.md"
 KAIWU = "spec/Kaiwu-测试机运行环境.md"
 CONTRACT = ".tao/contracts/contract-see.md"
 ALIASES = ".tao/contracts/contract-cfx-aliases.md"
-ADR = ".tao/adr/adr-0061-async-source-index-and-mask-ownership.md"
+ADR = ".tao/adr/adr-0064-interrupt-source-pending-mask-ack.md"
 
 # Probe inputs (not oracle values): patterns the probe writes and the SRAM
 # offset it uses for the 1 KiB BUSY test.
@@ -102,6 +102,9 @@ def facts(root):
         "cfx_pmem_dma_size": (15, "2", "RW"),
         "cfx_pmem_dma_ctrl": (15, "3", "RW"),
         "cfx_pmem_dma_status": (15, "4", "RW"),
+        "cfx_pmem_dma_mask": (16, "16", "RW"),
+        "cfx_pmem_dma_pending": (16, "17", "RO"),
+        "cfx_pmem_dma_ack": (16, "18", "RW"),
     }
     for name, (cg, rc, access) in expect.items():
         if name not in rows:
@@ -118,18 +121,21 @@ def facts(root):
         return int(m.group(1))
     ctrl = rows["cfx_pmem_dma_ctrl"]
     status = rows["cfx_pmem_dma_status"]
-    if "START" not in spec or "IRQ_EN" not in spec:
+    if "START" not in spec or "DIR" not in spec:
         raise OracleError("spec §4.9: dma_ctrl field names not found")
+    if "IRQ_EN" in spec:
+        raise OracleError("spec §4.9: dma_ctrl.IRQ_EN must be removed")
     ctrl_start = bit_of(spec, "START")
     ctrl_dir = bit_of(spec, "DIR")
-    ctrl_irq = bit_of(spec, "IRQ_EN")
     st_busy = bit_of(spec, "BUSY")
     st_done = bit_of(spec, "DONE")
     st_error = bit_of(spec, "ERROR")
-    if (ctrl_start, ctrl_dir, ctrl_irq) != (0, 1, 2):
+    if (ctrl_start, ctrl_dir) != (0, 1):
         raise OracleError("spec §4.9: unexpected dma_ctrl bit layout")
     if (st_busy, st_done, st_error) != (0, 1, 2):
         raise OracleError("spec §4.9: unexpected dma_status bit layout")
+    if not re.search(r"bit2 及以下保留（读 0/写忽略）", spec):
+        raise OracleError("spec §4.9: dma_ctrl bit2 reserved rule not found")
     if not re.search(r"bit3-15\s*=\s*ERR_CODE", spec):
         raise OracleError("spec §4.9: ERR_CODE field position not found")
 
@@ -195,17 +201,19 @@ def facts(root):
         if need not in cfx:
             raise OracleError("spec §1: cfx %s not found" % need)
 
-    # R2: cg9 is a capture buffer, `escape imms18 = 2` is not an async return.
-    if not re.search(r"不用于异步返回|不作为异步返回", spec):
-        raise OracleError("spec §5.1/§5.4: 'cg9 is not an async return' missing")
+    # ADR-0064: per-source cg16 face, pending is ack-only, cg15 captures.
+    if not re.search(r"`cg9` 不再用于异步|`cg9` 归 reserved", spec):
+        raise OracleError("spec §4.7: 'cg9 is not the async capture' missing")
     if not re.search(r"每次异步进入都整体覆盖|每次进入整体覆盖", spec):
-        raise OracleError("spec: 'every entry overwrites cg9' missing")
-    if not re.search(r"7 槽", adr):
-        raise OracleError("ADR-0061: seven-slot cg9 decision not found")
+        raise OracleError("spec: 'every entry overwrites cg15' missing")
+    if not re.search(r"cg16.*rc16|rc16.*mask", spec):
+        raise OracleError("spec: cg16 source face not found")
+    if not re.search(r"ADR-0064|0064", adr):
+        raise OracleError("ADR-0064 decision not referenced")
 
     return dict(spec=spec, pmem_ha=pmem_ha, sram_base=sram_base,
-                sram_size=sram_size, rows=rows, ctrl=(ctrl_start, ctrl_dir,
-                ctrl_irq), status=(st_busy, st_done, st_error), err=err,
+                sram_size=sram_size, rows=rows, ctrl=(ctrl_start, ctrl_dir),
+                status=(st_busy, st_done, st_error), err=err,
                 cause=cause, mask_bit=mask_bit, timer_bit=timer_bit,
                 modes=modes, cfx=cfx)
 
