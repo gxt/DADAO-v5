@@ -68,6 +68,9 @@
 
 18. **ADR（用户 2026-11-26 选 A）**：新立 **ADR-0064**「中断源 pending/mask/ack 归源、显式 W1C ack」，取代 `ADR-0061 D5`（mask 唯一归 monitor）与 `D6`（投递即清）；`ADR-0061 R3` 的出口帧继续有效。
 
+19. **时序（用户 2026-11-26 选 A）**：`m18-linux-026` 先按 `0.8.0` 收口（出口帧/去 jmon）；本任务随后落地，再由 `m18-linux-027` 只改 ack/timer 寄存器。
+20. **默认口径（待用户确认）**：DMA ack 前多次完成合并为 bit0（不计数）；`cg16` 只在 `cfx_hart`/`cfx_pmem` 实现，其它 cfx 访问 ⇒ `CFXREG`；旧 timer `cg8 rc4/rc5` 归 reserved（`CFXREG`），DMA `ctrl.IRQ_EN` 位保留但写忽略/读 0；`cg9 rc4/rc5` 位 = 源 cfxha，`rc3 prev intr mask` 不变；monitor `cg8 rc1` 不变。
+
 ## 待裁定（逐条讨论）
 
 1. `ISTATUS` 置位条件：**到期边沿置位**（每个 armed deadline 只置一次，之后不重复）还是 `cmp<=now` 的持续电平？前者才使 ack 有意义。
