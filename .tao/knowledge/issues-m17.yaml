@@ -155,9 +155,9 @@
   - infra
   - chipyard
   milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M17
+  resolved_by: m17-chipyard-001（合并态核实两处改动均在 bec9578a；事件记录保留）
   title: 【P2】任务 worktree 内 `git reset --hard` 造成**未提交改动真实丢失**（`m17-chipyard-001` 第 2 轮复核实测）：完成区列 31 个修改文件、`git status` 仅 29——`tests/arch/cache/cfx5_regs.S`（DIV-07 放行块）与 `tests/arch/ptw/rtl-coverage.yaml`（扁平化文案）回退到 HEAD 态；前者导致探针 0/22、`check_cfx5_regs` rc=1 且**不在 `run.sh` 覆盖内**。教训：对齐基线应新建 `-verify` 临时树重放，或 `cp` 全量备份并逐文件 md5 对账；`AGENTS §8` 的禁令有实证代价。附：证据脚本应覆盖被改探针，否则「丢改动」不可见。
 - id: ISS-511
   scope:
