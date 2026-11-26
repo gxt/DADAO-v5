@@ -510,7 +510,7 @@
   - infra
   - qemu
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P1·环境】共享 Tiny BootROM 与安装根 QEMU 不同步：2026-11-26 19:16 另一会话用新 LLVM 重建 `.dadao/tests/bootrom/tiny/bootrom_tiny.bin` 为 `5cee63c5…`，而安装根 `qemu-system-dadao` 仍是 `8b49d6d9…`（旧构建）⇒ QEMU 直接挂死（`m16-chipyard-033` 实测）。缓解：用签入 hex 解码出的 `a5d78816…`（= `tests/unit/gem5/tiny_hmon/expected.yaml::shared_bootrom_md5`，已存于运行期证据目录）跑 QEMU；根治：M18 合入新 LLVM/spec 后重建 QEMU 并 `install-host`，同时按新工具链重生成签入 bootrom hex，两侧 md5 对齐。"
+  status: closed
+  closed_in: M16
+  resolved_by: "环境重建：删 qemu 源树→fetch→apply-series（a8d0796）→install-host rc=0（e470dc56…，2026-11-27 06:18）；非任务"
+  title: "【P1·环境】QEMU 源树与安装根未随补丁集重放：`m18-qemu-008/009/010` 合入后（补丁 11-26 18:44），`.work/source/qemu` 仍停在 11-25 15:10、安装根 `qemu-system-dadao` 仍是 11-25 15:44 的 `8b49d6d9…`；同期 BootROM 已用当前 LLVM 重建（Tiny `5cee63c5…`、step5 `5ff4418e…`）⇒ 新 BootROM 的 R3 `escape` 编码在旧 QEMU 上非法，`arch-umon-001..010` 全部进异常死循环（`-d cpu` 写 135 MB 后超限判死），`m16-chipyard-033` 的 Tiny 用例同样挂死；`check-patch-tree` 对 qemu 报 3 个 problem。修复：删 `.work/source/qemu` → `make fetch` → `apply_series.py --component qemu`（69 补丁，`a8d0796`）→ `make install-host`（rc=0，`e470dc56…`，11-27 06:18）；`arch-umon-001`/`arch-ptw-001` 单例复跑转绿。教训：组件补丁合入后必须重放+重建+`install-host`，BootROM 与 QEMU 两侧要同时对齐。`m16-chipyard-033` 先前用签入 hex 解码的 `a5d78816…` 绕行属临时缓解，已不再需要。"
