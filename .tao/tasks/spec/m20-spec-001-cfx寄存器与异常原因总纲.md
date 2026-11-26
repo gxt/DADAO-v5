@@ -32,6 +32,8 @@
 - **旧 cg7 的内部空间描述寄存器先整体移到新的 cg6**：新 cg6 = 旧 cg7（每 4 个 rc 描述一个空间、`rc0–rc63`、只读等语义照旧）；不在本批删除内部空间描述机制。
 - 配合第 1 条：新 cg7 = 旧 cg4（配置寄存器）+ 旧 cg6 的 scratch（落在 rc63/rc62/…）；新 cg4/新 cg5 按第 2/3 条重排。
 - 因而“删除 cg6/cg7 现有内容”应理解为：旧 cg6 的 scratch 迁到新 cg7 高 rc；旧 cg7 的内容迁到新 cg6；不是丢弃内部空间描述。
+- **新 cg7 的 scratch 分配（2026-11-26 用户确认）**：`scratch_regs_num = N` 表示 scratch **总数**，`N ≥ 2`；N=2 ⇒ `rc63/rc62`，N=3 ⇒ `rc63/rc62/rc61`，从 rc63 向下连续；语义沿用旧 cg6（RW、初值未定义、`rc >= N`/不存在访问 ⇒ `CFXREG`）；旧 cg4 的 `rc0–rc6`（含 `scratch_regs_num` 本身）保留在新 cg7 低位，不参与 scratch 编号。
+- **并入 `m18-spec-001` 的既有口径**（原任务待开始，未实施）：每个**非 reserved** cfx 的 `scratch_regs_num` 缺省值 = **2**（范围 2..64）；reserved cfx 不实现该寄存器（访问仍 `CFXREG`）；原 QEMU/gem5/chipyard 的默认 4 改为 2，相关 `tests/arch`/`tests/inst/11-cfx` 期望与探针随本批统一调整。该任务不再单独派发，内容全部并入本总纲。
 
 ## 影响面（初步，待定稿后逐项拆任务）
 
