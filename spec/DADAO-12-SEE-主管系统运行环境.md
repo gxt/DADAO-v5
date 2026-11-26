@@ -39,7 +39,7 @@ DADAO定义了四种运行模式，用两位编码：
 
 - 执行期同步异常先进入当前运行模式的 monitor（`cfx_umon`/`cfx_jmon`/`cfx_smon`/`cfx_hmon`），由 monitor 自行处理或 `trap` 分发到源 cfx；显式 `trap` 仍隶属目标 cfx，`escape` 仍隶属当前 cfx
 - 地址转换过程中触发的异常（页表步进与 TLB 命中）先进入当前运行模式 monitor：页表**缺失**与 A/D 回写失败只置访存/缺失类位图（`[48..55]` 之一或 `[56] ADWBFAIL`），页表**权限**拒绝只置权限类位图（`[32..38]` 之一）；两类故障的 `CFXMEM`/`CFXPERM` 均为 0（§3.6）；不再由 `cfx_ptw` 处理
-- 异步中断统一进入 `cfx_hart`（cfxha 15，hart-first），与同步异常分流：不进入当前运行模式 monitor，也不直接进入源 cfx；异步源以**源 cfxha** 标识（TIMER=15、PMEM_DMA=32），不占 `excp_cause_id`；每个源在自身 cfx 的 `cg16` 提供 `mask`/`pending`/`ack`（`rc16`/`rc17`/`rc18`，位 = 该源子事件），`cfx_hart cg15` 是异步进入瞬间的**捕获缓冲**（`rc0`–`rc5` 入口记录，每次进入覆盖），运行模式放行掩码在**当前运行模式 monitor** 的 `cg15 rc3`（§4.1–§4.4）；入口为 `cfx_hart` 的 supv 单向量，随后由软件在关中断窗口把 `cg15` 与 GPR 搬入本任务现场并进入 `cfx_smon`；处理后可用 `cfx_hart cg5 rc8`–`rc11` 出口意图 `escape cfx_hart` 返回（§5.4）
+- 异步中断统一进入 `cfx_hart`（cfxha 15，hart-first），与同步异常分流：不进入当前运行模式 monitor，也不直接进入源 cfx；异步源以**源 cfxha** 标识（TIMER=15、PMEM_DMA=32），不占 `excp_cause_id`；每个源在自身 cfx 的 `cg16` 提供 `mask`/`pending`/`ack`（`rc16`/`rc17`/`rc18`，位 = 该源子事件），`cfx_hart cg15` 是异步进入瞬间的**捕获缓冲**（`rc0`–`rc5` 入口记录，每次进入覆盖），运行模式放行掩码在**当前运行模式 monitor** 的 `cg15 rc3`（§4.1–§4.4）；入口为 `cfx_hart` 的 supv 单向量（运行模式上限 = `cg15 rc14`，默认 2 ⇒ 默认不打断 `hypv`），随后由软件在关中断窗口把 `cg15` 与 GPR 搬入本任务现场并进入 `cfx_smon`；处理后可用 `cfx_hart cg5 rc8`–`rc11` 出口意图 `escape cfx_hart` 返回（§5.4）
 
 多核系统中各资源的作用域：
 
@@ -695,7 +695,7 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 | 15 | 4 | async src frame | cfx_hart_async_src_frame | 0 | HW/RO | 本次进入的源集合（64 位位图，位 = 源 cfxha）；硬件每次异步进入整体覆盖写，软件只读（写忽略）；**无有效位**，也不存在"清 0 释放帧" |
 | 15 | 5 | async src pending | cfx_hart_async_src_pending | 0 | HW/RO | **原始 pending 汇总**（64 位位图，位 = 源 cfxha）：源 `pending` 任一子事件置位时置该位，源 `pending` 全清（ack 后）时落位；异步进入不清、不计数、软件写忽略 |
 | 15 | 6–13 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
-| 15 | 14 | async switch run mode | cfx_hart_async_switch_run_mode | 2 | RW | 异步进入时切换的运行模式（2 位）；**复位值 2（supv）**，异步进入取本寄存器当前值（由原 `rc6` 迁入） |
+| 15 | 14 | async switch run mode | cfx_hart_async_switch_run_mode | 2 | RW | 异步进入时切换的运行模式（2 位），**同时是异步进入的运行模式上限**：仅当**当前运行模式 ≤ 本值**时允许异步进入；**复位值 2（supv）** ⇒ 默认不打断 `hypv`，配成 3（hypv）时才可从 `hypv` 及更低模式进入；异步进入取本寄存器当前值作为目标模式（由原 `rc6` 迁入） |
 | 15 | 15 | async excp vector | cfx_hart_async_excp_vector | 0 | RW | supv 异步向量入口（48 位，4 字节对齐；写忽略低 2 位、不产生异常；由原 `rc5` 迁入） |
 
 - **from_user** = `async_prev_run_mode == user`（`rc0`）；`async_src_frame` 只是最近一次进入的捕获快照，**不作有效判据**。
@@ -707,7 +707,7 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 
 **异步中断入口与软件交接（hart-first）**
 
-`cfx_hart` 是所有异步源（`TIMER` = 本 cfx、`PMEM_DMA` = `cfx_pmem`）的**唯一异步进入目标**（§5.4）：源身份 = **源 cfxha**（15/32），不占 `excp_cause_id`；入口为 **supv 单向量**——向量 = `cg15 rc15`（`async_excp_vector`）、目标模式 = `cg15 rc14`（`async_switch_run_mode`，复位值 2 = supv，异步进入取该值）、入口记录 = `cg15`；运行模式放行掩码 = **当前运行模式 monitor** 的 `cg15 rc3`，源自身放行 = 源 cfx 的 `cg16 rc16` mask（§4.1–§4.4、§5.4）。**一帧多源**：同一指令边界上所有 `(源 pending & ~源 mask) != 0` 且 monitor 放行（`TIMER` 还要求 `ENABLE=1`）的源合并进入同一次捕获（`async_src_frame` = 源 cfxha 位并集），`excp_async_num` 每次进入 +1、与源个数无关。**每次进入整体覆盖**：硬件不因 `async_src_frame != 0` 拒绝进入，每次异步进入都覆盖 `cg15`；没有"帧活动期"，也没有 `frame_valid`。**pending 归源、ack 才清**：源事件置位源 `cg16 rc17`，异步进入**不清**；只有源 `cg16 rc18` 的 W1C 才清。`cg15` 是**入口记录/捕获缓冲**，出口意图在 hart 自己的 `cg5 rc8`–`rc11`：异步进 hart 后，软件可在**关中断窗口**把 `cg15`（`prev_*`/`prev_ip`/`src_frame`）与 GPR 搬到本任务现场（`task_pt_regs`），再进入 `cfx_smon`；`cfx_smon` 是普通系统态，按正常中断屏蔽策略运行，smon 中再来的异步照常进入并覆盖 `cg15`，嵌套由软件处理。返回时可用 hart 的 `cg5 rc8`–`rc11` 出口意图 `escape cfx_hart`（与同步共用同一出口，返回被中断现场、**不重放**被中断指令，§5.1/§5.4）；也可经 smon/umon 的正常路径返回。本 cfx 的 `excp_async_num`（`cg4 rc4`）计异步进入次数。
+`cfx_hart` 是所有异步源（`TIMER` = 本 cfx、`PMEM_DMA` = `cfx_pmem`）的**唯一异步进入目标**（§5.4）：源身份 = **源 cfxha**（15/32），不占 `excp_cause_id`；入口为 **supv 单向量**——向量 = `cg15 rc15`（`async_excp_vector`）、目标模式 = `cg15 rc14`（`async_switch_run_mode`，复位值 2 = supv，异步进入取该值）、入口记录 = `cg15`；运行模式放行掩码 = **当前运行模式 monitor** 的 `cg15 rc3`，源自身放行 = 源 cfx 的 `cg16 rc16` mask，运行模式上限 = 同一 `cg15 rc14`（**当前运行模式 ≤ `rc14`** 才进入，默认 2 ⇒ 默认不打断 `hypv`；§4.1–§4.4、§5.4）。**一帧多源**：同一指令边界上所有 `(源 pending & ~源 mask) != 0` 且 monitor 放行（`TIMER` 还要求 `ENABLE=1`）的源合并进入同一次捕获（`async_src_frame` = 源 cfxha 位并集），`excp_async_num` 每次进入 +1、与源个数无关。**每次进入整体覆盖**：硬件不因 `async_src_frame != 0` 拒绝进入，每次异步进入都覆盖 `cg15`；没有"帧活动期"，也没有 `frame_valid`。**pending 归源、ack 才清**：源事件置位源 `cg16 rc17`，异步进入**不清**；只有源 `cg16 rc18` 的 W1C 才清。`cg15` 是**入口记录/捕获缓冲**，出口意图在 hart 自己的 `cg5 rc8`–`rc11`：异步进 hart 后，软件可在**关中断窗口**把 `cg15`（`prev_*`/`prev_ip`/`src_frame`）与 GPR 搬到本任务现场（`task_pt_regs`），再进入 `cfx_smon`；`cfx_smon` 是普通系统态，按正常中断屏蔽策略运行，smon 中再来的异步照常进入并覆盖 `cg15`，嵌套由软件处理。返回时可用 hart 的 `cg5 rc8`–`rc11` 出口意图 `escape cfx_hart`（与同步共用同一出口，返回被中断现场、**不重放**被中断指令，§5.1/§5.4）；也可经 smon/umon 的正常路径返回。本 cfx 的 `excp_async_num`（`cg4 rc4`）计异步进入次数。
 
 **异常原因表**
 
@@ -1119,6 +1119,7 @@ temp_monitor.cg15_rc3    <= cfx_⟨cfxname⟩_excp_escape_intr_mask
 - **源侧三寄存器（`cg16`）**：每个源在自身 cfx 的 `cg16` 提供 `rc16` mask、`rc17` pending、`rc18` ack（W1C）。`rc16` 位 = 该源子事件（`1=屏蔽`、`0=允许`，复位全 1）；`rc17` 位 = 该源子事件（事件置位、**ack 才清**、异步进入不清，复位 0，RO）；`rc18` 写 1 清 `rc17` 对应位（读 0；对已清位写 1 为 no-op；保留位写 1 忽略）。`TIMER` 当前只有 bit0（cmp 到期）；`PMEM_DMA` 当前只有 bit0（传输结束）。`mask`/`ack` 的写权限按 `<mode>_cfxreg` 两轴矩阵放行（默认只 supv/hypv，平台可按需放开 user/jail）；`pending` 为 RO，user/jail 读取不受上述 `mask`/`ack` 写权限限制（仍按该 cfx 的常规访问两轴放行）。
 - **运行模式掩码归 monitor**：`cfx0`/`cfx1`/`cfx2`/`cfx3`（`umon`/`jmon`/`smon`/`hmon`）的 `cg15 rc3` 为 `cfx_<monitor>_async_intr_mask`：位 = 源 cfxha，`0=允许`、`1=屏蔽`，复位全 1。异步进入判定时按**当前运行模式**取该模式 monitor 的掩码求值（U→umon、J→jmon、S→smon、H→hmon）。
 - **没有全局掩码/运行期行**：`cfx_hart cg15` 只放入口记录与 pending 汇总；`trap` 本身不改写来源掩码（只把进入前值抄入出口意图 `rc11`），`escape` 按 `rc11` **整字恢复**目标模式 monitor 的 `cg15 rc3`（§5.1/§5.3）。
+- **运行模式上限（进入判据）**：异步进入还要求**当前运行模式 ≤ `cfx_hart cg15 rc14`（`async_switch_run_mode`）**。`rc14` 既是进入后的目标模式，也规定可从哪些模式进入：默认 `rc14 = 2`（supv）⇒ 在 `user`/`jail`/`supv` 可进入、**`hypv` 不被异步打断**；平台若要让异步进入落到 `hypv`，须显式把 `rc14` 配成 3（此时可从任意模式进入）。上限不满足 ⇒ **不进入**：源 pending 与 `cg15 rc5` 保留、不报错、不丢事件，条件持续有效时在后续指令边界重判。由于进入已保证「被中断模式 ≤ 目标模式」，`escape` 的「目标模式不得升权」（§5.1/§5.3）对异步返回天然成立，无需豁免。
 
 **（二）pending 语义（事件置位、ack 才清）**
 
@@ -1128,7 +1129,7 @@ temp_monitor.cg15_rc3    <= cfx_⟨cfxname⟩_excp_escape_intr_mask
 
 **（三）同一界多源与捕获缓冲（每次进入覆盖）**
 
-- 在同一指令边界上逐源判定：`(源 pending & ~源 mask) != 0` 且当前运行模式 monitor 的 `cg15 rc3[源 cfxha] == 0` 且（`TIMER` 还要求 `ENABLE=1`）。所有满足条件的源**一次性**合并进入**同一次捕获**：`async_src_frame` = 这些源 cfxha 位的并集，`excp_async_num` **每次进入 +1**（与源个数无关）；不按 cfxha 串行、不拆成多次进入。
+- 在同一指令边界上逐源判定：`(源 pending & ~源 mask) != 0` 且**当前运行模式 ≤ `cg15 rc14`** 且当前运行模式 monitor 的 `cg15 rc3[源 cfxha] == 0` 且（`TIMER` 还要求 `ENABLE=1`）。所有满足条件的源**一次性**合并进入**同一次捕获**：`async_src_frame` = 这些源 cfxha 位的并集，`excp_async_num` **每次进入 +1**（与源个数无关）；不按 cfxha 串行、不拆成多次进入。
 - **每次进入整体覆盖**：硬件**不因 `async_src_frame != 0` 拒绝进入**，每次异步进入都覆盖 `cg15`（`prev_*`/`prev_ip`/`src_frame`）。没有"帧活动期"、没有 `frame_valid`，也没有"软件写 0 释放帧"。
 - `async_src_frame` 是最近一次进入的**捕获快照**，不是"活动帧"：软件在关中断窗口把它与 GPR 搬到本任务现场后，`cg15` 只保留入口记录语义，返回由 `cfx_hart cg5 rc8`–`rc11` 的出口意图承担。`async_src_pending`（`rc5`）不因进入变化。
 
@@ -1146,6 +1147,7 @@ temp_monitor.cg15_rc3    <= cfx_⟨cfxname⟩_excp_escape_intr_mask
 // - 汇总视图：源 pending 非 0 ⇒ cfx_hart_async_src_pending[src_cfxha] <= 1；全清 ⇒ 0
 
 // 指令边界（当前指令已提交）：
+// 运行模式上限：仅当 inner_run_mode <= cfx_hart_async_switch_run_mode（rc14）时才可能进入
 case inner_run_mode of
     U-mode: temp_mask <= cfx_umon_async_intr_mask
     J-mode: temp_mask <= cfx_jmon_async_intr_mask
@@ -1161,7 +1163,7 @@ if (cfx_pmem_dma_pending & ~cfx_pmem_dma_mask) != 0
    and (temp_mask & (1 << 32)) == 0:
     temp_allowed <= temp_allowed | (1 << 32)
 
-if temp_allowed != 0:
+if temp_allowed != 0 and inner_run_mode <= cfx_hart_async_switch_run_mode:
     // 入口记录写在 cg15（不写 hart cg5 rc0–rc3）
     cfx_hart_async_src_frame             <= temp_allowed      // rc4：同一界多源位并集；每次进入整体覆盖
     // rc5（原始 pending 汇总）不在此写入：由源 pending 持续维护
@@ -1178,7 +1180,7 @@ if temp_allowed != 0:
     inner_cfx_code                       <= 15
     inner_inst_pointer                   <= cfx_hart_async_excp_vector       // 取 rc15
     cfx_hart_excp_async_num              <= cfx_hart_excp_async_num + 1
-// 否则：无放行源 ⇒ 不进入；源 pending 与 cg15 rc5 保留（没有任何"帧活动期"门控）
+// 否则：无放行源，或当前运行模式高于 rc14（模式上限）⇒ 不进入；源 pending 与 cg15 rc5 保留（没有任何"帧活动期"门控，也不报错）
 ```
 
 **（六）handler 取值（异步无 `cause_info`）**
@@ -1191,10 +1193,10 @@ if temp_allowed != 0:
 - **入口搬运（软件）**：异步进 hart 后，软件在**关中断窗口**把 `cg15`（`async_prev_run_mode`/`async_prev_cfx_code`/`async_cause_ip`/`async_prev_intr_mask`/`async_src_frame`）与 **`cfx_hart cg5 rc8`–`rc11`** + GPR 拷到本任务现场（`task_pt_regs`），随后可进入 `cfx_smon`（`trap cfx_smon` 或等价 handoff）。
 - **`cfx_smon` 是普通系统态**：临界区屏蔽中断，正常运行允许中断；smon 中再来的 async 照常进 hart、覆盖 `cg15`，软件把它当**新的捕获**，**嵌套由软件自行处理**（必要时软件保存/恢复 `cg5`）。
 - **用户态与系统态的区别只在处理方式**：用户态 async 切内核栈 + 信号/调度；系统态 async 在 kernel 栈直接处理 / 设 `need_resched`。
-- **同步/异步共用 `escape` 出口**：异步处理后可用 `cfx_hart cg5 rc8`–`rc11` 的出口意图执行 `escape cfx_hart`，返回被中断现场（`rc10` = 已提交指令之后的 `rb0`，**不重放**）；目标模式不得升权、目标 cfx 未实现或目标模式无 monitor ⇒ `CFXESC`（§5.1/§5.3）。返回也可经 smon/umon 正常路径。**嵌套纪律（软件快照）**：硬件只有单帧；入口把 `cg15`（入口记录）与 `cfx_hart cg5 rc8`–`rc11`（出口意图）抄到每任务/每 CPU 内存，返回前按 LIFO 写回 `rc8`–`rc11` 再 `escape`。
+- **同步/异步共用 `escape` 出口**：异步处理后可用 `cfx_hart cg5 rc8`–`rc11` 的出口意图执行 `escape cfx_hart`，返回被中断现场（`rc10` = 已提交指令之后的 `rb0`，**不重放**）；目标模式不得升权、目标 cfx 未实现或目标模式无 monitor ⇒ `CFXESC`（§5.1/§5.3）。由于进入上限（当前模式 ≤ `rc14`）已保证异步返回的目标模式不低于被中断模式，异步返回不会触发升权检查。返回也可经 smon/umon 正常路径。**嵌套纪律（软件快照）**：硬件只有单帧；入口把 `cg15`（入口记录）与 `cfx_hart cg5 rc8`–`rc11`（出口意图）抄到每任务/每 CPU 内存，返回前按 LIFO 写回 `rc8`–`rc11` 再 `escape`。
 - **计数**：`cfx_hart` 的 `excp_async_num`（`cg4 rc4`）按进入次数计（每次进入 +1，与源个数无关）；`escape_num`（`cg4 rc5`）每次 `escape` 执行 +1（同步/异步一视同仁）。
 - **pending 不迁移**：源 pending 记在源 cfx（`TIMER` 在 per-hart `cfx_hart cg16 rc17`、`PMEM_DMA` 在 `cfx_pmem cg16 rc17`），`cg15 rc5` 只是汇总；跨模式切换不搬移、不迁移，**ack 是唯一清除**；任务退出时未 ack 的源 pending 丢弃、依赖源重触发。
-- 异步中断的抢占顺序与多 hart 接收规则列入后续修订；本节冻结"统一进入 `cfx_hart`""同一界多源一次捕获""每次进入覆盖（无 `frame_valid`）""`cfx_smon` handoff 与软件处理嵌套""同步/异步共用 `escape` 出口（`cg5 rc8`–`rc11`）"五条。
+- 异步中断的抢占顺序与多 hart 接收规则列入后续修订；本节冻结"统一进入 `cfx_hart`""同一界多源一次捕获""运行模式上限（当前模式 ≤ `cg15 rc14`，默认不打断 `hypv`）""每次进入覆盖（无 `frame_valid`）""`cfx_smon` handoff 与软件处理嵌套""同步/异步共用 `escape` 出口（`cg5 rc8`–`rc11`）"六条。
 
 ---
 
@@ -1203,6 +1205,8 @@ if temp_allowed != 0:
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.8.1-rc（未发布）
+
+- **异步进入增加运行模式上限（内容补充，版本仍 0.8.1-rc）**：异步进入判定在逐源 `(pending & ~源 mask) != 0`、monitor `cg15 rc3[源 cfxha] == 0` 与（`TIMER` 的 `ENABLE=1`）之外，增加**当前运行模式 ≤ `cfx_hart cg15 rc14`（`async_switch_run_mode`）**；`rc14` 同时是进入后的目标模式，默认 2（supv）⇒ `hypv` 不被异步打断，平台配成 3（hypv）时才可从 `hypv` 及更低模式进入。上限不满足 ⇒ 不进入、源 pending 与 `cg15 rc5` 保留、不报错；进入已保证返回不升权，`escape` 的「目标模式不得升权」不变。`§4.7`/`§5.4` 同步。
 
 - **中断源 pending/mask/ack 归源、显式 W1C ack（内容改，新开 0.8.1-rc）**：`TIMER` 与 `PMEM_DMA` 各自在源 cfx 的 `cg16` 提供统一中断面——`rc16` mask（位 = 源子事件，`1=屏蔽`、`0=允许`，复位全 1）、`rc17` pending（事件置位、ack 才清、异步进入不清）、`rc18` ack（W1C，读 0、保留位忽略、幂等）。`TIMER`（`cfx_hart cg16`）的 `rc0` timer ctrl 只保留 bit0 `ENABLE`、`rc1` 为 timer cmp；删除 `cg8 rc4`/`rc5` 的 timer 定义（归 reserved ⇒ `CFXREG`）。`PMEM_DMA`（`cfx_pmem cg16`）子事件合并为 bit0“传输结束（`DONE` 或 `ERROR`）”；删除 `dma_ctrl` 的 bit2 中断使能位（按保留位读 0/写忽略），`dma_status` 的 `DONE`/`ERROR`/`ERR_CODE` 仍由自身 W1C 清。异步进入改为逐源判定 `(pending & ~源mask) != 0` 且 monitor 掩码放行且（timer 要求 `ENABLE=1`），多源合并一次进入；`TIMER` 采用到期边沿置位与 `ENABLE` 0→1 使能即检，写 `cmp` 只重新 arm、不清 pending。`cfx_hart` 异步捕获组由 `cg9` 移到 `cg15`（`rc0`–`rc5` 入口记录、`rc14`/`rc15` 配置，`cg9` 归 reserved），`cg15 rc4` 为本次源集合、`rc5` 为原始 pending 汇总；monitor 的 `async_intr_mask` 由 `cg8 rc1` 移到 `cg15 rc3`（`cg8 rc1` 归 reserved），`escape` 的 `rc11` 整字写目标模式 monitor 的 `cg15 rc3`。现行正文取消“投递/投递即清”提法，统一为“事件 / 异步进入 / ack”。`§1`/`§3.1`–`§3.6`/`§4.1`–`§4.4`/`§4.7`/`§4.9`/`§5.1`–`§5.4` 同步。
 

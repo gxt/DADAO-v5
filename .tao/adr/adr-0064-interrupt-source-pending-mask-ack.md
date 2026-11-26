@@ -1,6 +1,6 @@
 # ADR-0064: 中断源 pending/mask/ack 归源、显式 W1C ack
 
-**状态**：Accepted（2026-11-26；用户逐条裁定 A：源侧 pending/mask/ack、`cg16` 统一中断面、`cfx_hart` 捕获组 `cg9`→`cg15`、monitor 掩码 `cg8 rc1`→`cg15 rc3`、版本升 `0.8.1-rc`）
+**状态**：Accepted（2026-11-26；用户逐条裁定 A：源侧 pending/mask/ack、`cg16` 统一中断面、`cfx_hart` 捕获组 `cg9`→`cg15`、monitor 掩码 `cg8 rc1`→`cg15 rc3`、版本升 `0.8.1-rc`；同日追加裁定 B（`m18-spec-009`）：异步进入受 `cg15 rc14` 运行模式上限约束）
 **日期**：2026-11-26
 **关联**：`ADR-0061`（Accepted；其 **D5（mask 唯一归 monitor）与 D6（pending 由投递清除）由本 ADR 取代**，**R3 的出口帧 `cg5 rc8`–`rc11` / 异步 `escape` 继续有效**；本 ADR 不改 `adr-0061` 原文，只在其状态/关联行加取代指针）；`ADR-0042 D7`（`cfx_pmem` DMA 的异步源）；`ADR-0062`（扁平 cause 位图，不受影响）；`ADR-0060`（hart-first，沿用）；`m18-spec-008`（本 ADR 的正文落地）
 **规范落点**：`spec/DADAO-12 §1`/`§3.1`–`§3.6`/`§4.1`–`§4.4`/`§4.7`/`§4.9`/`§5.1`–`§5.4`、`spec/DADAO-22 §7`/`§9`、`.tao/contracts/contract-see.md`、`contract-cfx-aliases`（重生成）
@@ -71,6 +71,13 @@
 ### D8 版本
 
 `spec/DADAO-12`（SEE）与 `spec/DADAO-22`（SBI）册头同升 **`0.8.1-rc`**（SEE↔SBI 互锁）；`contract-see` 同步；`SimRISC` 不变（ISA 编码未动）。别名表/opcodes/legality 由仓库工具重生成，ISA 编码不变。
+
+### D9 异步进入的运行模式上限
+
+- 异步进入判定增加一条：**当前运行模式 ≤ `cfx_hart cg15 rc14`（`async_switch_run_mode`）**。`rc14` 仍是进入后的目标模式（RW，复位 2 = supv），同时充当**运行模式上限**：默认 2 ⇒ 在 `user`/`jail`/`supv` 可进入、**`hypv` 不被异步打断**；配成 3（hypv）时才可从任意模式（含 `hypv`）进入。
+- 上限不满足 ⇒ **不进入**：源 `pending` 与 `cfx_hart cg15 rc5` 保留、不报错、不丢事件；条件持续有效时在后续指令边界重判。
+- 目的：异步从 `supv` handler 返回被中断的 `hypv` 现场会构成升权（`rc8 = 3 > 2`）⇒ `CFXESC`。由进入上限保证「被中断模式 ≤ 目标模式」，`escape` 的「目标模式不得升权」（`ADR-0061 R3` / §5.1）保持原样、无需豁免。
+- 规范落点：`DADAO-12 §1`（摘要）、`§4.7`（`cg15 rc14` 行与入口段）、`§5.4`（一）/（三）/（五）/（七）；`contract-see §3`/`§6`。版本仍 `0.8.1-rc`（内容补充，不升号）。
 
 ## Alternatives（被否方案）
 

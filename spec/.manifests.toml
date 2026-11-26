@@ -7,7 +7,7 @@ recursive = false
 sha256 = "d3d05155cbffcf8ab1ce1f9cfcd867811ea028dad9f7f5f6774442c83b9f492d"
 
 [files."DADAO-12-SEE-主管系统运行环境.md"]
-sha256 = "a502d2f9b906e42a272a8a070b3dcc42ba91c3e8d6dfae7a613827a92a5368f8"
+sha256 = "beaba6b6182a1a838e84835341d89b77a5edf4e8e70a24f3377a852bc44f77ec"
 
 [files."DADAO-13-HEE-超管系统运行环境.md"]
 sha256 = "37c5bc7994dbb629abcf9b64d8e672cd71330cf122d1f28bc7435fc095635588"
