@@ -38,6 +38,11 @@
    - **源 mask 与 `*mon` 的 mask 不冲突、互不替代**：源 mask 是设备自己的 gate，monitor `cg8 rc1` 是运行模式 gate，两者独立（投递同时受两者约束）。
    - **`escape` 语义不变**：`rc11` 仍整字写目标运行模式 monitor 的 `cg8 rc1`；与源 mask 无关。
 
+7. **用户 2026-11-26 再澄清**：
+   - `pending` 语义：**事件置位、ack（源 `rc13` W1C）才清、投递不清**；handler 必须在 `escape` 前 ack 已投递源，想延后就保持该源 mask 关闭。
+   - **monitor mask 是每个 monitor cfx（cfx0–3）各自的 64 位寄存器**，位 = 源 cfxha（15/32）。
+   - **源 mask 是源自己的事件位图**：不是“一个源一位”，而是“该源的子事件位”——`TIMER` 现在只有一个 `cmp`，所以只有 bit0 有效；将来扩展成两个 `cmp`，就低 2 位有效。源 `pending`/`ack` 同构（按子事件位）。
+
 ## 待裁定（逐条讨论）
 
 1. `ISTATUS` 置位条件：**到期边沿置位**（每个 armed deadline 只置一次，之后不重复）还是 `cmp<=now` 的持续电平？前者才使 ack 有意义。
