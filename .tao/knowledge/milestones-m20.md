@@ -26,9 +26,11 @@
 | m20-idl-001 | 2–4 h | IDL cfx 语义/cause 名称/向量迁移（W1） |
 | m20-llvm-004 | 2–4 h | LLVM cfx 别名/汇编反汇编/lit（W1） |
 | m20-infra-002 | 2–4 h | cfx 生成器/ledger/门控迁移（W1） |
+| m20-integ-001 | 2–4 h | 三方 cfx/cg/rc 覆盖矩阵与预期（W1，只定义一致性） |
 | m20-qemu-001 | 4–8 h | QEMU cfx 寄存器/异常/UART/time/hart/power（W2） |
 | m20-gem5-005 | 4–8 h | gem5 cfx 寄存器/异常/UART/time/hart/power（W2） |
 | m20-chipyard-002 | 8–12 h | RTL cfx 寄存器/decoder/异常/UART/time/hart/power（W3） |
+| m20-integ-002 | 4–8 h | 三方 cfx/cg/rc 一致性实测与缺口关闭（W3 后，006 前） |
 | m20-linux-001 | 4–8 h | Linux/SEE cfx 访问、cause、PTW、UART/time（W4） |
 | m20-testcases-006 | 4–8 h | cfx 测试向量/签名/四方迁移（W5） |
 

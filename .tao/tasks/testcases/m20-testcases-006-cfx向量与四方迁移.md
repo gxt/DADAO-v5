@@ -2,7 +2,7 @@
 
 **模块**：testcases
 **项目里程碑**：M20
-**依赖**：W2/W3（QEMU/gem5/RTL 实现）；M16/M17 收口后派发
+**依赖**：`m20-integ-002`（三方 cfx/cg/rc 一致性实测）；W2/W3（QEMU/gem5/RTL 实现）；M16/M17 收口后派发
 **可并行分片**：否（共享 tests/case-ledger/signature）
 **预估**：4–8 h
 **档位**：大改（测试数据）

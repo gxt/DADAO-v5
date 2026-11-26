@@ -75,13 +75,15 @@
 | W1 | `m20-idl-001` | IDL 的 cfx 语义/cause 名称/向量与锁 |
 | W1 | `m20-llvm-004` | LLVM cfx 别名/汇编反汇编/lit |
 | W1 | `m20-infra-002` | cfx 别名/ledger/门控生成器与迁移工具 |
+| W1 | `m20-integ-001` | 三方 cfx/cg/rc 覆盖矩阵与预期（只定义“一致”，不跑引擎） |
 | W2 | `m20-qemu-001` | QEMU cfx 寄存器面/cause/PTW/UART/time/hart/power |
 | W2 | `m20-gem5-005` | gem5 同上 |
 | W3 | `m20-chipyard-002` | RTL cfx 寄存器/decoder/cause/PTW/UART/time/hart/power |
+| W3 后 | `m20-integ-002` | 三方 cfx/cg/rc 一致性实测与缺口关闭（在 006 前） |
 | W4 | `m20-linux-001` | Linux/SEE：cfx 访问、cause 解码、PTW、UART/time |
 | W5 | `m20-testcases-006` | tests/inst 11-cfx、tests/arch、unit/gem5、签名/case-ledger/四方 |
 
-依赖关系：W1 全部依赖本总纲；W2 依赖 W1；W3 依赖 W1（可与 W2 并行，但验收排后）；W4 依赖 W2；W5 依赖 W2/W3。**当前只建任务书/台账，不派发。**
+依赖关系：W1 全部依赖本总纲；W2 依赖 W1；W3 依赖 W1（可与 W2 并行，但验收排后）；W4 依赖 W2；W5 依赖 W2/W3 与 `m20-integ-002`。**当前只建任务书/台账，不派发。**
 
 ## 约束
 
