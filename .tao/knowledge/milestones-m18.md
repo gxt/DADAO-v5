@@ -49,12 +49,12 @@
 | --- | --- | --- | --- |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 | m18-linux-026 | 2026-11-26 08:18 | 4–6 h | 内核迁移异步 escape（去 jmon、`cg5 rc8–rc11` 出口、同步桩迁 `rc10`）；不等 IDL/gem5/RTL |
-| m18-testcases-004 | 2026-11-26 07:38 | 3–4 h | **链②** 异步 escape 出口帧向量与探针 + `tests/arch` 载体/legacy 探针旧语法迁移 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-testcases-004 | 2026-11-26 10:04 | 异步 escape 出口向量 + R3 载体迁移（inst 274/274、smoke 10/10、证据 38/38；`pmem` 48 槽、进入自证） |
 | m18-qemu-008 | 2026-11-26 07:38 | 异步 escape 出口（cg5 rc8–rc11、cg9 rc14/rc15、`escape cfxHA`、rc11 整字恢复；探针 21/150、证据 29/29） |
 | m18-infra-004 | 2026-11-26 07:28 | `issues` 按里程碑分册（left+m16…m19，多重集相等）+ 收尾清理 55 条 closed（missing=0）；船后补验 Accepted |
 | m18-llvm-002 | 2026-11-26 07:27 | LLVM/opcodes `escape cfxHA`（imms18 SBZ、反汇编、legality；lit 186/186、`check-cfx-vectors` 回绿） |
