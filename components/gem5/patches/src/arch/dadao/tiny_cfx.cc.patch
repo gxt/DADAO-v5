@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/tiny_cfx.cc b/src/arch/dadao/tiny_cfx.cc
 new file mode 100644
-index 0000000..792c99d
+index 0000000..65e3572
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.cc
 @@ -0,0 +1,539 @@
@@ -136,10 +136,14 @@ index 0000000..792c99d
 +            return nullptr;
 +        return &r.scratch[rc];
 +      case 8:
-+        if (cfxha == TinyCfxhaHmon && rc == 1)
-+            return &r.globalCfxIntrMask;
++        // cg8 rc1 (the old monitor async mask) is reserved now (ADR-0064 D6).
 +        // cfx_power's cg8 rc1 (power ctrl) is not modelled by the gem5 Tiny
 +        // platform; CFXREG is the explicit failure, never a silent stub.
++        return nullptr;
++      case 15:
++        // cfx0-cfx3 only: cg15 rc3 async_intr_mask (ADR-0064 D6).
++        if (cfxha == TinyCfxhaHmon && rc == 3)
++            return &r.asyncIntrMask;
 +        return nullptr;
 +      default:
 +        return nullptr;
@@ -195,11 +199,11 @@ index 0000000..792c99d
 +    // Step 5: save the entry record (cg5 rc0-rc3) and the cause fields, then
 +    // copy rc0-rc3 into the export intent rc8-rc11 (spec/DADAO-12 §3.6/§5.2).
 +    // `prevCfxCode` is sampled before step 6 rewrites `cfxCode`; the prev intr
-+    // mask is the entry run-mode monitor's `cg8 rc1` snapshot (no such monitor
++    // mask is the entry run-mode monitor's `cg15 rc3` snapshot (no such monitor
 +    // row on Tiny except hypv/hmon => all ones fail-safe).
 +    const int mon = tinyCfxIndex(entryMode & 0x3);
 +    const uint64_t prevMask =
-+        (mon >= 0) ? s.cfx[mon].globalCfxIntrMask : ~0ULL;
++        (mon >= 0) ? s.cfx[mon].asyncIntrMask : ~0ULL;
 +    TinyCfxRegs &r = s.cfx[ci];
 +    r.prevRunMode = entryMode & 0x3;
 +    r.prevCfxCode = s.cfxCode & 0x3F;
@@ -280,7 +284,7 @@ index 0000000..792c99d
 +            mr.excpVector = (cfxha == TinyCfxhaHmon) ? hmonBase : romBase;
 +            mr.cgRegDeleg = (m == 3) ? ~0ULL : 0;
 +        }
-+        r.globalCfxIntrMask = (cfxha == TinyCfxhaHmon) ? ~0ULL : 0;
++        r.asyncIntrMask = (cfxha == TinyCfxhaHmon) ? ~0ULL : 0;
 +        r.cfxId = cfxha;
 +        r.version = 0x00010000ULL;
 +        r.scratchRegsNum = 4;
@@ -436,7 +440,7 @@ index 0000000..792c99d
 +    s.runMode = targetMode;
 +    s.cfxCode = static_cast<uint8_t>(targetCfx);
 +    s.cfx[ci].escapeNum++;
-+    s.cfx[mon].globalCfxIntrMask = retMask;   // one word, atomic with the jump
++    s.cfx[mon].asyncIntrMask = retMask;   // one word, atomic with the jump
 +    if (s.depth > 0)
 +        s.depth--;
 +    setPc(tc, ret);
@@ -467,12 +471,8 @@ index 0000000..792c99d
 +        out = cg7Value(s, ci, rc & 0x3F);
 +        return true;
 +    }
-+    if (cg > 8) {
-+        // cg8 carries the monitor async-intr-mask row (and, for other cfx,
-+        // no row: regPtr returns nullptr); cg9+ do not exist on Tiny.
-+        tinyCfxRaise(tc, s, TinyCauseCfxReg, -1, pc, info);
-+        return false;
-+    }
++    // cg8 rc1 is reserved, cg15 rc3 is the monitor async mask; every other
++    // row is decided by regPtr (nullptr => CFXREG).
 +    uint64_t *p = regPtr(s, ci, cfxha, cg, rc, false);
 +    if (p == nullptr) {
 +        tinyCfxRaise(tc, s, TinyCauseCfxReg, -1, pc, info);
@@ -502,8 +502,8 @@ index 0000000..792c99d
 +        tinyCfxRaise(tc, s, TinyCauseCfxPerm, -1, pc, pc);
 +        return false;
 +    }
-+    if (cg == 7 || cg > 8) {
-+        // cg7 is read-only; cg9+ do not exist (spec/DADAO-12 §3.8).
++    if (cg == 7) {
++        // cg7 is read-only (spec/DADAO-12 §3.8).
 +        tinyCfxRaise(tc, s, TinyCauseCfxReg, -1, pc, info);
 +        return false;
 +    }

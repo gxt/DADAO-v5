@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..edc6961
+index 0000000..541168a
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
 @@ -0,0 +1,543 @@
@@ -434,7 +434,7 @@ index 0000000..edc6961
 +                     static_cast<unsigned long long>(r.excpAsyncNum),
 +                     static_cast<unsigned long long>(r.escapeNum),
 +                     static_cast<unsigned long long>(r.scratchRegsNum),
-+                     static_cast<unsigned long long>(r.globalCfxIntrMask));
++                     static_cast<unsigned long long>(r.asyncIntrMask));
 +        std::fprintf(f, "CFX%02d PREVM:%016llx PREVCFX:%016llx "
 +                     "CIP:%016llx PREVIM:%016llx CID:%016llx "
 +                     "CINFO:%016llx\n", ha,
@@ -468,7 +468,7 @@ index 0000000..edc6961
 +                         static_cast<unsigned long long>(r.scratch[j]));
 +        }
 +    }
-+    // cfx_hart cg9 async capture buffer (spec/DADAO-12 §4.7).
++    // cfx_hart cg15 async capture buffer (spec/DADAO-12 §4.7).
 +    std::fprintf(f, "ASYNC PREVM:%016llx PREVCFX:%016llx CIP:%016llx "
 +                 "PREVIM:%016llx FRAME:%016llx PEND:%016llx VEC:%016llx "
 +                 "SWM:%016llx\n",
@@ -477,7 +477,7 @@ index 0000000..edc6961
 +                 static_cast<unsigned long long>(node.asyncPrevIp),
 +                 static_cast<unsigned long long>(node.asyncPrevIntrMask),
 +                 static_cast<unsigned long long>(node.asyncSrcFrame),
-+                 static_cast<unsigned long long>(node.asyncSrcPending),
++                 static_cast<unsigned long long>(nodeAsyncPendingSummary(node)),
 +                 static_cast<unsigned long long>(node.asyncExcpVector),
 +                 static_cast<unsigned long long>(node.asyncSwitchRunMode));
 +    std::fprintf(f, "\n");

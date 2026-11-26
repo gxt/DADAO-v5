@@ -418,6 +418,9 @@ h_body:
 	@@ =====================================================================
 	@@ 捕获：屏蔽期只置 pending（bit32），放行后同一界投递
 	@@ =====================================================================
+	@@ H 体在 hypv 下取异步进入 ⇒ 运行模式上限抬到 hypv（m18-spec-009）；
+	@@ handler 首帧 ack 后恢复默认 2，后续阶段在 supv 下进入。
+	WCFX_IMM cfx_hart, cg15, rc14, 3
 	WCFX_IMM cfx_hmon, cg15, rc3, MASK_ALL
 	PMW	4, (ST_DONE | ST_ERROR)
 	DMA_SETUP_CFX 0x100, (PA_T + 0x200), 8
@@ -485,6 +488,8 @@ async_phase1:
 	REC	rd5				@@ 25 = DONE
 	@@ handler 在 escape 前 ack 已进入的源（进入不清 pending）
 	WCFX_IMM cfx_pmem, cg16, rc18, 1
+	@@ 首帧后恢复默认运行模式上限 2（后续阶段在 supv 下进入）
+	WCFX_IMM cfx_hart, cg15, rc14, 2
 
 	@@ ---- 正常异步返回：rc8/rc9 = 进入前 (supv, cfx_hart)、rc10 = after_escape、
 	@@   rc11 = P1（整字写 smon cg15 rc3；bit15/32=1 ⇒ 后续事件先置 pending） ----

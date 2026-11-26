@@ -361,8 +361,10 @@ h_body:
 	WCFX_IMM   cfx_hart, cg15, rc14, 3
 	cfx2rd	cfx_hart, cg15, rc14, rd5
 	REC	rd5
-	@@ 恢复复位值（后面的 timer 投递按 rc14 = 2 进 supv）
-	WCFX_IMM   cfx_hart, cg15, rc14, 2
+	@@ H 体在 hypv 下取异步进入，须把运行模式上限抬到 hypv（m18-spec-009：
+	@@ 当前模式 ≤ cg15 rc14 才进入）；handler 首帧读出 rc14 后恢复 2，
+	@@ 后续阶段在 supv 下按默认上限进入。写后读回 3。
+	WCFX_IMM   cfx_hart, cg15, rc14, 3
 	cfx2rd	cfx_hart, cg15, rc14, rd5
 	REC	rd5
 
@@ -548,6 +550,10 @@ async_phase1:
 	REC	rd5
 	@@ handler 在 escape 前 ack 已进入的源（`cg16 rc18` W1C；进入不清 pending）
 	WCFX_IMM   cfx_hart, cg16, rc18, 1
+	.if TMODE == 3
+	@@ 首帧读出 rc14=3 后恢复默认上限 2：后续阶段在 supv 下进入
+	WCFX_IMM   cfx_hart, cg15, rc14, 2
+	.endif
 
 	@@ ---- 正常异步返回：rc10 = async_ret、rc11 = 全 1（fail-safe），
 	@@   然后 `escape cfx_hart`。U/S 的进入前模式是 user/supv ⇒ 复制来的
@@ -735,49 +741,43 @@ jump_fail:
 
 .if TMODE == 3
 @@ ---------------------------------------------------------------------------
-@@ 异步进入的运行模式 = `cg15 rc14`（`m18-spec-006`；与 `m16-chipyard-028` 同场景）
-@@ 在 supv 下依次：rc14=0 ⇒ 进入应为 user（下一次进入的 prev 证明）；rc14=2 ⇒
-@@ 进入应为 supv（再下一次的 prev 证明）。timer 到期落在 BURN 内，本组只判
-@@ 「进入后的运行模式」，不判投递边界地址。
+@@ 异步进入的运行模式上限 = `cg15 rc14`（`m18-spec-006/009`；ADR-0064 D9）
+@@ 在 supv 下：rc14=0（低于当前模式）⇒ **不进入**，pending 与 `cg15 rc5`
+@@ 保留；把 rc14 抬到 2 后同一边界进入 supv（prev 证明），再重复一次。
+@@ timer 到期落在 BURN 内，本组不判投递边界地址。
 @@ ---------------------------------------------------------------------------
 rc14_setup:
 	WCFX_IMM   cfx_hart, cg16, rc0, 0
 	WCFX_IMM   cfx_hart, cg16, rc1, 0xFFFFFFFFFFFFFFFF
 	WCFX_IMM   cfx_hart, cg15, rc14, 0
-	WCFX_LABEL cfx_hart, cg15, rc15, rc14_u_entry
+	WCFX_LABEL cfx_hart, cg15, rc15, rc14_bad_entry
 	cfx2rd	cfx_hart, cg8, rc2, rd5
 	add.si	rd5, 150
 	cfx2rc	cfx_hart, cg16, rc1, rd5
 	WCFX_IMM   cfx_hart, cg16, rc0, 1
 	BURN	rd7, rb1
-	@@ BURN 内未投递 ⇒ 红
+	@@ 上限 0 < 当前 supv ⇒ 不得进入：pending 与汇总都保留（进入则先落
+	@@ 到 rc14_bad_entry 的哨兵槽，后面的槽全错位）
+	cfx2rd	cfx_hart, cg15, rc5, rd5
+	REC	rd5
+	cfx2rd	cfx_hart, cg15, rc4, rd5
+	REC	rd5
+	@@ 抬到 supv（=2）并换回正常向量：下一指令边界进入；未进入则 DEAD0007
+	WCFX_LABEL cfx_hart, cg15, rc15, rc14_s_entry
+	WCFX_IMM   cfx_hart, cg15, rc14, 2
+	BURN	rd21, rb3
 	set.rd	rd5, 0xDEAD0007
 	REC	rd5
 	jump	[rb0, fail_exit]
 
-rc14_u_entry:
-	@@ rc14=0：进入读数 = 0；prev = supv（进入前在 supv）
-	cfx2rd	cfx_hart, cg15, rc14, rd5
-	REC	rd5
-	cfx2rd	cfx_hart, cg15, rc0, rd5
-	REC	rd5
-	WCFX_IMM   cfx_hart, cg16, rc18, 1	@@ ack before re-arming
-	@@ 从 user 再投递一次（rc14=2）：下一次进入的 prev = user 即证明本次进 user
-	WCFX_IMM   cfx_hart, cg16, rc0, 0
-	WCFX_IMM   cfx_hart, cg16, rc1, 0xFFFFFFFFFFFFFFFF
-	WCFX_IMM   cfx_hart, cg15, rc14, 2
-	WCFX_LABEL cfx_hart, cg15, rc15, rc14_s_entry
-	cfx2rd	cfx_hart, cg8, rc2, rd5
-	add.si	rd5, 150
-	cfx2rc	cfx_hart, cg16, rc1, rd5
-	WCFX_IMM   cfx_hart, cg16, rc0, 1
-	BURN	rd21, rb3
-	set.rd	rd5, 0xDEAD0008
+rc14_bad_entry:
+	@@ 上限未生效的负控：进入即写哨兵槽（正常路径不会到这里）
+	set.rd	rd5, 0xBAD0C14
 	REC	rd5
 	jump	[rb0, fail_exit]
 
 rc14_s_entry:
-	@@ prev = user（rc14=0 那次确实进 user）；rc14 读数 = 2
+	@@ rc14=2、进入前在 supv：prev = supv；rc14 读数 = 2
 	cfx2rd	cfx_hart, cg15, rc0, rd5
 	REC	rd5
 	cfx2rd	cfx_hart, cg15, rc14, rd5
@@ -792,7 +792,7 @@ rc14_s_entry:
 	cfx2rc	cfx_hart, cg16, rc1, rd5
 	WCFX_IMM   cfx_hart, cg16, rc0, 1
 	BURN	rd7, rb1
-	set.rd	rd5, 0xDEAD0009
+	set.rd	rd5, 0xDEAD0008
 	REC	rd5
 	jump	[rb0, fail_exit]
 

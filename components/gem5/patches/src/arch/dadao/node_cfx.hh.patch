@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..568cfbf
+index 0000000..5a3b5e2
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,476 @@
+@@ -0,0 +1,498 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -76,7 +76,7 @@ index 0000000..568cfbf
 +     * clears the low cause (ADR-0062 D1/D2); CauseCfxMem/CauseCfxPerm mean
 +     * non-PTW internal access and cfx source-mask denial only.  No PTWERR
 +     * low cause.  Async sources have no cause id at all: their identity is
-+     * the source cfxha bitmap in cfx_hart cg9 (spec/DADAO-12 §5.4). */
++     * the source cfxha bitmap in cfx_hart cg15 (spec/DADAO-12 §5.4). */
 +};
 +
 +/** PTE / TLB constants (spec/DADAO-12 §2.2.1-§2.2.4). */
@@ -117,10 +117,10 @@ index 0000000..568cfbf
 +
 +/** One cfx mode row (cg0-cg3, spec/DADAO-12 §3; DADAO-13 §1 for cg3).
 + *  rc4 (the pre-`ADR-0061` `cfx_intr_mask`) is **not defined** any more:
-+ *  async source masks live in `cg8 rc1` of cfx0-cfx3, so rc4 keeps no state
-+ *  and an access raises CFXREG (spec/DADAO-12 §3).  `rc14`/`rc15` are the
-+ *  switch/vector slots (m18-spec-007); `rc8`/`rc10` and `rc9`/`rc11` are
-+ *  reserved holes. */
++ *  async source masks live in `cg15 rc3` of cfx0-cfx3, so rc4 keeps no state
++ *  and an access raises CFXREG (spec/DADAO-12 §3, ADR-0064 D6).  `rc14`/`rc15`
++ *  are the switch/vector slots (m18-spec-007); `rc8`/`rc10` and `rc9`/`rc11`
++ *  are reserved holes. */
 +struct NodeCfxMode
 +{
 +    uint64_t cfxtrap = 0;
@@ -145,7 +145,7 @@ index 0000000..568cfbf
 +    uint64_t escapeNum = 0;
 +    uint64_t scratchRegsNum = 0;
 +    /* cg5 rc0-rc3 entry record (HW/RO, spec/DADAO-12 §3.6): prev run mode,
-+     * prev cfx code, prev ip and the prev run-mode monitor `cg8 rc1`
++     * prev cfx code, prev ip and the prev run-mode monitor `cg15 rc3`
 +     * snapshot.  Software writes raise CFXREG. */
 +    uint64_t prevRunMode = 0;
 +    uint64_t prevCfxCode = 0;
@@ -161,9 +161,9 @@ index 0000000..568cfbf
 +    uint64_t escapeCfxCode = 0;
 +    uint64_t escapeIp = 0;
 +    uint64_t escapeIntrMask = ~0ULL;
-+    /* cfx0-cfx3 cg8 rc1 `cfx_<monitor>_async_intr_mask`: bit = source cfxha,
-+     * 0 = allow, 1 = mask, reset all ones (ADR-0061 D5). */
-+    uint64_t globalCfxIntrMask = 0;
++    /* cfx0-cfx3 cg15 rc3 `cfx_<monitor>_async_intr_mask`: bit = source cfxha,
++     * 0 = allow, 1 = mask, reset all ones (ADR-0064 D6; was cg8 rc1). */
++    uint64_t asyncIntrMask = 0;
 +};
 +
 +/** One guest-visible TLB entry (ADR-0041 D8/D9).  This is the instruction-side
@@ -279,7 +279,10 @@ index 0000000..568cfbf
 +    uint64_t ctrl = 0;
 +    uint64_t status = 0;
 +    uint64_t dir = 0;
-+    uint64_t irqEn = 0;
++    /* cfx_pmem cg16 source interface (ADR-0064 D1/D3): bit0 = transfer end
++     * (DONE|ERROR), 1 = masked, reset all ones; pending is ack-only. */
++    uint64_t irqMask = ~0ULL;
++    uint64_t irqPending = 0;
 +    uint64_t cfxOff = 0;
 +    uint64_t pa = 0;
 +    uint64_t len = 0;
@@ -362,23 +365,36 @@ index 0000000..568cfbf
 +    uint64_t timeBaseTick = 0;
 +    uint64_t insnCount = 0;
 +    uint64_t timerCmp = 0;
++    /* cfx_hart cg16 rc0 `timer_ctrl`: only bit0 ENABLE is defined. */
 +    uint64_t timerCtrl = 0;
++    /* cfx_hart cg16 source interface (ADR-0064 D1/D3): rc16 mask (bit0 = cmp
++     * expiry, 1 = masked, reset all ones), rc17 pending (RO, ack-only). */
++    uint64_t timerMask = ~0ULL;
++    uint64_t timerPending = 0;
 +
-+    /* cfx_hart cg9 async capture buffer (spec/DADAO-12 §4.7/§5.4, ADR-0061
-+     * D7).  Every async entry overwrites the capture slots wholesale
++    /* cfx_hart cg15 async capture buffer (spec/DADAO-12 §4.7/§5.4, ADR-0064
++     * D5).  Every async entry overwrites the capture slots wholesale
 +     * (`rc0`-`rc4`); there is no frame phase, no frame_valid and no
-+     * "software writes 0 to release the frame".  `rc0`-`rc5` are HW-written
-+     * and software-read-only (a write is ignored, no exception). */
-+    uint64_t asyncPrevRunMode = 0;    /* cg9 rc0 (2 bits)   */
-+    uint64_t asyncPrevCfxCode = 0;    /* cg9 rc1 (6 bits)   */
-+    uint64_t asyncPrevIp = 0;         /* cg9 rc2 (48 bits)  */
-+    uint64_t asyncPrevIntrMask = 0;   /* cg9 rc3 (64 bits)  */
-+    uint64_t asyncSrcFrame = 0;       /* cg9 rc4 (HW/RO)    */
-+    uint64_t asyncSrcPending = 0;     /* cg9 rc5 (HW/RO)    */
-+    /* cg9 rc14 `async_switch_run_mode`: RW, reset 2 (supv); an async entry
-+     * uses the current value (spec/DADAO-12 §4.7, m18-spec-006). */
++     * "software writes 0 to release the frame".  `rc0`-`rc4` are HW-written
++     * and software-read-only (a write is ignored, no exception); `rc5` is a
++     * live summary of the source pending bits. */
++    uint64_t asyncPrevRunMode = 0;    /* cg15 rc0 (2 bits)   */
++    uint64_t asyncPrevCfxCode = 0;    /* cg15 rc1 (6 bits)   */
++    uint64_t asyncPrevIp = 0;         /* cg15 rc2 (48 bits)  */
++    uint64_t asyncPrevIntrMask = 0;   /* cg15 rc3 (64 bits)  */
++    uint64_t asyncSrcFrame = 0;       /* cg15 rc4 (HW/RO)    */
++    /* cg15 rc14 `async_switch_run_mode`: RW, reset 2 (supv); it is both the
++     * target run mode and the run-mode upper bound of an async entry
++     * (spec/DADAO-12 §4.7, m18-spec-006/009). */
 +    uint64_t asyncSwitchRunMode = NodeSupv;
-+    uint64_t asyncExcpVector = 0;     /* cg9 rc15 (48 bits) */
++    uint64_t asyncExcpVector = 0;     /* cg15 rc15 (48 bits) */
++
++    /** Re-evaluate async entry at the next instruction boundary.  Set by a
++     *  source event and by any write that may unmask one (source/monitor
++     *  masks, mode changes); cleared when an entry is taken.  Source pending
++     *  is sticky, so without this latch a pending source would re-enter at
++     *  every boundary and the handler could never run (ADR-0064 D4). */
++    bool asyncKick = false;
 +
 +    Event *dmaEvent = nullptr;
 +    Event *timerEvent = nullptr;
@@ -461,15 +477,21 @@ index 0000000..568cfbf
 +bool nodeEscape(ThreadContext *tc, NodeState &s, uint8_t cfxha,
 +                uint32_t byteOffset);
 +
-+/** Deliver every pending asynchronous source that the *current run mode's*
-+ *  monitor mask lets through, at one instruction boundary (spec/DADAO-12
-+ *  §5.4(三)): one capture, bitmap union, pending cleared, `excp_async_num`
-+ *  +1 regardless of how many sources.  The caller must not execute the
++/** Deliver every pending asynchronous source that the source mask and the
++ *  *current run mode's* monitor `cg15 rc3` let through, at one instruction
++ *  boundary (spec/DADAO-12 §5.4(三), ADR-0064 D4): one capture, bitmap
++ *  union, source pending **not** cleared, `excp_async_num` +1 regardless of
++ *  how many sources.  The entry requires the current run mode <=
++ *  `cg15 rc14` and, for TIMER, `ENABLE=1`.  The caller must not execute the
 + *  current instruction when this returns true. */
 +bool nodeDeliverAsync(ThreadContext *tc, NodeState &s);
 +
 +/** cfx_time value (ns since reset). */
 +uint64_t nodeTimeValue(const NodeState &s);
++
++/** `cfx_hart cg15 rc5` raw pending summary: bit = source cfxha, set while the
++ *  source has any sub-event pending (spec/DADAO-12 §4.7). */
++uint64_t nodeAsyncPendingSummary(const NodeState &s);
 +
 +/** Complete/inspect the cfx_pmem DMA (called by the scheduled event and by
 + *  the register reads/writes). */

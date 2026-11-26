@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/tiny_cfx.hh b/src/arch/dadao/tiny_cfx.hh
 new file mode 100644
-index 0000000..588bf4d
+index 0000000..31dd33b
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.hh
-@@ -0,0 +1,157 @@
+@@ -0,0 +1,159 @@
 +// DADAO Tiny machine model: cfx_power (cfx63) + cfx3 hmon.
 +//
 +// Source of truth: spec/Kaiwu §1.1/§2/§3/§4.1/§4.4/§5/§6/§7.1 and
@@ -77,7 +77,7 @@ index 0000000..588bf4d
 +    uint64_t escapeNum = 0;
 +    uint64_t scratchRegsNum = 0;
 +    /* cg5 rc0-rc3 entry record (HW/RO): prev run mode, prev cfx code, prev ip,
-+     * prev run-mode monitor `cg8 rc1` snapshot; rc4/rc5 cause fields. */
++     * prev run-mode monitor `cg15 rc3` snapshot; rc4/rc5 cause fields. */
 +    uint64_t prevRunMode = 0;
 +    uint64_t prevCfxCode = 0;
 +    uint64_t prevIp = 0;
@@ -89,7 +89,9 @@ index 0000000..588bf4d
 +    uint64_t escapeCfxCode = 0;
 +    uint64_t escapeIp = 0;
 +    uint64_t escapeIntrMask = ~0ULL;
-+    uint64_t globalCfxIntrMask = 0;
++    /* cg15 rc3 async source mask (cfx0-3 only): bit = source cfxha,
++     * 0 = allow, 1 = mask, reset all ones (ADR-0064 D6; was cg8 rc1). */
++    uint64_t asyncIntrMask = 0;
 +};
 +
 +/** Per-thread Tiny architectural state. */

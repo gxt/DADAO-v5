@@ -79,11 +79,3 @@ divergences:
     user_ruling: "2026-11-24（本任务；DIV-01 的同类功能模型限制）"
     status: active
 
-  - id: DIV-16
-    kind: temporary
-    scope: [gem5]
-    impact: "gem5 的异步捕获/监视掩码仍是 0.8.0 布局：`cfx_hart cg9 rc0`–`rc5` 入口记录、`rc14`/`rc15` 配置、monitor 的 `cg8 rc1` 掩码；spec/QEMU 已是 0.8.1-rc（RTL 由 DIV-11 与 m18-chipyard-002/003 另行覆盖）（`cfx_hart cg15`、`cg15 rc3` 掩码、`cg16` 源 mask/pending/ack）。同一 ELF 若按 0.8.0 槽位访问，gem5 可跑而 QEMU 对 `cg9` 报 `CFXREG`；按 0.8.1 槽位则反之——两者在统一测试前不作判据。"
-    reason: "用户 2026-11-26 排序：escape 出口帧与中断源接口「两个功能都更新完再统一测试」。gem5 按 `m18-gem5-004`（R3 出口帧，0.8.0 源接口面）→ `m18-gem5-005`（源接口迁移 `cg15`/`cg16`）串行落地；此前 `arch-hart-00x`/`arch-pmem-00x` 的跨实现差异记 KNOWN-RED，不当作失败，也不放宽本平台的 oracle。"
-    user_ruling: "2026-11-26（m18-spec-008 / ADR-0064 排序）"
-    status: active
-    close_when: "m18-gem5-005 合入（gem5 迁移 `cg15`/`cg16`、`cg15 rc3` 掩码）"

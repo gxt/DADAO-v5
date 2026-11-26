@@ -43,5 +43,5 @@ cases:
         note: >-
           smon/supv 与 umon/user 10 槽：DMA 在 hypv 启动、完成落在目标模式；
           各写自己 monitor 的掩码行 → 只置 pending → 放行 → 同一界投递
-          （src_frame=1<<32、pending 投递后清、excp_async_num=1）
+          （src_frame=1<<32、pending 进入不清/ack 才清、excp_async_num=1）
         signature: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]

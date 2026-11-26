@@ -307,8 +307,12 @@ def expected(root, mode, syms):
     rearm_fb = sym("rearm_fallback") & ~0x3
     pend_fb = sym("pending_fallback") & ~0x3
 
-    def async_loop(prev_mode, prev_cfx, wait_label, phase2_mode, phase2_cfx):
-        """Slots from the first async entry through the jump precise point."""
+    def async_loop(prev_mode, prev_cfx, wait_label, phase2_mode, phase2_cfx,
+                   entry_rc14=2):
+        """Slots from the first async entry through the jump precise point.
+
+        `entry_rc14` is the run-mode upper bound the vector installed before the
+        first entry (hmon/hypv needs 3; S/U use the reset 2)."""
         return [
             ("async prev_run_mode", prev_mode),
             ("async prev_cfx_code", prev_cfx),
@@ -316,7 +320,7 @@ def expected(root, mode, syms):
             ("async prev intr mask = current-mode mask", MASK_PATTERN),
             ("async src_frame = TIMER source bit", src_bit),
             ("async src_pending after entry (not cleared, ack pending)", src_bit),
-            ("async switch read = cg15 rc14 (2)", 2),
+            ("async switch read = cg15 rc14 (%d)" % entry_rc14, entry_rc14),
             ("async vector read = cg15 rc15", vec),
             ("cfx_hart excp_async_num = 1 frame", 1),
             ("escape rc11 whole word: target monitor mask = ESC_RC11_PATTERN", 0x0123456789ABCDEF),
@@ -406,7 +410,7 @@ def expected(root, mode, syms):
             ("cg15 rc14 <- 0 reads 0", 0),
             ("cg15 rc14 <- 1 reads 1", 1),
             ("cg15 rc14 <- 3 reads 3", 3),
-            ("cg15 rc14 restore 2 reads 2", 2),
+            ("cg15 rc14 entry limit <- 3 (hypv) reads 3", 3),
             ("CFXREG: read cg15 rc6 (cause)", cfxreg),
             ("CFXREG: read cg15 rc6 (info)", rd(ha, 15, 6, 5)),
             ("CFXREG: read cg15 rc6 witness", 0xC0DE0013),
@@ -441,16 +445,18 @@ def expected(root, mode, syms):
             ("masked timer src_frame = capture buffer (0)", 0),
         ]
         rc14_mode = [
-            ("async rc14=0: entry reads rc14 = 0", 0),
-            ("async rc14=0: prev_run_mode = supv", M["supv"]),
-            ("async rc14=2 from user: prev_run_mode = user", M["user"]),
-            ("async rc14=2 from user: entry reads rc14 = 2", 2),
-            ("async rc14=2: prev_run_mode = supv", M["supv"]),
+            # m18-spec-009: rc14 is a run-mode upper bound.  rc14=0 while in
+            # supv (2) must NOT enter; pending and cg15 rc5 are kept.
+            ("async rc14=0 from supv: pending kept (cg15 rc5)", src_bit),
+            ("async rc14=0 from supv: src_frame kept (no overwrite)", src_bit),
+            ("async rc14=2: entry prev_run_mode = supv", M["supv"]),
+            ("async rc14=2: entry reads rc14 = 2", 2),
+            ("async rc14=2: repeated entry prev_run_mode = supv", M["supv"]),
         ]
         info1 = (0x7E << 24) | ((ha & 0x3F) << 18)          # escape cfx_hart
         info3 = (0x7E << 24) | ((C["smon"] & 0x3F) << 18)   # escape cfx_smon
         return (head + async_loop(M["hypv"], C["hmon"], sym("wait_begin"),
-                                  M["supv"], ha)
+                                  M["supv"], ha, entry_rc14=3)
                 + rc14_mode + esc_criteria(info1, info3))
 
     prev_mode = M["user"] if mode == M["user"] else M["supv"]

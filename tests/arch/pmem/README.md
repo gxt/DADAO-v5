@@ -42,5 +42,12 @@ python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,gem5,chipyard --mode sm
 python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,gem5,chipyard --mode umon
 ```
 
-`arch-pmem-001/002` 三方逐槽（QEMU+gem5+RTL）：gem5 的 R2 异步面（`cfx_hart cg9` 捕获缓冲、monitor `cg8 rc1` 掩码、pending 与同界一次捕获）由 `m16-gem5-026` 补齐，`m18-gem5-004` 迁到 **R3 出口帧 + 0.8.0 源接口**（`escape cfxHA`、`cg5 rc8`–`rc11` 出口意图、`cg9` 新槽位）；QEMU 的 0.8.1-rc 源接口（`cg15`/`cg16`）由 `m18-qemu-009` 落地，本轮向量为该布局的 QEMU-only 证据；gem5 的对应迁移在 `m18-gem5-005`、RTL 在 `m18-chipyard-002/003`，两者之间记 `DIV-16`（temporary，统一测试前不作判据）。
-RTL 寄存器面探针 `pmem.S` 单独直跑（见 `m16-chipyard-022` 的 README 历史）。
+`arch-pmem-001/002` 三方逐槽（QEMU+gem5+RTL）：gem5 的异步面由
+`m16-gem5-026` 补齐、`m18-gem5-004` 迁到 R3 出口帧、`m18-gem5-005` 迁到
+**0.8.1-rc 源接口**（`cfx_hart cg15` 捕获 / monitor `cg15 rc3` 掩码 /
+`cfx_pmem cg16 rc16/17/18`，`cg16 rc18` 只清 pending）；与 QEMU
+`m18-qemu-009/010` 同槽位、同 ELF 签名一致。`arch-pmem-001` 的 hmon 首帧
+把 `cg15 rc14` 抬到 3（hypv），handler ack 后恢复 2。RTL 仍在
+`m18-chipyard-002/003` 迁移。
+RTL 寄存器面探针 `pmem.S` 单独直跑（见 `m16-chipyard-022` 的 README 历史）；
+其运行时槽位仍是 0.8.0（`IRQ_EN`/`cg9`），归 RTL 迁移任务。

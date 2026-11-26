@@ -562,21 +562,29 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 - **cfx_pmem DMA**：cg15 rc0–rc4（`src`/`dst`/`size`/`ctrl`/`status`），
   DIR 0=CFX→PA / 1=PA→CFX，BUSY 期间写被忽略、DONE/ERROR W1C；
   ERR_CODE 一组一热 `status[15:3]`（SIZE/CFX_RANGE/PA_RANGE/PA_FAULT）；
-  `IRQ_EN=1` 的完成置 `cfx_hart cg9 rc4` 的源位 32、`dma_status` W1C 落位；
-  完成事件在 START 后 1 µs（`AtomicSimpleCPU` 指令边界可观测 BUSY）。
-  **hmon 的页表模板必须经 DMA 写到 PA 0**，平台不代写。
-- **时间/中断（ADR-0061 R2，`m16-gem5-026`）**：`cfx_time` 1 GHz、64 位，
-  `= (curTick-reset)/1000` ns；`cfx_hart` rc2 `cycle` 同源、rc3 `insn`
-  每指令递增；TIMER 一次性（cmp/ctrl，ISTATUS 只读位，`IMASK` 为源本地
-  gate、解除即重踢）。异步源身份 = 源 cfxha（TIMER 15、PMEM_DMA 32），
-  **不占 `excp_cause_id`**；掩码 = **当前运行模式 monitor** 的 `cg8 rc1`
-  （复位全 1），pending = `cfx_hart cg9 rc4`；每个指令边界把
-  `pending & ~mask` **一次性**并入一次捕获（`cg9 rc3` 并集、`rc4` 扣除、
-  `excp_async_num` 每次进入 +1），**每次进入整体覆盖** `cg9`（无
-  `frame_valid`、无帧门控）；入口 = `cg9 rc5` 的 supv 单向量（`rc6` RW、复位 2
-  = supv，异步进入取该寄存器当前值），
-  `cause_ip` = 已提交指令之后的 `rb0`；`escape imms18 = 2` ⇒ 当前 cfx 的
-  `CFXESC`（`cg9` 不是返回帧）。
+  `dma_ctrl` bit2（旧 `IRQ_EN`）为保留位（读 0/写忽略）。中断面在
+  `cfx_pmem cg16 rc16/17/18`：mask（bit0=传输结束，1=屏蔽，复位全 1）、
+  pending（事件置位、**ack 才清**）、ack（W1C，读 0）；完成（`DONE` 或
+  `ERROR`，含 START 时的判定错误）置 pending bit0，ack 前多次完成合并为一位。
+  `cg16 rc18` 只清中断 pending，`dma_status` 的 DONE/ERROR/ERR_CODE 仍由自身
+  W1C 清（ADR-0064 D1/D3）。完成事件在 START 后 1 µs（`AtomicSimpleCPU`
+  指令边界可观测 BUSY）。**hmon 的页表模板必须经 DMA 写到 PA 0**，平台不代写。
+- **时间/中断（`m16-gem5-026` + `m18-gem5-004/005`）**：`cfx_time` 1 GHz、
+  64 位，`= (curTick-reset)/1000` ns；`cfx_hart` rc2 `cycle` 同源、rc3
+  `insn` 每指令递增。TIMER 在 `cfx_hart cg16`：`rc0` ctrl（仅 bit0
+  ENABLE）、`rc1` cmp（只 re-arm，不清 pending）、`rc16/17/18` mask /
+  pending / ack；到期**边沿**置 pending bit0，`ENABLE` 0→1 且
+  `cfx_time >= cmp` 时立即置位一次。异步源身份 = 源 cfxha（TIMER 15、
+  PMEM_DMA 32），**不占 `excp_cause_id`**；源本地 mask 在各自
+  `cg16 rc16`，运行模式 mask 在**当前运行模式 monitor** 的 `cg15 rc3`
+  （复位全 1），进入上限 = `cfx_hart cg15 rc14`（默认 2 ⇒ `hypv` 不被
+  异步打断）。`cfx_hart cg15` 是进入瞬间的捕获缓冲（`rc0`–`rc5`，每次
+  进入整体覆盖），源 pending **进入不清**、只有源 `cg16 rc18` ack 才清；
+  `cg15 rc5` 是源 pending 的实时汇总。每个可进入事件/放行写之后的指令
+  边界把 `(pending & ~源mask)` 且 monitor `cg15 rc3` 放行的源合并成**一次**
+  进入（`excp_async_num` 每次 +1），入口 = `cg15 rc15` 的 supv 单向量
+  （`rc14` RW、复位 2），`cause_ip` = 已提交指令之后的 `rb0`；出口意图在
+  hart 自己的 `cg5 rc8`–`rc11`，`escape cfxHA` 按它返回（`imms18` 必须 0）。
 - **CLI**：`--profile {tiny,vast}`（默认 tiny）、`--kernel`（Vast 可选）、
   `--bootrom`（Vast 必需，恰好 4 MiB）、`--trace-cpu <path>`（QEMU `-d cpu`
   兼容：`PC:` / `RD[nn]` / `RB[nn]` / `RF[nn]` / `RA[nn]` / `MODE:` / `CFX..`
@@ -652,7 +660,8 @@ python3 tools/gem5/check_b5.py --source .work/source/gem5   # B5 执行断言（
 python3 tools/gem5/check_b6.py --source .work/source/gem5   # B6 执行断言（30/30）
 python3 tools/gem5/check_b7.py --source .work/source/gem5   # B7 执行断言 + 3946 条 oracle 差分
 python3 tools/gem5/check_node_escape_intr.py --platforms gem5,qemu --selfcheck
-                                             # 同步异常帧 escape 不改写 monitor cg8 rc1（ISS-472）
+                                             # 同步异常帧 escape 不改写 monitor cg15 rc3
+                                             # （m20-gem5-001 待迁移；当前探针仍写 reserved 的 cg8 rc1，KNOWN-RED）
 make check-patch-tree
 ```
 

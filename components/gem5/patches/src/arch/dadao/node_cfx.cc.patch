@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..11b2be6
+index 0000000..728ea52
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1684 @@
+@@ -0,0 +1,1830 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -57,23 +57,26 @@ index 0000000..11b2be6
 +constexpr uint64_t kDmaErrMask = 0x1FULL << kDmaErrShift;
 +constexpr uint64_t kDmaCtrlStart = 1ULL << 0;
 +constexpr uint64_t kDmaCtrlDir = 1ULL << 1;
-+constexpr uint64_t kDmaCtrlIrqEn = 1ULL << 2;
++/* `dma_ctrl` bit2 (the old IRQ_EN) is reserved: reads 0, writes ignored
++ * (spec/DADAO-12 §4.9, ADR-0064 D2) — only START and DIR are stored. */
 +// gem5's global tick is 1 ps (a 1 GHz CPU tick = 1000 of them); the DMA
 +// completes 1 us later so BUSY is observable for many instructions.
 +constexpr uint64_t kPsPerNs = 1000;
 +constexpr uint64_t kDmaTimerTicks = 1000 * kPsPerNs;
 +
-+/** cfx_hart timer bits (DADAO-12 §4.7). */
++/** cfx_hart cg16 timer bits (DADAO-12 §4.7).  `timer_ctrl` defines only bit0
++ *  ENABLE; the source sub-event (cg16 rc16/17/18) is bit0 as well. */
 +constexpr uint64_t kHartEnable = 1ULL << 0;
-+constexpr uint64_t kHartImask = 1ULL << 1;
-+constexpr uint64_t kHartIstatus = 1ULL << 2;
++constexpr uint64_t kHartEvent = 1ULL << 0;
 +
 +/** Async source identity = source cfxha (spec/DADAO-12 §5.4(一)); the
-+ *  `cfx_hart cg9` bitmaps index by it. */
++ *  `cfx_hart cg15` bitmaps index by it. */
 +constexpr unsigned kAsyncTimerBit = CfxhaHart;   /* TIMER      = 15 */
 +constexpr unsigned kAsyncPmemBit = CfxhaPmem;    /* PMEM_DMA   = 32 */
++constexpr uint64_t kAsyncTimerSrc = 1ULL << kAsyncTimerBit;
++constexpr uint64_t kAsyncPmemSrc = 1ULL << kAsyncPmemBit;
 +
-+/** cg9 rc0/rc1/rc2 width masks (spec/DADAO-12 §4.7): run mode 2 bits,
++/** cg15 rc0/rc1/rc2 width masks (spec/DADAO-12 §4.7): run mode 2 bits,
 + *  cfxha 6 bits, `prev ip`/`excp_vector` a 48-bit 4-byte-aligned address. */
 +constexpr uint64_t kAsyncModeMask = 0x3;
 +constexpr uint64_t kAsyncCfxMask = 0x3F;
@@ -208,16 +211,36 @@ index 0000000..11b2be6
 +    return nodeCfxIndex(mode & 0x3);
 +}
 +
-+/** `cg8 rc1` snapshot of the monitor serving `mode`.  With no monitor row the
++/** `cg15 rc3` snapshot of the monitor serving `mode`.  With no monitor row the
 + *  fail-safe value is all ones (the same value `cg5 rc11` resets to). */
 +uint64_t
 +monitorIntrMask(const NodeState &s, unsigned mode)
 +{
 +    const int mon = monitorCfx(mode);
-+    return mon >= 0 ? s.cfx[mon].globalCfxIntrMask : ~0ULL;
++    return mon >= 0 ? s.cfx[mon].asyncIntrMask : ~0ULL;
++}
++
++/** `cg15 rc5` raw pending summary (spec/DADAO-12 §4.7): bit = source cfxha,
++ *  set while that source has any sub-event pending, cleared when its pending
++ *  is all acked.  It is a derived view, never written by an async entry. */
++uint64_t
++asyncPendingSummary(const NodeState &s)
++{
++    uint64_t bits = 0;
++    if (s.timerPending & kHartEvent)
++        bits |= kAsyncTimerSrc;
++    if (s.dma.irqPending & kHartEvent)
++        bits |= kAsyncPmemSrc;
++    return bits;
 +}
 +
 +} // anonymous namespace
++
++uint64_t
++nodeAsyncPendingSummary(const NodeState &s)
++{
++    return asyncPendingSummary(s);
++}
 +
 +int
 +nodeCfxIndex(int cfxha)
@@ -296,6 +319,10 @@ index 0000000..11b2be6
 +    }
 +
 +    s.dma = NodeDmaState();
++    // cfx_pmem cg16 source interface: mask resets all ones, pending 0
++    // (spec/DADAO-12 §4.9/§5.4, ADR-0064 D1/D3).
++    s.dma.irqMask = ~0ULL;
++    s.dma.irqPending = 0;
 +    // cfx_pmem register face (spec/DADAO-12 §4.9): 64 regions all present on
 +    // the test machine; the descriptors reset to 0.
 +    s.pmemExist = ~0ULL;
@@ -309,17 +336,19 @@ index 0000000..11b2be6
 +    s.insnCount = 0;
 +    s.timerCmp = 0;
 +    s.timerCtrl = 0;
++    s.timerMask = ~0ULL;   // cg16 rc16 resets all ones (§4.7)
++    s.timerPending = 0;    // cg16 rc17 resets 0
 +
-+    // cfx_hart cg9 async capture buffer reset values (spec/DADAO-12 §4.7):
++    // cfx_hart cg15 async capture buffer reset values (spec/DADAO-12 §4.7):
 +    // every slot 0 except the `rc14` reset value (supv = 2).
 +    s.asyncPrevRunMode = 0;
 +    s.asyncPrevCfxCode = 0;
 +    s.asyncPrevIp = 0;
 +    s.asyncPrevIntrMask = 0;
 +    s.asyncSrcFrame = 0;
-+    s.asyncSrcPending = 0;
 +    s.asyncSwitchRunMode = kAsyncSwitchMode;
 +    s.asyncExcpVector = 0;
++    s.asyncKick = false;
 +
 +    if (s.dmaEvent == nullptr) {
 +        auto *event = new NodeDmaEvent;
@@ -365,7 +394,7 @@ index 0000000..11b2be6
 +                mr.cgRegDeleg = 0;
 +            }
 +        }
-+        r.globalCfxIntrMask = (cfxha < 4) ? ~0ULL : 0;
++        r.asyncIntrMask = (cfxha < 4) ? ~0ULL : 0;
 +        r.cfxId = cfxha;
 +        r.version = 0x00010000ULL;
 +        r.scratchRegsNum = 4;
@@ -526,7 +555,7 @@ index 0000000..11b2be6
 +      case 2: return &m->cfxreg;
 +      case 3: return &m->cfxexe;
 +      // rc4 (`cfx_intr_mask`) is not defined any more (spec/DADAO-12 §3,
-+      // ADR-0061 D5): the async source mask is the monitor's cg8 rc1.
++      // ADR-0064 D6): the async source mask is the monitor's cg15 rc3.
 +      // `rc14`/`rc15` are the switch/vector slots (m18-spec-007); `rc8`/`rc10`
 +      // are reserved holes now (access => CFXREG).
 +      case 14: return &m->switchRunMode;
@@ -615,8 +644,8 @@ index 0000000..11b2be6
 +            return nullptr;
 +        return &r.scratch[rc];
 +      case 8:
-+        if (cfxha < 4 && rc == 1)
-+            return &r.globalCfxIntrMask;
++        // cg8 rc1 (the old monitor async mask) is reserved now (ADR-0064 D6):
++        // only cfx_ptw's PTW enable and cfx_pmem's pmem_exist live here.
 +        if (cfxha == CfxhaPtw && rc == 8)
 +            return &s.ptwEnable;
 +        // cfx_pmem `cg8 rc0 pmem_exist` is RO (spec/DADAO-12 §4.9): a write
@@ -644,6 +673,13 @@ index 0000000..11b2be6
 +        return (cfxha == CfxhaPmem && rc < 64) ? &s.pmemSize[rc] : nullptr;
 +      case 14:
 +        return (cfxha == CfxhaPmem && rc < 64) ? &s.pmemAttr[rc] : nullptr;
++      case 15:
++        // cfx0-cfx3 only: cg15 rc3 async_intr_mask (ADR-0064 D6).  cfx_hart's
++        // cg15 is the capture buffer and cfx_pmem's is the DMA face; both are
++        // dispatched before this generic resolver.
++        if (cfxha < 4 && rc == 3)
++            return &r.asyncIntrMask;
++        return nullptr;
 +      default:
 +        return nullptr;
 +    }
@@ -708,11 +744,11 @@ index 0000000..11b2be6
 +
 +    if (err) {
 +        s.dma.status |= kDmaError | (err << kDmaErrShift);
-+        // PMEM_DMA source event: identity = source cfxha 32, no cause id
-+        // (spec/DADAO-12 §5.4(一)); masking is the monitor's business, so the
-+        // event is recorded here and only the delivery step filters it.
-+        if (s.dma.irqEn)
-+            s.asyncSrcPending |= 1ULL << kAsyncPmemBit;
++        // A START-time ERROR is a transfer end too: set the source sub-event
++        // bit0.  pending is sticky/ack-only; source mask and the monitor mask
++        // only gate the async entry (spec/DADAO-12 §4.9/§5.4, ADR-0064 D3).
++        s.dma.irqPending |= kHartEvent;
++        s.asyncKick = true;
 +        return;
 +    }
 +
@@ -746,8 +782,9 @@ index 0000000..11b2be6
 +      case 3:
 +        if (busy)
 +            return true;
-+        s.dma.ctrl = val & (kDmaCtrlDir | kDmaCtrlIrqEn);
-+        s.dma.irqEn = (val & kDmaCtrlIrqEn) ? 1 : 0;
++        // START self-clears on read; DIR is the only stored field.  The old
++        // IRQ_EN bit is reserved: reads 0 / writes ignored (ADR-0064 D2).
++        s.dma.ctrl = val & kDmaCtrlDir;
 +        if (val & kDmaCtrlStart)
 +            dmaStart(tc, s, val);
 +        return true;
@@ -758,25 +795,23 @@ index 0000000..11b2be6
 +            s.dma.status &= ~kDmaDone;
 +        if (val & kDmaError)
 +            s.dma.status &= ~(kDmaError | kDmaErrMask);
-+        // W1C of DONE/ERROR is the source ack: the PMEM_DMA pending bit falls
-+        // with it (spec/DADAO-12 §5.4(二), "源 ack 即落").
-+        if (val & (kDmaDone | kDmaError))
-+            s.asyncSrcPending &= ~(1ULL << kAsyncPmemBit);
++        // dma_status W1C is engine-status cleanup only: the interrupt pending
++        // falls exclusively on the cg16 rc18 ack (ADR-0064 D3).
 +        return true;
 +      default:
 +        return false;
 +    }
 +}
 +
-+/** cfx_hart cg9 async capture buffer (spec/DADAO-12 §4.7/§5.4, ADR-0061 D7).
-+ *  Entry record `rc0`-`rc5` (prev run mode / prev cfx code / prev ip / prev
-+ *  intr mask / source bitmap / raw pending); `rc6`-`rc13` are reserved and
-+ *  raise CFXREG (the caller does that when this returns false).  `rc0`-`rc5`
-+ *  are HW/RO: a software write is ignored, reads back the hardware value and
-+ *  raises nothing.  `rc14`/`rc15` are the RW configuration slots.  Widths
-+ *  follow the spec row: 2-bit run mode, 6-bit cfxha, 48-bit 4-byte-aligned
-+ *  addresses; `rc14` is RW with reset 2 (supv) and an async entry takes its
-+ *  current value (§4.7, m18-spec-006). */
++/** cfx_hart cg15 async capture buffer (spec/DADAO-12 §4.7/§5.4, ADR-0064 D5).
++ *  Entry record `rc0`-`rc4` (prev run mode / prev cfx code / prev ip / prev
++ *  intr mask / source bitmap) and the live pending summary `rc5`; `rc6`-`rc13`
++ *  are reserved and raise CFXREG (the caller does that when this returns
++ *  false).  `rc0`-`rc5` are HW/RO: a software write is ignored, reads back the
++ *  hardware value and raises nothing.  `rc14`/`rc15` are the RW configuration
++ *  slots.  Widths follow the spec row: 2-bit run mode, 6-bit cfxha, 48-bit
++ *  4-byte-aligned addresses; `rc14` is RW with reset 2 (supv) and is both the
++ *  entry target and the run-mode upper bound (§4.7, m18-spec-006/009). */
 +bool
 +hartAsyncRegRead(const NodeState &s, unsigned rc, uint64_t *val)
 +{
@@ -786,7 +821,7 @@ index 0000000..11b2be6
 +      case 2: *val = s.asyncPrevIp & kAsyncIpMask; return true;
 +      case 3: *val = s.asyncPrevIntrMask; return true;
 +      case 4: *val = s.asyncSrcFrame; return true;
-+      case 5: *val = s.asyncSrcPending; return true;
++      case 5: *val = asyncPendingSummary(s); return true;
 +      case 14: *val = s.asyncSwitchRunMode & kAsyncModeMask; return true;
 +      case 15: *val = s.asyncExcpVector & kAsyncIpMask; return true;
 +      default: return false;
@@ -803,15 +838,18 @@ index 0000000..11b2be6
 +      case 3:
 +      case 4:
 +      case 5:
-+        // HW/RO: the write is ignored and raises nothing (§4.7, ADR-0061 D4).
++        // HW/RO: the write is ignored and raises nothing (§4.7, ADR-0064 D5).
 +        return true;
 +      case 14:
-+        // RW, 2 bits (spec/DADAO-12 §4.7): the write lands and the async
-+        // entry uses the current value; reset remains 2 (supv).
++        // RW, 2 bits: the write lands and both bounds the entry and selects
++        // its target mode; reset remains 2 (supv).  Raising the bound can
++        // unblock pending sources.
 +        s.asyncSwitchRunMode = val & kAsyncModeMask;
++        s.asyncKick = true;
 +        return true;
 +      case 15:
 +        s.asyncExcpVector = val & kAsyncIpMask & kAsyncIpAlign;
++        s.asyncKick = true;
 +        return true;
 +      default:
 +        return false;
@@ -819,24 +857,14 @@ index 0000000..11b2be6
 +}
 +
 +bool
-+hartIstatus(const NodeState &s)
-+{
-+    return (s.timerCtrl & kHartEnable) && s.timerCmp != ~0ULL &&
-+           nodeTimeValue(s) >= s.timerCmp;
-+}
-+
-+bool
 +hartRegRead(const NodeState &s, unsigned rc, uint64_t *val)
 +{
 +    switch (rc) {
-+      case 0: *val = 0; return true;
++      case 0: *val = 0; return true;   // hart id (single hart)
 +      case 2: *val = nodeTimeValue(s); return true;
 +      case 3: *val = s.insnCount; return true;
-+      case 4: *val = s.timerCmp; return true;
-+      case 5:
-+        *val = (s.timerCtrl & (kHartEnable | kHartImask)) |
-+               (hartIstatus(s) ? kHartIstatus : 0);
-+        return true;
++      // cg8 rc1 (old async mask) and rc4/rc5 (old timer) are reserved
++      // (ADR-0064 D1/D6) => CFXREG.
 +      default: return false;
 +    }
 +}
@@ -858,29 +886,87 @@ index 0000000..11b2be6
 +    reschedule(s.timerEvent, s.timeBaseTick + s.timerCmp * kPsPerNs);
 +}
 +
++/** cfx_hart cg16 timer source interface (spec/DADAO-12 §4.7/§5.4, ADR-0064
++ *  D1/D3): rc0 ctrl (bit0 ENABLE only), rc1 cmp (re-arm only), rc16 mask
++ *  (bit0), rc17 pending (RO, ack-only), rc18 ack (W1C, reads 0). */
 +bool
-+hartRegWrite(ThreadContext *tc, NodeState &s, unsigned rc, uint64_t val)
++hartTimerRegRead(const NodeState &s, unsigned rc, uint64_t *val)
 +{
 +    switch (rc) {
-+      case 4:
-+        // A new `timer_cmp` cancels the old deadline and is the source ack:
-+        // the TIMER pending bit falls with it (spec/DADAO-12 §4.7/§5.4(二)).
++      case 0: *val = s.timerCtrl & kHartEnable; return true;
++      case 1: *val = s.timerCmp; return true;
++      case 16: *val = s.timerMask & kHartEvent; return true;
++      case 17: *val = s.timerPending & kHartEvent; return true;
++      case 18: *val = 0; return true;   // W1C reads 0
++      default: return false;
++    }
++}
++
++bool
++hartTimerRegWrite(ThreadContext *tc, NodeState &s, unsigned rc, uint64_t val)
++{
++    switch (rc) {
++      case 0: {
++        const bool was = (s.timerCtrl & kHartEnable) != 0;
++        s.timerCtrl = val & kHartEnable;
++        s.asyncKick = true;   // enabling/re-arming may unblock the source
++        if (!was && (s.timerCtrl & kHartEnable)) {
++            // ENABLE 0->1: check the deadline immediately (cfx_time >= cmp
++            // sets pending bit0 once; ADR-0064 D3).
++            timerArm(tc, s);
++        } else if (!(s.timerCtrl & kHartEnable)) {
++            deschedule(s.timerEvent);   // disable: no new events
++        }
++        return true;
++      }
++      case 1:
++        // Re-arm only: writing cmp never clears pending (ack-only).
 +        s.timerCmp = val;
-+        s.asyncSrcPending &= ~(1ULL << kAsyncTimerBit);
 +        deschedule(s.timerEvent);
++        s.asyncKick = true;
 +        timerArm(tc, s);
 +        return true;
-+      case 5:
-+        s.timerCtrl = val & (kHartEnable | kHartImask);
-+        // IMASK is the source-local gate: while it is set the source keeps
-+        // ISTATUS and nothing is pending.  Clearing it with ISTATUS set is
-+        // the "re-kick" that puts the source event back (§4.7).
-+        if (!(s.timerCtrl & kHartImask) && hartIstatus(s))
-+            s.asyncSrcPending |= 1ULL << kAsyncTimerBit;
-+        timerArm(tc, s);
++      case 16:
++        // Source mask only gates the async entry, not the event; reserved
++        // bits read 0 / writes ignored.  A mask open may unblock pending.
++        s.timerMask = val & kHartEvent;
++        s.asyncKick = true;
++        return true;
++      case 17:
++        return false;   // pending is RO => CFXREG
++      case 18:
++        s.timerPending &= ~(val & kHartEvent);   // W1C, idempotent
 +        return true;
 +      default:
 +        return false;
++    }
++}
++
++/** cfx_pmem cg16 source interface (spec/DADAO-12 §4.9/§5.4, ADR-0064 D1/D3):
++ *  rc16 mask (bit0 = transfer end), rc17 pending (RO, ack-only), rc18 ack
++ *  (W1C, reads 0; it only clears the interrupt pending, never dma_status). */
++bool
++pmemIrqRegRead(const NodeState &s, unsigned rc, uint64_t *val)
++{
++    switch (rc) {
++      case 16: *val = s.dma.irqMask & kHartEvent; return true;
++      case 17: *val = s.dma.irqPending & kHartEvent; return true;
++      case 18: *val = 0; return true;   // W1C reads 0
++      default: return false;
++    }
++}
++
++bool
++pmemIrqRegWrite(NodeState &s, unsigned rc, uint64_t val)
++{
++    switch (rc) {
++      case 16:
++        s.dma.irqMask = val & kHartEvent;
++        s.asyncKick = true;   // a mask open may unblock pending
++        return true;
++      case 17: return false;   // pending is RO => CFXREG
++      case 18: s.dma.irqPending &= ~(val & kHartEvent); return true;
++      default: return false;
 +    }
 +}
 +
@@ -1258,8 +1344,11 @@ index 0000000..11b2be6
 +        s.dma.status |= kDmaDone;
 +    }
 +
-+    if (s.dma.irqEn)
-+        s.asyncSrcPending |= 1ULL << kAsyncPmemBit;
++    // Transfer end (DONE or ERROR) sets the source sub-event bit0.  It is
++    // sticky until the cg16 rc18 W1C and never cleared by an async entry
++    // (spec/DADAO-12 §4.9/§5.4, ADR-0064 D1/D3).
++    s.dma.irqPending |= kHartEvent;
++    s.asyncKick = true;
 +}
 +
 +void
@@ -1270,21 +1359,23 @@ index 0000000..11b2be6
 +        return;
 +    if (nodeTimeValue(s) < s.timerCmp)
 +        return;
-+    // IMASK is the source-local gate (spec/DADAO-12 §4.7): ISTATUS stays set
-+    // and no pending bit is raised; clearing IMASK re-kicks it (hartRegWrite).
-+    if (s.timerCtrl & kHartImask)
-+        return;
-+    s.asyncSrcPending |= 1ULL << kAsyncTimerBit;
++    // The expiry is a sticky source event: set cg16 rc17 bit0.  The source
++    // mask only gates the async entry, not the event; only the cg16 rc18 W1C
++    // clears it (spec/DADAO-12 §4.7, ADR-0064 D3).
++    s.timerPending |= kHartEvent;
++    s.asyncKick = true;
 +}
 +
 +/** Async delivery at an instruction boundary (spec/DADAO-12 §5.4(三)/(五)).
 + *
-+ *  One shot: every source pending and allowed by the *current run mode's*
-+ *  monitor mask enters the *same* capture -- `async_src_frame` is the bitmap
-+ *  union, the pending bits are removed, and `excp_async_num` counts the entry
-+ *  once regardless of how many sources fired.  `cg9` is overwritten wholesale
-+ *  on every entry: there is no frame phase and no frame_valid, so a second
-+ *  event while software still holds the previous snapshot simply recaptures.
++ *  One shot: every source that is pending, unmasked by its own cg16 rc16, and
++ *  allowed by the *current run mode's* monitor `cg15 rc3` enters the *same*
++ *  capture -- `async_src_frame` is the bitmap union and `excp_async_num`
++ *  counts the entry once regardless of how many sources fired.  Source
++ *  pending is **not** consumed: only the source cg16 rc18 ack clears it.
++ *  `cg15` is overwritten wholesale on every entry: there is no frame phase and
++ *  no frame_valid, so a second event while software still holds the previous
++ *  snapshot simply recaptures.
 + *
 + *  Precise point (§5.4(四)): the caller runs this *before* executing the
 + *  instruction at `pc`, i.e. after the previous instruction committed, so
@@ -1293,23 +1384,40 @@ index 0000000..11b2be6
 +bool
 +nodeDeliverAsync(ThreadContext *tc, NodeState &s)
 +{
-+    if (s.asyncSrcPending == 0)
++    // Only a source event or an unmasking write asks for re-evaluation.
++    // Source pending is sticky, so probing unconditionally would re-enter at
++    // every boundary before the handler can ack (ADR-0064 D4).
++    if (!s.asyncKick)
 +        return false;
 +
-+    // Source mask = cg8 rc1 of the monitor row of the *current* run mode
-+    // (U -> umon, J -> jmon, S -> smon, H -> hmon); it is not saved or
-+    // restored by trap/escape (ADR-0061 D5).
++    // Run-mode upper bound (§5.4(一), m18-spec-009): rc14 is both the entry
++    // target mode and the highest mode that may be interrupted.  Above it the
++    // source pending and `cg15 rc5` stay put, no error.
++    if ((s.runMode & kAsyncModeMask) > (s.asyncSwitchRunMode & kAsyncModeMask))
++        return false;
++
++    // Monitor mask = cg15 rc3 of the row of the *current* run mode
++    // (U -> umon, J -> jmon, S -> smon, H -> hmon).
 +    const int mon = nodeCfxIndex(s.runMode & kAsyncModeMask);
-+    const uint64_t mask = (mon >= 0) ? s.cfx[mon].globalCfxIntrMask : ~0ULL;
-+    const uint64_t allowed = s.asyncSrcPending & ~mask;
++    const uint64_t mask = (mon >= 0) ? s.cfx[mon].asyncIntrMask : ~0ULL;
++
++    // Per-source admission: source pending & ~source mask, then the monitor
++    // mask; TIMER additionally requires ENABLE=1 (ADR-0064 D4).
++    uint64_t allowed = 0;
++    if ((s.timerCtrl & kHartEnable) &&
++        (s.timerPending & ~s.timerMask & kHartEvent))
++        allowed |= kAsyncTimerSrc;
++    if (s.dma.irqPending & ~s.dma.irqMask & kHartEvent)
++        allowed |= kAsyncPmemSrc;
++    allowed &= ~mask;
 +    if (allowed == 0)
 +        return false;
 +
-+    // Capture: whole-buffer overwrite, bitmap union, delivered bits removed.
-+    // `rc3` is the interrupted run-mode monitor's `cg8 rc1` snapshot, i.e. the
-+    // same value the export intent `rc11` gets (spec/DADAO-12 §5.4).
++    // Capture: whole-buffer overwrite and bitmap union.  Source pending is
++    // left untouched (ack-only); `rc3` is the interrupted run-mode monitor's
++    // `cg15 rc3` snapshot, the same value the export intent `rc11` gets.
++    s.asyncKick = false;   // one entry per event/unmask; ack or a new event re-kicks
 +    s.asyncSrcFrame = allowed;
-+    s.asyncSrcPending &= ~allowed;
 +    s.asyncPrevRunMode = s.runMode & kAsyncModeMask;
 +    s.asyncPrevCfxCode = s.cfxCode & kAsyncCfxMask;
 +    s.asyncPrevIp = currentPc(tc) & kAsyncIpMask & kAsyncIpAlign;
@@ -1327,7 +1435,7 @@ index 0000000..11b2be6
 +    h.escapeIp = s.asyncPrevIp;
 +    h.escapeIntrMask = s.asyncPrevIntrMask;
 +
-+    // Entry: vector = cg9 rc15, target cfx = cfx_hart, run mode = cg9 rc14
++    // Entry: vector = cg15 rc15, target cfx = cfx_hart, run mode = cg15 rc14
 +    // (RW, reset 2 = supv; the current value is used, spec/DADAO-12 §4.7).
 +    s.runMode = s.asyncSwitchRunMode & kAsyncModeMask;
 +    s.cfxCode = static_cast<uint8_t>(CfxhaHart);
@@ -1459,7 +1567,9 @@ index 0000000..11b2be6
 +    s.runMode = targetMode;
 +    s.cfxCode = static_cast<uint8_t>(targetCfx);
 +    s.cfx[ci].escapeNum++;
-+    s.cfx[monitorCfx(targetMode)].globalCfxIntrMask = retMask;
++    s.cfx[monitorCfx(targetMode)].asyncIntrMask = retMask;
++    // The restored mode/mask may unblock a pending source (QEMU kicks here).
++    s.asyncKick = true;
 +    setPc(tc, retIp);
 +    s.traceForce = true;
 +    return true;
@@ -1510,6 +1620,17 @@ index 0000000..11b2be6
 +        out = value;
 +        return true;
 +    }
++    // cfx_pmem cg16 source interrupt face (ADR-0064 D1/D3): rc16 mask,
++    // rc17 pending, rc18 ack (W1C, reads 0).
++    if (cg == 16 && cfxha == CfxhaPmem) {
++        uint64_t value = 0;
++        if (!pmemIrqRegRead(s, rc, &value)) {
++            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++            return true;
++        }
++        out = value;
++        return true;
++    }
 +    if (cg == 10 && cfxha == CfxhaTime) {
 +        uint64_t value = 0;
 +        if (!timeRegRead(s, rc, &value)) {
@@ -1528,10 +1649,21 @@ index 0000000..11b2be6
 +        out = value;
 +        return true;
 +    }
-+    // cfx_hart cg9 async capture buffer (spec/DADAO-12 §4.7): seven slots,
-+    // rc7-rc15 reserved => CFXREG.  No other cfx implements cg9, so every
-+    // other cfxha falls through to the generic resolver (nullptr => CFXREG).
-+    if (cg == 9 && cfxha == CfxhaHart) {
++    // cfx_hart cg16 timer source face (ADR-0064 D1/D3): rc0 ctrl (bit0
++    // ENABLE), rc1 cmp, rc16 mask, rc17 pending, rc18 ack (W1C, reads 0).
++    if (cg == 16 && cfxha == CfxhaHart) {
++        uint64_t value = 0;
++        if (!hartTimerRegRead(s, rc, &value)) {
++            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++            return true;
++        }
++        out = value;
++        return true;
++    }
++    // cfx_hart cg15 async capture buffer (spec/DADAO-12 §4.7): rc0-rc5 and
++    // rc14/rc15, the rest reserved => CFXREG.  `cg9` on cfx_hart is reserved
++    // too (ADR-0064 D5), so it falls through to the generic resolver.
++    if (cg == 15 && cfxha == CfxhaHart) {
 +        uint64_t value = 0;
 +        if (!hartAsyncRegRead(s, rc, &value)) {
 +            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
@@ -1594,20 +1726,31 @@ index 0000000..11b2be6
 +        }
 +        return true;
 +    }
-+    if (cg == 10 && cfxha == CfxhaTime) {
-+        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
-+        return true;
-+    }
-+    if (cg == 8 && cfxha == CfxhaHart) {
-+        if (!hartRegWrite(tc, s, rc, val)) {
++    // cfx_pmem cg16 source interrupt face (ADR-0064 D1/D3); rc17 is RO, so a
++    // write there => CFXREG (the helper returns false).
++    if (cg == 16 && cfxha == CfxhaPmem) {
++        if (!pmemIrqRegWrite(s, rc, val)) {
 +            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +            return true;
 +        }
 +        return true;
 +    }
-+    // cg9: HW/RW slots store, HW/RO bitmaps ignore the write without an
-+    // exception, reserved rc => CFXREG (spec/DADAO-12 §4.7, ADR-0061 D4/D7).
-+    if (cg == 9 && cfxha == CfxhaHart) {
++    if (cg == 10 && cfxha == CfxhaTime) {
++        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++        return true;
++    }
++    // cfx_hart cg16 timer source face (ADR-0064 D1/D3); rc17 is RO, so a
++    // write there => CFXREG.
++    if (cg == 16 && cfxha == CfxhaHart) {
++        if (!hartTimerRegWrite(tc, s, rc, val)) {
++            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++            return true;
++        }
++        return true;
++    }
++    // cfx_hart cg15: HW/RO capture slots ignore the write without an
++    // exception, rc14/rc15 are RW, reserved rc => CFXREG (ADR-0064 D5).
++    if (cg == 15 && cfxha == CfxhaHart) {
 +        if (!hartAsyncRegWrite(s, rc, val)) {
 +            nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +            return true;
@@ -1683,6 +1826,9 @@ index 0000000..11b2be6
 +    } else {
 +        *p = val;
 +    }
++    // Any register write may open a source/monitor mask or change the entry
++    // mode; re-evaluate async entry at the next boundary (as QEMU does).
++    s.asyncKick = true;
 +    return true;
 +}
 +
