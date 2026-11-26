@@ -11,8 +11,8 @@ Covered capability groups (task-book acceptance 1-5):
 
   layout      `cfx_hart cg15` async capture (rc0-rc5 HW/RO, rc14/rc15 RW,
               rc6-rc13 => CFXREG); `cfx_hart cg9` => CFXREG; monitor
-              `cg15 rc3` async mask (reset all-1, RW) and `cg8 rc1` =>
-              CFXREG; `cfx_hart cg16` timer face (rc0 ctrl bit0 only, rc1
+              `cg15 rc3` async mask (reset all-1, RW) and `cg8 rc1` => CFXREG;
+              `cfx_hart cg16` timer face (rc0 ctrl bit0 only, rc1
               cmp, rc16 mask, rc17 pending, rc18 ack); `cfx_pmem cg16` DMA
               face; `cfx_hart cg8 rc4/rc5` => CFXREG; `cg16` is CFXREG on
               other cfx.
@@ -54,6 +54,7 @@ if _HERE not in sys.path:
 import node_probe_prelude as P  # noqa: E402
 
 HA_UMON = 0
+HA_JMON = 1
 HA_SMON = 2
 HA_HMON = 3
 HA_HART = 15
@@ -223,10 +224,14 @@ def addr(seq, label):
 
 def body_setup(s, mask=MASK_PATTERN):
     """Install the hmon fault handler, set the hmon async mask and clear the
-    pending bits left by the prelude's PMEM DMA."""
+    pending bits left by the prelude's PMEM DMA.
+
+    ``mask=None`` leaves the hmon async mask at its reset value so a case can
+    assert the reset all-ones value directly (no write-then-read)."""
     s.e(*P.load_rd(19, ROM_BASE + OFF_FH_HMON))
     s.e(P.cfx2rc(HA_HMON, CG3, 15, 19))
-    wr(s, HA_HMON, CG15, 3, mask)
+    if mask is not None:
+        wr(s, HA_HMON, CG15, 3, mask)
     wr(s, HA_PMEM, CG16, 18, 1)      # ack the prelude DMA completion
     wr(s, HA_HART, CG16, 18, 1)      # timer starts clean
     # Let a cfx_hart async handler reach cfx_pmem's cg16 (source cfxha 15 is
@@ -296,12 +301,16 @@ def _dma_error(s):
 
 def case_hart_layout():
     s = P.Seq()
-    body_setup(s, ALL1)
+    body_setup(s, None)                      # leave every monitor mask at reset
+    # Reset value is sampled before any write: all four monitors read all-1.
+    rd(s, HA_UMON, CG15, 3, 38)
+    rd(s, HA_JMON, CG15, 3, 39)
+    rd(s, HA_SMON, CG15, 3, 40)
+    rd(s, HA_HMON, CG15, 3, 41)
     for idx, rc in enumerate((0, 1, 2, 3, 4, 5, 14, 15)):
         rd(s, HA_HART, CG15, rc, 30 + idx)
-    rd(s, HA_HMON, CG15, 3, 38)              # reset all-1
     wr(s, HA_HMON, CG15, 3, MASK_PATTERN)
-    rd(s, HA_HMON, CG15, 3, 39)
+    rd(s, HA_HMON, CG15, 3, 42)
     # cg9 on cfx_hart is reserved now => CFXREG in the current monitor (hmon).
     rd(s, HA_HART, CG9, 0, 47)
     s.e(*P.exit_seq(0))
@@ -309,7 +318,8 @@ def case_hart_layout():
         "rd25": 1,
         "rd30": 0, "rd31": 0, "rd32": 0, "rd33": 0, "rd34": 0, "rd35": 0,
         "rd36": MODE_SUPV, "rd37": 0,
-        "rd38": ALL1, "rd39": MASK_PATTERN,
+        "rd38": ALL1, "rd39": ALL1, "rd40": ALL1, "rd41": ALL1,
+        "rd42": MASK_PATTERN,
         "rd20": CFXREG,
         "rd21": (0x7A << 24) | (HA_HART << 18) | (CG9 << 12) | 47,
         "mymode": MODE_HYPV,
@@ -586,6 +596,107 @@ def case_escape_rc11_cg15():
     }
 
 
+def _reserved_case(accesses):
+    """Every `accesses[i] = (ha, cg, rc, dst)` raises CFXREG.
+
+    The shared fault handler records the first two faults (rd20..rd22 and
+    rd26..rd28), so each generated case carries one or two accesses."""
+    s = P.Seq()
+    body_setup(s)
+    for ha, cg, rc, dst in accesses:
+        rd(s, ha, cg, rc, dst)
+    s.e(*P.exit_seq(0))
+    checks = {"rd25": len(accesses), "mymode": MODE_HYPV}
+    for i, (ha, cg, rc, dst) in enumerate(accesses):
+        info = (0x7A << 24) | (ha << 18) | (cg << 12) | (rc << 6) | dst
+        if i == 0:
+            checks["rd20"] = CFXREG
+            checks["rd21"] = info
+        else:
+            checks["rd26"] = CFXREG
+            checks["rd27"] = info
+    return P.build_rom(s.resolve(), {OFF_FH_HMON: fault_handler(HA_HMON)}), checks
+
+
+def case_reserved_cg15_a():
+    return _reserved_case([(HA_HART, CG15, 6, 30), (HA_HART, CG15, 7, 31)])
+
+
+def case_reserved_cg15_b():
+    return _reserved_case([(HA_HART, CG15, 8, 30), (HA_HART, CG15, 9, 31)])
+
+
+def case_reserved_cg15_c():
+    return _reserved_case([(HA_HART, CG15, 10, 30), (HA_HART, CG15, 11, 31)])
+
+
+def case_reserved_cg15_d():
+    return _reserved_case([(HA_HART, CG15, 12, 30), (HA_HART, CG15, 13, 31)])
+
+
+def case_reserved_cg8_5():
+    return _reserved_case([(HA_HART, CG8, 5, 30), (HA_HART, CG8, 1, 31)])
+
+
+def case_source_mask_gate():
+    """The source `cg16 rc16` mask gates events independently of the monitor
+    `cg15 rc3` mask: with TIMER allowed by the running-mode monitor but still
+    masked at the source, the event only sets pending; opening the source mask
+    enters at the next boundary."""
+    s = P.Seq()
+    body_setup(s, MASK_TIMER_ONLY)           # monitor allows TIMER (bit15 open)
+    wr(s, HA_HART, CG15, 14, MODE_HYPV)
+    wr(s, HA_HART, CG15, 15, ROM_BASE + OFF_ASYNC)
+    # cg16 rc16 is still reset all-1: arm the timer with the source masked.
+    wr(s, HA_HART, CG16, 1, 0, tmp=13)
+    wr(s, HA_HART, CG16, 0, 1, tmp=14)
+    s.e(P.jump_rel(1))
+    s.mark("after_blocked")
+    rd(s, HA_HART, CG4, 4, 30)               # no entry yet
+    rd(s, HA_HART, CG16, 17, 31)             # event pending at the source
+    wr(s, HA_HART, CG16, 16, 0, tmp=14)      # open the source mask
+    s.e(P.jump_rel(1))
+    s.mark("after_open")
+    rd(s, HA_HART, CG4, 4, 32)               # one entry
+    rd(s, HA_HART, CG16, 17, 33)             # handler acked
+    s.e(*P.exit_seq(0))
+    h = P.Seq()
+    h.e(P.add_si(25, 1))
+    wr(h, HA_HART, CG16, 18, 1)
+    h.e(P.escape(HA_HART, 0))
+    return P.build_rom(s.resolve(), {
+        OFF_FH_HMON: fault_handler(HA_HMON),
+        OFF_ASYNC: h.resolve(),
+    }), {
+        "rd25": 1,
+        "rd30": 0, "rd31": 1,
+        "rd32": 1, "rd33": 0,
+    }
+
+
+def case_dma_merge_two_completions():
+    """Two DMA completions before ack merge into `cg16 rc17` bit0 (not
+    counted); the cg16 ack clears only pending, `dma_status` keeps its own
+    W1C state."""
+    s = P.Seq()
+    body_setup(s)
+    wr(s, HA_PMEM, CG16, 16, 0, tmp=12)      # open DMA source mask
+    _dma_error(s)                            # first completion: ERROR|SIZE
+    rd(s, HA_PMEM, CG16, 17, 30)             # bit0
+    wr(s, HA_PMEM, CG15, 4, 4, tmp=12)       # dma_status W1C: clear ERROR
+    rd(s, HA_PMEM, CG15, 4, 31)              # 0
+    _dma_error(s)                            # second completion, not acked yet
+    rd(s, HA_PMEM, CG16, 17, 32)             # still bit0 (merged, not counted)
+    wr(s, HA_PMEM, CG16, 18, 1, tmp=12)      # ack only the interrupt pending
+    rd(s, HA_PMEM, CG16, 17, 33)             # 0
+    rd(s, HA_PMEM, CG15, 4, 34)              # ERROR|ERR_CODE still latched
+    s.e(*P.exit_seq(0))
+    return P.build_rom(s.resolve(), {OFF_FH_HMON: fault_handler(HA_HMON)}), {
+        "rd30": 1, "rd31": 0, "rd32": 1, "rd33": 0,
+        "rd34": (1 << 2) | (1 << 3),
+    }
+
+
 CASES = {
     "hart_layout": case_hart_layout,
     "hart_layout_reserved": case_hart_layout_reserved,
@@ -597,6 +708,13 @@ CASES = {
     "multi_source": case_multi_source,
     "dma_ack_vs_status": case_dma_ack_vs_status,
     "escape_rc11_cg15": case_escape_rc11_cg15,
+    "reserved_cg15_a": case_reserved_cg15_a,
+    "reserved_cg15_b": case_reserved_cg15_b,
+    "reserved_cg15_c": case_reserved_cg15_c,
+    "reserved_cg15_d": case_reserved_cg15_d,
+    "reserved_cg8_5": case_reserved_cg8_5,
+    "source_mask_gate": case_source_mask_gate,
+    "dma_merge_two_completions": case_dma_merge_two_completions,
 }
 
 

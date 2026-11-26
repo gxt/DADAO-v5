@@ -235,16 +235,16 @@ cases:
       smon: "off 分支的故障观察需要 hmon 的同步异常处理程序；supv 无 cfx_smon ⇒ fail-closed 排除"
       umon: "同上（user 的 cfx_umon user 行未装载）⇒ fail-closed 排除"
 
-  # cfx_hart TIMER 异步捕获（m16-testcases-013）。H 槽序含 cg8/cg9 寄存器面
+  # cfx_hart TIMER 异步捕获（m16-testcases-013）。H 槽序含 cg8/cg15 寄存器面
   # 与 cg3（hypv-only）探针；S/U 的同一捕获流程由 002 承担。
   arch-hart-001:
     modes: [hmon]
     cfx_access: [hart]
     reasons:
-      smon: "本 case 的槽序含 cfx_hart cg8 寄存器面与 cg8 rc1(hmon) 复位值探针；cg3 只在 hypv 可访问，supv 下同一 body 的槽序不同 ⇒ 由 arch-hart-002 的 S 实例覆盖捕获流程"
+      smon: "本 case 的槽序含 cfx_hart cg8 寄存器面与 cg15 rc3(hmon) 复位值探针；cg3 只在 hypv 可访问，supv 下同一 body 的槽序不同 ⇒ 由 arch-hart-002 的 S 实例覆盖捕获流程"
       umon: "同上（cg3 寄存器面只 hypv；user 的捕获流程由 arch-hart-002 的 U 实例覆盖）"
 
-  # 同一 body 的 supv/user 实例：掩码分别取 cfx_smon / cfx_umon 的 cg8 rc1。
+  # 同一 body 的 supv/user 实例：掩码分别取 cfx_smon / cfx_umon 的 cg15 rc3。
   arch-hart-002:
     modes: [smon, umon]
     cfx_access: [hart]
@@ -252,18 +252,18 @@ cases:
       hmon: "hmon/hypv 的捕获流程（含寄存器面）由 arch-hart-001 覆盖；本 case 只出 S/U 两个镜像，避免同一 hmon 流程重复"
 
   # cfx_pmem DMA 完成中断 + 同界多源（m16-testcases-014）。001 的槽序含
-  # cfx_hart cg5/cg9 寄存器面与 escape 非法编码（ILLI 由当前模式 monitor 的
+  # cfx_hart cg5/cg15 寄存器面与 escape 非法编码（ILLI 由当前模式 monitor 的
   # 处理程序记录，需要 hmon 的 h_fault）；S/U 的同一投递流程由 002 承担。
   arch-pmem-001:
     modes: [hmon]
     cfx_access: [hart, pmem, cache]
     cache_model: "on"
     reasons:
-      smon: "本 case 的槽序含 cfx_hart cg5/cg9 寄存器面与 escape 非法编码（ILLI 由当前模式 monitor 记录、需 hmon 的 h_fault）；S 实例的捕获流程由 arch-pmem-002 覆盖"
+      smon: "本 case 的槽序含 cfx_hart cg5/cg15 寄存器面与 escape 非法编码（ILLI 由当前模式 monitor 记录、需 hmon 的 h_fault）；S 实例的捕获流程由 arch-pmem-002 覆盖"
       umon: "同上（超页 PTE0 的 U 位由 002 单独改；001 的 H 槽序在 user 下不成立）"
 
   # 同一 DMA 完成投递在 supv/user 各跑一次；DMA 在 hypv 启动、完成落在目标
-  # 模式。掩码取目标模式 monitor 的 cg8 rc1（smon / umon）。
+  # 模式。掩码取目标模式 monitor 的 cg15 rc3（smon / umon）。
   arch-pmem-002:
     modes: [smon, umon]
     cfx_access: [hart, pmem]

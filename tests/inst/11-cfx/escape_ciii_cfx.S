@@ -7,7 +7,7 @@
 @@   当前 cfx 的 `cg5` **出口意图** `rc8`–`rc11`（run mode / cfx code / ip / intr mask）；
 @@   目标模式（`rc8`）不得高于当前模式、目标 cfx（`rc9`）必须已实现、目标模式必须有
 @@   monitor，否则在切换任何状态前报当前 cfx 的 CFXESC；`escape_num` 每次 +1；
-@@   `rc11` **整字**写入目标模式 monitor 的 `cg8 rc1`（与切模式/切 cfx/跳转原子）。
+@@   `rc11` **整字**写入目标模式 monitor 的 `cg15 rc3`（与切模式/切 cfx/跳转原子）。
 @@   不设“帧有效位”：`cg5 rc4`（cause id）为 0 也可返回。
 @@ 编码：ciii = opc[31:24] | cfxha[23:18] | imms18[17:0]；`escape cfxHA` ⇒ imms18 = 0。
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
@@ -79,7 +79,7 @@
 
 	@@ ---- hmon 的 async mask = P0，trap 入口记录 rc3 取该快照 ----
 	set.rd	rd5, P0
-	cfx2rc	cfx_hmon, cg8, rc1, rd5
+	cfx2rc	cfx_hmon, cg15, rc3, rd5
 	@@ hmon 的 escape_num 基线（启动链已 escape 过一次）
 	cfx2rd	cfx_hmon, cg4, rc5, rd5
 	st.o	rd5, [rb4, 0x58]
@@ -119,7 +119,7 @@ case1_land:
 	__CHECK_RD   9, rd6, 1
 	__CHECK_MEM  10, SSCR, 0x48, P0
 	@@ 11 rc11 整字写入目标模式 monitor（hypv → hmon）：读回恰为 P1（增量写会残留 1）
-	cfx2rd	cfx_hmon, cg8, rc1, rd5
+	cfx2rd	cfx_hmon, cg15, rc3, rd5
 	__CHECK_RD  11, rd5, P1
 	@@ 12 escape_num = 基线 + 1
 	cfx2rd	cfx_hmon, cg4, rc5, rd5
@@ -142,8 +142,8 @@ case1_land:
 __case2:
 	escape	cfx_power
 case2_land:
-	@@ 17 目标模式 monitor（hypv → hmon）的 cg8 rc1 = P2 整字
-	cfx2rd	cfx_hmon, cg8, rc1, rd5
+	@@ 17 目标模式 monitor（hypv → hmon）的 cg15 rc3 = P2 整字
+	cfx2rd	cfx_hmon, cg15, rc3, rd5
 	__CHECK_RD  17, rd5, P2
 	@@ 18 cfx_power 的 escape_num = 0 + 1
 	cfx2rd	cfx_power, cg4, rc5, rd5
@@ -169,7 +169,7 @@ case3_land:
 	__VERIFY_EQ_RD  22, rd5, rd6			@@ prev ip == rc10（进入时复制）
 	set.rd	rd6, 1
 	__CHECK_RD  22, rd6, 1
-	cfx2rd	cfx_hmon, cg8, rc1, rd5
+	cfx2rd	cfx_hmon, cg15, rc3, rd5
 	__CHECK_RD  23, rd5, P2				@@ 切换任何状态前报错 ⇒ mask 不变
 	__CHECK_MEM  24, PSCR, 0x38, 0x000000000000003F	@@ CFXESC 进入 power 帧：prev cfx = power
 
@@ -192,7 +192,7 @@ case4_land:
 	__VERIFY_EQ_RD  27, rd5, rd6			@@ prev ip == rc10（进入时复制）
 	set.rd	rd6, 1
 	__CHECK_RD  27, rd6, 1
-	cfx2rd	cfx_hmon, cg8, rc1, rd5
+	cfx2rd	cfx_hmon, cg15, rc3, rd5
 	__CHECK_RD  28, rd5, P2				@@ 目标非法 ⇒ rc11 不落地
 
 	@@ ---- 收尾：还原平台固件向量（故障链经固件路由）与 hmon mask ----
@@ -201,7 +201,7 @@ case4_land:
 	set.rd	rd5, BOOTROM_BASE
 	cfx2rc	cfx_power, cg3, rc15, rd5
 	set.rd	rd5, 0x7FFFFFFFFFFFFFF7
-	cfx2rc	cfx_hmon, cg8, rc1, rd5
+	cfx2rc	cfx_hmon, cg15, rc3, rd5
 	__TEST_END
 
 	@@ ---- 自建 hmon 入口：记录同步 trap 的入口/出口字段，改 rc10/rc11 后正常返回 ----

@@ -133,12 +133,11 @@ main:
 	set.zw	rd12, wp0, 7
 	call	[rb20, rd0, 0]
 
-	@@ cg8 rc1 `cfx_hmon_async_intr_mask` is RW (DADAO-12 §4.7/§5.4);
-	@@ cg3 rc4 is reserved (access => CFXREG) since the mask moved to cg8 rc1
-	@@ (ADR-0061 D5, QEMU/RTL/Vast all reject rc4).
+	@@ cg15 rc3 `cfx_hmon_async_intr_mask` is RW (DADAO-12 §4.1/§5.4;
+	@@ ADR-0064 D6: the mask moved here, cg8 rc1 is reserved).
 	set.rd rd11, 0x0000000000000F0F
-	cfx2rc	cfx_hmon, cg8, rc1, rd11
-	cfx2rd	cfx_hmon, cg8, rc1, rd10
+	cfx2rc	cfx_hmon, cg15, rc3, rd11
+	cfx2rd	cfx_hmon, cg15, rc3, rd10
 	set.zw	rd12, wp0, 8
 	call	[rb20, rd0, 0]
 

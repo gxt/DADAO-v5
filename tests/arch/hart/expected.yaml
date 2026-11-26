@@ -1,8 +1,8 @@
 # tests/arch/hart/expected.yaml — `cfx_hart`（cfxha 15）用例的签名流登记
-# （`m16-testcases-013`；`m18-testcases-004` 迁到 ADR-0061 R3）。
+# （`m16-testcases-013`；`m18-testcases-004` 迁到 ADR-0061 R3，`m18-testcases-005` 迁到 ADR-0064）。
 #
 # **登记，不是判据**：原始签名流（含本平台 ELF 地址）由 `check_cfx15.py` 的
-# oracle 现场判（`spec/DADAO-12 §3.6/§4.7/§5.1/§5.4`、`ADR-0061 R3`、`contract-see` 与
+# oracle 现场判（`spec/DADAO-12 §3.6/§4.7/§5.1/§5.4`、`ADR-0064`、`contract-see` 与
 # `contracts/opcodes.yaml`）；两个承载（`check_hart.py` / `check_hart_rtl.py`）
 # 在通过本平台 oracle 后写**归一化**签名：每槽 1 = 该槽通过。QEMU 的
 # `cause_ip`（0x0010_00xx）与 RTL 的（0xffff_ff01_01xx）不同，不能直接逐槽比；
@@ -14,9 +14,9 @@ cases:
     checks:
       - label: hart-hmon
         note: >-
-          hmon/hypv 124 槽：同步 trap 入口/出口意图、cg8 寄存器面、cg9 新布局
+          hmon/hypv 124 槽：同步 trap 入口/出口意图、cg8 寄存器面、cfx_hart cg16 中断面、cg15 捕获布局
           （rc0–rc5 HW/RO 写忽略、rc6–rc13 reserved ⇒ CFXREG、rc14/rc15 RW）、
-          屏蔽→pending→放行、捕获/覆盖、正常异步 escape（rc11 整字、mask 在
+          屏蔽→pending→放行、捕获/覆盖、正常异步 escape（rc11 整字、mask（cg15 rc3）在
           第一条返回指令前生效）、jump 目标精确点、rc14 进入模式、以及
           escape 判据（升权 / 目标 cfx 未实现 / cfxha 不符 ⇒ CFXESC）；
           原始值由 check_cfx15.py 现场判

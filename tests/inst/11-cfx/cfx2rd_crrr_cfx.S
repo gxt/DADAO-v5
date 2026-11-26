@@ -15,7 +15,7 @@
 @@ 探针：被读寄存器取 Tiny 已实现的 cfx3(hmon)/cfx63(power) 的 cg3/cg5/cg7（`spec/Kaiwu §3`）；
 @@   期望值按 `spec/DADAO-12 §3.5/§3.8`、`§4.12` 与 `spec/Kaiwu §1.1` 的地址图内联
 @@ GAP（不计入链例，见任务书完成区）：cfx 共有寄存器 cg0–cg2、cg4（cfx_id/version/计数器/
-@@   scratch_regs_num）、cg5 rc3/rc4/rc5/rc8–rc11、cg6（暂存）、cg8 rc1（`cfx_<monitor>_async_intr_mask`，
+@@   scratch_regs_num）、cg5 rc3/rc4/rc5/rc8–rc11、cg6（暂存）、cg15 rc3（`cfx_<monitor>_async_intr_mask`，
 @@   ADR-0061 D5）在 chipyard RTL 与 IDL 模型上未实现 ⇒ 三平台不一致，待 chipyard /
 @@   `m18-idl-002` 补齐；cg0–cg3 rc4 已被 ADR-0061 D5 删除（保留 ⇒ CFXREG），不作链例
 

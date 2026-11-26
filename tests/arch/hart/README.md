@@ -1,15 +1,15 @@
 # `tests/arch/hart/` — cfx_hart（cfxha 15）arch 用例
 
-`ADR-0061`（掩码归 monitor、源索引统一 cfxha、`cg9` 七槽）把异步投递统一到
-`cfx_hart` 的 supv 单向量。`m16-chipyard-021` 落 cg8 管理寄存器与 cg9 异步现场
+`ADR-0061`（掩码归 monitor、源索引统一 cfxha、`cg15` 七槽）把异步投递统一到
+`cfx_hart` 的 supv 单向量。`m16-chipyard-021` 落 cg8 管理寄存器与 cg15 异步现场
 + TIMER，`m16-chipyard-024` 改到 `ADR-0061` 模型，`m16-chipyard-026` 改到
 **R2**，`m18-testcases-004` 迁到 **R3**（`cg5 rc0–rc5` 入口记录 + `rc8–rc11`
-出口意图；`cg9 rc0–rc5` + `rc14/rc15`；`escape cfxHA` 正常异步返回），
+出口意图；`cg15 rc0–rc5` + `rc14/rc15`；`escape cfxHA` 正常异步返回），
 `m16-testcases-013` 把同一份 case 接到 QEMU + RTL 两方逐槽。
 
 | 文件 | 作用 |
 | --- | --- |
-| `cfx15.S` | **唯一** case 源：cg8（hart_id/cycle/insn/timer_cmp/timer_ctrl）读写与 RO/保留编码；cg9 新布局（`rc0`–`rc5` 入口记录 HW/RO、写忽略；`rc6`–`rc13` ⇒ `CFXREG`；`rc14` switch RW 复位 2、`rc15` vector RW 低 2 位写忽略）；`cg5 rc0`–`rc5` 入口记录写 ⇒ `CFXREG`、`rc8`–`rc11` 出口意图；屏蔽写在**当前运行模式 monitor** 的 `cg8 rc1`（bit15 = 源 cfxha 15）；TIMER 投 cfx_hart+supv、`src_frame`/`src_pending` 位 = `1 << 15`；屏蔽期只置 pending、解除后投递；源 ack 后 pending 落；**覆盖语义**；**正常异步返回** `escape cfx_hart`（`rc11` 整字写目标 monitor、在第一条返回指令前生效）；`imms18 = 3/4` ⇒ ILLI；**jump 目标精确点**；`rc14` 进入模式；**escape 判据**（升权 / 目标 cfx 未实现 / `cfxha` 不符 ⇒ CFXESC） |
+| `cfx15.S` | **唯一** case 源：cg8（hart_id/cycle/insn/timer_cmp/timer_ctrl）读写与 RO/保留编码；cg15 捕获布局（`rc0`–`rc5` 入口记录 HW/RO、写忽略；`rc6`–`rc13` ⇒ `CFXREG`；`rc14` switch RW 复位 2、`rc15` vector RW 低 2 位写忽略）；`cg5 rc0`–`rc5` 入口记录写 ⇒ `CFXREG`、`rc8`–`rc11` 出口意图；屏蔽写在**当前运行模式 monitor** 的 `cg15 rc3`（bit15 = 源 cfxha 15）；TIMER 投 cfx_hart+supv、`src_frame`/`src_pending` 位 = `1 << 15`；屏蔽期只置 pending、解除后投递；源 ack 后 pending 落；**覆盖语义**；**正常异步返回** `escape cfx_hart`（`rc11` 整字写目标 monitor、在第一条返回指令前生效）；`imms18 = 3/4` ⇒ ILLI；**jump 目标精确点**；`rc14` 进入模式；**escape 判据**（升权 / 目标 cfx 未实现 / `cfxha` 不符 ⇒ CFXESC） |
 | `cfx15.lds` | RTL 布局：`ENTRY` = `0xffff_ff01_0100`、`.data` = `+0x4000`、签名区 `+0x5000`、`SYS_EXIT` 块 `+0x5800`；`--defsym TMODE=<0\|2\|3>` 在**汇编期**选运行模式 |
 | `cfx15_qemu.lds` | QEMU 布局：`ENTRY` = `0x0010_0000`、`.data` = `+0x4000`；同一份 `.S` 由驱动用 `--defsym ENTRY/SIG_BUF/EXITB/HMON_BASE` 覆盖地址 |
 | `check_cfx15.py` | 独立判据：期望值现场取自 `spec/DADAO-12` §1/§3/§4.1–§4.7/§5.1/§5.4、`ADR-0061`、`contract-see` §3/§6.1 与 `contracts/opcodes.yaml`；`cause_ip` 用 ELF 符号精确断言；`--self-test` 对每条记录做可达 FAIL 证明 |
@@ -21,10 +21,10 @@
 
 - **`arch-hart-001`**（hmon/hypv，124 槽）：cg8 寄存器面 + 保留/非法编码 +
   屏蔽→pending→放行 + 捕获/覆盖/RO/`escape` + jump 精确点。只 hmon：槽序含
-  `cg3`（hypv-only）与 `cfx_hmon cg8 rc1` 复位值；S/U 的同一捕获流程由 002
+  `cg3`（hypv-only）与 `cfx_hmon cg15 rc3` 复位值；S/U 的同一捕获流程由 002
   承担。
 - **`arch-hart-002`**（smon/supv、umon/user，38 槽）：同一 `cfx15.S` 的
-  `TMODE=2/0`；掩码分别取 `cfx_smon` / `cfx_umon` 的 `cg8 rc1`。hmon 由 001
+  `TMODE=2/0`；掩码分别取 `cfx_smon` / `cfx_umon` 的 `cg15 rc3`。hmon 由 001
   覆盖。
 
 `cfx15.S` 的槽序（原始）：
@@ -51,10 +51,11 @@ python3 tests/arch/run_arch.py --case arch-hart-002 --mode smon ...   # / umon �
 `cg9 rc0`–`rc5` 捕获、`rc14`/`rc15`、monitor `cg8 rc1` 掩码、`escape cfxHA`）；
 **`cg9 rc14` 按 `m18-spec-007` 判**（RW、复位 2、异步进入取该值）：001 写
 rc14=0/1/3 读回同值，并在 supv 下以 rc14=0 / 2 连续投递，用下一次进入的
-`prev_run_mode` 证明进入模式（0 ⇒ user、2 ⇒ supv）。QEMU 由 `m18-qemu-008`
-对齐；QEMU 的 **0.8.1-rc 源接口**（`cg15`/`cg16`）由 `m18-qemu-009` 落地，
-gem5 的对应迁移在 `m18-gem5-005`——两者之间同一 ELF 的槽位不同，记
-`DIV-16`（temporary），统一测试前不作判据。
+`prev_run_mode` 证明进入模式（0 ⇒ user、2 ⇒ supv）。QEMU 由 `m18-qemu-009` 迁到
+**0.8.1-rc 源接口**（`cg15` 捕获 / `cg15 rc3` 掩码 / `cg16` mask-pending-ack）；
+本轮向量为该布局的 **QEMU-only 证据**；gem5 的对应迁移在 `m18-gem5-005`、RTL 在
+`m18-chipyard-002/003`，同一 ELF 的槽位因此不同，记 `DIV-16`（temporary），
+统一测试前不作判据。
 
 ## 运行期证据
 

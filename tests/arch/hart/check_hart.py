@@ -15,7 +15,7 @@ flat bin 从 `ENTRY=0x0010_0000` 装入；RTL 用 `cfx15.lds` 的
 用例：
   * `arch-hart-001`（hmon/hypv，124 槽）：同步 trap 入口/出口意图、cg8 寄存器面 +
     保留/非法编码 + 屏蔽→pending→放行 + 捕获/覆盖/正常异步 `escape` + jump
-    目标精确点 + `cg9 rc14` 进入模式 + escape 判据；
+    目标精确点 + `cg15 rc14` 进入模式 + escape 判据；
   * `arch-hart-002`（smon/supv、umon/user，38 槽）：同一捕获/覆盖/正常异步
     `escape`/jump 流程，掩码取当前模式 monitor（cfx_smon / cfx_umon）。
 
@@ -103,7 +103,7 @@ def build(mode, tools, work):
            "-defsym", "HMON_BASE=%#x" % HMON_BASE]
     if mode in ("umon", "hmon"):
         # QEMU step5 页表在 PA 0；把镜像所在超页置 U=1（仅 QEMU 承载）。
-        # hmon 只用于 `cg9 rc6=0` 的 user 进入场景（arch-hart-001 尾段）。
+        # hmon 只用于 `cg15 rc14=0` 的 user 进入场景（arch-hart-001 尾段）。
         cmd += ["-defsym", "PTW_UMAP=1"]
     rc, out = _run(cmd + [str(SRC), "-o", str(obj)], 60)
     if rc != 0:

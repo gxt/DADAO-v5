@@ -133,7 +133,7 @@ def expected(root, mode, syms):
             ("capture prev_cfx_code", prev_cfx),
             ("capture cause_ip = delivery boundary", sym("umode_wait_begin")),
             ("capture src_frame = PMEM source bit", pmem_bit),
-            ("capture src_pending after delivery = 0", 0),
+            ("capture src_pending after entry (not cleared, ack pending)", pmem_bit),
             ("capture excp_async_num = 1 entry", 1),
         ]
 
@@ -169,10 +169,10 @@ def expected(root, mode, syms):
         ("capture prev_cfx_code = cfx_hmon", C["hmon"]),
         ("capture cause_ip = delivery boundary", sym("capture_fallback")),
         ("capture src_frame = PMEM source bit", pmem_bit),
-        ("capture src_pending after delivery = 0", 0),
+        ("capture src_pending after entry (not cleared, ack pending)", pmem_bit),
         ("capture excp_async_num = 1 entry", 1),
         ("capture detail: dma_status = DONE", st_done),
-        # ---- 正常异步返回：rc11 整字写 smon cg8 rc1（返回到 after_escape） ----
+        # ---- 正常异步返回：rc11 整字写 smon cg15 rc3（返回到 after_escape） ----
         ("escape rc11 whole word: smon mask = P1", P1),
         # ---- 源 ack ----
         ("ack: pending after W1C = 0", 0),
@@ -187,7 +187,7 @@ def expected(root, mode, syms):
         ("multi capture prev_cfx_code = cfx_hart", hart),
         ("multi capture cause_ip = delivery boundary", sym("multi_fallback")),
         ("multi capture src_frame = union bitmap", timer_bit | pmem_bit),
-        ("multi capture src_pending = 0", 0),
+        ("multi capture src_pending = union (ack pending)", timer_bit | pmem_bit),
         ("multi capture excp_async_num = 2 entries", 2),
         ("multi ack: pending = 0", 0),
         # ---- 屏蔽 → pending → W1C ack → 放行无遗留投递 ----
@@ -200,7 +200,7 @@ def expected(root, mode, syms):
         ("overwrite: cause_ip = new delivery boundary",
          sym("overwrite_fallback")),
         ("overwrite: src_frame = PMEM bit", pmem_bit),
-        ("overwrite: src_pending = 0", 0),
+        ("overwrite: src_pending after entry (not cleared)", pmem_bit),
         ("overwrite: excp_async_num = 3 entries", 3),
     ]
     return exp

@@ -10,24 +10,24 @@ code.
 Model under test (ADR-0061 R2, spec/DADAO-12 §4.7/§5.1/§5.4):
 
   * every asynchronous source is delivered to ``cfx_hart`` (cfxha 15) through
-    its supv single vector ``cg9 rc5`` / ``rc6``; the source identity is the
+    its supv single vector ``cg15 rc15`` / ``rc6``; the source identity is the
     *source cfxha* (TIMER 15, PMEM_DMA 32), never an ``excp_cause_id``;
-  * ``cfx_hart cg9 rc3`` is the capture bitmap and ``rc4`` the pending bitmap
+  * ``cfx_hart cg15 rc4`` is the capture bitmap and ``rc4`` the pending bitmap
     (both HW/RO; a software write changes nothing); ``rc0``–``rc2`` are the
     pre-entry mode/cfx/cause_ip snapshot;
-  * delivery is gated only by the **running mode monitor**'s ``cg8 rc1`` mask
+  * delivery is gated only by the **running mode monitor**'s ``cg15 rc3`` mask
     (bit = source cfxha, 1 = masked, reset all-1).  A masked source only sets
-    ``cg9 rc4``; opening the mask delivers it;
+    ``cg15 rc5``; opening the mask delivers it;
   * one instruction boundary merges every pending-allowed source into a single
     capture (frame = bitmap union, pending -= frame, ``excp_async_num`` +1);
-  * cg9 is a **capture buffer**, not a live frame: every entry overwrites it
+  * cg15 is a **capture buffer**, not a live frame: every entry overwrites it
     (no ``src_frame != 0`` gate, no ``frame_valid``, no software clear);
-  * ``escape imms18 = 2`` (cg9 selector) is not an asynchronous return: the
+  * ``escape imms18 = 2`` (cg15 selector) is not an asynchronous return: the
     selected frame is invalid, so the current cfx raises ``CFXESC`` and nothing
     changes.  ``imms18 = 3`` and a non-zero SBZ field raise ``ILLI``.
 
 Expectations are derived by hand from the frozen spec / contract:
-  - spec/DADAO-12 §4.7 (cfx_hart cg9 seven slots, timer), §4.9 (cfx_pmem DMA),
+  - spec/DADAO-12 §4.7 (cfx_hart cg15 seven slots, timer), §4.9 (cfx_pmem DMA),
     §5.1 (escape frame selector), §5.4 (capture buffer, mask/pending, one
     frame, every entry overwrites), §3.6 (cause ids);
   - .tao/contracts/contract-see.md §3 «统一异步中断» (hart-first, one frame);
@@ -37,12 +37,12 @@ Never from the QEMU implementation.
 Bootstrap (body runs in hmon / cfx3, hypv, via the shared prelude):
   1. open ``cfx_hart`` / ``cfx_smon`` for supv (``hypv_cg_reg_deleg = 0x8``)
      and let ``trap cfx_smon`` through (cfx_smon's supv cfxtrap bit 15 = 0);
-  2. install ``cfx_hart cg9 rc5`` = async capture handler, ``rc6`` = supv (2);
+  2. install ``cfx_hart cg15 rc15`` = async capture handler, ``rc6`` = supv (2);
   3. install cfx_smon's supv vector = capture hand-off / sync recorder and
      cfx_hart's own supv vector = ``escape`` frame-error recorder;
   4. poison cfx_hmon's hypv vector (any monitor hop would exit FAIL);
   5. leave every monitor mask at reset (all-1); each case opens the source
-     bits it needs through ``cfx2rc cfx_hmon, cg8, rc1``.
+     bits it needs through ``cfx2rc cfx_hmon, cg15, rc3``.
 
 Observation: everything is checked in-program and reported through the
 semihosting SYS_EXIT code (0 = pass).  Cases read the capture and counters
@@ -76,16 +76,16 @@ ROM_BASE = _prelude.ROM_BASE
 RAM_BASE = _prelude.RAM_BASE
 
 HART_HA, PMEM_HA, SMON_HA, HMON_HA = 15, 32, 2, 3
-HART_CG, PMEM_DMA_CG = 8, 15
-MON_CG, MON_MASK_RC = 8, 1
+HART_CG, HART_TIMER_CG, PMEM_DMA_CG = 8, 16, 15
+MON_CG, MON_MASK_RC = 15, 3
 
-# cfx_hart cg9 (DADAO-12 §4.7; ADR-0061 D7): rc0..rc6, rc7-rc15 reserved.
+# cfx_hart cg15 (DADAO-12 §4.7; ADR-0061 D7): rc0..rc6, rc7-rc15 reserved.
 RC_PREV_MODE, RC_PREV_CFX, RC_CAUSE_IP = 0, 1, 2
-RC_FRAME, RC_PENDING, RC_VECTOR, RC_SWITCH = 3, 4, 5, 6
+RC_FRAME, RC_PENDING, RC_VECTOR, RC_SWITCH = 4, 5, 15, 14
 # cg5 sync frame / cg4 counters / cg3 vectors+delegation.
 CG5_CAUSE_ID_RC = 2
 CG4_ASYNC_NUM_RC = 4
-CG3_EXCP_VECTOR_RC, CG3_DELEG_RC = 10, 12
+CG3_EXCP_VECTOR_RC, CG3_DELEG_RC = 15, 12
 
 # Source identity = source cfxha (ADR-0061 D2/D3).
 SRC_TIMER = 1 << HART_HA
@@ -96,12 +96,11 @@ ILLI = 1 << 8
 CFXESC = 1 << 3
 CTRL_ENABLE = 1 << 0
 CTRL_START = 1 << 0
-CTRL_IRQ_EN = 1 << 2
 ST_BUSY = 1 << 0
 ST_DONE = 1 << 1
 ST_ERROR = 1 << 2
 ALL1 = (1 << 64) - 1
-DELEG_OPEN = 0x8
+DELEG_OPEN = 0xFFFFFFFFFFFE7FC7
 
 PMEM_SRC = _prelude.PMEM_BASE
 DATA_PA = RAM_BASE + 0x4000
@@ -116,11 +115,11 @@ OFF_POISON = 0x2C00
 # RAM state block; rb5 = RAM_BASE and every slot stays below 0x800 (the ld/st
 # imm12 field is sign-extended, 0x800 would address cfx_power's BootROM).
 RAM_SEQ = 0x020          # async entries so far
-RAM_FRAME = 0x028        # cg9 rc3 at entry
-RAM_PENDING = 0x030      # cg9 rc4 at entry
-RAM_IP = 0x038           # cg9 rc2 at entry
-RAM_PREVM = 0x040        # cg9 rc0 at entry
-RAM_PREVC = 0x048        # cg9 rc1 at entry
+RAM_FRAME = 0x028        # cg15 rc4 at entry
+RAM_PENDING = 0x030      # cg15 rc5 at entry
+RAM_IP = 0x038           # cg15 rc2 at entry
+RAM_PREVM = 0x040        # cg15 rc0 at entry
+RAM_PREVC = 0x048        # cg15 rc1 at entry
 RAM_TIMER_N = 0x050      # entries carrying bit 15
 RAM_PMEM_N = 0x058       # entries carrying bit 32
 RAM_CFXESC_N = 0x060     # sync CFXESC recorded inside the handler
@@ -282,12 +281,12 @@ def _count_source(a, frame_rd, srcbit, off, tag):
 
 
 def _record_capture(a):
-    """Copy the cg9 capture into RAM before anything else can overwrite it."""
-    a.emit(cfx2rd(HART_HA, 9, RC_FRAME, 30))
-    a.emit(cfx2rd(HART_HA, 9, RC_PENDING, 31))
-    a.emit(cfx2rd(HART_HA, 9, RC_CAUSE_IP, 32))
-    a.emit(cfx2rd(HART_HA, 9, RC_PREV_MODE, 33))
-    a.emit(cfx2rd(HART_HA, 9, RC_PREV_CFX, 34))
+    """Copy the cg15 capture into RAM before anything else can overwrite it."""
+    a.emit(cfx2rd(HART_HA, 15, RC_FRAME, 30))
+    a.emit(cfx2rd(HART_HA, 15, RC_PENDING, 31))
+    a.emit(cfx2rd(HART_HA, 15, RC_CAUSE_IP, 32))
+    a.emit(cfx2rd(HART_HA, 15, RC_PREV_MODE, 33))
+    a.emit(cfx2rd(HART_HA, 15, RC_PREV_CFX, 34))
     a.emit(ld_o(36, 5, RAM_SEQ))
     a.emit(add_si(36, 1))
     a.emit(st_o(36, 5, RAM_SEQ))
@@ -434,11 +433,11 @@ def set_mon_mask(a, ha, mask):
 
 
 def frame_rd(a, rd):
-    a.emit(cfx2rd(HART_HA, 9, RC_FRAME, rd))
+    a.emit(cfx2rd(HART_HA, 15, RC_FRAME, rd))
 
 
 def pending_rd(a, rd):
-    a.emit(cfx2rd(HART_HA, 9, RC_PENDING, rd))
+    a.emit(cfx2rd(HART_HA, 15, RC_PENDING, rd))
 
 
 def timer_arm(a, delta=DELTA_NS, tag="t"):
@@ -448,9 +447,9 @@ def timer_arm(a, delta=DELTA_NS, tag="t"):
     a.emit(*load_rd(W_MAX, ARM_RETRIES))
     a.mark(retry)
     a.emit(*load_rd(W_TMP, ALL1))
-    a.emit(cfx2rc(HART_HA, HART_CG, 4, W_TMP))        # cmp = ~0: cancel
+    a.emit(cfx2rc(HART_HA, HART_TIMER_CG, 1, W_TMP))        # cmp = ~0: cancel
     a.emit(*load_rd(W_TMP, 0))
-    a.emit(cfx2rc(HART_HA, HART_CG, 5, W_TMP))        # ctrl = 0
+    a.emit(cfx2rc(HART_HA, HART_TIMER_CG, 0, W_TMP))        # ctrl = 0
     # Lower bound for cause_ip: the arm marker is the address of this word, so
     # no capture can carry an earlier cause_ip than it.
     _idx = len(a.words)
@@ -459,9 +458,9 @@ def timer_arm(a, delta=DELTA_NS, tag="t"):
     a.emit(cfx2rd(HART_HA, HART_CG, 2, W_NOW))        # cycle == cfx_time value
     a.emit(*load_rd(W_TMP, delta))
     a.emit(add_uo(W_DEAD, W_CMP, W_NOW, W_TMP))       # W_DEAD = now + delta
-    a.emit(cfx2rc(HART_HA, HART_CG, 4, W_DEAD))
+    a.emit(cfx2rc(HART_HA, HART_TIMER_CG, 1, W_DEAD))
     a.emit(*load_rd(W_TMP, CTRL_ENABLE))
-    a.emit(cfx2rc(HART_HA, HART_CG, 5, W_TMP))
+    a.emit(cfx2rc(HART_HA, HART_TIMER_CG, 0, W_TMP))
     a.emit(cfx2rd(HART_HA, HART_CG, 2, W_CMP))
     a.emit(cmp_uo(W_CMP, W_CMP, W_DEAD))
     a.emit(*load_rd(W_TMP, 1))
@@ -479,7 +478,7 @@ def dma_status_clear(a):
 
 def dma_start(a, irq_en=True):
     for rc, val in ((0, PMEM_SRC), (1, DATA_PA), (2, 8),
-                    (3, CTRL_START | (CTRL_IRQ_EN if irq_en else 0))):
+                    (3, CTRL_START)):
         a.emit(*load_rd(22, val))
         a.emit(cfx2rc(PMEM_HA, PMEM_DMA_CG, rc, 22))
 
@@ -526,12 +525,12 @@ def wait_ram(a, off, want, code_lost, tag):
 
 
 def wait_pending(a, mask, want_set, code_lost, tag):
-    """Bounded poll until cg9 rc4 has every/any of `mask` (or none of it)."""
+    """Bounded poll until cg15 rc5 has every/any of `mask` (or none of it)."""
     head = "p_%s" % tag
     done = head + "_ok"
     a.emit(*load_rd(W_MAX, MAX_WAIT))
     a.mark(head)
-    a.emit(cfx2rd(HART_HA, 9, RC_PENDING, W_TMP))
+    a.emit(cfx2rd(HART_HA, 15, RC_PENDING, W_TMP))
     a.emit(*load_rd(18, mask))
     a.emit(and_o(W_TMP, W_TMP, 18))
     a.br("eq" if want_set else "z", W_TMP, 18, done)
@@ -547,7 +546,7 @@ def wait_pending(a, mask, want_set, code_lost, tag):
 
 def hmon_setup():
     ins = load_rb(5, RAM_BASE)                        # handler state block base
-    # cfx_hart cg9 / cfx_smon cg5 for supv: whole-group opening (0x8).
+    # cfx_hart cg15 / cfx_smon cg5 for supv: whole-group opening (0x8).
     ins += load_rd(21, DELEG_OPEN)
     ins += [cfx2rc(HART_HA, 3, CG3_DELEG_RC, 21),
             cfx2rc(SMON_HA, 3, CG3_DELEG_RC, 21)]
@@ -560,11 +559,11 @@ def hmon_setup():
     # cfx_hart's own supv vector: `escape` frame errors (CFXESC/ILLI).
     ins += load_rd(21, hmon_addr(OFF_HART_SYNC_HND))
     ins += [cfx2rc(HART_HA, 2, CG3_EXCP_VECTOR_RC, 21)]
-    # cfx_hart cg9: supv async vector + fixed switch mode.
+    # cfx_hart cg15: supv async vector + fixed switch mode.
     ins += load_rd(21, hmon_addr(OFF_ASYNC_HND))
-    ins += [cfx2rc(HART_HA, 9, RC_VECTOR, 21)]
+    ins += [cfx2rc(HART_HA, 15, RC_VECTOR, 21)]
     ins += load_rd(21, 2)
-    ins += [cfx2rc(HART_HA, 9, RC_SWITCH, 21)]
+    ins += [cfx2rc(HART_HA, 15, RC_SWITCH, 21)]
     # Any sync exception delivered to cfx_hmon (monitor hop) => poison => FAIL.
     ins += load_rd(21, hmon_addr(OFF_POISON))
     ins += [cfx2rc(HMON_HA, 3, CG3_EXCP_VECTOR_RC, 21)]
@@ -617,10 +616,10 @@ def _timer_capture():
     a.mark("tc_ip_ok")
     a.emit(cfx2rd(HART_HA, 4, CG4_ASYNC_NUM_RC, 12))
     need_eq(a, 12, 1, 0x019, "async_num")
-    # Entry configuration: supv single vector (cg9 rc5) + fixed switch mode 2.
-    a.emit(cfx2rd(HART_HA, 9, RC_VECTOR, 13))
+    # Entry configuration: supv single vector (cg15 rc15) + fixed switch mode 2.
+    a.emit(cfx2rd(HART_HA, 15, RC_VECTOR, 13))
     need_eq(a, 13, hmon_addr(OFF_ASYNC_HND), 0x01D, "vector")
-    a.emit(cfx2rd(HART_HA, 9, RC_SWITCH, 14))
+    a.emit(cfx2rd(HART_HA, 15, RC_SWITCH, 14))
     need_eq(a, 14, 2, 0x01E, "switch_mode")
     frame_rd(a, 13)                                   # capture is a snapshot
     need_eq(a, 13, SRC_TIMER, 0x01A, "capture_kept")
@@ -726,7 +725,7 @@ def _one_frame_multi():
 
 
 @case("overwrite_two_entries",
-      "second entry overwrites cg9 (no frame gate); first capture kept until then")
+      "second entry overwrites cg15 (no frame gate); first capture kept until then")
 def _overwrite_two_entries():
     a = Asm()
     set_mon_mask(a, HMON_HA, 0)                       # open TIMER + PMEM
@@ -738,7 +737,7 @@ def _overwrite_two_entries():
     need_eq(a, 5, SRC_PMEM, 0x052, "first_capture")
     frame_rd(a, 6)                                    # still readable: no clear
     need_eq(a, 6, SRC_PMEM, 0x053, "first_kept")
-    timer_arm(a, tag="ow2")                           # second event, cg9 not empty
+    timer_arm(a, tag="ow2")                           # second event, cg15 not empty
     wait_ram(a, RAM_SEQ, 2, 0x054, "ow3")
     ram_ld(a, RAM_FRAME, 7)
     need_eq(a, 7, SRC_TIMER, 0x055, "second_overwrites")
@@ -762,13 +761,13 @@ def _overwrite_two_entries():
 
 
 def _no_async_return_extra():
-    """escape imms18 = 2 (cg9 selector): not an asynchronous return."""
+    """escape imms18 = 2 (cg15 selector): not an asynchronous return."""
     return [escape(HART_HA, 2)]
 
 
-@case("escape_cg9_cfxesc",
-      "escape imms18=2 => CFXESC inside the handler; cg9/counters untouched")
-def _escape_cg9_cfxesc():
+@case("escape_cg15_cfxesc",
+      "escape imms18=2 => CFXESC inside the handler; cg15/counters untouched")
+def _escape_cg15_cfxesc():
     a = Asm()
     set_mon_mask(a, HMON_HA, ALL1 & ~SRC_TIMER)
     timer_arm(a, tag="ec")
@@ -780,7 +779,7 @@ def _escape_cg9_cfxesc():
     ram_ld(a, RAM_FRAME, 7)                           # capture not cleared
     need_eq(a, 7, SRC_TIMER, 0x064, "capture_kept")
     frame_rd(a, 8)
-    need_eq(a, 8, SRC_TIMER, 0x065, "cg9_unchanged")
+    need_eq(a, 8, SRC_TIMER, 0x065, "cg15_unchanged")
     ram_ld(a, RAM_PREVM, 9)
     need_eq(a, 9, 3, 0x066, "prev_untouched")
     a.emit(cfx2rd(HART_HA, 4, CG4_ASYNC_NUM_RC, 10))
@@ -794,7 +793,7 @@ def _escape_cg9_cfxesc():
 
 
 def _ill_extra():
-    """Bad escape encodings: 3 (cg9 +4) and 4 ([17:2] SBZ nonzero)."""
+    """Bad escape encodings: 3 (cg15 +4) and 4 ([17:2] SBZ nonzero)."""
     return [escape(HART_HA, 3), escape(HART_HA, 4)]
 
 
@@ -812,18 +811,18 @@ def _escape_ill():
     ram_ld(a, RAM_FRAME, 7)
     need_eq(a, 7, SRC_TIMER, 0x074, "capture_kept")
     frame_rd(a, 8)
-    need_eq(a, 8, SRC_TIMER, 0x075, "cg9_unchanged")
+    need_eq(a, 8, SRC_TIMER, 0x075, "cg15_unchanged")
     a.emit(*exit_seq(0))
     return build_rom(a.resolve(), handlers(main_extra=_ill_extra())), {"exit": 0}
 
 
 @case("ro_bitmaps",
-      "cg9 rc3/rc4 ignore software writes, before and after a capture")
+      "cg15 rc4/rc4 ignore software writes, before and after a capture")
 def _ro_bitmaps():
     a = Asm()
     a.emit(*load_rd(22, ALL1))
-    a.emit(cfx2rc(HART_HA, 9, RC_FRAME, 22))
-    a.emit(cfx2rc(HART_HA, 9, RC_PENDING, 22))
+    a.emit(cfx2rc(HART_HA, 15, RC_FRAME, 22))
+    a.emit(cfx2rc(HART_HA, 15, RC_PENDING, 22))
     frame_rd(a, 5)
     need_eq(a, 5, 0, 0x081, "ro_frame_pre")
     pending_rd(a, 6)
@@ -832,8 +831,8 @@ def _ro_bitmaps():
     timer_arm(a, tag="ro")
     wait_ram(a, RAM_SEQ, 1, 0x083, "ro")
     a.emit(*load_rd(22, ALL1))
-    a.emit(cfx2rc(HART_HA, 9, RC_FRAME, 22))
-    a.emit(cfx2rc(HART_HA, 9, RC_PENDING, 22))
+    a.emit(cfx2rc(HART_HA, 15, RC_FRAME, 22))
+    a.emit(cfx2rc(HART_HA, 15, RC_PENDING, 22))
     frame_rd(a, 7)
     need_eq(a, 7, SRC_TIMER, 0x084, "ro_frame_post")
     pending_rd(a, 8)

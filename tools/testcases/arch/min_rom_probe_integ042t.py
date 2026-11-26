@@ -9,8 +9,8 @@ QEMU implementation:
     1..2^29, START self-clear, BUSY/DONE(W1C)/ERROR(W1C)/ERR_CODE one-hot,
     PMEM_DMA = 1 << 8 maskable), §3.6 (1<<8 owned by cfx_pmem),
     §5.4 (ADR-0061 R2: every async source is delivered to cfx_hart through
-    its cg9 capture buffer; the source identity is the source cfxha 32 and the
-    source mask is the running mode monitor's cg8 rc1).
+    its cg15 capture buffer; the source identity is the source cfxha 32 and the
+    source mask is the running mode monitor's cg15 rc3).
   - .tao/adr/adr-0042-cfx-internal-dma.md D3/D4/D6/D7.1-D7.4.
   - spec/Kaiwu-测试机运行环境.md §1.1 (SRAM window 0x83ff_0000_0000)
     and §3 (DMA may read RAM/boot ROM, may write RAM only).
@@ -22,8 +22,8 @@ device-local DMA, cfx access permissions (Step 6), fence.vma/fence.i.
 Observation channels (same convention as min_rom_probe_034t..integ040t):
   * register results -> QEMU `-d cpu` dump (last dump block);
   * fault cause -> the target cfx's cause id/info copied to rd10/rd11 by the
-    probe handler; async capture/pending -> cfx_hart cg9 rc3/rc4, copied to
-    RAM by the probe's cg9 handler (ADR-0061 R2: PMEM_DMA never enters
+    probe handler; async capture/pending -> cfx_hart cg15 rc4/rc4, copied to
+    RAM by the probe's cg15 handler (ADR-0061 R2: PMEM_DMA never enters
     cfx_pmem and never uses cfx_pmem's cg5);
   * pass/fail -> semihosting SYS_EXIT (ADR-0020 D8).
 
@@ -102,7 +102,6 @@ DMA_RESERVED_RC = 5
 # dma_ctrl / dma_status bits (DADAO-12 §4.9)
 CTRL_START = 1 << 0
 CTRL_DIR = 1 << 1                  # 0 = CFX->PA, 1 = PA->CFX
-CTRL_IRQ_EN = 1 << 2
 ST_BUSY = 1 << 0
 ST_DONE = 1 << 1
 ST_ERROR = 1 << 2
@@ -128,17 +127,19 @@ def cause_id_expect(cls, sub=0):
     """[(mask, expected)] over the three fields of `excp_cause_id`."""
     return [(CAUSE_LOW16, cls), (CAUSE_WYDES, sub), (CAUSE_RESERVED_31_16, 0)]
 CG5_CAUSE_ID_RC, CG5_CAUSE_INFO_RC, CG5_CAUSE_IP_RC = 2, 4, 3
-CG3_SWITCH_MODE_RC, CG3_EXCP_VECTOR_RC = 8, 10
+CG3_SWITCH_MODE_RC, CG3_EXCP_VECTOR_RC = 14, 15
 CG3_DELEG_RC = 12
-# cfx_hart cg9 (ADR-0061 D7): capture buffer slots.
+# cfx_hart cg15 (ADR-0064 D5): capture buffer slots.
 RC_PREV_MODE, RC_PREV_CFX, RC_CAUSE_IP = 0, 1, 2
-RC_FRAME, RC_PENDING, RC_VECTOR, RC_SWITCH = 3, 4, 5, 6
+RC_FRAME, RC_PENDING, RC_VECTOR, RC_SWITCH = 4, 5, 15, 14
 CG4_ASYNC_NUM_RC = 4
 HART_HA = 15
 SMON_HA = 2
-MON_CG, MON_MASK_RC = 8, 1
+MON_CG, MON_MASK_RC = 15, 3
+PMEM_CG16 = 16
+PMEM_RC_MASK, PMEM_RC_PENDING, PMEM_RC_ACK = 16, 17, 18
 INTR_SRC_PMEM = 1 << PMEM_HA          # async mask bit = source cfxha (32)
-DELEG_OPEN = 0x8
+DELEG_OPEN = 0xFFFFFFFFFFFE7FC7
 MODE_H = 3
 
 EXIT_PASS = 0x00
@@ -296,12 +297,12 @@ def dma_setup(p, src, dst, size, ctrl):
 
 
 def dma_start(p, src, dst, size, irq_en=False):
-    dma_setup(p, src, dst, size, CTRL_START | (CTRL_IRQ_EN if irq_en else 0))
+    dma_setup(p, src, dst, size, CTRL_START)
 
 
 def dma_start_pa_to_cfx(p, src, dst, size, irq_en=False):
     dma_setup(p, src, dst, size,
-              CTRL_START | CTRL_DIR | (CTRL_IRQ_EN if irq_en else 0))
+              CTRL_START | CTRL_DIR)
 
 
 def status_clear(p):
@@ -682,11 +683,11 @@ def _dma_busy_w1c_ignored():
 # -- PMEM_DMA async capture (ADR-0061 R2) --------------------------------
 #
 # Every async source is delivered to cfx_hart (cfxha 15) through its supv
-# single vector `cg9 rc5`; the source identity is the source cfxha (32) and
-# the capture/pending bitmaps are `cg9 rc3`/`rc4` (HW/RO).  The only source
-# mask is the *running mode* monitor's `cg8 rc1` (the body runs in hypv, so
+# single vector `cg15 rc15`; the source identity is the source cfxha (32) and
+# the capture/pending bitmaps are `cg15 rc4`/`rc4` (HW/RO).  The only source
+# mask is the *running mode* monitor's `cg15 rc3` (the body runs in hypv, so
 # cfx_hmon owns it); PMEM_DMA never enters cfx_pmem and cfx_pmem's cg5 is not
-# involved.  cg9 is a capture buffer: the probe's handler copies it to RAM and
+# involved.  cg15 is a capture buffer: the probe's handler copies it to RAM and
 # returns through cfx_smon (ADR-0061 D4).
 ALL1 = (1 << 64) - 1
 RAM_ASTATE = RAM_BASE + 0x500
@@ -701,18 +702,21 @@ RAM_A_HANDOFF = 0x30
 OFF_ASYNC_HND = 0xC00
 OFF_SMON_HND = 0xC80
 OFF_POISON = 0xD00
+OFF_HART_TRAMP = 0xE00
 
 MAX_WAIT = 4_000_000
 
 
 def build_async_handler():
-    """cfx_hart cg9 rc5 (supv): copy the capture to RAM, hand off to smon."""
+    """cfx_hart cg15 rc15 (supv): copy the capture to RAM, hand off to smon."""
     a = _prelude.Seq()
-    a.e(cfx2rd(HART_HA, 9, RC_FRAME, 30))
-    a.e(cfx2rd(HART_HA, 9, RC_PENDING, 31))
-    a.e(cfx2rd(HART_HA, 9, RC_CAUSE_IP, 32))
-    a.e(cfx2rd(HART_HA, 9, RC_PREV_MODE, 33))
-    a.e(cfx2rd(HART_HA, 9, RC_PREV_CFX, 34))
+    a.e(cfx2rd(HART_HA, 15, RC_FRAME, 30))
+    a.e(cfx2rd(HART_HA, 15, RC_PENDING, 31))
+    a.e(cfx2rd(HART_HA, 15, RC_CAUSE_IP, 32))
+    a.e(cfx2rd(HART_HA, 15, RC_PREV_MODE, 33))
+    a.e(cfx2rd(HART_HA, 15, RC_PREV_CFX, 34))
+    a.e(*load_rd(35, INTR_SRC_PMEM))
+    a.e(cfx2rc(PMEM_HA, PMEM_CG16, PMEM_RC_ACK, 35))   # ack before hand-off
     a.e(ld_o(36, 5, RAM_A_SEQ))
     a.e(add_si(36, 1))
     a.e(st_o(36, 5, RAM_A_SEQ))
@@ -729,24 +733,37 @@ def build_async_handler():
 
 
 def build_smon_handler():
-    """cfx_smon supv vector: rebuild cg5 from the capture, escape to cause_ip."""
+    """cfx_smon supv vector: hand the capture back to cfx_hart's supv trampoline.
+
+    The async entry already wrote cfx_hart's own escape intent (cg5 rc8-rc11),
+    so the trampoline only has to `escape cfx_hart` to return to the
+    interrupted hypv context (a supv -> hypv return from smon would be an
+    illegal privilege escalation, §5.1)."""
     a = _prelude.Seq()
     a.e(ld_o(30, 5, RAM_A_HANDOFF))
     a.b("z", 30, "sync")
-    a.e(ld_o(30, 5, RAM_A_PREVM))
-    a.e(cfx2rc(SMON_HA, 5, 0, 30))
-    a.e(ld_o(30, 5, RAM_A_PREVC))
-    a.e(cfx2rc(SMON_HA, 5, 1, 30))
+    a.e(*load_rd(30, 2))                     # supv
+    a.e(cfx2rc(SMON_HA, 5, 8, 30))           # target run mode
+    a.e(*load_rd(30, HART_HA))
+    a.e(cfx2rc(SMON_HA, 5, 9, 30))           # target cfx_hart
     a.e(ld_o(30, 5, RAM_A_IP))
-    a.e(cfx2rc(SMON_HA, 5, 3, 30))
+    a.e(cfx2rc(SMON_HA, 5, 10, 30))          # resume at the async cause ip
     a.e(*load_rd(30, 0))
     a.e(st_o(30, 5, RAM_A_HANDOFF))
-    a.e(escape(SMON_HA, 0))                 # cg5 frame, offset 0
+    a.e(escape(SMON_HA, 0))
     a.e(*exit_seq(0x7F))                    # unreachable: escape switches away
     a.mark("sync")
     a.e(cfx2rd(SMON_HA, 5, CG5_CAUSE_ID_RC, 30))
     a.e(st_o(30, 5, RAM_A_IP))             # unexpected sync cause (diagnostic)
     a.e(escape(SMON_HA, 1))
+    return a.resolve()
+
+
+def build_hart_tramp():
+    """cfx_hart supv vector: reuse the async entry's own escape intent."""
+    a = _prelude.Seq()
+    a.e(escape(HART_HA, 0))
+    a.e(*exit_seq(0x7D))
     return a.resolve()
 
 
@@ -760,13 +777,14 @@ ASYNC_HANDLERS = {
     OFF_ASYNC_HND: build_async_handler(),
     OFF_SMON_HND: build_smon_handler(),
     OFF_POISON: build_poison(),
+    OFF_HART_TRAMP: build_hart_tramp(),
 }
 
 
 def async_hmon_setup():
     """hmon-mode setup for the async cases: supv hand-off plumbing only.
 
-    The async source mask (`cfx_hmon cg8 rc1`) is left at reset (all-1); each
+    The async source mask (`cfx_hmon cg15 rc3`) is left at reset (all-1); each
     case opens/closes bit 32 through `mask_pmem_dma`.
     """
     ins = load_rb(5, RAM_ASTATE)
@@ -781,9 +799,25 @@ def async_hmon_setup():
     ins += load_rd(17, ROM_BASE + OFF_SMON_HND)
     ins += [cfx2rc(SMON_HA, 2, CG3_EXCP_VECTOR_RC, 17)]
     ins += load_rd(17, ROM_BASE + OFF_ASYNC_HND)
-    ins += [cfx2rc(HART_HA, 9, RC_VECTOR, 17)]
+    ins += [cfx2rc(HART_HA, 15, RC_VECTOR, 17)]
     ins += load_rd(17, 2)
-    ins += [cfx2rc(HART_HA, 9, RC_SWITCH, 17)]
+    ins += [cfx2rc(HART_HA, 15, RC_SWITCH, 17)]
+    # PMEM source mask open (reset all-1); ack the prelude's DMA completion;
+    # let supv reach cfx_pmem cg16 rc18 (cg_reg_deleg bit16 = 0).
+    ins += load_rd(17, 0)
+    ins += [cfx2rc(PMEM_HA, PMEM_CG16, PMEM_RC_MASK, 17)]
+    ins += [cfx2rc(PMEM_HA, PMEM_CG16, PMEM_RC_ACK, 17)]
+    ins += load_rd(17, 0xFFFFFFFFFFFE0EF7)
+    ins += [cfx2rc(PMEM_HA, 3, CG3_DELEG_RC, 17)]
+    # The supv handler acks cfx_pmem cg16 rc18: its supv cfxreg row must allow
+    # source cfxha 15 (bit15 = 0).
+    ins += load_rd(17, ALL1 & ~(1 << HART_HA))
+    ins += [cfx2rc(PMEM_HA, 2, 2, 17)]
+    # cfx_hart supv vector = return trampoline; its own cg_reg_deleg opens cg5.
+    ins += load_rd(17, ROM_BASE + OFF_HART_TRAMP)
+    ins += [cfx2rc(HART_HA, 2, CG3_EXCP_VECTOR_RC, 17)]
+    ins += load_rd(17, DELEG_OPEN)
+    ins += [cfx2rc(HART_HA, 3, CG3_DELEG_RC, 17)]
     ins += load_rd(17, ROM_BASE + OFF_POISON)
     ins += [cfx2rc(3, 3, CG3_EXCP_VECTOR_RC, 17)]
     return ins
@@ -821,6 +855,12 @@ def need_mask_clr(a, rd, mask, code, tag):
     a.mark(ok)
 
 
+def ack_pmem(a):
+    """Source ack: cfx_pmem cg16 rc18 bit0 W1C (interrupt pending only)."""
+    a.e(*load_rd(18, 1))
+    a.e(cfx2rc(PMEM_HA, PMEM_CG16, PMEM_RC_ACK, 18))
+
+
 def ram_ld(a, off, rd):
     a.e(ld_o(rd, 5, off))
 
@@ -844,7 +884,7 @@ def wait_pending(a, mask, want_set, code, tag):
     done = head + "_ok"
     a.e(*load_rd(20, MAX_WAIT))
     a.mark(head)
-    a.e(cfx2rd(HART_HA, 9, RC_PENDING, 18))
+    a.e(cfx2rd(HART_HA, 15, RC_PENDING, 18))
     a.e(*load_rd(19, mask))
     a.e(and_o(18, 18, 19))
     a.b("eq" if want_set else "z", 18, done, 19)
@@ -872,7 +912,7 @@ def _build_async_case(fn):
 
 
 @case("pmem_dma_capture",
-      "PMEM_DMA enters cfx_hart once: cg9 capture bit32, source/monitor untouched")
+      "PMEM_DMA enters cfx_hart once: cg15 capture bit32, source/monitor untouched")
 def _pmem_dma_capture():
     def body(a):
         mask_pmem_dma(a, ALL1 & ~INTR_SRC_PMEM)   # open PMEM only
@@ -901,10 +941,10 @@ def _pmem_dma_capture():
         a.e(cfx2rd(HART_HA, 4, CG4_ASYNC_NUM_RC, 12))
         need_eq(a, 12, 1, 0x69, "hart_entry")
         # The capture is a snapshot, kept after the software hand-off.
-        a.e(cfx2rd(HART_HA, 9, RC_FRAME, 6))
+        a.e(cfx2rd(HART_HA, 15, RC_FRAME, 6))
         need_eq(a, 6, INTR_SRC_PMEM, 0x6A, "capture_kept")
-        status_clear(a)                          # source ack (W1C)
-        a.e(cfx2rd(HART_HA, 9, RC_PENDING, 7))
+        ack_pmem(a)                              # source ack (cg16 rc18)
+        a.e(cfx2rd(HART_HA, 15, RC_PENDING, 7))
         a.e(*load_rd(19, INTR_SRC_PMEM))
         a.e(and_o(18, 7, 19))
         need_eq(a, 18, 0, 0x6B, "ack_no_pending")
@@ -914,7 +954,7 @@ def _pmem_dma_capture():
 
 
 @case("pmem_dma_masked_pending",
-      "masked PMEM_DMA only sets cg9 rc4 bit32; opening the mask delivers it")
+      "masked PMEM_DMA only sets cg15 rc5 bit32; opening the mask delivers it")
 def _pmem_dma_masked_pending():
     def body(a):
         mask_pmem_dma(a, ALL1)                   # everything masked
@@ -925,7 +965,7 @@ def _pmem_dma_masked_pending():
         wait_pending(a, INTR_SRC_PMEM, True, 0x71, "mp")
         ram_ld(a, RAM_A_SEQ, 5)
         need_eq(a, 5, 0, 0x72, "no_entry")
-        a.e(cfx2rd(HART_HA, 9, RC_FRAME, 6))
+        a.e(cfx2rd(HART_HA, 15, RC_FRAME, 6))
         need_eq(a, 6, 0, 0x73, "no_capture")
         a.e(cfx2rd(PMEM_HA, 4, CG4_ASYNC_NUM_RC, 7))
         need_eq(a, 7, 0, 0x74, "source_no_entry")
@@ -933,7 +973,7 @@ def _pmem_dma_masked_pending():
         wait_ram(a, RAM_A_SEQ, 1, 0x75, "mpr")
         ram_ld(a, RAM_A_FRAME, 8)
         need_eq(a, 8, INTR_SRC_PMEM, 0x76, "frame")
-        a.e(cfx2rd(HART_HA, 9, RC_PENDING, 9))
+        a.e(cfx2rd(HART_HA, 15, RC_PENDING, 9))
         a.e(*load_rd(19, INTR_SRC_PMEM))
         a.e(and_o(18, 9, 19))
         need_eq(a, 18, 0, 0x77, "pending_cleared")
@@ -943,7 +983,7 @@ def _pmem_dma_masked_pending():
 
 
 @case("pmem_dma_ack_w1c",
-      "dma_status W1C acks the source: cg9 pending drops, no stale delivery")
+      "cg16 rc18 acks the source: pending drops, no stale delivery")
 def _pmem_dma_ack_w1c():
     def body(a):
         mask_pmem_dma(a, ALL1)                   # keep PMEM masked
@@ -952,8 +992,8 @@ def _pmem_dma_ack_w1c():
         dma_start(a, PMEM_BASE, DATA_A, 8, irq_en=True)
         poll_busy_clear(a)
         wait_pending(a, INTR_SRC_PMEM, True, 0x81, "ack")
-        status_clear(a)                          # W1C ack at the source
-        a.e(cfx2rd(HART_HA, 9, RC_PENDING, 5))
+        ack_pmem(a)                              # W1C ack at the source
+        a.e(cfx2rd(HART_HA, 15, RC_PENDING, 5))
         a.e(*load_rd(19, INTR_SRC_PMEM))
         a.e(and_o(18, 5, 19))
         need_eq(a, 18, 0, 0x82, "pending_drop")
@@ -994,7 +1034,7 @@ def _cfx5_cache_noop():
     setup_hmon_vector(p, HMON_FAIL)         # legal phase: any fault => 0x19
     p.append(cfx2rd(CACHE_HA, 8, 0, 5))      # cache_exist => 0 with model off
     p += load_rd(17, 0x1000)                  # PA span needs size != 0
-    p.append(cfx2rc(CACHE_HA, 8, 11, 17))     # cache_addr_size (cg8 rc11)
+    p.append(cfx2rc(CACHE_HA, 8, 11, 17))     # cache_addr_size (cg15 rc31)
     for sel in (1, 2, 3):                     # bit15 = I, bit14 = D
         for op in (0, 1, 2, 3):               # none/clean/invalidate/flush
             for rng in (0, 1, 2):             # all / PA line / PA span

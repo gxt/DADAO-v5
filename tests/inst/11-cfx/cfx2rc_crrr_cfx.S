@@ -13,7 +13,7 @@
 @@ 探针：写入的读回用 `cfx2rd`（该 id 由同册独立文件单独覆盖，不借被测的写通路自证）；
 @@   期望值按 `spec/DADAO-12 §3.5/§3.8`、`spec/DADAO-13 §1` 与 `spec/Kaiwu §1.1/§2` 内联
 @@ GAP（不计入链例，见任务书完成区）：cg0–cg2、cg4 计数器/标识、cg5 rc3/rc4/rc5/rc8–rc11、cg6 暂存、
-@@   cg8 rc1（`cfx_<monitor>_async_intr_mask`，ADR-0061 D5）在 chipyard RTL 与 IDL 模型上
+@@   cg15 rc3（`cfx_<monitor>_async_intr_mask`，ADR-0064 D6）在 chipyard RTL 与 IDL 模型上
 @@   未实现 ⇒ 三平台不一致，待 chipyard / `m18-idl-002` 补齐；cg0–cg3 rc4 已被 ADR-0061 D5
 @@   删除（保留 ⇒ CFXREG），本文件不再覆盖该 rc
 

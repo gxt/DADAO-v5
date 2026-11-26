@@ -5,7 +5,7 @@ model (`m18-qemu-008`).
 Judged against the *spec*, not against the implementation:
 
   * `spec/DADAO-12` §3.1-§3.6  (cg0-cg3 rc14/rc15, cg5 entry record / escape
-    intent, cg9 entry record / pending, `escape` legality and rc11 restore)
+    intent, cg15 entry record / pending, `escape` legality and rc11 restore)
   * `.tao/adr/adr-0061-async-source-index-and-mask-ownership.md` R3
 
 Covered capability groups (task-book acceptance 1-3):
@@ -13,11 +13,11 @@ Covered capability groups (task-book acceptance 1-3):
   layout   cg5 rc0-rc3 write => CFXREG, rc8-rc11 RW, rc11 resets all-1,
            rc4/rc5 cause fields, reserved rc6/rc7/rc14 => CFXREG;
            cg0-cg3 rc14/rc15 effective, rc8/rc10 => CFXREG;
-           cg9 rc0-rc5 write-ignored, rc14 reset 2 / rc15 reset 0, rc14/rc15
+           cg15 rc0-rc5 write-ignored, rc14 reset 2 / rc15 reset 0, rc14/rc15
            RW, rc6/rc8/rc10/rc13 => CFXREG.
   entry    a synchronous `trap` fills the target cfx's cg5 rc0-rc5 + rc8-rc11
-           (rc11 = the pre-entry running-mode monitor's cg8 rc1 word);
-           an async entry fills cg9 rc0-rc5 and cfx_hart's own cg5 rc8-rc11
+           (rc11 = the pre-entry running-mode monitor's cg15 rc3 word);
+           an async entry fills cg15 rc0-rc5 and cfx_hart's own cg5 rc8-rc11
            and leaves cfx_hart cg5 rc0-rc3 untouched.
   escape   normal return (mode/cfx/ip/mask), rc11 restored as one whole word,
            `imms18 != 0` => ILLI, wrong cfxha / unimplemented target cfx /
@@ -48,13 +48,15 @@ import node_probe_prelude as P  # noqa: E402
 HA_UMON = 0
 HA_HMON = 3
 HA_HART = 15
+HA_PMEM = 32
 
 CG2 = 2
 CG3 = 3
 CG4 = 4
 CG5 = 5
 CG8 = 8
-CG9 = 9
+CG15 = 15
+CG16 = 16
 
 CFXTRAP = 1 << 0
 CFXREG = 1 << 2
@@ -191,7 +193,8 @@ def body_setup(s):
     s.e(*P.load_rd(19, ROM_BASE + OFF_FH_HMON))
     s.e(P.cfx2rc(HA_HMON, CG3, 15, 19))
     s.e(*P.load_rd(10, MASK_BASE))
-    s.e(P.cfx2rc(HA_HMON, CG8, 1, 10))
+    s.e(P.cfx2rc(HA_HMON, CG15, 3, 10))
+    wr(s, HA_PMEM, CG16, 18, 1)      # ack the prelude's DMA completion
 
 
 def rd(s, ha, cg, rc, dst):
@@ -368,21 +371,21 @@ def case_mode_slots_cg3():
     return _mode_slots_case(3)
 
 
-def case_cg9_layout():
+def case_cg15_layout():
     s = P.Seq()
     body_setup(s)
-    rd(s, HA_HART, CG9, 14, 10)     # reset 2 (supv)
-    rd(s, HA_HART, CG9, 15, 11)     # reset 0
-    wr(s, HA_HART, CG9, 14, 1)
-    rd(s, HA_HART, CG9, 14, 12)
-    wr(s, HA_HART, CG9, 15, 0xFFFFFFFFFFFFFD)
-    rd(s, HA_HART, CG9, 15, 13)     # low 2 bits ignored
-    wr(s, HA_HART, CG9, 14, MODE_SUPV)
-    wr(s, HA_HART, CG9, 15, 0)
+    rd(s, HA_HART, CG15, 14, 10)     # reset 2 (supv)
+    rd(s, HA_HART, CG15, 15, 11)     # reset 0
+    wr(s, HA_HART, CG15, 14, 1)
+    rd(s, HA_HART, CG15, 14, 12)
+    wr(s, HA_HART, CG15, 15, 0xFFFFFFFFFFFFFD)
+    rd(s, HA_HART, CG15, 15, 13)     # low 2 bits ignored
+    wr(s, HA_HART, CG15, 14, MODE_SUPV)
+    wr(s, HA_HART, CG15, 15, 0)
     for rc in range(6):            # rc0-rc5 writes: ignored, no exception
-        wr(s, HA_HART, CG9, rc, 0xDEADBEEF)
+        wr(s, HA_HART, CG15, rc, 0xDEADBEEF)
     for rc, dst in ((0, 30), (1, 31), (2, 32), (3, 33), (4, 34), (5, 35)):
-        rd(s, HA_HART, CG9, rc, dst)
+        rd(s, HA_HART, CG15, rc, dst)
     s.e(*P.exit_seq(0))
     return P.build_rom(s.resolve(), {OFF_FH_HMON: fault_handler(HA_HMON)}), {
         "rd10": MODE_SUPV, "rd11": 0, "rd12": 1,
@@ -392,29 +395,29 @@ def case_cg9_layout():
     }
 
 
-def _cg9_reserved_case(rc_a, dst_a, rc_b, dst_b, count):
+def _cg15_reserved_case(rc_a, dst_a, rc_b, dst_b, count):
     s = P.Seq()
     body_setup(s)
-    rd(s, HA_HART, CG9, rc_a, dst_a)
-    rd(s, HA_HART, CG9, rc_b, dst_b)
+    rd(s, HA_HART, CG15, rc_a, dst_a)
+    rd(s, HA_HART, CG15, rc_b, dst_b)
     s.e(*P.exit_seq(0))
     return P.build_rom(s.resolve(), {OFF_FH_HMON: fault_handler(HA_HMON)}), {
         "rd20": CFXREG,
-        "rd21": (0x7A << 24) | (HA_HART << 18) | (CG9 << 12) | (rc_a << 6) | dst_a,
+        "rd21": (0x7A << 24) | (HA_HART << 18) | (CG15 << 12) | (rc_a << 6) | dst_a,
         "rd26": CFXREG,
-        "rd27": (0x7A << 24) | (HA_HART << 18) | (CG9 << 12) | (rc_b << 6) | dst_b,
+        "rd27": (0x7A << 24) | (HA_HART << 18) | (CG15 << 12) | (rc_b << 6) | dst_b,
         "rd25": count,
     }
 
 
-def case_cg9_reserved_a():
-    # rc6 list position (was switch) and rc8 (old cg9 vector) are reserved.
-    return _cg9_reserved_case(6, 14, 8, 15, 2)
+def case_cg15_reserved_a():
+    # rc6 list position (was switch) and rc8 (old capture vector) are reserved.
+    return _cg15_reserved_case(6, 14, 8, 15, 2)
 
 
-def case_cg9_reserved_b():
-    # rc10 (old cg9 vector) and rc13 are reserved.
-    return _cg9_reserved_case(10, 17, 13, 18, 2)
+def case_cg15_reserved_b():
+    # rc10 (old capture vector) and rc13 are reserved.
+    return _cg15_reserved_case(10, 17, 13, 18, 2)
 
 
 def case_sync_entry():
@@ -435,7 +438,7 @@ def case_sync_entry():
     rd(s, HA_UMON, CG5, 10, 38)
     rd(s, HA_UMON, CG5, 11, 39)
     rd(s, HA_UMON, CG4, 5, 40)      # escape_num
-    rd(s, HA_HMON, CG8, 1, 41)      # restored mask
+    rd(s, HA_HMON, CG15, 3, 41)      # restored mask
     s.e(*P.exit_seq(0))
     prog = P.Seq()
     prog.e(P.add_si(25, 1))
@@ -516,8 +519,8 @@ def case_escape_rc11_restore():
         s.e(P.escape(HA_UMON, 0))
         return s.resolve()
 
-    rom, _ = umon_case([P.swym()], pre_obs=[(HA_HMON, CG8, 1, 30)],
-                       obs=[(HA_HMON, CG8, 1, 31)], extra=write_intent)
+    rom, _ = umon_case([P.swym()], pre_obs=[(HA_HMON, CG15, 3, 30)],
+                       obs=[(HA_HMON, CG15, 3, 31)], extra=write_intent)
     return rom, {
         "rd30": MASK_BASE,          # before the escape (body_setup)
         "rd31": PATTERN_WHOLE,      # after: rc11 restored as one whole word
@@ -527,27 +530,29 @@ def case_escape_rc11_restore():
 
 
 def _arm_timer(s):
+    s.e(*P.load_rd(13, 0))
+    s.e(P.cfx2rc(HA_HART, CG16, 16, 13))     # open the source mask
     s.e(*P.load_rd(13, 1))
-    s.e(P.cfx2rc(HA_HART, CG8, 4, 13))      # timer_cmp = 1 (already expired)
+    s.e(P.cfx2rc(HA_HART, CG16, 1, 13))      # timer_cmp = 1 (already expired)
     s.e(*P.load_rd(14, 1))
-    s.e(P.cfx2rc(HA_HART, CG8, 5, 14))      # ENABLE, IMASK = 0
+    s.e(P.cfx2rc(HA_HART, CG16, 0, 14))      # ENABLE
 
 
 def case_async_entry():
     s = P.Seq()
     body_setup(s)
-    rd(s, HA_HMON, CG8, 1, 30)              # mask used for the delivery
-    wr(s, HA_HART, CG9, 14, MODE_HYPV)      # entry mode: keep hypv (returnable)
-    wr(s, HA_HART, CG9, 15, ROM_BASE + OFF_ASYNC)
+    rd(s, HA_HMON, CG15, 3, 30)              # mask used for the delivery
+    wr(s, HA_HART, CG15, 14, MODE_HYPV)      # entry mode: keep hypv (returnable)
+    wr(s, HA_HART, CG15, 15, ROM_BASE + OFF_ASYNC)
     _arm_timer(s)
     s.e(P.jump_rel(1))                      # end the TB: deliver at the boundary
     s.mark("after_async")
-    rd(s, HA_HART, CG9, 0, 31)
-    rd(s, HA_HART, CG9, 1, 32)
-    rd(s, HA_HART, CG9, 2, 33)
-    rd(s, HA_HART, CG9, 3, 34)
-    rd(s, HA_HART, CG9, 4, 35)
-    rd(s, HA_HART, CG9, 5, 36)
+    rd(s, HA_HART, CG15, 0, 31)
+    rd(s, HA_HART, CG15, 1, 32)
+    rd(s, HA_HART, CG15, 2, 33)
+    rd(s, HA_HART, CG15, 3, 34)
+    rd(s, HA_HART, CG15, 4, 35)
+    rd(s, HA_HART, CG15, 5, 36)
     rd(s, HA_HART, CG5, 0, 37)              # async writes only rc8-rc11
     rd(s, HA_HART, CG5, 1, 38)
     rd(s, HA_HART, CG5, 2, 39)
@@ -561,6 +566,8 @@ def case_async_entry():
     s.e(*P.exit_seq(0))
     h = P.Seq()
     h.e(P.add_si(25, 1))
+    h.e(*P.load_rd(10, 1))
+    h.e(P.cfx2rc(HA_HART, CG16, 18, 10))     # ack TIMER before escape
     h.e(P.escape(HA_HART, 0))
     return P.build_rom(s.resolve(), {
         OFF_FH_HMON: fault_handler(HA_HMON),
@@ -575,7 +582,7 @@ def case_async_entry():
         "rd43": (">", ROM_BASE),
         "rd44": MASK_BASE,
         "rd45": 1, "rd46": 1,
-        "rd33": ("same", 43),               # cg9 prev ip == escape ip
+        "rd33": ("same", 43),               # cg15 prev ip == escape ip
         "mymode": MODE_HYPV, "mycfx": HA_HMON,
     }
 
@@ -585,7 +592,7 @@ def case_async_escalation():
     body_setup(s)
     # rc14 keeps its reset value 2 (supv): the async entry lands in supv, so the
     # `escape cfx_hart` back to hypv is privilege escalation => CFXESC.
-    wr(s, HA_HART, CG9, 15, ROM_BASE + OFF_ASYNC)
+    wr(s, HA_HART, CG15, 15, ROM_BASE + OFF_ASYNC)
     wr(s, HA_HART, CG2, 15, ROM_BASE + OFF_FH_HART)   # supv vector of cfx_hart
     # The CFXESC handler runs in supv; it needs cfx_hart cg5 (DADAO-13 §1:
     # cg_reg_deleg bit = 0 allows, so 0x8 opens every cg except the fixed bit3).
@@ -597,6 +604,8 @@ def case_async_escalation():
     s.e(*P.exit_seq(0))
     h = P.Seq()
     h.e(P.add_si(25, 1))
+    h.e(*P.load_rd(10, 1))
+    h.e(P.cfx2rc(HA_HART, CG16, 18, 10))    # ack TIMER before the illegal escape
     h.e(P.escape(HA_HART, 0))               # illegal: hypv > supv
     # Reached after the CFXESC return (still cfx_hart/supv): read the counter
     # (self access; cg_reg_deleg bit4 = 0 opens it for supv) and exit.
@@ -627,9 +636,9 @@ CASES = {
     "mode_slots_cg1": case_mode_slots_cg1,
     "mode_slots_cg2": case_mode_slots_cg2,
     "mode_slots_cg3": case_mode_slots_cg3,
-    "cg9_layout": case_cg9_layout,
-    "cg9_reserved_a": case_cg9_reserved_a,
-    "cg9_reserved_b": case_cg9_reserved_b,
+    "cg15_layout": case_cg15_layout,
+    "cg15_reserved_a": case_cg15_reserved_a,
+    "cg15_reserved_b": case_cg15_reserved_b,
     "sync_entry": case_sync_entry,
     "escape_imms18": case_escape_imms18,
     "escape_wrong_cfx": case_escape_wrong_cfx,
