@@ -213,3 +213,13 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`tools/gem5/check_converge.py` 的 `PASS_BASELINE` 已过期（改前即红）：改前源码树实测 b1=2196 / b6=1414 / b7=2960，表内 2156/1384/2955；b5 因 `m16-gem5-027` 新增环形断言 1292→1316。该脚本未挂 Makefile 门控，属潜伏红。处置：现场重算七项基线后重冻（复核给出参考 2196/1160/4318/3696/1316/1414/2960）并更新文件头重冻日期注释。
+
+- id: ISS-left-002
+  scope:
+  - idl
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`idl/docs/trace-format.md` 仍引用全仓不存在的 `check_trace_parity.py`（`m17-idl-024` 复核查出，既有陈旧引用）；同文另有 2026-11-25 的 `249457` 旧记录数（已标日期、非门控值）。处置：随下次 trace 文档维护删/改该引用与旧计数。
