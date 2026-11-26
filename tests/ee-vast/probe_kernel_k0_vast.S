@@ -2,7 +2,7 @@
 @@
 @@ This is NOT Linux: it is the smallest possible kernel-shaped payload that
 @@ proves the K1 handover (spec/Kaiwu §6.3.4) on QEMU.  It is entered by
-@@ smon's `escape cfx_smon, [excp_cause_ip, 0]` at the VA kernel_base with
+@@ smon's `escape cfx_smon`（cg5 rc10 = kernel_base）at the VA kernel_base with
 @@   rb16 = entry VA, rb17 = boot info VA, rb3 = 0, run mode supv,
 @@   cfxcode smon (2), PTW on (PTBR = 0, prebuilt page table), async masked.
 @@

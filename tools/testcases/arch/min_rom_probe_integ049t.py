@@ -227,12 +227,12 @@ def case(name, desc):
 
 def probe_base():
     """Install the CFXREG vector of the hmon/hypv row (handler slot)."""
-    return load_rd(20, ROM_BASE + HAND_OFF) + [cfx2rc(3, 3, 10, 20)]
+    return load_rd(20, ROM_BASE + HAND_OFF) + [cfx2rc(3, 3, 15, 20)]
 
 
 def handler():
     """CFXREG handler: record the cfx_hmon cause frame, exit 0x2C."""
-    h = [cfx2rd(3, 5, 2, 20), cfx2rd(3, 5, 3, 21), cfx2rd(3, 5, 4, 22)]
+    h = [cfx2rd(3, 5, 4, 20), cfx2rd(3, 5, 2, 21), cfx2rd(3, 5, 5, 22)]
     return h + exit_seq(0x2C)
 
 
@@ -452,16 +452,16 @@ def _write_cfxreg():
 
 # -- 11: unimplemented cfx still raises CFXREG ----------------------------
 
-@case("unimpl_cfx", "cfx5 (cache, unimplemented) cg7 rc0 read => CFXREG")
+@case("unimpl_cfx", "cfx33 (llc, unimplemented) cg7 rc0 read => CFXREG")
 def _unimpl_cfx():
     body = probe_base()
     fault_idx = len(body)
-    body += [cfx2rd(5, 7, 0, 30)] + exit_seq(0x00)
+    body += [cfx2rd(33, 7, 0, 30)] + exit_seq(0x00)
     rom = build_rom(body, {HAND_OFF: handler()})
     # ci < 0 is raised with target = the current run mode (hypv => cfx_hmon).
     return one(rom, {"exit": 0x2C, "cid:3": CFXREG,
                      "cip:3": ROM_BASE + BODY_OFF + 4 * fault_idx,
-                     "cinfo:3": info_rd(5, 7, 0, 30), "syncn:3": 1})
+                     "cinfo:3": info_rd(33, 7, 0, 30), "syncn:3": 1})
 
 
 # -- 12: reads have no side effects ---------------------------------------

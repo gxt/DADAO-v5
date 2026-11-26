@@ -3,16 +3,16 @@
 @@ Capability: a general (non-semihosting) `trap cfx_umon, immu18` with
 @@ immu18 < 0x3FF00 records cause CFXTRAP (1<<0) and enters the target cfx
 @@ exception vector of the *current* run mode; the callee returns with
-@@ `escape cfx_umon, [excp_cause_ip, 4]` (DADAO-12 §5; contract-see.md §4;
+@@ `escape cfx_umon` after writing `cg5 rc10` = prev ip + 4 (DADAO-12 §5.3;
 @@ DADAO-22 §1).
 @@
 @@ TESTCASES-092t (§4): the body runs in hypv and the earlier boot stage (hmon)
 @@ points cfx_umon's hypv vector at the profile ENTRY, i.e. at the body itself —
 @@ a trap into that vector would restart the body (self-loop).  The body
-@@ therefore installs its own vector first: `cfx2rc cfx_umon, cg3, rc10, <stub>`.
+@@ therefore installs its own vector first: `cfx2rc cfx_umon, cg3, rc15, <stub>`.
 @@ cfx0 is the body's *own* cfx (self), so the write is legal; cfx_hmon's vector
-@@ is CFXPERM-denied from hypv and cannot be installed.  The stub is the single
-@@ word `escape cfx_umon, [excp_cause_ip, 4]`, placed *immediately before*
+@@ is CFXPERM-denied from hypv and cannot be installed.  The stub is the stub sets
+@@ `cg5 rc10` = prev ip + 4 and executes `escape cfx_umon`, placed *immediately before*
 @@ `main`; the installer builds its address as `rb0(main) - 4` (one word back),
 @@ so no absolute label is needed (DADAO has no PC-relative label relocation for
 @@ `add.si`).
@@ -36,20 +36,23 @@ _start:
 	jump	[rb0, main]			@@ word 0: skip the vector stub
 
 escape_stub:
-	@@ cfx_umon hypv exception vector: return to excp_cause_ip + 4
-	escape	cfx_umon, [excp_cause_ip, 4]
+	@@ cfx_umon hypv exception vector: rc10 = prev ip + 4, then escape
+	cfx2rd	cfx_umon, cg5, rc2, rd22
+	add.si	rd22, 4
+	cfx2rc	cfx_umon, cg5, rc10, rd22
+	escape	cfx_umon
 
 main:
 	@@ cfx_umon.hypv.excp_vector = escape_stub (the word right before main)
-	rb2rd	rd22, rb0, 1			@@ rd22 = address of main
-	add.si	rd22, -4			@@ main - 1 word = escape_stub
-	cfx2rc	cfx_umon, cg3, rc10, rd22
+	rb2rd	rd22, rb0, 1			@@ rd22 = main 地址
+	add.si	rd22, -16			@@ stub（4 条）起点 = main - 16
+	cfx2rc	cfx_umon, cg3, rc15, rd22
 
 	@@ general trap: immu18 = 0x0123 (below the semihosting range 0x3FF00-0x3FFFF)
 	trap	cfx_umon, 0x0123
 
 	@@ (a) cause id must be CFXTRAP
-	cfx2rd	cfx_umon, cg5, rc2, rd10
+	cfx2rd	cfx_umon, cg5, rc4, rd10
 	set.zw	rd12, wp0, 0x0001		@@ CFXTRAP = 1 << 0
 	cmp.so	rd11, rd10, rd12
 	br.nz	{rd11}?, [rb0, fail]

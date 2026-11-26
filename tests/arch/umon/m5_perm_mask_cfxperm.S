@@ -19,7 +19,7 @@
 @@   bitmap has exactly one bit and `[39]` is deleted, so nothing is masked
 @@   (contract-see §6.1/§6.1.1; ADR-0062 D1/D3) — and `excp_cause_info` ==
 @@   `excp_cause_ip` (the triggering instruction address; ADR-0062 D4, ISS-469),
-@@   read from this frame's `cfx_hmon cg5 rc3`/`rc4` after the resume.
+@@   read from this frame's `cfx_hmon cg5 rc2`/`rc5` after the resume.
 @@   host $? = 0x21 (SYS_EXIT pass token).
 
 @@ @m5 name=m5_perm_mask_cfxperm
@@ -50,8 +50,8 @@ _start:
 
 	@@ ADR-0062 D4 / ISS-469: cause_info = the triggering instruction address,
 	@@ i.e. the same value as excp_cause_ip (both in this frame's cg5).
-	cfx2rd	cfx_hmon, cg5, rc4, rd14	@@ excp_cause_info
-	cfx2rd	cfx_hmon, cg5, rc3, rd15	@@ excp_cause_ip
+	cfx2rd	cfx_hmon, cg5, rc5, rd14	@@ excp_cause_info（R3: rc5）
+	cfx2rd	cfx_hmon, cg5, rc2, rd15	@@ prev ip = 触发指令地址（R3: rc2）
 	cmp.so	rd11, rd14, rd15
 	br.nz	{rd11}?, [rb0, fail]
 

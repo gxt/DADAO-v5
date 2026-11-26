@@ -40,11 +40,11 @@ _start:
 	set.rb rb1, 0x00000bff0000fff0	@@ smon rbsp
 
 	@@ --- 1. trap cause / magic check (CFXTRAP = 1<<0, magic 0x30001) ---
-	cfx2rd	cfx_smon, cg5, rc2, rd6
+	cfx2rd	cfx_smon, cg5, rc4, rd6		@@ excp_cause_id（R3: rc4）
 	set.rd rd7, 0x0000000000000001
 	cmp.uo	rd2, rd6, rd7
 	br.nz	{rd2}?, [rb0, smon_exit_b8]
-	cfx2rd	cfx_smon, cg5, rc4, rd6
+	cfx2rd	cfx_smon, cg5, rc5, rd6		@@ excp_cause_info（R3: rc5）
 	set.rd rd7, 0x000000000003ffff
 	and.o	rd6, rd6, rd7
 	set.rd rd7, 0x0000000000030001

@@ -4010,9 +4010,9 @@ tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S	12	value	0x0000000000000002	0x00
 tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S	13	value	0x00000000000000f0	0x00000000000000F0	tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S:67
 tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S	14	value	0x0000000000000000	0x0000000000000000	tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S:70
 tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S	15	value	0x00000000000000ff	0x00000000000000FF	tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S:73
-tests/inst/11-cfx/cfx2rc_crrr_cfx.S	1	value	0x0123456789abcdef	0x0123456789ABCDEF	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:32
-tests/inst/11-cfx/cfx2rc_crrr_cfx.S	2	value	0xdeadbeefcafef00d	0xDEADBEEFCAFEF00D	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:38
-tests/inst/11-cfx/cfx2rc_crrr_cfx.S	3	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:44
+tests/inst/11-cfx/cfx2rc_crrr_cfx.S	1	value	0x0000123456789abc	0x0000123456789ABC	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:32
+tests/inst/11-cfx/cfx2rc_crrr_cfx.S	2	value	0x0000deadbeeff00c	0x0000DEADBEEFF00C	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:38
+tests/inst/11-cfx/cfx2rc_crrr_cfx.S	3	value	0x0000fffffffffffc	0x0000FFFFFFFFFFFC	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:44
 tests/inst/11-cfx/cfx2rc_crrr_cfx.S	4	value	0x0000000000000000	0x0000000000000000	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:49
 tests/inst/11-cfx/cfx2rc_crrr_cfx.S	5	value	0x0000000000000002	0x0000000000000002	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:55
 tests/inst/11-cfx/cfx2rc_crrr_cfx.S	6	value	0x0000000000000003	0x0000000000000003	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:59
@@ -4022,8 +4022,8 @@ tests/inst/11-cfx/cfx2rc_crrr_cfx.S	9	value	0x00000fff00000000	HMON_BASE	tests/i
 tests/inst/11-cfx/cfx2rc_crrr_cfx.S	10	value	0x0000ffffffff0000	BOOTROM_BASE	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:81
 tests/inst/11-cfx/cfx2rc_crrr_cfx.S	11	value	0x0000000000000000	0x0000000000000000	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:86
 tests/inst/11-cfx/cfx2rc_crrr_cfx.S	12	value	0x0000ffffff010104	(ENTRY + 4)	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:91
-tests/inst/11-cfx/cfx2rc_crrr_cfx.S	13	value	0x2222222222222222	0x2222222222222222	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:99
-tests/inst/11-cfx/cfx2rc_crrr_cfx.S	14	value	0x1111111111111111	0x1111111111111111	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:103
+tests/inst/11-cfx/cfx2rc_crrr_cfx.S	13	value	0x0000222222222220	0x0000222222222220	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:99
+tests/inst/11-cfx/cfx2rc_crrr_cfx.S	14	value	0x0000111111111110	0x0000111111111110	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:103
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	1	value	0x00000fff00000000	HMON_BASE	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:34
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	2	value	0x0000ffffffff0000	BOOTROM_BASE	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:38
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	3	value	0x7ffffffffffffff7	0x7FFFFFFFFFFFFFF7	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:42
@@ -4045,26 +4045,41 @@ tests/inst/11-cfx/cfx2rd_crrr_cfx.S	18	value	0x00000fff00000000	HMON_BASE	tests/
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	19	value	0x0000000000000000	0	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:85
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	20	value	0x0000000000010000	0x10000	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:89
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	21	value	0x0000000000010000	0x10000	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:91
-tests/inst/11-cfx/cfx2rd_crrr_cfx.S	22	value	0x0000000000000025	0x25	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:106
+tests/inst/11-cfx/cfx2rd_crrr_cfx.S	22	value	0x000000000000003f	0x3F	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:99
 tests/inst/11-cfx/cfxreg_deny_cfxperm.S	1	value	0x7ffffffffffffff7	0x7FFFFFFFFFFFFFF7	tests/inst/11-cfx/cfxreg_deny_cfxperm.S:34
 tests/inst/11-cfx/cfxreg_deny_cfxperm.S	2	value	0x7ffffffffffffff6	0x7FFFFFFFFFFFFFF6	tests/inst/11-cfx/cfxreg_deny_cfxperm.S:40
 tests/inst/11-cfx/cfxreg_deny_cfxperm.S	3	value	0x7ffffffffffffff7	0x7FFFFFFFFFFFFFF7	tests/inst/11-cfx/cfxreg_deny_cfxperm.S:44
 tests/inst/11-cfx/cfxtrap_deny_cfxperm.S	1	value	0x7ffffffffffffff7	0x7FFFFFFFFFFFFFF7	tests/inst/11-cfx/cfxtrap_deny_cfxperm.S:35
 tests/inst/11-cfx/cfxtrap_deny_cfxperm.S	2	value	0x7ffffffffffffff6	0x7FFFFFFFFFFFFFF6	tests/inst/11-cfx/cfxtrap_deny_cfxperm.S:41
 tests/inst/11-cfx/cfxtrap_deny_cfxperm.S	3	value	0x7ffffffffffffff7	0x7FFFFFFFFFFFFFF7	tests/inst/11-cfx/cfxtrap_deny_cfxperm.S:45
-tests/inst/11-cfx/escape_ciii_cfx.S	1	value	0x0000ffffff010984	(ENTRY + 0x884)	tests/inst/11-cfx/escape_ciii_cfx.S:205
-tests/inst/11-cfx/escape_ciii_cfx.S	2	value	0x0000ffffff010a88	(ENTRY + 0x988)	tests/inst/11-cfx/escape_ciii_cfx.S:216
-tests/inst/11-cfx/escape_ciii_cfx.S	3	value	0x0000ffffff010b84	(ENTRY + 0xA84)	tests/inst/11-cfx/escape_ciii_cfx.S:225
-tests/inst/11-cfx/escape_ciii_cfx.S	4	value	0x0000ffffff010c88	(ENTRY + 0xB88)	tests/inst/11-cfx/escape_ciii_cfx.S:236
-tests/inst/11-cfx/escape_ciii_cfx.S	5	value	0x0000ffffff010e84	(ENTRY + 0xD84)	tests/inst/11-cfx/escape_ciii_cfx.S:246
-tests/inst/11-cfx/escape_ciii_cfx.S	6	value	0x0000000000000001	0x1	tests/inst/11-cfx/escape_ciii_cfx.S:262
-tests/inst/11-cfx/escape_ciii_cfx.S	7	value	0x0000ffffff011554	(ENTRY + 0x1454)	tests/inst/11-cfx/escape_ciii_cfx.S:271
-tests/inst/11-cfx/escape_ciii_cfx.S	8	value	0x0000000000002000	0x2000	tests/inst/11-cfx/escape_ciii_cfx.S:279
-tests/inst/11-cfx/escape_ciii_cfx.S	9	value	0x0000000000000002	0x2	tests/inst/11-cfx/escape_ciii_cfx.S:291
-tests/inst/11-cfx/escape_ciii_cfx.S	10	value	0x0000000000000008	0x8	tests/inst/11-cfx/escape_ciii_cfx.S:303
-tests/inst/11-cfx/escape_ciii_cfx.S	11	value	0x0000000000000008	0x8	tests/inst/11-cfx/escape_ciii_cfx.S:315
-tests/inst/11-cfx/escape_ciii_cfx.S	12	value	0x0000000000000008	0x8	tests/inst/11-cfx/escape_ciii_cfx.S:378
-tests/inst/11-cfx/escape_ciii_cfx.S	13	value	0x0000000000000008	0x8	tests/inst/11-cfx/escape_ciii_cfx.S:398
+tests/inst/11-cfx/escape_ciii_cfx.S	1	value	0x0000000000000003	3	tests/inst/11-cfx/escape_ciii_cfx.S:100
+tests/inst/11-cfx/escape_ciii_cfx.S	2	value	0x000000000000003f	0x000000000000003F	tests/inst/11-cfx/escape_ciii_cfx.S:101
+tests/inst/11-cfx/escape_ciii_cfx.S	3	value	0x0000000000000001	1	tests/inst/11-cfx/escape_ciii_cfx.S:107
+tests/inst/11-cfx/escape_ciii_cfx.S	4	value	0x0123456789abcdef	P0	tests/inst/11-cfx/escape_ciii_cfx.S:108
+tests/inst/11-cfx/escape_ciii_cfx.S	5	value	0x0000000000000001	0x0000000000000001	tests/inst/11-cfx/escape_ciii_cfx.S:109
+tests/inst/11-cfx/escape_ciii_cfx.S	6	value	0x000000007f0c0000	0x7F0C0000	tests/inst/11-cfx/escape_ciii_cfx.S:110
+tests/inst/11-cfx/escape_ciii_cfx.S	7	value	0x0000000000000003	3	tests/inst/11-cfx/escape_ciii_cfx.S:112
+tests/inst/11-cfx/escape_ciii_cfx.S	8	value	0x000000000000003f	0x000000000000003F	tests/inst/11-cfx/escape_ciii_cfx.S:113
+tests/inst/11-cfx/escape_ciii_cfx.S	9	value	0x0000000000000001	1	tests/inst/11-cfx/escape_ciii_cfx.S:119
+tests/inst/11-cfx/escape_ciii_cfx.S	10	value	0x0123456789abcdef	P0	tests/inst/11-cfx/escape_ciii_cfx.S:120
+tests/inst/11-cfx/escape_ciii_cfx.S	11	value	0x0000000000000001	P1	tests/inst/11-cfx/escape_ciii_cfx.S:123
+tests/inst/11-cfx/escape_ciii_cfx.S	12	value	0x0000000000000001	1	tests/inst/11-cfx/escape_ciii_cfx.S:130
+tests/inst/11-cfx/escape_ciii_cfx.S	13	value	0x0000000000000000	0	tests/inst/11-cfx/escape_ciii_cfx.S:133
+tests/inst/11-cfx/escape_ciii_cfx.S	14	value	0x0000000000000000	0	tests/inst/11-cfx/escape_ciii_cfx.S:135
+tests/inst/11-cfx/escape_ciii_cfx.S	15	value	0x0000000000000000	0	tests/inst/11-cfx/escape_ciii_cfx.S:137
+tests/inst/11-cfx/escape_ciii_cfx.S	16	value	0x0000000000000000	0	tests/inst/11-cfx/escape_ciii_cfx.S:139
+tests/inst/11-cfx/escape_ciii_cfx.S	17	value	0x8000000000000001	P2	tests/inst/11-cfx/escape_ciii_cfx.S:147
+tests/inst/11-cfx/escape_ciii_cfx.S	18	value	0x0000000000000001	1	tests/inst/11-cfx/escape_ciii_cfx.S:150
+tests/inst/11-cfx/escape_ciii_cfx.S	19	value	0x0000000000000003	3	tests/inst/11-cfx/escape_ciii_cfx.S:153
+tests/inst/11-cfx/escape_ciii_cfx.S	20	value	0x0000000000000008	0x0000000000000008	tests/inst/11-cfx/escape_ciii_cfx.S:164
+tests/inst/11-cfx/escape_ciii_cfx.S	21	value	0x000000007e0c0000	0x7E0C0000	tests/inst/11-cfx/escape_ciii_cfx.S:165
+tests/inst/11-cfx/escape_ciii_cfx.S	22	value	0x0000000000000001	1	tests/inst/11-cfx/escape_ciii_cfx.S:171
+tests/inst/11-cfx/escape_ciii_cfx.S	23	value	0x8000000000000001	P2	tests/inst/11-cfx/escape_ciii_cfx.S:173
+tests/inst/11-cfx/escape_ciii_cfx.S	24	value	0x000000000000003f	0x000000000000003F	tests/inst/11-cfx/escape_ciii_cfx.S:174
+tests/inst/11-cfx/escape_ciii_cfx.S	25	value	0x0000000000000008	0x0000000000000008	tests/inst/11-cfx/escape_ciii_cfx.S:187
+tests/inst/11-cfx/escape_ciii_cfx.S	26	value	0x000000007efc0000	0x7EFC0000	tests/inst/11-cfx/escape_ciii_cfx.S:188
+tests/inst/11-cfx/escape_ciii_cfx.S	27	value	0x0000000000000001	1	tests/inst/11-cfx/escape_ciii_cfx.S:194
+tests/inst/11-cfx/escape_ciii_cfx.S	28	value	0x8000000000000001	P2	tests/inst/11-cfx/escape_ciii_cfx.S:196
 tests/inst/11-cfx/fence_ciii_cfx.S	1	value	0x0123456789abcdef	0x0123456789ABCDEF	tests/inst/11-cfx/fence_ciii_cfx.S:32
 tests/inst/11-cfx/fence_ciii_cfx.S	2	value	0x0123456789abcdef	0x0123456789ABCDEF	tests/inst/11-cfx/fence_ciii_cfx.S:37
 tests/inst/11-cfx/fence_ciii_cfx.S	3	value	0x0123456789abcdef	0x0123456789ABCDEF	tests/inst/11-cfx/fence_ciii_cfx.S:42

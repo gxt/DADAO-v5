@@ -7,15 +7,15 @@
 @@   （`spec/Kaiwu §3`；`contracts/legality_rules.yaml` `encode_cfx_reserved`）。
 @@ 编码：crrr = opc[31:24] | cfxha[23:18] | cghb[17:12] | rchc[11:6] | rdhd[5:0]
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 14 / boundary 4 / overlap 2（链例 22 + 故障例 6）
+@@ 用例：encoding 2 / semantic 13 / boundary 4 / overlap 2（链例 22 + 故障例 7）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ cg5 rc1 = `excp_prev_cfx_code`（m14-spec-009 起；`spec/DADAO-12 §3.6`）⇒ 链例 22 断言
-@@   它的 boot 保存值（0x3F = cfx_power）与 RW 可写性；原「rc1 保留 ⇒ CFXREG」故障例随之删除
+@@ cg5 rc1 = `prev cfx code`（入口记录，HW/RO；`spec/DADAO-12 §3.6`）⇒ 链例 22 断言
+@@   它的 boot 保存值（0x3F = cfx_power）；写 rc1 ⇒ CFXREG 由故障例 29 覆盖
 @@ 探针：被读寄存器取 Tiny 已实现的 cfx3(hmon)/cfx63(power) 的 cg3/cg5/cg7（`spec/Kaiwu §3`）；
 @@   期望值按 `spec/DADAO-12 §3.5/§3.8`、`§4.12` 与 `spec/Kaiwu §1.1` 的地址图内联
 @@ GAP（不计入链例，见任务书完成区）：cfx 共有寄存器 cg0–cg2、cg4（cfx_id/version/计数器/
-@@   scratch_regs_num）、cg5 rc5、cg6（暂存）、cg8 rc1（`cfx_<monitor>_async_intr_mask`，
+@@   scratch_regs_num）、cg5 rc3/rc4/rc5/rc8–rc11、cg6（暂存）、cg8 rc1（`cfx_<monitor>_async_intr_mask`，
 @@   ADR-0061 D5）在 chipyard RTL 与 IDL 模型上未实现 ⇒ 三平台不一致，待 chipyard /
 @@   `m18-idl-002` 补齐；cg0–cg3 rc4 已被 ADR-0061 D5 删除（保留 ⇒ CFXREG），不作链例
 
@@ -29,12 +29,12 @@
 	st.o	rb21, [rb20, 0xF8]
 
 	@@ ---- encoding（规范编码字直接执行，钉 mask/value 与字段位域）----
-	@@ 0x7A0C3285 = cfx3 / cg3 / rc10（hypv excp vector）/ rd5 ⇒ hmon SRAM 起始
-	.dd.t32	0x7A0C3285
+	@@ 0x7A0C33C5 = cfx3 / cg3 / rc15（hypv excp vector，原 rc10）/ rd5 ⇒ hmon SRAM 起始
+	.dd.t32	0x7A0C33C5
 	__CHECK_RD   1, rd5, HMON_BASE
 
-	@@ 0x7AFC3285 = cfx63（power）/ cg3 / rc10 / rd5 ⇒ BootROM 起始（复位向量）
-	.dd.t32	0x7AFC3285
+	@@ 0x7AFC33C5 = cfx63（power）/ cg3 / rc15 / rd5 ⇒ BootROM 起始（复位向量）
+	.dd.t32	0x7AFC33C5
 	__CHECK_RD   2, rd5, BOOTROM_BASE
 
 	@@ ---- semantic：hmon 的 cg3 行（hypv 四类同步 mask / switch_run_mode）----
@@ -42,13 +42,13 @@
 	__CHECK_RD   3, rd5, 0x7FFFFFFFFFFFFFF7      @@ hypv cfxtrap mask 复位值（DADAO-13 §1）
 	cfx2rd	cfx_power, cg3, rc0, rd5
 	__CHECK_RD   4, rd5, 0xFFFFFFFFFFFFFFF7      @@ power 的同一 mask 复位值
-	cfx2rd	cfx_hmon, cg3, rc8, rd5
+	cfx2rd	cfx_hmon, cg3, rc14, rd5
 	__CHECK_RD   5, rd5, 3                      @@ switch_run_mode：Tiny 恒 hypv，读回保存值 3
 
 	@@ ---- semantic：hmon 的异常帧（cg5）----
 	cfx2rd	cfx_hmon, cg5, rc0, rd5
 	__CHECK_RD   6, rd5, 3                      @@ excp_prev_run_mode = hypv（启动移交的 trap）
-	cfx2rd	cfx_hmon, cg5, rc2, rd5
+	cfx2rd	cfx_hmon, cg5, rc4, rd5
 	__CHECK_RD   7, rd5, 1                      @@ excp_cause_id = CFXTRAP（启动移交留下有效帧）
 
 	@@ ---- semantic：hmon 的 cg7 空间描述（`spec/DADAO-12 §3.8`）----
@@ -79,9 +79,9 @@
 
 	@@ ---- boundary：rd 字段边界 rd63（最大目的号）与 rd0（零寄存器，写被丢弃）----
 	set.rd	rd63, 0
-	cfx2rd	cfx_hmon, cg3, rc10, rd63
+	cfx2rd	cfx_hmon, cg3, rc15, rd63
 	__CHECK_RD  18, rd63, HMON_BASE
-	cfx2rd	cfx_hmon, cg3, rc10, rd0
+	cfx2rd	cfx_hmon, cg3, rc15, rd0
 	__CHECK_RD  19, rd0, 0
 
 	@@ ---- overlap：目的号与 cfxha 同号（rd3 / cfx3）不改变语义，且读是幂等的 ----
@@ -90,20 +90,13 @@
 	cfx2rd	cfx_hmon, cg7, rc2, rd3
 	__CHECK_RD  21, rd3, 0x10000
 
-	@@ ---- semantic：cg5 rc1 = `excp_prev_cfx_code`（m14-spec-009 起，`spec/DADAO-12 §3.6`：
-	@@   「异常前当前核芯功能扩展编号，硬件陷入时保存，软件可写」；不再是 reserved）----
-	@@ 期望 0x3F（= cfx_power 63）的独立 oracle：复位地址/复位 cfx = cfx_power
-	@@   （`spec/Kaiwu §1`：复位地址 `cfx_power_hypv_excp_vector`，cfxha 63 / power），
-	@@   boot 第 6 步 power 以 `trap cfx_hmon` 移交（`spec/Kaiwu §6.2`），`§5.2` 第 5 步
+	@@ ---- semantic：cg5 rc1 = `prev cfx code`（入口记录，只读；`spec/DADAO-12 §3.6`）----
+	@@ 期望 0x3F（= cfx_power 63）的独立 oracle：复位 cfx = cfx_power（`spec/Kaiwu §1`），
+	@@   boot 交接 power 以 `trap cfx_hmon` 移交（`spec/Kaiwu §6.2`），`§5.2` 第 4 步
 	@@   把当时的 `inner_cfx_code`（= 63）存进 hmon 帧 ⇒ rc1 = 63。
-	@@ 再验 RW：写哨兵 0x25 读回（`§3.6` 访问 = RW，软件可写）；该帧字段在下一次陷入时
-	@@   由硬件重新写入，故不影响后续用例/故障链。
+	@@ 写 rc1 ⇒ `CFXREG`（入口记录 HW/RO），该路径由故障例 29 覆盖。
 	cfx2rd	cfx_hmon, cg5, rc1, rd5
-	__VERIFY_RD 22, rd5, 0x3F
-	set.rd	rd5, 0x25
-	cfx2rc	cfx_hmon, cg5, rc1, rd5
-	cfx2rd	cfx_hmon, cg5, rc1, rd5
-	__CHECK_RD  22, rd5, 0x25
+	__CHECK_RD  22, rd5, 0x3F
 
 	__TEST_END
 
@@ -118,8 +111,8 @@
 	TEST_FAULT_ENC  27, CFXREG, 0x7A803285, rb12, TEST_DATA, rd11, 0
 
 	@@ 已实现 cfx 的未定义 rc（cg3 rc9 保留）⇒ CFXREG
-	@@   （原「cg5 rc1 保留」例已删除：m14-spec-009 起 rc1 = excp_prev_cfx_code，可读可写，
-	@@    该例在新 spec 下不再合法——见链例 23）
 	TEST_FAULT_ENC  28, CFXREG, 0x7A0C3245, rb12, TEST_DATA, rd11, 0
+	@@ cg5 rc1（入口记录 prev cfx code，HW/RO）：写 ⇒ CFXREG
+	TEST_FAULT_ENC  29, CFXREG, 0x7B0C5045, rb12, TEST_DATA, rd11, 0
 
 	__TEST_SECTIONS

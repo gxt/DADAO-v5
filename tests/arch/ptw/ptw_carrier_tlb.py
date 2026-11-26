@@ -245,8 +245,9 @@ PTBR_CG, PTBR_RC = 9, 0
 PTW_ENABLE_CG, PTW_ENABLE_RC = 8, 8
 TLB_CG = 12
 TLB_CONTROL_RC, TLB_ASID_RC, TLB_START_RC, TLB_SIZE_RC = 0, 1, 2, 3
-CAUSE_ID_RC, CAUSE_IP_RC, CAUSE_INFO_RC = 2, 3, 4
-EXCP_VECTOR_RC, SWITCH_MODE_RC = 10, 8
+CAUSE_ID_RC, CAUSE_IP_RC, CAUSE_INFO_RC = 4, 2, 5   # R3: rc4 id, rc2 prev ip, rc5 info
+RD_SCRATCH = 30    # 恢复序列的临时 rd（handler 未占）
+EXCP_VECTOR_RC, SWITCH_MODE_RC = 15, 14   # R3: 原 rc10/rc8
 
 # `cfx_ptw_tlb_control` (`TLB-19`): op[1:0], scope[3:2], bit4 = ASID_ANY
 OP_NONE, OP_CLEAN, OP_INVALID, OP_FLUSH = 0, 1, 2, 3
@@ -800,7 +801,10 @@ def fault_handler(chk, cls, sub, info=None, resume=True, post=None):
     if post:
         h.e(*post)
     if resume:
-        h.e(P.escape(monitor_cfx(), 1))  # [cause_ip, +4]
+        h.e(P.cfx2rd(monitor_cfx(), 5, 2, RD_SCRATCH))
+        h.e(P.add_si(RD_SCRATCH, 4))
+        h.e(P.cfx2rc(monitor_cfx(), 5, 10, RD_SCRATCH))
+        h.e(P.escape(monitor_cfx(), 0))  # R3: rc10 = prev ip + 4, imms18 = 0
     else:
         _fail_exit(chk, h, 0)           # verdict reached: restore, then pass
     return h.resolve()

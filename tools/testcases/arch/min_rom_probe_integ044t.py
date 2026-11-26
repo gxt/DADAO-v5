@@ -123,7 +123,14 @@ def st_o(rd, rb, off):      return (0x21 << 24) | (rd << 18) | (rb << 12) | (off
 def cfx2rd(ha, cg, rc, rd): return (0x7A << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 def cfx2rc(ha, cg, rc, rd): return (0x7B << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 def trap(ha, immu18):       return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
-def escape(ha, imms18):     return (0x7E << 24) | (ha << 18) | (imms18 & 0x3FFFF)
+def escape(ha):             return (0x7E << 24) | (ha << 18)   # imms18 = 0 (SBZ)
+def add_si(rd, imm):        return (0x59 << 24) | (rd << 18) | (imm & 0x3FFFF)
+
+
+def ret_seq(ha, off, scr=20):
+    """R3 return: cg5 rc10 = prev ip + off, then `escape cfxHA`."""
+    return [cfx2rd(ha, 5, 2, scr), add_si(scr, off), cfx2rc(ha, 5, 10, scr),
+            escape(ha)]
 def swym():                 return 0x47880000
 
 
@@ -246,8 +253,8 @@ CFX_REG = 1 << 2
 @case("init_masks", "four sync masks default hmon-only; interrupt masks all-1")
 def _init_masks():
     p = []
-    # read cfx0 user/hypv cfxtrap + cfx0 hypv cfxmem/cfxreg/cfxexe/cfx_intr
-    for rc, rd in ((0, 5), (1, 6), (2, 7), (3, 8), (4, 9)):
+    # read cfx0 hypv cfxtrap/cfxmem/cfxreg/cfxexe (rc4 是 reserved，不再读)
+    for rc, rd in ((0, 5), (1, 6), (2, 7), (3, 8)):
         p.append(cfx2rd(0, 3, rc, rd))
     p.append(cfx2rd(0, 0, 0, 10))          # cfx0 user cfxtrap (same default)
     p.append(cfx2rd(3, 3, 0, 11))          # hmon own cfxtrap = 0x7FFF...F7
@@ -255,7 +262,7 @@ def _init_masks():
     p += exit_seq(0x00)
     exp = {"exit": 0x00, "cfxcode": 3,
            "rd5": MASK_DEFAULT, "rd6": MASK_DEFAULT, "rd7": MASK_DEFAULT,
-           "rd8": MASK_DEFAULT, "rd9": ALL1, "rd10": MASK_DEFAULT,
+           "rd8": MASK_DEFAULT, "rd10": MASK_DEFAULT,
            "rd11": MASK_HMON, "rd12": ALL1}
     return build_rom(p, {}), exp
 
@@ -263,7 +270,7 @@ def _init_masks():
 @case("cfxmem_deny", "direct ld/st denied by cfxmem => CFXPERM at current monitor")
 def _cfxmem_deny():
     p = load_rd(20, 1 << 3) + [cfx2rc(32, 3, 1, 20)]   # pmem cfxmem bit3=1
-    p += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]        # hmon vector = H
+    p += load_rd(24, H) + [cfx2rc(3, 3, 15, 24)]        # hmon vector = H
     p += load_rb(3, PMEM_BASE)
     fault_idx = len(p)
     p += [ld_o(5, 3, 0)]
@@ -285,13 +292,14 @@ def _cfxmem_allow():
 @case("cfxreg_deny", "cfx2rd denied by cfxreg => CFXPERM")
 def _cfxreg_deny():
     p = load_rd(20, 1 << 3) + [cfx2rc(32, 3, 2, 20)]   # pmem cfxreg bit3=1
-    p += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]        # hmon vector = H
+    p += load_rd(24, H) + [cfx2rc(3, 3, 15, 24)]        # hmon vector = H
     fault_idx = len(p)
     p += [cfx2rd(32, 0, 0, 5)]
     p += exit_seq(0x7E)
-    info = (0x7A << 24) | (32 << 18) | (0 << 12) | (0 << 6) | 5
+    # DADAO-12 §3.6: CFXPERM 的 cfx2rd 拒绝 cause_info = 触发指令的地址
     exp = {"exit": 0x22, "cid:3": CFX_PERM, "syncn:3": 1,
-           "cinfo:3": info, "cip:3": ROM_BASE + fault_idx * 4}
+           "cinfo:3": ROM_BASE + fault_idx * 4,
+           "cip:3": ROM_BASE + fault_idx * 4}
     return build_rom(p, hand(0x100, 0x22)), exp
 
 
@@ -299,13 +307,13 @@ def _cfxreg_deny():
 def _cfxexe_deny():
     p = []
     # cfx0: allow hmon trap, switch to S, vector H and user vector H.
-    p += load_rd(20, 2) + [cfx2rc(0, 3, 8, 20)]
-    p += load_rd(20, H) + [cfx2rc(0, 3, 10, 20)]
-    p += load_rd(20, H) + [cfx2rc(0, 0, 10, 20)]
+    p += load_rd(20, 2) + [cfx2rc(0, 3, 14, 20)]
+    p += load_rd(20, H) + [cfx2rc(0, 3, 15, 20)]
+    p += load_rd(20, H) + [cfx2rc(0, 0, 15, 20)]
     # cfx63 (power) S-mode cfxexe: deny source cfx0, allow source cfx2.
     p += load_rd(20, (~(1 << 2)) & ALL1) + [cfx2rc(63, 2, 3, 20)]
     # smon (cfx2) S-mode vector = H2; body still runs in hmon H.
-    p += load_rd(20, ROM_BASE + 0x200) + [cfx2rc(2, 2, 10, 20)]
+    p += load_rd(20, ROM_BASE + 0x200) + [cfx2rc(2, 2, 15, 20)]
     fault_idx = len(p)
     p += [trap(0, 0)]                                  # hmon -> cfx0, mode S
     p += exit_seq(0x7E)
@@ -315,16 +323,16 @@ def _cfxexe_deny():
     return build_rom(p, handlers), exp
 
 
-@case("trap_intr_mask_restore", "trap saves+masks global_cfx_intr_mask; escape restores")
+@case("trap_intr_mask_restore", "R3: trap only snapshots cg8 rc1 into rc11; escape restores it")
 def _trap_intr_mask_restore():
     p = []
     p += load_rd(20, 0x1234) + [cfx2rc(3, 8, 1, 20)]  # hmon global mask = 0x1234
-    p += load_rd(20, H) + [cfx2rc(3, 3, 10, 20)]      # hmon H vector = H
+    p += load_rd(20, H) + [cfx2rc(3, 3, 15, 20)]      # hmon H vector = H
     p += [trap(3, 0)]                                 # self trap: save+mask
     p.append(cfx2rd(3, 8, 1, 7))                      # handler already read rd6
     p += exit_seq(0x00)
-    exp = {"exit": 0x00, "rd6": ALL1, "rd7": 0x1234, "trapn:3": 2, "escn:3": 1}
-    return build_rom(p, {0x100: [cfx2rd(3, 8, 1, 6), escape(3, 1)]}), exp
+    exp = {"exit": 0x00, "rd6": 0x1234, "rd7": 0x1234, "trapn:3": 2, "escn:3": 1}
+    return build_rom(p, {0x100: [cfx2rd(3, 8, 1, 6), *ret_seq(3, 4)]}), exp
 
 
 def run_case(name):

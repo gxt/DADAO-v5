@@ -288,7 +288,7 @@ def _semihost_cfxha_agnostic():
 def _general_trap_path():
     # Body runs in hmon (cfx3); cfx_umon's hypv cfxtrap default mask allows
     # source cfx3, so a general trap to cfx_umon enters its vector.
-    prog = load_rd(22, H) + [cfx2rc(0, 3, 10, 22)]
+    prog = load_rd(22, H) + [cfx2rc(0, 3, 15, 22)]
     prog += [trap(0, 0x0123)]        # tag miss
     prog += exit_seq(0x7E)           # only reached if the vector was NOT taken
     exp = {"exit": 0x02, "cid:0": CFXTRAP, "trapn:0": 1}

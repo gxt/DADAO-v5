@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """check_cfx15.py — `tests/arch/hart/cfx15.S` 的独立判据
-（`m16-chipyard-021` 起，`m16-chipyard-026` 改到 R2）。
+（`m16-chipyard-021` 起，`m18-testcases-004` 改到 R3）。
 
-R2（`spec/DADAO-12 §5.4`）：`cg9` 是**进入瞬间的捕获缓冲**，每次异步进入都
-整体覆盖，没有“帧活动期”/`frame_valid`；`escape` 的 `imms18[1] = 1` 不是异步
-返回（按所选帧无效 ⇒ 当前 cfx 的 `CFXESC`）。
+R3（`spec/DADAO-12 §3.6/§5.1/§5.3/§5.4`）：`cg9` rc0–rc5 是入口记录/捕获缓冲
+（每次进入整体覆盖，无 `frame_valid`）；`cg5 rc8`–`rc11` 是出口意图，异步返回与
+同步共用 `escape cfxHA`；`imms18` 必须为 0（非 0 ⇒ `ILLI`），升权/目标未实现/
+`cfxha` 不符 ⇒ 当前 cfx 的 `CFXESC`。
 
 期望值**现场**从真源派生，不从 RTL 观测值反推：
 
@@ -15,7 +16,7 @@ R2（`spec/DADAO-12 §5.4`）：`cg9` 是**进入瞬间的捕获缓冲**，每�
     “每次进入整体覆盖 / 无 `frame_valid`”：`spec/DADAO-12` §4.7 与 §5.4（二）(三)；
   * 来源掩码在 `cfx0`–`cfx3 cg8 rc1`、复位全 1、`0=允许/1=屏蔽`：
     `spec/DADAO-12` §4.1–§4.4 与 §5.4（一）；
-  * `escape` 的帧选择位 `imms18[1]`、合法编码集与“不用于异步返回 ⇒ `CFXESC`”：
+  * `escape` 的 `imms18` SBZ、`rc8`–`rc11` 出口意图与三类拒绝（升权/目标未实现/`cfxha` 不符）：
     `spec/DADAO-12` §5.1/§5.4（七）；
   * `CFXREG` / `ILLI` / `CFXESC` 位号：`contract-see` §6.1；
   * `cfx2rd`/`cfx2rc`/`escape` 编码：`contracts/opcodes.yaml`；
@@ -82,9 +83,9 @@ def facts(root):
 
     cfx = {}
     for ha, name in re.findall(
-            r"^\|\s*(\d+)\s*\|\s*(umon|jmon|smon|hmon)\s*\|", spec, re.M):
+            r"^\|\s*(\d+)\s*\|\s*(umon|jmon|smon|hmon|power)\s*\|", spec, re.M):
         cfx[name] = int(ha)
-    for need in ("umon", "smon", "hmon"):
+    for need in ("umon", "smon", "hmon", "power"):
         if need not in cfx:
             raise OracleError("spec §1: cfx %s not found" % need)
 
@@ -121,8 +122,8 @@ def facts(root):
         raise OracleError("contract-see mask bit %d != TIMER cfxha %d"
                           % (mask_bit, timer_ha))
 
-    # cg9 seven-slot table (spec §4.7, ADR-0061 D7).  Parsing the *spec* table
-    # keeps the row numbers/access modes single-sourced.
+    # cg9 table (spec §4.7, ADR-0061 R3): rc0-rc5 entry record (HW/RO),
+    # rc14/rc15 configuration (RW); rc6-rc13 reserved.
     rows = {}
     for rc, _name, regname, _init, access, note in re.findall(
             r"^\|\s*9\s*\|\s*(\d+)\s*\|\s*([^|]+?)\s*\|\s*"
@@ -130,13 +131,14 @@ def facts(root):
             spec, re.M):
         rows[regname] = (int(rc), access.strip(), note.strip())
     expect_rows = {
-        "cfx_hart_async_prev_run_mode": (0, "HW/RW"),
-        "cfx_hart_async_prev_cfx_code": (1, "HW/RW"),
-        "cfx_hart_async_cause_ip": (2, "HW/RW"),
-        "cfx_hart_async_src_frame": (3, "HW/RO"),
-        "cfx_hart_async_src_pending": (4, "HW/RO"),
-        "cfx_hart_async_excp_vector": (5, "RW"),
-        "cfx_hart_async_switch_run_mode": (6, "RW"),
+        "cfx_hart_async_prev_run_mode": (0, "HW/RO"),
+        "cfx_hart_async_prev_cfx_code": (1, "HW/RO"),
+        "cfx_hart_async_cause_ip": (2, "HW/RO"),
+        "cfx_hart_async_prev_intr_mask": (3, "HW/RO"),
+        "cfx_hart_async_src_frame": (4, "HW/RO"),
+        "cfx_hart_async_src_pending": (5, "HW/RO"),
+        "cfx_hart_async_switch_run_mode": (14, "RW"),
+        "cfx_hart_async_excp_vector": (15, "RW"),
     }
     for name, (rc, access) in expect_rows.items():
         if name not in rows or rows[name][0] != rc:
@@ -145,35 +147,51 @@ def facts(root):
             raise OracleError("spec §4.7: %s must be %s, is %s"
                               % (name, access, rows[name][1]))
     if len(rows) != len(expect_rows):
-        raise OracleError("spec §4.7: cg9 must have exactly 7 slots, parsed %d"
-                          % len(rows))
-    if not re.search(r"^\|\s*9\s*\|\s*7–15\s*\|\s*reserved", spec, re.M):
-        raise OracleError("spec §4.7: cg9 rc7-rc15 reserved row not found")
-    # Both bitmaps are HW-written, software-read-only, and a software write is
-    # ignored without an exception (`ADR-0061` D4).  `m18-spec-005` changed the
-    # §4.7 wording to "软件只读（写忽略）"; accept the old wording too so the
-    # oracle keeps working across that editorial change.
-    for name in ("cfx_hart_async_src_frame", "cfx_hart_async_src_pending"):
-        cell = rows[name][2]
-        if "软件写忽略" not in cell and "软件只读（写忽略）" not in cell:
+        raise OracleError("spec §4.7: cg9 must have %d defined slots, parsed %d"
+                          % (len(expect_rows), len(rows)))
+    if not re.search(r"^\|\s*9\s*\|\s*6–13\s*\|\s*reserved", spec, re.M):
+        raise OracleError("spec §4.7: cg9 rc6-rc13 reserved row not found")
+    # rc0-rc5 are written by hardware only; a software write is ignored without
+    # an exception (m18-spec-007 / ADR-0061 R3 D3).
+    for name, (_rc, _access, cell) in (
+            (n, v) for n, v in rows.items() if v[0] <= 5):
+        if "软件只读" not in cell and "软件写忽略" not in cell:
             raise OracleError(
-                "spec §4.7: %s must say '软件只读（写忽略）' or '软件写忽略'"
-                % name)
-    if not re.search(r"不产生异常|不计异常", spec):
+                "spec §4.7: %s must say '软件只读'/'软件写忽略'" % name)
+    if not re.search(r"不产生异常", spec):
         raise OracleError("spec §4.7: 'write ignored, no exception' not stated")
-    # `cg9 rc6` is RW with reset 2 (supv) and the entry takes the register
-    # value.  `m18-spec-006` rewrote the §4.7 cell from "固定 supv（2）" to
-    # "复位值 2（supv），异步进入取本寄存器当前值"; accept both so the oracle
-    # keeps working across that editorial change (same precedent as the bitmap
-    # wording above), and still fail when neither is stated.
     switch_cell = rows["cfx_hart_async_switch_run_mode"][2]
-    old_switch = "固定 supv（2）" in switch_cell
-    new_switch = ("复位值 2（supv）" in switch_cell
-                  and "异步进入取本寄存器当前值" in switch_cell)
-    if not old_switch and not new_switch:
-        raise OracleError(
-            "spec §4.7: rc6 must say '固定 supv（2）' or "
-            "'复位值 2（supv）' + '异步进入取本寄存器当前值'")
+    if "复位值 2（supv）" not in switch_cell:
+        raise OracleError("spec §4.7: rc14 must say '复位值 2（supv）'")
+    if "异步进入取本寄存器当前值" not in switch_cell:
+        raise OracleError("spec §4.7: rc14 must feed the async entry mode")
+
+    # cg5 entry record rc0-rc3 is HW/RO and a write is CFXREG; rc8-rc11 is the
+    # escape intent (HW/RW).
+    cg5 = {}
+    for rc, suffix, access in re.findall(
+            r"^\|\s*5\s*\|\s*(\d+)\s*\|[^|]*\|[^|]*excp_([a-z_]+)\s*\|"
+            r"[^|]*\|\s*([^|]*)\|",
+            spec, re.M):
+        cg5[suffix] = (int(rc), access.strip())
+    for rc, suffix in ((0, "prev_run_mode"), (1, "prev_cfx_code"),
+                       (2, "cause_ip"), (3, "prev_intr_mask")):
+        if cg5.get(suffix) != (rc, "HW/RO"):
+            raise OracleError("spec §3.6: excp_%s must be rc%d HW/RO"
+                              % (suffix, rc))
+    for rc, suffix in ((8, "escape_run_mode"), (9, "escape_cfx_code"),
+                       (10, "escape_ip"), (11, "escape_intr_mask")):
+        if cg5.get(suffix) != (rc, "HW/RW"):
+            raise OracleError("spec §3.6: excp_%s must be rc%d HW/RW"
+                              % (suffix, rc))
+    if not re.search(r"`rc11` 复位值.*全 1|全 1（fail-safe", spec):
+        raise OracleError("spec §3.6: rc11 reset all-ones not stated")
+    if not re.search(r"不得高于", spec):
+        raise OracleError("spec §5.1: no privilege-escalation rule")
+    if not re.search(r"整字", spec):
+        raise OracleError("spec §5.3: rc11 whole-word restore not stated")
+    if not re.search(r"异步进入只写 `cfx_hart cg9 rc0`–`rc4`", spec):
+        raise OracleError("spec §3.6: async write set not stated")
 
     # The async source mask row lives on cfx0-cfx3 (`cg8 rc1`, reset all ones).
     mask_rows = re.findall(
@@ -194,25 +212,13 @@ def facts(root):
     if not re.search(r"`rc4`\s*不定义（保留，访问触发 `CFXREG`）", spec):
         raise OracleError("spec §3: rc4 must be reserved (CFXREG)")
 
-    # `ADR-0061` D7 is the decision this probe implements (seven slots).  Read
-    # it so a missing/superseded ADR fails loudly instead of silently judging
-    # against a stale model.
-    if not re.search(r"精简为 7 槽|7 槽", adr):
-        raise OracleError("ADR-0061 D7: seven-slot cg9 decision not found")
-
-    # `escape` frame selector = imms18 bit1 (`ADR-0061` D9).
-    if not re.search(r"imms18`\s*bit1|imms18\[1\]", spec):
-        raise OracleError("spec: escape frame selector bit1 not found")
-    if not re.search(r"`imms18 = 3`", spec):
-        raise OracleError("spec: escape imms18 = 3 ILLI rule not found")
-    if not re.search(r"合法 `imms18` 集合为 \*\*`\{0, 1, 2\}`\*\*", spec):
-        raise OracleError("spec §5.1: legal imms18 set {0,1,2} not found")
-    if not re.search(r"合法值\s*(?:仍为\s*)?\*\*`\{0, 4, 8\}`\*\*", spec):
-        raise OracleError("spec §5.1: assembler imms20 set {0,4,8} not found")
-    # R2: cg9 is a capture buffer with no return role, and every entry
-    # overwrites it (no frame phase, no frame_valid).
-    if not re.search(r"不用于异步返回|不作为异步返回", spec):
-        raise OracleError("spec §5.1/§5.4: 'cg9 is not an async return' missing")
+    # ADR-0061 R3 is the decision this probe implements.
+    if not re.search(r"R3", adr):
+        raise OracleError("ADR-0061 R3 not found")
+    if not re.search(r"escape cfxHA", spec):
+        raise OracleError("spec: escape cfxHA form not found")
+    if not re.search(r"`imms18` 必须为 \*\*0\*\*", spec):
+        raise OracleError("spec §5.1: imms18 SBZ rule not found")
     if not re.search(r"每次异步进入都整体覆盖|每次进入整体覆盖", spec):
         raise OracleError("spec §4.7/§5.4: 'every entry overwrites cg9' missing")
     if not re.search(r"没有“帧活动期”|没有\"帧活动期\"", spec):
@@ -278,6 +284,8 @@ def expected(root, mode, syms):
     illi = 1 << f["cause"]["ILLI"]
     M = f["modes"]
     C = f["cfx"]
+    HMON_RESET = 0x7FFFFFFFFFFFFFF7    # spec §3.1-§3.4: hmon's own mask
+    ALL1 = 0xFFFFFFFFFFFFFFFF
 
     rd = lambda ha_, cg, rc, dst: encode(
         parse_opcode(root, "cfx2rd_crrr_cfx"),
@@ -291,118 +299,155 @@ def expected(root, mode, syms):
             raise OracleError("ELF symbol %s not found" % name)
         return syms[name]
 
-    def same(slot):
-        return ("slot", slot)
-
     vec = sym("async_entry") & ~0x3
     rearm_fb = sym("rearm_fallback") & ~0x3
     pend_fb = sym("pending_fallback") & ~0x3
-    esc2 = encode(parse_opcode(root, "escape_ciii_cfx"), cfxcode=ha, imm=2)
 
-    def handler(base, prev_mode, prev_cfx, wait_label):
-        """Slots recorded from the first async entry onwards (see cfx15.S)."""
+    def async_loop(prev_mode, prev_cfx, wait_label, phase2_mode, phase2_cfx):
+        """Slots from the first async entry through the jump precise point."""
         return [
             ("async prev_run_mode", prev_mode),
             ("async prev_cfx_code", prev_cfx),
-            ("async cause_ip = delivery boundary", wait_label),
+            ("async prev ip = delivery boundary", wait_label),
+            ("async prev intr mask = current-mode mask", MASK_PATTERN),
             ("async src_frame = TIMER source bit", src_bit),
             ("async src_pending after delivery = 0", 0),
-            ("async vector read = cfx_hart cg9 rc5", vec),
-            ("async switch read = cg9 rc6 (2)", 2),
+            ("async switch read = cg9 rc14 (2)", 2),
+            ("async vector read = cg9 rc15", vec),
             ("cfx_hart excp_async_num = 1 frame", 1),
-            ("escape imms18=2: cg5 cause = CFXESC", cfxesc),
-            ("escape imms18=2: cg5 cause_info = escape encoding", esc2),
-            ("escape imms18=2: cg5 prev_run_mode (supv)", M["supv"]),
-            ("escape imms18=2: cg5 prev_cfx_code (cfx_hart)", ha),
-            ("escape imms18=2: cg9 prev_run_mode unchanged", same(base + 0)),
-            ("escape imms18=2: cg9 prev_cfx unchanged", same(base + 1)),
-            ("escape imms18=2: cg9 cause_ip unchanged", same(base + 2)),
-            ("escape imms18=2: cg9 src_frame unchanged", same(base + 3)),
-            ("overwrite: prev_run_mode (supv)", M["supv"]),
-            ("overwrite: prev_cfx_code (cfx_hart)", ha),
-            ("overwrite: cause_ip = rearm boundary", rearm_fb),
-            ("overwrite: src_frame = TIMER source bit", src_bit),
+            ("escape rc11 whole word: target monitor mask = ESC_RC11_PATTERN", 0x0123456789ABCDEF),
+            ("escape_num = 1 after the async escape", 1),
+            ("masked (all ones): pending = source bit", src_bit),
+            ("masked: src_frame kept", src_bit),
+            ("overwrite: prev_run_mode", phase2_mode),
+            ("overwrite: prev_cfx_code", phase2_cfx),
+            ("overwrite: prev ip = rearm boundary", rearm_fb),
+            ("overwrite: prev intr mask", MASK_PATTERN),
+            ("overwrite: src_frame = source bit", src_bit),
             ("overwrite: src_pending after delivery = 0", 0),
             ("overwrite: excp_async_num = 2 entries", 2),
             ("masked (supv): pending = source bit", src_bit),
             ("masked (supv): src_frame kept", src_bit),
             ("ack (timer_cmp rewrite): pending = 0", 0),
             ("re-armed while masked: pending = source bit", src_bit),
-            ("unmasked delivery: prev_run_mode = supv", M["supv"]),
-            ("unmasked delivery: cause_ip = unmask boundary", pend_fb),
-            ("unmasked delivery: src_frame = source bit", src_bit),
-            ("unmasked delivery: pending = 0", 0),
-            ("unmasked delivery: excp_async_num = 3 entries", 3),
+            ("third entry: prev_run_mode = supv", M["supv"]),
+            ("third entry: prev ip = unmask boundary", pend_fb),
+            ("third entry: prev intr mask", MASK_PATTERN),
+            ("third entry: src_frame = source bit", src_bit),
+            ("third entry: excp_async_num = 3 entries", 3),
             ("final ack: pending = 0", 0),
-            # m16-testcases-013: jump-target precise point (SimRISC-06 jump).
-            ("jump target: cause_ip = jump target", sym("jump_target")),
+            ("jump target: prev ip = jump target", sym("jump_target")),
             ("jump target: prev_run_mode = supv", M["supv"]),
             ("jump target: prev_cfx_code = cfx_hart", ha),
+            ("jump target: prev intr mask", MASK_PATTERN),
             ("jump target: src_frame = source bit", src_bit),
-            ("jump target: pending = 0", 0),
             ("jump target: converged", 1),
+        ]
+
+    def esc_criteria(info1, info3):
+        return [
+            ("CFXESC escalation: cause", cfxesc),
+            ("CFXESC escalation: info = escape cfx_hart", info1),
+            ("CFXESC escalation: prev ip", sym("esc_bad1")),
+            ("CFXESC escalation: entry prev mode = supv", M["supv"]),
+            ("CFXESC escalation: entry prev cfx = cfx_hart", ha),
+            ("CFXESC escalation: monitor mask unchanged", MASK_PATTERN),
+            ("CFXESC unimplemented target: cause", cfxesc),
+            ("CFXESC unimplemented target: info = escape cfx_hart", info1),
+            ("CFXESC unimplemented target: prev ip", sym("esc_bad2")),
+            ("CFXESC unimplemented target: entry prev mode = supv", M["supv"]),
+            ("CFXESC unimplemented target: entry prev cfx = cfx_hart", ha),
+            ("CFXESC unimplemented target: monitor mask unchanged", MASK_PATTERN),
+            ("CFXESC wrong cfxha: cause", cfxesc),
+            ("CFXESC wrong cfxha: info = escape cfx_smon", info3),
+            ("CFXESC wrong cfxha: prev ip", sym("esc_bad3")),
+            ("CFXESC wrong cfxha: entry prev mode = supv", M["supv"]),
+            ("CFXESC wrong cfxha: entry prev cfx = cfx_hart", ha),
+            ("CFXESC wrong cfxha: monitor mask unchanged", MASK_PATTERN),
         ]
 
     if mode == M["hypv"]:
         head = [
+            ("sync trap: prev_run_mode = hypv", M["hypv"]),
+            ("sync trap: prev_cfx_code = cfx_hmon", C["hmon"]),
+            ("sync trap: prev ip = trap address", sym("h_trap")),
+            ("sync trap: prev intr mask = hmon cg8 rc1 reset", ALL1),
+            ("sync trap: cause id = CFXTRAP", 1 << f["cause"]["CFXTRAP"]),
+            ("sync trap: cause info = trap encoding", 0x7F0C0000),
+            ("sync trap: escape run mode = hypv", M["hypv"]),
+            ("sync trap: escape cfx code = cfx_hmon", C["hmon"]),
+            ("sync trap: escape ip = trap address", sym("h_trap")),
+            ("sync trap: escape intr mask = hmon cg8 rc1 reset", ALL1),
             ("hart_id", 0),
             ("cycle #1", (">", 0)),
-            ("cycle #2 > #1", (">slot", 1)),
+            ("cycle #2 > #1", (">slot", 11)),
             ("insn #1", (">", 0)),
-            ("insn #2 > #1", (">slot", 3)),
+            ("insn #2 > #1", (">slot", 13)),
             ("timer_cmp RW", PATTERN64),
             ("timer_ctrl <- 0", 0),
             ("timer_ctrl <- 1", 1),
             ("timer_ctrl <- 2", 2),
             ("timer_ctrl <- 3", 3),
             ("timer_ctrl <- 4 (bit2 RO, bits1:0 = 0)", 0),
-            ("cg9 prev_run_mode <- all ones (2b)", 3),
-            ("cg9 prev_cfx_code <- all ones (6b)", 63),
-            ("cg9 cause_ip <- all ones (48b, low2=0)", 0xFFFFFFFFFFFF & ~0x3),
-            ("cg9 src_frame write ignored (HW/RO)", 0),
-            ("cg9 src_pending write ignored (HW/RO)", 0),
-            ("cg9 vector <- all ones (48b, low2=0)", 0xFFFFFFFFFFFF & ~0x3),
-            ("cg9 rc6 reset = 2 (supv)", 2),
-            ("cg9 rc6 <- 0 reads 0", 0),
-            ("cg9 rc6 <- 1 reads 1", 1),
-            ("cg9 rc6 <- 3 reads 3", 3),
-            ("cg9 rc6 restore 2 reads 2", 2),
+            ("cg9 rc0 prev_run_mode reset", 0),
+            ("cg9 rc1 prev_cfx_code reset", 0),
+            ("cg9 rc2 prev ip reset", 0),
+            ("cg9 rc3 prev intr mask reset", 0),
+            ("cg9 rc4 src_frame reset", 0),
+            ("cg9 rc5 src_pending reset", 0),
+            ("cg9 rc0 write ignored (HW/RO)", 0),
+            ("cg9 rc4 write ignored (HW/RO)", 0),
+            ("cg9 rc15 vector <- all ones (48b, low2=0)", 0xFFFFFFFFFFFF & ~0x3),
+            ("cg9 rc14 reset = 2 (supv)", 2),
+            ("cg9 rc14 <- 0 reads 0", 0),
+            ("cg9 rc14 <- 1 reads 1", 1),
+            ("cg9 rc14 <- 3 reads 3", 3),
+            ("cg9 rc14 restore 2 reads 2", 2),
+            ("CFXREG: read cg9 rc6 (cause)", cfxreg),
+            ("CFXREG: read cg9 rc6 (info)", rd(ha, 9, 6, 5)),
+            ("CFXREG: read cg9 rc6 witness", 0xC0DE0013),
             ("CFXREG: read cg9 rc7 (cause)", cfxreg),
             ("CFXREG: read cg9 rc7 (info)", rd(ha, 9, 7, 5)),
-            ("CFXREG: read cg9 rc7 witness", 0xC0DE0013),
+            ("CFXREG: read cg9 rc7 witness", 0xC0DE0014),
             ("CFXREG: read cg9 rc8 (cause)", cfxreg),
             ("CFXREG: read cg9 rc8 (info)", rd(ha, 9, 8, 5)),
-            ("CFXREG: read cg9 rc8 witness", 0xC0DE0018),
-            ("CFXREG: read cg9 rc15 (cause)", cfxreg),
-            ("CFXREG: read cg9 rc15 (info)", rd(ha, 9, 15, 5)),
-            ("CFXREG: read cg9 rc15 witness", 0xC0DE0019),
+            ("CFXREG: read cg9 rc8 witness", 0xC0DE0015),
+            ("CFXREG: read cg9 rc13 (cause)", cfxreg),
+            ("CFXREG: read cg9 rc13 (info)", rd(ha, 9, 13, 5)),
+            ("CFXREG: read cg9 rc13 witness", 0xC0DE0016),
             ("CFXREG: write cg8 rc0 RO (cause)", cfxreg),
             ("CFXREG: write cg8 rc0 RO (info)", rc_(ha, 8, 0, 6)),
-            ("CFXREG: write cg8 rc0 witness", 0xC0DE0014),
+            ("CFXREG: write cg8 rc0 witness", 0xC0DE0017),
+            ("CFXREG: write cg5 rc0 entry record (cause)", cfxreg),
+            ("CFXREG: write cg5 rc0 entry record (info)", rc_(ha, 5, 0, 6)),
+            ("CFXREG: write cg5 rc0 witness", 0xC0DE0018),
             ("CFXREG: read cg8 rc1 reserved (cause)", cfxreg),
             ("CFXREG: read cg8 rc1 reserved (info)", rd(ha, 8, 1, 5)),
-            ("CFXREG: read cg8 rc1 reserved witness", 0xC0DE0015),
+            ("CFXREG: read cg8 rc1 reserved witness", 0xC0DE0019),
             ("ILLI: escape imms18=3 (cause)", illi),
             ("ILLI: escape imms18=3 (info)",
              (0x7E << 24) | ((ha & 0x3F) << 18) | 3),
-            ("ILLI: escape imms18=3 witness", 0xC0DE0016),
+            ("ILLI: escape imms18=3 witness", 0xC0DE001A),
             ("ILLI: escape imms18=4 (cause)", illi),
             ("ILLI: escape imms18=4 (info)",
              (0x7E << 24) | ((ha & 0x3F) << 18) | 4),
-            ("ILLI: escape imms18=4 witness", 0xC0DE0017),
-            ("hmon cg8 rc1 async mask reset", 0xFFFFFFFFFFFFFFFF),
+            ("ILLI: escape imms18=4 witness", 0xC0DE001B),
+            ("hmon cg8 rc1 async mask reset", ALL1),
             ("masked timer pending = source bit", src_bit),
             ("masked timer src_frame = capture buffer (0)", 0),
         ]
-        rc6_mode = [
-            ("async rc6=0: entry reads rc6 = 0", 0),
-            ("async rc6=0: prev_run_mode = supv", M["supv"]),
-            ("async rc6=2 from user: prev_run_mode = user", M["user"]),
-            ("async rc6=2 from user: entry reads rc6 = 2", 2),
-            ("async rc6=2: prev_run_mode = supv", M["supv"]),
+        rc14_mode = [
+            ("async rc14=0: entry reads rc14 = 0", 0),
+            ("async rc14=0: prev_run_mode = supv", M["supv"]),
+            ("async rc14=2 from user: prev_run_mode = user", M["user"]),
+            ("async rc14=2 from user: entry reads rc14 = 2", 2),
+            ("async rc14=2: prev_run_mode = supv", M["supv"]),
         ]
-        return head + handler(46, M["hypv"], C["hmon"],
-                              sym("wait_begin")) + rc6_mode
+        info1 = (0x7E << 24) | ((ha & 0x3F) << 18)          # escape cfx_hart
+        info3 = (0x7E << 24) | ((C["smon"] & 0x3F) << 18)   # escape cfx_smon
+        return (head + async_loop(M["hypv"], C["hmon"], sym("wait_begin"),
+                                  M["supv"], ha)
+                + rc14_mode + esc_criteria(info1, info3))
 
     prev_mode = M["user"] if mode == M["user"] else M["supv"]
     prev_cfx = C["umon"] if mode == M["user"] else C["smon"]
@@ -410,7 +455,8 @@ def expected(root, mode, syms):
         ("masked timer pending = source bit", src_bit),
         ("masked timer src_frame = capture buffer (0)", 0),
     ]
-    return head + handler(2, prev_mode, prev_cfx, sym("umode_wait_begin"))
+    return head + async_loop(prev_mode, prev_cfx, sym("umode_wait_begin"),
+                             prev_mode, prev_cfx)
 
 
 def unpack(data):
@@ -542,7 +588,8 @@ def main():
         else:
             syms = {n: 0x1000 + 8 * i for i, n in enumerate(
                 ("wait_begin", "umode_wait_begin", "rearm_fallback",
-                 "pending_fallback", "async_entry", "jump_target"))}
+                 "pending_fallback", "async_entry", "jump_target",
+                 "h_trap", "esc_bad1", "esc_bad2", "esc_bad3"))}
         exp = expected(args.root, args.mode, syms)
         if args.expected:
             for i, (name, v) in enumerate(exp):

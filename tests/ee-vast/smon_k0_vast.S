@@ -18,9 +18,9 @@
 @@   4. read the PTE back through the DMA, invalidate the TLB, set PTBR = 0 and
 @@      ptw_enable = 1, then read both back;
 @@   5. load rb16 = kernel_base (VA), rb17 = boot info VA, rb3 = 0;
-@@   6. write cfx_smon.excp_prev_run_mode = supv and
-@@      cfx_smon.excp_cause_ip = kernel_base, then
-@@      `escape cfx_smon, [excp_cause_ip, 0]` — the only entry jump.
+@@   6. write cfx_smon's escape intent rc8-rc11 = (supv, smon, kernel_base,
+@@      all-ones fail-safe mask), then `escape cfx_smon` — the only entry jump
+@@      (DADAO-23 §3: rc10 = rb16, no +0 offset any more).
 @@
 @@ Why DMA: with `ptw_enable = 0` every access to the memory window
 @@ (`addr[47:42] = 0`) is CFXMEM, so PA memory (boot info, page table target)
@@ -97,11 +97,11 @@ _start:
 	set.rb rb1, SMON_BASE + 0x0ff0	@@ smon rbsp (SYS_EXIT block)
 
 	@@ --- 1. trap cause / boot magic (CFXTRAP = 1<<0, magic 0x30001) ---
-	cfx2rd	cfx_smon, cg5, rc2, rd6
+	cfx2rd	cfx_smon, cg5, rc4, rd6		@@ excp_cause_id（新布局 rc4）
 	set.rd	rd7, 0x1
 	cmp.uo	rd2, rd6, rd7
 	br.nz	{rd2}?, [rb0, smon_exit_b8]
-	cfx2rd	cfx_smon, cg5, rc4, rd6
+	cfx2rd	cfx_smon, cg5, rc5, rd6		@@ excp_cause_info（新布局 rc5）
 	set.rd	rd7, 0x3ffff
 	and.o	rd6, rd6, rd7
 	set.rd	rd7, 0x30001
@@ -299,12 +299,16 @@ smon_clear:
 	set.rb rb17, BOOT_INFO_VA		@@ rb17 = boot info VA
 	set.zw	rb3, wp0, 0			@@ rb3 (rbtp) = 0
 
-	@@ --- 7. cfx_smon exception frame: return into supv at the entry VA ---
+	@@ --- 7. cfx_smon escape intent (DADAO-23 §3): supv / smon / entry VA / all 1 ---
 	set.rd	rd9, 0x2			@@ supv
-	cfx2rc	cfx_smon, cg5, rc0, rd9		@@ excp_prev_run_mode
+	cfx2rc	cfx_smon, cg5, rc8, rd9		@@ escape run mode
+	set.rd	rd9, 0x2			@@ cfx_smon
+	cfx2rc	cfx_smon, cg5, rc9, rd9		@@ escape cfx code
 	rb2rd	rd20, rb7, 1
-	cfx2rc	cfx_smon, cg5, rc3, rd20	@@ excp_cause_ip = entry VA
-	escape	cfx_smon, [excp_cause_ip, 0]	@@ the only entry jump
+	cfx2rc	cfx_smon, cg5, rc10, rd20	@@ escape ip = entry VA
+	set.rd	rd9, 0xFFFFFFFFFFFFFFFF
+	cfx2rc	cfx_smon, cg5, rc11, rd9	@@ escape intr mask = 全 1（fail-safe）
+	escape	cfx_smon			@@ the only entry jump
 	swym	0
 	jump	[rb0, smon_exit_b8]		@@ unreachable: escape never returns
 

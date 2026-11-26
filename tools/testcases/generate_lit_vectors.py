@@ -189,9 +189,10 @@ def _build_positive(rec):
 
     if fmt == "ciii":
         if mn == "escape":
-            # 合法偏移只有 0 / 4（imms18 ∈ {0, 1}）；取 4 ⇒ imms18 = 1。
-            return ("escape cfx63, [excp_cause_ip, 4]",
-                    {"cfxha": 63, "imms18": 4 >> 2}, "ciii-escape")
+            # DADAO-12 §5.1 / ADR-0061 R3：唯一操作数是 cfxHA，imms18 是
+            # SBZ（编码恒 0）；返回地址取自当前 cfx 的 cg5 rc10。
+            return ("escape cfx63",
+                    {"cfxha": 63, "imms18": 0}, "ciii-escape")
         if mn == "fence":
             # ADR-0044 D3: hb=immu18[17:12]=0; pred=1 (cr), succ=0 => immu18=0x40.
             return ("fence cfx63, 64",

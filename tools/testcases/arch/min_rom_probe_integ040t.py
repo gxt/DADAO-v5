@@ -97,7 +97,7 @@ PTW_ENABLE_CG, PTW_ENABLE_RC = 8, 8
 PTBR_CG, PTBR_RC = 9, 0
 TLB_CG = 12
 TLB_CONTROL_RC, TLB_ASID_RC, TLB_START_RC, TLB_SIZE_RC = 0, 1, 2, 3
-CAUSE_ID_RC, CAUSE_INFO_RC, CAUSE_IP_RC = 2, 4, 3
+CAUSE_ID_RC, CAUSE_INFO_RC, CAUSE_IP_RC = 4, 5, 2   # R3: rc4 id, rc5 info, rc2 prev ip
 SWITCH_MODE_RC, EXCP_VECTOR_RC = 8, 10
 
 # Page-table physical layout (TESTCASES-093t §3 category C, D3).
@@ -214,7 +214,14 @@ def jump_iiii(imms24):       return (0x70 << 24) | (imms24 & 0xFFFFFF)
 def cfx2rd(ha, cg, rc, rd):  return (0x7A << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 def cfx2rc(ha, cg, rc, rd):  return (0x7B << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 def trap(ha, immu18):        return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
-def escape(ha, imms18):      return (0x7E << 24) | (ha << 18) | (imms18 & 0x3FFFF)
+def escape(ha):              return (0x7E << 24) | (ha << 18)   # imms18 = 0 (SBZ)
+def add_si(rd, imm):         return (0x59 << 24) | (rd << 18) | (imm & 0x3FFFF)
+
+
+def ret_seq(ha, off, scr=20):
+    """R3 return: cg5 rc10 = prev ip + off, then `escape cfxHA`."""
+    return [cfx2rd(ha, 5, 2, scr), add_si(scr, off), cfx2rc(ha, 5, 10, scr),
+            escape(ha)]
 def swym():                  return 0x47880000
 
 
@@ -475,7 +482,7 @@ def monitor_words(cfxha, skip, reptw=False):
     words += [cfx2rd(cfxha, 5, CAUSE_ID_RC, 10),
               cfx2rd(cfxha, 5, CAUSE_INFO_RC, 11),
               cfx2rd(cfxha, 5, CAUSE_IP_RC, 12)]
-    return words + ([escape(cfxha, 1)] if skip else exit_seq(EXIT_PASS))
+    return words + (ret_seq(cfxha, 4) if skip else exit_seq(EXIT_PASS))
 
 
 def monitor_handler_dict(skip, reptw=False):
@@ -491,13 +498,13 @@ HMON_EXIT_WORDS = ([cfx2rd(3, 5, CAUSE_ID_RC, 10),
 
 HMON_SKIP_WORDS = ([cfx2rd(3, 5, CAUSE_ID_RC, 10),
                     cfx2rd(3, 5, CAUSE_INFO_RC, 11),
-                    cfx2rd(3, 5, CAUSE_IP_RC, 12),
-                    escape(3, 1)])
+                    cfx2rd(3, 5, CAUSE_IP_RC, 12)]
+                   + ret_seq(3, 4))
 
 
 def mode_handler(target_ha, rd=5):
     """S/J/U handler body: do the access, escape back to the trap PC+4."""
-    return ([ld_o(rd, 3, 0)] + [escape(target_ha, 1)])
+    return ([ld_o(rd, 3, 0)] + ret_seq(target_ha, 4))
 
 
 def fault_at(p):

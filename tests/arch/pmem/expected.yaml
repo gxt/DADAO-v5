@@ -17,7 +17,7 @@
 #   * `PMEM_DMA` 源 = 源 cfxha 32、mask = 当前模式 monitor `cg8 rc1`、
 #     `cfx_hart cg9` 捕获缓冲 / 每次进入整体覆盖 / 同界多源一次进入：
 #     `§4.7`、`§5.4`、`ADR-0061`、`contract-see §3`；
-#   * `escape imms18 = 2` ⇒ 当前 cfx 的 `CFXESC`（不是异步返回）：`§5.1`；
+#   * `escape cfxHA`：`imms18` 必须 0（非 0 ⇒ `ILLI`）；异步返回按 `cg5 rc8`–`rc11`：`§5.1/§5.3`；
 #   * 同步 cause 位号：`contract-see §6.1`。
 #
 # 寄存器面（`cg8 pmem_exist` / `cg12/13/14`）不在本 case：三承载都已在
@@ -30,11 +30,11 @@ cases:
     checks:
       - label: pmem-dma-hmon
         note: >-
-          hmon/hypv 55 槽：DMA 8 B/3 B 搬运、DONE/ERROR+ERR_CODE、一致性
+          hmon/hypv 48 槽：DMA 8 B/3 B 搬运、DONE/ERROR+ERR_CODE、一致性
           clean/invalidate（A）、ILLI 非法 escape、屏蔽→pending、捕获
-          （src_frame=1<<32）、escape imms18=2 ⇒ CFXESC、同界 TIMER+DMA
+          （src_frame=1<<32）、正常异步 escape（rc11 整字）、同界 TIMER+DMA
           一次进入（位图并集/计数 +1）、W1C 后 pending 落、覆盖语义
-        signature: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        signature: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 
   - id: arch-pmem-002
     carrier: arch/pmem/check_pmem_dma.py

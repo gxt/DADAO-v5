@@ -123,7 +123,14 @@ def st_o(rd, rb, off):      return (0x21 << 24) | (rd << 18) | (rb << 12) | (off
 def cfx2rd(ha, cg, rc, rd): return (0x7A << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 def cfx2rc(ha, cg, rc, rd): return (0x7B << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 def trap(ha, immu18):       return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
-def escape(ha, imms18):     return (0x7E << 24) | (ha << 18) | (imms18 & 0x3FFFF)
+def escape(ha):             return (0x7E << 24) | (ha << 18)   # imms18 = 0 (SBZ)
+def add_si(rd, imm):        return (0x59 << 24) | (rd << 18) | (imm & 0x3FFFF)
+
+
+def ret_seq(ha, off, scr=20):
+    """R3 return: cg5 rc10 = prev ip + off, then `escape cfxHA` (no +N offset)."""
+    return [cfx2rd(ha, 5, 2, scr), add_si(scr, off), cfx2rc(ha, 5, 10, scr),
+            escape(ha)]
 def swym():                 return 0x47880000
 
 
@@ -225,7 +232,7 @@ def base_setup_cfx63(switch_mode=None):
     ins = []
     if switch_mode is not None:
         ins += load_rd(21, switch_mode)
-        ins += [cfx2rc(63, 3, 8, 21)]        # cfx63 hypv switch_run_mode = X
+        ins += [cfx2rc(63, 3, 14, 21)]        # cfx63 hypv switch_run_mode = X
     return ins
 
 
@@ -236,7 +243,7 @@ def hand(off, code):
 # -- acc 2/5/7: four run modes ---------------------------------------------
 def _run_mode_case(sm):
     prog = base_setup_cfx63(switch_mode=sm)
-    prog += load_rd(22, H) + [cfx2rc(63, 3, 10, 22)]   # cfx63 hypv vector = H
+    prog += load_rd(22, H) + [cfx2rc(63, 3, 15, 22)]   # cfx63 hypv vector = H
     trap_idx = len(prog)
     prog += [trap(63, 0)]
     prog += exit_seq(0x7E)
@@ -299,7 +306,7 @@ def _cfx_rw_share():
 @case("trap_counters", "trap_num increment + cause_ip/id/info frame")
 def _trap_counters():
     prog = base_setup_cfx63()
-    prog += load_rd(22, H) + [cfx2rc(63, 3, 10, 22)]
+    prog += load_rd(22, H) + [cfx2rc(63, 3, 15, 22)]
     trap_idx = len(prog)
     prog += [trap(63, 0x0123)]
     prog += exit_seq(0x7E)
@@ -314,7 +321,7 @@ def _trap_counters():
 @case("escape_return", "escape -> cause_ip+4, escape_num++, prev mode restore")
 def _escape_return():
     prog = base_setup_cfx63()
-    prog += load_rd(22, H) + [cfx2rc(63, 3, 10, 22)]
+    prog += load_rd(22, H) + [cfx2rc(63, 3, 15, 22)]
     trap_idx = len(prog)
     prog += [trap(63, 0)]
     # after escape returns to trap+4:
@@ -323,7 +330,7 @@ def _escape_return():
     exp = {"exit": 0x00, "mode": HYPV, "rd9": 1, "escn:63": 1,
            "trapn:63": 1, "cip:63": ROM_BASE + trap_idx * 4}
     # handler: escape cfx63, imms18=1 (byte offset 4)
-    return build_rom(prog, {0x100: [escape(63, 1)]}), exp
+    return build_rom(prog, {0x100: [*ret_seq(63, 4)]}), exp
 
 
 # -- acc 4: instruction-type mask -> ILLI redirect --------------------------
@@ -331,7 +338,7 @@ def _escape_return():
 def _mask_illi():
     prog = []
     prog += load_rd(23, 1 << 3) + [cfx2rc(0, 3, 0, 23)]  # cfx_umon hypv cfxtrap bit3=1
-    prog += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]      # cfx_hmon hypv vector = H
+    prog += load_rd(24, H) + [cfx2rc(3, 3, 15, 24)]      # cfx_hmon hypv vector = H
     trap_idx = len(prog)
     prog += [trap(0, 0)]
     prog += exit_seq(0x7E)
@@ -343,7 +350,7 @@ def _mask_illi():
 # -- acc 6: reserved cfxha -> ILLI ------------------------------------------
 @case("reserved_illi", "reserved cfxha (6-14,16-31,35-61) => ILLI")
 def _reserved_illi():
-    prog = load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]
+    prog = load_rd(24, H) + [cfx2rc(3, 3, 15, 24)]
     trap_idx = len(prog)
     prog += [trap(7, 0)]
     prog += exit_seq(0x7E)
@@ -353,10 +360,10 @@ def _reserved_illi():
 
 
 # -- acc 6: unimplemented cfx -> CFXREG -------------------------------------
-@case("cfxreg_unimpl", "unimplemented cfx (cfx5, unallocated) access => CFXREG")
+@case("cfxreg_unimpl", "unimplemented cfx (cfx33 llc, unallocated) access => CFXREG")
 def _cfxreg_unimpl():
-    prog = load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]
-    prog += [cfx2rd(5, 0, 0, 5)]
+    prog = load_rd(24, H) + [cfx2rc(3, 3, 15, 24)]
+    prog += [cfx2rd(33, 0, 0, 5)]
     prog += exit_seq(0x7E)
     exp = {"exit": 0x14, "cid:3": CFXREG, "syncn:3": 1}
     return build_rom(prog, hand(0x100, 0x14)), exp
@@ -367,26 +374,26 @@ def _cfxreg_unimpl():
       "invalid or reserved cfx register combos (scratch rc>=N; cg0-3 rc9/rc11; "
       "cg5 rc1/rc63) => CFXREG")
 def _cfxreg_badcombo():
-    prog = load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]   # cfx_hmon hypv vector = H
+    prog = load_rd(24, H) + [cfx2rc(3, 3, 15, 24)]   # cfx_hmon hypv vector = H
     prog += load_rd(25, 0)                           # write source value
     prog += [cfx2rd(0, 6, 5, 5)]                     # cfx0 scratch rc5 >= N(4)
     prog += [cfx2rd(0, 3, 9, 5)]                     # reserved hypv rc9 (read)
     prog += [cfx2rd(0, 3, 11, 5)]                    # reserved hypv rc11 (read)
-    prog += [cfx2rd(3, 5, 1, 5)]                     # reserved cg5 rc1 (read)
+    prog += [cfx2rd(3, 5, 6, 5)]                     # reserved cg5 rc6 (read)
     prog += [cfx2rd(3, 5, 63, 5)]                    # reserved cg5 rc63 (read)
     prog += [cfx2rc(0, 3, 9, 25)]                    # reserved hypv rc9 (write)
     prog += exit_seq(0x00)                           # only reached via escape
     # DADAO-12 §5.2: CFXREG goes to the current-mode monitor (hypv => cfx_hmon);
     # the handler escapes back so the next reserved access is exercised too.
     exp = {"exit": 0x00, "cid:3": CFXREG, "syncn:3": 6}
-    return build_rom(prog, {0x100: [escape(3, 1)]}), exp
+    return build_rom(prog, {0x100: [*ret_seq(3, 4)]}), exp
 
 
 # -- acc 6: write to a read-only cfx register -> CFXREG ---------------------
 @case("cfxreg_ro_write", "write to read-only cfx register (cfx_id) => CFXREG")
 def _cfxreg_ro_write():
-    prog = load_rd(24, H) + [cfx2rc(63, 3, 10, 24)]  # cfx_power hypv vector = H
-    prog += load_rd(24, H) + [cfx2rc(3, 3, 10, 24)]  # cfx_hmon hypv vector = H
+    prog = load_rd(24, H) + [cfx2rc(63, 3, 15, 24)]  # cfx_power hypv vector = H
+    prog += load_rd(24, H) + [cfx2rc(3, 3, 15, 24)]  # cfx_hmon hypv vector = H
     prog += [cfx2rc(63, 4, 0, 25)]                   # write cfx_id (RO)
     prog += exit_seq(0x7E)
     # DADAO-12 §5.2: CFXREG goes to the current-mode monitor (hypv => cfx_hmon)

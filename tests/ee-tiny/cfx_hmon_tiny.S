@@ -22,9 +22,9 @@
 @@ 数据区保持 hmon SRAM 初值。
 @@
 @@ 主处理代码（无任何策略判断）：
-@@   读 cg5 rc2/rc3/rc4（cause_id / cause_ip / cause_info）存 0xE0/0xE8/0xF0；
-@@   从 0xF8 取返回地址写入 excp_cause_ip；从 0xD8 恢复 rd63；
-@@   `escape cfx_hmon`（m18-spec-007：只提供 cfxHA，返回点写 `cg5 rc10`）。
+@@   读 cg5 rc4/rc2/rc5（cause_id / prev_ip / cause_info）存 0xE0/0xE8/0xF0；
+@@   从 0xF8 取返回地址写入 **`cg5 rc10`**（出口意图 escape ip）；从 0xD8 恢复 rd63；
+@@   `escape cfx_hmon`（m18-spec-007 / ADR-0061 R3：只提供 cfxHA，返回点取 `rc10`）。
 @@ 退出码与旧的分派策略都不在这里——它们是测试框架（应用）的职责。
 
 	.include "tests/shared/asm/machine-tiny.inc"
@@ -40,13 +40,13 @@
 
 _start:
 	st.o	rd63, [rb0, HMON_SLOT_RD63]			@@ 0x00
-	cfx2rd	cfx_hmon, cg5, rc2, rd63			@@ 0x04 cause_id
+	cfx2rd	cfx_hmon, cg5, rc4, rd63			@@ 0x04 cause_id（新布局 rc4）
 	st.o	rd63, [rb0, HMON_SLOT_CAUSE_ID - 0x08]		@@ 0x08 -> 0xE0
-	cfx2rd	cfx_hmon, cg5, rc3, rd63			@@ 0x0c cause_ip
+	cfx2rd	cfx_hmon, cg5, rc2, rd63			@@ 0x0c prev ip（新布局 rc2）
 	st.o	rd63, [rb0, HMON_SLOT_CAUSE_IP - 0x10]		@@ 0x10 -> 0xE8
-	cfx2rd	cfx_hmon, cg5, rc4, rd63			@@ 0x14 cause_info
+	cfx2rd	cfx_hmon, cg5, rc5, rd63			@@ 0x14 cause_info（新布局 rc5）
 	st.o	rd63, [rb0, HMON_SLOT_CAUSE_INFO - 0x18]	@@ 0x18 -> 0xF0
 	ld.o	rd63, [rb0, HMON_SLOT_RETURN - 0x1c]		@@ 0x1c <- 0xF8
-	cfx2rc	cfx_hmon, cg5, rc3, rd63			@@ 0x20 cause_ip <- 返回地址
+	cfx2rc	cfx_hmon, cg5, rc10, rd63			@@ 0x20 escape ip <- 返回地址
 	ld.o	rd63, [rb0, HMON_SLOT_RD63 - 0x24]		@@ 0x24 <- 0xD8（恢复）
 	escape	cfx_hmon					@@ 0x28

@@ -252,8 +252,8 @@ def probe_base():
     p += load_rd(20, 0xFFFF_FFFF_FFFF_FFF2) + [cfx2rc(63, SUPV, 3, 20)]
     p += load_rd(20, 0xFFFF_FFFF_FFFF_FFF6) + [cfx2rc(63, USER, 3, 20)]
     p += load_rd(20, 0xFFFF_FFFF_FFFF_FFF3) + [cfx2rc(63, HYPV, 3, 20)]
-    p += load_rd(22, ROM_BASE + HAND_OFF) + [cfx2rc(2, SUPV, 10, 22)]
-    p += load_rd(22, HYPV) + [cfx2rc(2, SUPV, 8, 22)]
+    p += load_rd(22, ROM_BASE + HAND_OFF) + [cfx2rc(2, SUPV, 15, 22)]
+    p += load_rd(22, HYPV) + [cfx2rc(2, SUPV, 14, 22)]
     p += load_rd(20, 0xFFFF_FFFF_FFFF_FFFE) + [cfx2rc(2, SUPV, 1, 20)]
     p += load_rd(20, 0xFFFF_FFFF_FFFF_FFFE) + [cfx2rc(2, USER, 1, 20)]
     return p
@@ -289,24 +289,24 @@ def set_power_cfxmem(value):
 
 def enter_supv_cfx0():
     """trap cfx0 from hmon: cfx0 hypv row vector/switch = supv body."""
-    p = load_rd(22, ROM_BASE + SUPV_OFF) + [cfx2rc(0, 3, 10, 22)]
-    p += load_rd(22, SUPV) + [cfx2rc(0, 3, 8, 22)]
+    p = load_rd(22, ROM_BASE + SUPV_OFF) + [cfx2rc(0, 3, 15, 22)]
+    p += load_rd(22, SUPV) + [cfx2rc(0, 3, 14, 22)]
     p += [trap(0, 0)]
     return p
 
 
 def enter_supv_cfx2():
     """trap cfx_smon from hmon: cfx_smon hypv row vector/switch = supv body."""
-    p = load_rd(22, ROM_BASE + SUPV_OFF) + [cfx2rc(2, 3, 10, 22)]
-    p += load_rd(22, SUPV) + [cfx2rc(2, 3, 8, 22)]
+    p = load_rd(22, ROM_BASE + SUPV_OFF) + [cfx2rc(2, 3, 15, 22)]
+    p += load_rd(22, SUPV) + [cfx2rc(2, 3, 14, 22)]
     p += [trap(2, 0)]
     return p
 
 
 def enter_user_cfx0():
     """trap cfx0 from hmon: cfx0 hypv row vector = user body, switch = user."""
-    p = load_rd(22, ROM_BASE + USER_OFF) + [cfx2rc(0, 3, 10, 22)]
-    p += load_rd(22, USER) + [cfx2rc(0, 3, 8, 22)]
+    p = load_rd(22, ROM_BASE + USER_OFF) + [cfx2rc(0, 3, 15, 22)]
+    p += load_rd(22, USER) + [cfx2rc(0, 3, 14, 22)]
     p += [trap(0, 0)]
     return p
 
@@ -385,7 +385,7 @@ def _open_pmem_cg15():
 
 @case("open_smon_cg5_self", "deleg=0x8, source=target=cfx_smon: supv reads cg5 rc2")
 def _open_smon_cg5_self():
-    body = [cfx2rd(2, 5, 2, 10)] + exit_seq(0x00)
+    body = [cfx2rd(2, 5, 4, 10)] + exit_seq(0x00)
     prog = probe_base() + set_deleg(2, DELEG_OPEN) + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
     return one(rom, {"exit": 0x00, "rd10": 1})   # cause_id = CFXTRAP (1)
@@ -414,8 +414,8 @@ def _closed_hmon_cg0():
         prog += read_supv_cfxreg(3, 24) + enter_supv_cfx0()
         rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
         if deleg == ALL1:
-            exp = {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
-                   "cinfo:2": info_rd(3, 0, 0, 10), "cip:2": ROM_BASE + SUPV_OFF}
+            exp = {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, 0),
+                   "cinfo:2": ROM_BASE + SUPV_OFF, "cip:2": ROM_BASE + SUPV_OFF}
         else:
             exp = {"exit": 0x00, "rd10": MASK_HMON}
         exp["rd24"] = ALL1 & ~1
@@ -429,8 +429,8 @@ def _closed_hmon_cg8():
     prog = probe_base() + set_deleg(3, ALL1) + open_supv_cfxreg(3, 0)
     prog += read_supv_cfxreg(3, 24) + enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
-                     "cinfo:2": info_rd(3, 8, 1, 10),
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, 0),
+                     "cinfo:2": ROM_BASE + SUPV_OFF,
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~1})
 
@@ -443,8 +443,8 @@ def _closed_power_cg4():
     prog = probe_base() + set_deleg(63, ALL1) + open_supv_cfxreg(63, 2)
     prog += read_supv_cfxreg(63, 24) + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
-                     "cinfo:2": info_rd(63, 4, 0, 10),
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, 0),
+                     "cinfo:2": ROM_BASE + SUPV_OFF,
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~(1 << 2)})
 
@@ -474,7 +474,7 @@ def _closed_power_bootrom():
     prog += enter_supv_cfx2()
     ld_idx = len(load_rb(4, POWER_ADDR))
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM), "cinfo:2": POWER_ADDR,
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, 0), "cinfo:2": POWER_ADDR,
                      "cip:2": ROM_BASE + SUPV_OFF + 4 * ld_idx})
 
 
@@ -504,8 +504,8 @@ def _power_control_write():
     body = [cfx2rc(63, 2, 1, 0)] + exit_seq(0x00)
     prog = probe_base() + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
-                     "cinfo:2": info_rc(63, 2, 1, 0),
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, 0),
+                     "cinfo:2": ROM_BASE + SUPV_OFF,
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "memmask:63:2": MASK_DEFAULT})
 
@@ -516,8 +516,8 @@ def _power_cg7_closed():
     prog = probe_base() + set_deleg(63, ALL1) + open_supv_cfxreg(63, 2)
     prog += read_supv_cfxreg(63, 24) + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
-                     "cinfo:2": info_rd(63, 7, 0, 10),
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, 0),
+                     "cinfo:2": ROM_BASE + SUPV_OFF,
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~(1 << 2)})
 
@@ -530,8 +530,8 @@ def _no_power_full_open():
     prog += set_deleg(2, DELEG_OPEN) + open_supv_cfxreg(63, 2)
     prog += read_supv_cfxreg(63, 24) + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
-                     "cinfo:2": info_rd(63, 4, 0, 10),
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, 0),
+                     "cinfo:2": ROM_BASE + SUPV_OFF,
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~(1 << 2),
                      "memmask:63:2": MASK_DEFAULT})
@@ -545,8 +545,8 @@ def _cg3_supv_perm_rd():
     prog = probe_base() + set_deleg(4, DELEG_OPEN) + open_supv_cfxreg(4, 0)
     prog += read_supv_cfxreg(4, 24) + enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
-                     "cinfo:2": info_rd(4, 3, 0, 10),
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, 0),
+                     "cinfo:2": ROM_BASE + SUPV_OFF,
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~1})
 
@@ -560,8 +560,8 @@ def _cg3_supv_perm_wr():
     prog += enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body,
                            HAND_OFF: handler([cfx2rd(32, 3, 12, 23)])})
-    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
-                     "cinfo:2": info_rc(32, 3, 12, 20),
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, 0),
+                     "cinfo:2": ROM_BASE + SUPV_OFF + 16,
                      "cip:2": ROM_BASE + SUPV_OFF + 16,
                      "rd23": DELEG_OPEN, "rd24": ALL1 & ~1})
 
@@ -574,8 +574,8 @@ def _cg3_bit3_locked():
     prog += enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body,
                            HAND_OFF: handler([cfx2rd(4, 3, 12, 23)])})
-    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
-                     "cinfo:2": info_rd(4, 3, 0, 10),
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, 0),
+                     "cinfo:2": ROM_BASE + SUPV_OFF,
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd23": DELEG_OPEN, "rd24": ALL1 & ~1})
 
@@ -607,12 +607,12 @@ def _bit3_forced():
 def _self_not_exempt():
     out = []
     for label, deleg in (("closed", ALL1), ("open", DELEG_OPEN)):
-        body = [cfx2rd(2, 5, 2, 10)] + exit_seq(0x00)
+        body = [cfx2rd(2, 5, 4, 10)] + exit_seq(0x00)
         prog = probe_base() + set_deleg(2, deleg) + enter_supv_cfx2()
         rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
         if deleg == ALL1:
-            exp = {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
-                   "cinfo:2": info_rd(2, 5, 2, 10),
+            exp = {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, 0),
+                   "cinfo:2": ROM_BASE + SUPV_OFF,
                    "cip:2": ROM_BASE + SUPV_OFF}
         else:
             exp = {"exit": 0x00, "rd10": 1}
@@ -644,7 +644,7 @@ def _user_cg3_cfxreg():
     prog = probe_base() + set_deleg(4, ALL1)
     # cfx0 user-row vector -> fault slot; the entry mode (user row switch) is
     # left at its reset value (supv), so the fault slot exits in supv.
-    prog += load_rd(22, ROM_BASE + FAULT_OFF) + [cfx2rc(0, USER, 10, 22)]
+    prog += load_rd(22, ROM_BASE + FAULT_OFF) + [cfx2rc(0, USER, 15, 22)]
     prog += enter_user_cfx0()
     rom = build_rom(prog, {USER_OFF: body, HAND_OFF: handler(),
                            FAULT_OFF: fault_slot(0x2C)})

@@ -1,12 +1,12 @@
-@@ cfx15.S — `cfx_hart`（cfxha 15）RTL 探针（`m16-chipyard-021` 起，`m16-chipyard-026` 改到 R2）
+@@ cfx15.S — `cfx_hart`（cfxha 15）RTL 探针（`m16-chipyard-021` 起，`m18-testcases-004` 改到 R3）
 @@
 @@ 目的：在 **Kaiwu-Vast RTL（chipyard `WumingVastConfig`）** 上验证
-@@ `spec/DADAO-12 §4.7`/`§5.4` 的 cfx_hart（**R2：cg9 是进入瞬间的捕获缓冲**）：
+@@ `spec/DADAO-12 §3.6/§4.7/§5.4` 的 cfx_hart（**R3：cg9 入口记录/捕获缓冲；cg5 rc8–rc11 出口意图**）：
 @@   * cg8 管理寄存器：hart_id / cycle / insn / timer_cmp / timer_ctrl；
 @@   * cg9 **七槽**捕获缓冲：rc0 prev_run_mode / rc1 prev_cfx_code / rc2 cause_ip /
 @@     rc3 src_frame（HW/RO，位 = 源 cfxha）/ rc4 src_pending（HW/RO）/
-@@     rc5 excp_vector / rc6 switch_run_mode（RW、复位 2 = supv、
-@@     异步进入取该值）；rc7–rc15 reserved；
+@@     rc14 switch_run_mode（RW、复位 2 = supv） / rc15 excp_vector（RW）；
+@@     rc6–rc13 reserved（访问 ⇒ CFXREG）；
 @@   * 两个位图**软件写忽略、读回不变、不产生异常**（不报 CFXREG）；
 @@   * 来源掩码在**当前运行模式 monitor** 的 `cg8 rc1`（bit15 = 源 cfxha 15，
 @@     0 = 允许 / 1 = 屏蔽）：屏蔽期只置 `src_pending` 的 bit15，解除后补投；
@@ -15,9 +15,9 @@
 @@   * **覆盖语义**：第一次进入后不搬走现场，再次到期 ⇒ 同一指令边界整体覆盖
 @@     `cg9`（`prev_*`/`cause_ip`/`src_frame`），**不是**只置 pending；
 @@   * 源 ack（重装 `timer_cmp`）后 pending 落；
-@@   * `escape` 的帧选择位 `imms18[1] = 1`（汇编 `imms20 = 8`）**不是异步返回**：
-@@     按所选帧无效报当前 cfx 的 `CFXESC`，不改变 cfx/运行模式/`cg9`；
-@@     `imms18 = 3` / `imms18[17:2] != 0` ⇒ ILLI；同步 `cg5` 帧返回仍有效；
+@@   * `escape cfxHA`：`imms18` 必须为 0（SBZ，非 0 ⇒ ILLI）；正常异步返回按
+@@     `cg5 rc8`–`rc11` 恢复模式/cfx/ip 并整字写目标 monitor 的 `cg8 rc1`；
+@@     升权 / 目标未实现 / `cfxha` 不符 ⇒ 当前 cfx 的 `CFXESC`；
 @@   * **精确点**：在 `jump` 目标处到期时 `cause_ip` = 目标（SimRISC-06 的
 @@     `jump`，不是 RISC-V `jal`）；实现用「从 0 起逐步加 1 个 cycle」的有界
 @@     搜索命中目标边界（各平台的读周期延迟不同，不能写死补偿）；
@@ -70,18 +70,19 @@
 
 	@@ 每个镜像的签名槽数（与 checker 的 `expected()` 一一对应）
 	.if TMODE == 3
-	.equ	SIG_SLOTS, 89
+	.equ	SIG_SLOTS, 124
 	.else
-	.equ	SIG_SLOTS, 40
+	.equ	SIG_SLOTS, 38
 	.endif
 
-	@@ `DADAO-12 §5.1`（R2）：escape 的 imms18 = 2 选 cg9 编码合法但**不返回**
-	@@ （⇒ 当前 cfx 的 CFXESC）；3 非法。合法返回用汇编层 `imms20 = 8`
-	@@ （= imms18 2）；非法编码（3/4）汇编器会拒绝，故用原始编码字直接喂给核。
+	@@ `DADAO-12 §5.1`（R3）：escape 的 `imms18` 是 SBZ，必须为 0；非 0 ⇒ ILLI。
+	@@ 汇编器拒绝非 0 写法，故用原始编码字直接喂给核（3/4 两档）。
 	.equ	ESC_HART_IMM3, (0x7E000000 | (15 << 18) | 3)
 	.equ	ESC_HART_IMM4, (0x7E000000 | (15 << 18) | 4)
 
 	.equ	PATTERN64, 0x123456789ABCDEF0
+.equ	ESC_BAD_MASK, 0xFFFF000000000000	@@ 非法 escape 不得落地到 monitor
+.equ	ESC_RC11_PATTERN, 0x0123456789ABCDEF	@@ 正常异步返回写 rc11 的整字反例（bit15=1 ⇒ 屏蔽 TIMER）
 	.equ	TIMER_SRC_BIT, 0x0000000000008000	@@ 1 << 15（源 cfxha = 15）
 	.equ	MASK_PATTERN,  0xFFFFFFFFFFFF7FFF	@@ bit15 = 0（允许 TIMER）
 
@@ -163,10 +164,9 @@ _start:
 	set.rd	rd20, 0
 
 	@@ ---- 共用初始化：cfx_hart 的异步入口 / 三行来源掩码 / 两轴放行 ----
-	WCFX_LABEL cfx_hart, cg9, rc5, async_entry	@@ async_excp_vector
-	@@ R2：`escape imms18 = 2` 在 supv 执行时按“帧无效”进当前 cfx（cfx_hart），
-	@@ 目标取 cfx_hart 的 supv 行向量（cg2 rc10），切到 esc9_entry。
-	WCFX_LABEL cfx_hart, cg2, rc10, esc9_entry
+	WCFX_LABEL cfx_hart, cg9, rc15, async_entry	@@ async_excp_vector
+	@@ CFXESC 交当前 cfx（cfx_hart）；supv 行向量（cg2 rc15）指向 esc9_entry。
+	WCFX_LABEL cfx_hart, cg2, rc15, esc9_entry
 	@@ umon/smon 的 `cg8 rc1` 先放开源 cfxha 15（bit15 = 0）——U/S 体与 supv
 	@@ handler 里的覆盖/屏蔽测试都靠这两行；hmon 行留到 H 体里先验复位值再改写。
 	WCFX_IMM   cfx_umon, cg8, rc1, MASK_PATTERN
@@ -177,7 +177,7 @@ _start:
 	WCFX_IMM   cfx_smon, cg2, rc2, MASK_PATTERN
 	WCFX_IMM   cfx_smon, cg3, rc12, 0xFFFFFFFFFFFFFCF7
 	@@ 兜底：supv 下的意外同步异常进 cfx_smon，落 smon_fault 快速失败
-	WCFX_LABEL cfx_smon, cg3, rc10, smon_fault
+	WCFX_LABEL cfx_smon, cg3, rc15, smon_fault
 	@@ timer 关：cmp 全 1、ctrl 0
 	WCFX_IMM   cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
 	WCFX_IMM   cfx_hart, cg8, rc5, 0
@@ -191,7 +191,7 @@ _start:
 	.if TMODE == 0 || TMODE == 3
 	.ifdef	PTW_UMAP
 	@@ QEMU step5 页表在 PA 0；镜像所在的 512 MiB 超页置 HSJU=0xF（U=1）
-	@@ H 体尾段要进 user（`cg9 rc6=0`）取指/写签名，与 U 模式体同一份约定。
+	@@ H 体尾段要进 user（`cg9 rc14=0`）取指/写签名，与 U 模式体同一份约定。
 	set.rd	rd6, 0xF00000000000FFEF
 	set.rb	rb2, 0
 	st.o	rd6, [rb2, 0]
@@ -212,20 +212,21 @@ _start:
 @@ ---------------------------------------------------------------------------
 setup_h:
 	set.rb	rb1, sig_bytes
-	set.rd	rd6, 89*8
+	set.rd	rd6, 124*8			@@ H 模式检查点数（见 check_cfx15.expected）
 	st.o	rd6, [rb1, 0]
-	WCFX_LABEL cfx_hmon, cg3, rc10, h_entry
-	WCFX_IMM   cfx_hmon, cg3, rc8, 3
+	WCFX_LABEL cfx_hmon, cg3, rc15, h_entry
+	WCFX_IMM   cfx_hmon, cg3, rc14, 3
+h_trap:
 	trap	cfx_hmon, 0
 	swym	0
 
 h_entry:
 	@@ 同步异常（CFXTRAP 以外的 cause）走 h_fault；初次 trap 的低位是 CFXTRAP
-	cfx2rd	cfx_hmon, cg5, rc2, rd5
+	cfx2rd	cfx_hmon, cg5, rc4, rd5
 	set.rd	rd6, 1
 	and.o	rd5, rd5, rd6
 	br.nz	{rd5}?, [rb0, h_initial]
-	cfx2rd	cfx_hmon, cg5, rc2, rd5
+	cfx2rd	cfx_hmon, cg5, rc4, rd5
 	set.rd	rd6, 1
 	and.o	rd5, rd5, rd6
 	br.z	{rd5}?, [rb0, h_fault]
@@ -235,15 +236,39 @@ h_initial:
 	br.nz	{rd5}?, [rb0, h_fault]
 	set.rd	rd5, 1
 	st.o	rd5, [rb1, 0]
-	jump	[rb0, h_body]
-
-h_fault:
-	@@ 故障处理：记 cause_id / cause_info，然后 escape +4 跳过故障指令
+	@@ ---- 同步 trap 的入口记录（rc0-rc5）与出口意图（rc8-rc11）----
+	cfx2rd	cfx_hmon, cg5, rc0, rd5
+	REC	rd5
+	cfx2rd	cfx_hmon, cg5, rc1, rd5
+	REC	rd5
 	cfx2rd	cfx_hmon, cg5, rc2, rd5
+	REC	rd5
+	cfx2rd	cfx_hmon, cg5, rc3, rd5
 	REC	rd5
 	cfx2rd	cfx_hmon, cg5, rc4, rd5
 	REC	rd5
-	escape	cfx_hmon, [excp_cause_ip, 4]
+	cfx2rd	cfx_hmon, cg5, rc5, rd5
+	REC	rd5
+	cfx2rd	cfx_hmon, cg5, rc8, rd5
+	REC	rd5
+	cfx2rd	cfx_hmon, cg5, rc9, rd5
+	REC	rd5
+	cfx2rd	cfx_hmon, cg5, rc10, rd5
+	REC	rd5
+	cfx2rd	cfx_hmon, cg5, rc11, rd5
+	REC	rd5
+	jump	[rb0, h_body]
+
+h_fault:
+	@@ 故障处理：记 cause_id / cause_info，再把 rc10 = prev ip + 4 后 escape
+	cfx2rd	cfx_hmon, cg5, rc4, rd5
+	REC	rd5
+	cfx2rd	cfx_hmon, cg5, rc5, rd5
+	REC	rd5
+	cfx2rd	cfx_hmon, cg5, rc2, rd6
+	add.si	rd6, 4
+	cfx2rc	cfx_hmon, cg5, rc10, rd6
+	escape	cfx_hmon
 	swym	0
 
 @@ ---------------------------------------------------------------------------
@@ -283,82 +308,96 @@ h_body:
 	REC	rd5
 	.set	__ctrl, __ctrl + 1
 	.endr
-	@@ 11 cg9 rc0 prev_run_mode：写全 1，读回 2 位 = 3
-	WCFX_IMM   cfx_hart, cg9, rc0, 0xFFFFFFFFFFFFFFFF
+	@@ ---- cg9 新布局（DADAO-12 §4.7 / ADR-0061 R3）：rc0–rc5 入口记录（HW/RO，
+	@@   软件写忽略、不产生异常），rc6–rc13 reserved（访问 ⇒ CFXREG），rc14/rc15 RW ----
+	@@ 11-16 读：尚未发生异步进入 ⇒ 全 0
 	cfx2rd	cfx_hart, cg9, rc0, rd5
 	REC	rd5
-	@@ 12 rc1 prev_cfx_code：写全 1，读回 6 位 = 63
-	WCFX_IMM   cfx_hart, cg9, rc1, 0xFFFFFFFFFFFFFFFF
 	cfx2rd	cfx_hart, cg9, rc1, rd5
 	REC	rd5
-	@@ 13 rc2 cause_ip：写全 1，读回 48 位且低 2 位为 0
-	WCFX_IMM   cfx_hart, cg9, rc2, 0xFFFFFFFFFFFFFFFF
 	cfx2rd	cfx_hart, cg9, rc2, rd5
 	REC	rd5
-	@@ 14 rc3 src_frame：HW/RO —— 写 PATTERN 被忽略、读回不变（捕获缓冲 = 0）
-	WCFX_IMM   cfx_hart, cg9, rc3, PATTERN64
 	cfx2rd	cfx_hart, cg9, rc3, rd5
 	REC	rd5
-	@@ 15 rc4 src_pending：HW/RO —— 同上
-	WCFX_IMM   cfx_hart, cg9, rc4, PATTERN64
 	cfx2rd	cfx_hart, cg9, rc4, rd5
 	REC	rd5
-	@@ 16 rc5 excp_vector：写全 1，读回 48 位且低 2 位 0
-	WCFX_IMM   cfx_hart, cg9, rc5, 0xFFFFFFFFFFFFFFFF
 	cfx2rd	cfx_hart, cg9, rc5, rd5
 	REC	rd5
+	@@ 17/18 写忽略：rc0–rc5 全写 1，读回落 = 0（不产生异常）
+	WCFX_IMM   cfx_hart, cg9, rc0, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM   cfx_hart, cg9, rc1, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM   cfx_hart, cg9, rc2, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM   cfx_hart, cg9, rc3, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM   cfx_hart, cg9, rc4, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM   cfx_hart, cg9, rc5, 0xFFFFFFFFFFFFFFFF
+	cfx2rd	cfx_hart, cg9, rc0, rd5
+	REC	rd5
+	cfx2rd	cfx_hart, cg9, rc4, rd5
+	REC	rd5
+	@@ 19 rc15 vector（原 rc5）：写全 1，读回 48 位且低 2 位 0
+	WCFX_IMM   cfx_hart, cg9, rc15, 0xFFFFFFFFFFFFFFFF
+	cfx2rd	cfx_hart, cg9, rc15, rd5
+	REC	rd5
 	@@ 恢复真向量（后面的 timer 投递必须落到 async_entry）
-	WCFX_LABEL cfx_hart, cg9, rc5, async_entry
-	@@ 17 rc6 switch：RW、复位 2 = supv；写 0/1/3 落地、读回同值
-	cfx2rd	cfx_hart, cg9, rc6, rd5
+	WCFX_LABEL cfx_hart, cg9, rc15, async_entry
+	@@ 30-34 rc14 switch（原 rc6）：RW、复位 2 = supv；写 0/1/3 读回同值
+	cfx2rd	cfx_hart, cg9, rc14, rd5
 	REC	rd5
-	WCFX_IMM   cfx_hart, cg9, rc6, 0
-	cfx2rd	cfx_hart, cg9, rc6, rd5
+	WCFX_IMM   cfx_hart, cg9, rc14, 0
+	cfx2rd	cfx_hart, cg9, rc14, rd5
 	REC	rd5
-	WCFX_IMM   cfx_hart, cg9, rc6, 1
-	cfx2rd	cfx_hart, cg9, rc6, rd5
+	WCFX_IMM   cfx_hart, cg9, rc14, 1
+	cfx2rd	cfx_hart, cg9, rc14, rd5
 	REC	rd5
-	WCFX_IMM   cfx_hart, cg9, rc6, 3
-	cfx2rd	cfx_hart, cg9, rc6, rd5
+	WCFX_IMM   cfx_hart, cg9, rc14, 3
+	cfx2rd	cfx_hart, cg9, rc14, rd5
 	REC	rd5
-	@@ 恢复复位值（后面的 timer 投递按 rc6 = 2 进 supv）
-	WCFX_IMM   cfx_hart, cg9, rc6, 2
-	cfx2rd	cfx_hart, cg9, rc6, rd5
+	@@ 恢复复位值（后面的 timer 投递按 rc14 = 2 进 supv）
+	WCFX_IMM   cfx_hart, cg9, rc14, 2
+	cfx2rd	cfx_hart, cg9, rc14, rd5
 	REC	rd5
 
-	@@ 22-30 保留 rc（cg9 rc7 / rc8 / rc15）⇒ CFXREG：cause_id / cause_info / 见证
-	cfx2rd	cfx_hart, cg9, rc7, rd5
+	@@ 25-36 保留 rc（cg9 rc6 / rc7 / rc8 / rc13）⇒ CFXREG：cause_id / cause_info / 见证
+	cfx2rd	cfx_hart, cg9, rc6, rd5
 	set.rd	rd5, 0xC0DE0013
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc8, rd5
-	set.rd	rd5, 0xC0DE0018
-	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc15, rd5
-	set.rd	rd5, 0xC0DE0019
-	REC	rd5
-	@@ 27-29 写 RO（cg8 rc0）⇒ CFXREG
-	set.rd	rd6, 0
-	cfx2rc	cfx_hart, cg8, rc0, rd6
+	cfx2rd	cfx_hart, cg9, rc7, rd5
 	set.rd	rd5, 0xC0DE0014
 	REC	rd5
-	@@ 30-32 读保留（cfx_hart 自己的 cg8 rc1）⇒ CFXREG
-	cfx2rd	cfx_hart, cg8, rc1, rd5
+	cfx2rd	cfx_hart, cg9, rc8, rd5
 	set.rd	rd5, 0xC0DE0015
 	REC	rd5
-	@@ 33-35 escape imms18=3 ⇒ ILLI
-	.dd.t32	ESC_HART_IMM3
+	cfx2rd	cfx_hart, cg9, rc13, rd5
 	set.rd	rd5, 0xC0DE0016
 	REC	rd5
-	@@ 36-38 escape imms18=4（[17:2] ≠ 0）⇒ ILLI
-	.dd.t32	ESC_HART_IMM4
+	@@ 47-49 写 RO（cg8 rc0）⇒ CFXREG
+	set.rd	rd6, 0
+	cfx2rc	cfx_hart, cg8, rc0, rd6
 	set.rd	rd5, 0xC0DE0017
 	REC	rd5
+	@@ 40-42 写入口记录（cg5 rc0，HW/RO）⇒ CFXREG
+	set.rd	rd6, 0
+	cfx2rc	cfx_hart, cg5, rc0, rd6
+	set.rd	rd5, 0xC0DE0018
+	REC	rd5
+	@@ 43-45 读保留（cfx_hart 自己的 cg8 rc1）⇒ CFXREG
+	cfx2rd	cfx_hart, cg8, rc1, rd5
+	set.rd	rd5, 0xC0DE0019
+	REC	rd5
+	@@ 46-48 escape imms18=3（SBZ 非 0）⇒ ILLI
+	.dd.t32	ESC_HART_IMM3
+	set.rd	rd5, 0xC0DE001A
+	REC	rd5
+	@@ 49-51 escape imms18=4 ⇒ ILLI
+	.dd.t32	ESC_HART_IMM4
+	set.rd	rd5, 0xC0DE001B
+	REC	rd5
 
-	@@ ---- 39 cfx3（hmon）的 `cg8 rc1` 复位 = 全 1（ADR-0061 D5） ----
+	@@ ---- 52 cfx3（hmon）的 `cg8 rc1` 复位 = 全 1 ----
 	cfx2rd	cfx_hmon, cg8, rc1, rd5
 	REC	rd5
 
-	@@ ---- 40/41 屏蔽期：只置 pending、不投递 ----
+	@@ ---- 53/54 屏蔽期：只置 pending、不投递 ----
 	@@ 只屏蔽**当前运行模式**（hmon）的行；umon/smon 仍放行 —— 若投递错取
 	@@ 别的行，这里会提前进入 handler
 	WCFX_IMM   cfx_hmon, cg8, rc1, 0xFFFFFFFFFFFFFFFF	@@ bit15 = 1（屏蔽）
@@ -367,9 +406,9 @@ h_body:
 	cfx2rc	cfx_hart, cg8, rc4, rd5
 	WCFX_IMM   cfx_hart, cg8, rc5, 1
 	BURN	rd7, rb1
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	cfx2rd	cfx_hart, cg9, rc5, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc3, rd5
+	cfx2rd	cfx_hart, cg9, rc4, rd5
 	REC	rd5
 	@@ 放开当前模式的掩码行 ⇒ **下一指令边界投递**（timer 仍到期、源尚未 ack）
 	WCFX_IMM   cfx_hmon, cg8, rc1, MASK_PATTERN
@@ -391,10 +430,10 @@ wait_end:
 @@ ---------------------------------------------------------------------------
 setup_u:
 	set.rb	rb1, sig_bytes
-	set.rd	rd6, 40*8
+	set.rd	rd6, 38*8			@@ S/U 模式检查点数（见 check_cfx15.expected）
 	st.o	rd6, [rb1, 0]
-	WCFX_LABEL cfx_umon, cg3, rc10, u_entry
-	WCFX_IMM   cfx_umon, cg3, rc8, 0
+	WCFX_LABEL cfx_umon, cg3, rc15, u_entry
+	WCFX_IMM   cfx_umon, cg3, rc14, 0
 	trap	cfx_umon, 0
 	swym	0
 
@@ -406,10 +445,10 @@ u_entry:
 @@ ---------------------------------------------------------------------------
 setup_s:
 	set.rb	rb1, sig_bytes
-	set.rd	rd6, 40*8
+	set.rd	rd6, 38*8			@@ S/U 模式检查点数（见 check_cfx15.expected）
 	st.o	rd6, [rb1, 0]
-	WCFX_LABEL cfx_smon, cg3, rc10, s_entry
-	WCFX_IMM   cfx_smon, cg3, rc8, 2
+	WCFX_LABEL cfx_smon, cg3, rc15, s_entry
+	WCFX_IMM   cfx_smon, cg3, rc14, 2
 	@@ supv 下访问自身 cg8/cg9 受 `cg3 rc12` deleg 约束（bit8/bit9 = 0 才允许）
 	WCFX_IMM   cfx_smon, cg3, rc12, 0xFFFFFFFFFFFFFCF7
 	trap	cfx_smon, 0
@@ -433,10 +472,10 @@ mode_body:
 	cfx2rc	cfx_hart, cg8, rc4, rd5
 	WCFX_IMM   cfx_hart, cg8, rc5, 1
 	BURN	rd7, rb1
-	@@ 0/1 屏蔽期只置 pending（源 cfxha 15）
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	@@ 0/1 屏蔽期只置 pending（rc5）、src_frame 保持（rc4）
+	cfx2rd	cfx_hart, cg9, rc5, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc3, rd5
+	cfx2rd	cfx_hart, cg9, rc4, rd5
 	REC	rd5
 
 	@@ 放开本模式的掩码行 ⇒ 下一指令边界投递（timer 仍到期、源尚未 ack）
@@ -477,8 +516,9 @@ async_entry:
 	jump	[rb0, async_phase3]
 
 async_phase1:
-	@@ 2-9 现场：rc0 prev_run_mode、rc1 prev_cfx_code、rc2 cause_ip、
-	@@ rc3 src_frame、rc4 src_pending（投递后已清）、rc5 向量、rc6 固定 supv
+	@@ 现场：rc0 prev_run_mode、rc1 prev_cfx_code、rc2 prev ip、
+	@@ rc3 prev intr mask、rc4 src_frame、rc5 src_pending（投递后已清）、
+	@@ rc14 switch 取该值、rc15 向量；一帧只计一次
 	cfx2rd	cfx_hart, cg9, rc0, rd5
 	REC	rd5
 	cfx2rd	cfx_hart, cg9, rc1, rd5
@@ -491,34 +531,68 @@ async_phase1:
 	REC	rd5
 	cfx2rd	cfx_hart, cg9, rc5, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc6, rd5
+	cfx2rd	cfx_hart, cg9, rc14, rd5
 	REC	rd5
-	@@ 9 一帧只计一次
+	cfx2rd	cfx_hart, cg9, rc15, rd5
+	REC	rd5
 	cfx2rd	cfx_hart, cg4, rc4, rd5
 	REC	rd5
 
-	@@ ---- escape imms18 = 2（imms20 = 8）：R2 不返回 ----
-	@@ 当前 cfx 是 cfx_hart、src_frame != 0；若按所选帧无效 ⇒ CFXESC 进当前 cfx
-	@@ （supv 行向量 = esc9_entry），不改变 cfx/运行模式/cg9。
-	@@ 旧模型/注入“cg9 返回”时这里会直接跳回 cause_ip，签名随即错位。
-	escape	cfx_hart, [excp_cause_ip, 8]
+	@@ ---- 正常异步返回：rc10 = async_ret、rc11 = 全 1（fail-safe），
+	@@   然后 `escape cfx_hart`。U/S 的进入前模式是 user/supv ⇒ 复制来的
+	@@   rc8/rc9 可直接返回被中断现场；H 的进入前模式是 hypv，从 supv handler
+	@@   返回 hypv 属升权（§5.1 禁止）⇒ 显式把目标改为 supv/cfx_hart。
+	@@   返回后第一条指令在 async_ret：此处读到的 mask 必须已是 rc11（整字），
+	@@   证明 rc11 的写入与切模式/切 cfx/跳转原子完成（§5.1/§5.3）。 ----
+	.if TMODE == 3
+	set.rd	rd5, 2
+	cfx2rc	cfx_hart, cg5, rc8, rd5
+	set.rd	rd5, 15
+	cfx2rc	cfx_hart, cg5, rc9, rd5
+	.endif
+	set.rd	rd5, async_ret
+	cfx2rc	cfx_hart, cg5, rc10, rd5
+	set.rd	rd5, ESC_RC11_PATTERN
+	cfx2rc	cfx_hart, cg5, rc11, rd5
+	escape	cfx_hart
 	swym	0
 
-	@@ ---- 覆盖语义：不搬走现场，再次到期 ⇒ 整体覆盖 cg9 ----
-	@@ 先关 timer 再设新 deadline、最后使能：这样“事件成立”只发生在使能写之后，
-	@@ 投递边界 = 下一条指令（rearm_fallback）。
+async_ret:
+	@@ 目标模式 monitor 的 cg8 rc1 = 全 1（整字写入，反例：增量写）
+	.if TMODE == 0
+	cfx2rd	cfx_umon, cg8, rc1, rd5
+	.else
+	cfx2rd	cfx_smon, cg8, rc1, rd5
+	.endif
+	REC	rd5
+	@@ escape_num 每次 escape +1（同步/异步一视同仁）：cfx_hart 的第一次
+	cfx2rd	cfx_hart, cg4, rc5, rd5
+	REC	rd5
+	@@ ---- 覆盖语义 + 屏蔽期只置 pending：不搬走现场，再次到期整体覆盖 cg9 ----
 	WCFX_IMM   cfx_hart, cg8, rc5, 0
 	cfx2rd	cfx_hart, cg8, rc2, rd5
 	cfx2rc	cfx_hart, cg8, rc4, rd5
 	WCFX_IMM   cfx_hart, cg8, rc5, 1
+	BURN	rd7, rb1
+	@@ mask = 全 1 ⇒ 只置 pending，不投递
+	cfx2rd	cfx_hart, cg9, rc5, rd5
+	REC	rd5
+	cfx2rd	cfx_hart, cg9, rc4, rd5
+	REC	rd5
+	@@ 放开当前模式掩码 ⇒ 下一指令边界投递
+	.if TMODE == 0
+	WCFX_IMM   cfx_umon, cg8, rc1, MASK_PATTERN
+	.else
+	WCFX_IMM   cfx_smon, cg8, rc1, MASK_PATTERN
+	.endif
 rearm_fallback:
-	@@ 覆盖未发生（旧“帧活动期”只置 pending）时才会执行到这里
+	@@ 覆盖/投递未发生（旧“帧活动期”只置 pending）时才会执行到这里
 	set.rd	rd5, 0xDEAD0001
 	REC	rd5
 	jump	[rb0, fail_exit]
 
 async_phase2:
-	@@ 17-22 覆盖证据：prev = supv/cfx_hart，cause_ip = 再次武装后的下一条
+	@@ 覆盖证据：prev = 进入前模式，cause_ip = 再次武装后的下一条；ecp_async_num = 2
 	cfx2rd	cfx_hart, cg9, rc0, rd5
 	REC	rd5
 	cfx2rd	cfx_hart, cg9, rc1, rd5
@@ -529,6 +603,8 @@ async_phase2:
 	REC	rd5
 	cfx2rd	cfx_hart, cg9, rc4, rd5
 	REC	rd5
+	cfx2rd	cfx_hart, cg9, rc5, rd5
+	REC	rd5
 	cfx2rd	cfx_hart, cg4, rc4, rd5
 	REC	rd5
 
@@ -538,19 +614,19 @@ async_phase2:
 	cfx2rc	cfx_hart, cg8, rc4, rd5
 	WCFX_IMM   cfx_hart, cg8, rc5, 1
 	BURN_SHORT	rd21, rb3
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	cfx2rd	cfx_hart, cg9, rc5, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc3, rd5
+	cfx2rd	cfx_hart, cg9, rc4, rd5
 	REC	rd5
 	@@ ---- 源 ack：重装 timer_cmp ⇒ pending 落（仍屏蔽） ----
 	WCFX_IMM   cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	cfx2rd	cfx_hart, cg9, rc5, rd5
 	REC	rd5
 	@@ ---- 再武装（仍屏蔽）⇒ pending 重新置位 ----
 	cfx2rd	cfx_hart, cg8, rc2, rd5
 	cfx2rc	cfx_hart, cg8, rc4, rd5
 	BURN_SHORT	rd21, rb3
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	cfx2rd	cfx_hart, cg9, rc5, rd5
 	REC	rd5
 	@@ ---- 放开当前模式掩码 ⇒ 下一指令边界投递 ----
 	WCFX_IMM   cfx_smon, cg8, rc1, MASK_PATTERN
@@ -561,7 +637,7 @@ pending_fallback:
 	jump	[rb0, fail_exit]
 
 async_phase3:
-	@@ 28-32 第三次进入：覆盖后的现场 + 投递扣除 pending
+	@@ 第三次进入：覆盖后的现场 + 投递扣除 pending
 	cfx2rd	cfx_hart, cg9, rc0, rd5
 	REC	rd5
 	cfx2rd	cfx_hart, cg9, rc2, rd5
@@ -574,7 +650,7 @@ async_phase3:
 	REC	rd5
 	@@ 源 ack 后 pending = 0
 	WCFX_IMM   cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	cfx2rd	cfx_hart, cg9, rc5, rd5
 	REC	rd5
 	jump	[rb0, jump_setup]
 
@@ -623,7 +699,7 @@ async_jump:
 	REC	rd5
 	set.rd	rd20, 0
 	.if TMODE == 3
-	jump	[rb0, rc6_setup]
+	jump	[rb0, rc14_setup]
 	.else
 	jump	[rb0, done_ok]
 	.endif
@@ -648,16 +724,16 @@ jump_fail:
 
 .if TMODE == 3
 @@ ---------------------------------------------------------------------------
-@@ 异步进入的运行模式 = `cg9 rc6`（`m18-spec-006`；与 `m16-chipyard-028` 同场景）
-@@ 在 supv 下依次：rc6=0 ⇒ 进入应为 user（下一次进入的 prev 证明）；rc6=2 ⇒
+@@ 异步进入的运行模式 = `cg9 rc14`（`m18-spec-006`；与 `m16-chipyard-028` 同场景）
+@@ 在 supv 下依次：rc14=0 ⇒ 进入应为 user（下一次进入的 prev 证明）；rc14=2 ⇒
 @@ 进入应为 supv（再下一次的 prev 证明）。timer 到期落在 BURN 内，本组只判
 @@ 「进入后的运行模式」，不判投递边界地址。
 @@ ---------------------------------------------------------------------------
-rc6_setup:
+rc14_setup:
 	WCFX_IMM   cfx_hart, cg8, rc5, 0
 	WCFX_IMM   cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
-	WCFX_IMM   cfx_hart, cg9, rc6, 0
-	WCFX_LABEL cfx_hart, cg9, rc5, rc6_u_entry
+	WCFX_IMM   cfx_hart, cg9, rc14, 0
+	WCFX_LABEL cfx_hart, cg9, rc15, rc14_u_entry
 	cfx2rd	cfx_hart, cg8, rc2, rd5
 	add.si	rd5, 150
 	cfx2rc	cfx_hart, cg8, rc4, rd5
@@ -668,17 +744,17 @@ rc6_setup:
 	REC	rd5
 	jump	[rb0, fail_exit]
 
-rc6_u_entry:
-	@@ rc6=0：进入读数 = 0；prev = supv（进入前在 supv）
-	cfx2rd	cfx_hart, cg9, rc6, rd5
+rc14_u_entry:
+	@@ rc14=0：进入读数 = 0；prev = supv（进入前在 supv）
+	cfx2rd	cfx_hart, cg9, rc14, rd5
 	REC	rd5
 	cfx2rd	cfx_hart, cg9, rc0, rd5
 	REC	rd5
-	@@ 从 user 再投递一次（rc6=2）：下一次进入的 prev = user 即证明本次进 user
+	@@ 从 user 再投递一次（rc14=2）：下一次进入的 prev = user 即证明本次进 user
 	WCFX_IMM   cfx_hart, cg8, rc5, 0
 	WCFX_IMM   cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
-	WCFX_IMM   cfx_hart, cg9, rc6, 2
-	WCFX_LABEL cfx_hart, cg9, rc5, rc6_s_entry
+	WCFX_IMM   cfx_hart, cg9, rc14, 2
+	WCFX_LABEL cfx_hart, cg9, rc15, rc14_s_entry
 	cfx2rd	cfx_hart, cg8, rc2, rd5
 	add.si	rd5, 150
 	cfx2rc	cfx_hart, cg8, rc4, rd5
@@ -688,16 +764,16 @@ rc6_u_entry:
 	REC	rd5
 	jump	[rb0, fail_exit]
 
-rc6_s_entry:
-	@@ prev = user（rc6=0 那次确实进 user）；rc6 读数 = 2
+rc14_s_entry:
+	@@ prev = user（rc14=0 那次确实进 user）；rc14 读数 = 2
 	cfx2rd	cfx_hart, cg9, rc0, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc6, rd5
+	cfx2rd	cfx_hart, cg9, rc14, rd5
 	REC	rd5
-	@@ 从 supv 再投递一次（rc6 仍 2）：下一次进入的 prev = supv
+	@@ 从 supv 再投递一次（rc14 仍 2）：下一次进入的 prev = supv
 	WCFX_IMM   cfx_hart, cg8, rc5, 0
 	WCFX_IMM   cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
-	WCFX_LABEL cfx_hart, cg9, rc5, rc6_h_entry
+	WCFX_LABEL cfx_hart, cg9, rc15, rc14_h_entry
 	cfx2rd	cfx_hart, cg8, rc2, rd5
 	add.si	rd5, 150
 	cfx2rc	cfx_hart, cg8, rc4, rd5
@@ -707,41 +783,95 @@ rc6_s_entry:
 	REC	rd5
 	jump	[rb0, fail_exit]
 
-rc6_h_entry:
-	@@ prev = supv（rc6=2 那次确实进 supv）；收尾
+rc14_h_entry:
+	@@ prev = supv（rc14=2 那次确实进 supv）；转 escape 判据
 	cfx2rd	cfx_hart, cg9, rc0, rd5
 	REC	rd5
 	WCFX_IMM   cfx_hart, cg8, rc5, 0
 	WCFX_IMM   cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
-	WCFX_LABEL cfx_hart, cg9, rc5, async_entry
-	jump	[rb0, done_ok]
+	WCFX_LABEL cfx_hart, cg9, rc15, async_entry
+	jump	[rb0, esc_criteria]
 
 .endif
 
 
 @@ ---------------------------------------------------------------------------
-@@ 同步 CFXESC 处理（escape imms18 = 2）：记 cfx_hart cg5 帧与 cg9 快照，
-@@ 再用同步 cg5 帧 escape 回 escape 指令之后（+4）。
+@@ 同步 CFXESC 处理：escape 判据（升权 / 目标 cfx 未实现 / cfxha != 当前 cfx）
+@@ 全部在 supv 的 async handler 里发起；CFXESC 进入当前 cfx（cfx_hart）的
+@@ supv 行向量（cg2 rc15 = esc9_entry）。esc9_entry 记录帧后按 rd21 返回。
 @@ ---------------------------------------------------------------------------
+esc_criteria:
+	@@ 1) 目标模式升权：rc8 = hypv(3) > 当前 supv(2) ⇒ CFXESC
+	set.rd	rd21, 1
+	WCFX_IMM   cfx_hart, cg5, rc8, 3
+	WCFX_IMM   cfx_hart, cg5, rc9, 15
+	WCFX_LABEL cfx_hart, cg5, rc10, esc_bad1
+	WCFX_IMM   cfx_hart, cg5, rc11, ESC_BAD_MASK
+esc_bad1:
+	escape	cfx_hart
+	set.rd	rd5, 0xDEAD000A
+	REC	rd5
+	jump	[rb0, fail_exit]
+esc_cont1:
+	@@ 2) 目标 cfx 未实现（rc9 = 6）⇒ CFXESC
+	set.rd	rd21, 2
+	WCFX_IMM   cfx_hart, cg5, rc8, 2
+	WCFX_IMM   cfx_hart, cg5, rc9, 6
+	WCFX_LABEL cfx_hart, cg5, rc10, esc_bad2
+	WCFX_IMM   cfx_hart, cg5, rc11, ESC_BAD_MASK
+esc_bad2:
+	escape	cfx_hart
+	set.rd	rd5, 0xDEAD000B
+	REC	rd5
+	jump	[rb0, fail_exit]
+esc_cont2:
+	@@ 3) cfxha != 当前 cfx（cfx_smon）⇒ 当前 cfx 的 CFXESC
+	set.rd	rd21, 3
+	WCFX_IMM   cfx_hart, cg5, rc8, 2
+	WCFX_IMM   cfx_hart, cg5, rc9, 15
+	WCFX_LABEL cfx_hart, cg5, rc10, esc_bad3
+	WCFX_IMM   cfx_hart, cg5, rc11, ESC_BAD_MASK
+esc_bad3:
+	escape	cfx_smon
+	set.rd	rd5, 0xDEAD000C
+	REC	rd5
+	jump	[rb0, fail_exit]
+esc_cont3:
+	jump	[rb0, done_ok]
+
 esc9_entry:
-	cfx2rd	cfx_hart, cg5, rc2, rd5
+	cfx2rd	cfx_hart, cg5, rc4, rd5		@@ cause id = CFXESC
 	REC	rd5
-	cfx2rd	cfx_hart, cg5, rc4, rd5
+	cfx2rd	cfx_hart, cg5, rc5, rd5		@@ cause info = escape 指令编码
 	REC	rd5
-	cfx2rd	cfx_hart, cg5, rc0, rd5
+	cfx2rd	cfx_hart, cg5, rc2, rd5		@@ prev ip = escape 地址
 	REC	rd5
-	cfx2rd	cfx_hart, cg5, rc1, rd5
+	cfx2rd	cfx_hart, cg5, rc8, rd5		@@ 进入前的目标模式（非法值保持）
 	REC	rd5
-	@@ cg9 不被 escape 改变（与异步捕获槽相等）
-	cfx2rd	cfx_hart, cg9, rc0, rd5
+	cfx2rd	cfx_hart, cg5, rc9, rd5		@@ 进入前的目标 cfx（非法值保持）
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc1, rd5
+	cfx2rd	cfx_smon, cg8, rc1, rd5		@@ 切换任何状态前报错 ⇒ mask 不变
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc2, rd5
-	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc3, rd5
-	REC	rd5
-	escape	cfx_hart, [excp_cause_ip, 4]
+	set.rd	rd5, 1
+	br.eq	{rd21, rd5}?, [rb0, __e_cont1]
+	set.rd	rd5, 2
+	br.eq	{rd21, rd5}?, [rb0, __e_cont2]
+	set.rd	rd5, esc_cont3
+	jump	[rb0, __e_do]
+__e_cont1:
+	set.rd	rd5, esc_cont1
+	jump	[rb0, __e_do]
+__e_cont2:
+	set.rd	rd5, esc_cont2
+__e_do:
+	set.rd	rd6, 2
+	cfx2rc	cfx_hart, cg5, rc8, rd6
+	set.rd	rd6, 15
+	cfx2rc	cfx_hart, cg5, rc9, rd6
+	cfx2rc	cfx_hart, cg5, rc10, rd5
+	set.rd	rd6, MASK_PATTERN
+	cfx2rc	cfx_hart, cg5, rc11, rd6
+	escape	cfx_hart
 	swym	0
 
 @@ ---------------------------------------------------------------------------

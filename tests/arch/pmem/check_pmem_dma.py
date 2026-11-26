@@ -13,8 +13,8 @@ QEMU/gem5 驱动（`m16-testcases-014`）。
 `run_arch.py` 做跨平台逐槽比较（QEMU/RTL 的原始地址不同，不能直接比）。
 
 用例：
-  * `arch-pmem-001`（hmon/hypv，55 槽）：DMA / 状态 / 一致性 clean+invalidate /
-    ILLI / 捕获 / `escape imms18=2 ⇒ CFXESC` / 同界多源一次进入 / ack / 覆盖；
+  * `arch-pmem-001`（hmon/hypv，48 槽）：DMA / 状态 / 一致性 clean+invalidate /
+    ILLI / 捕获 / 正常异步 `escape`（rc11 整字）/ 同界多源一次进入 / ack / 覆盖；
   * `arch-pmem-002`（smon/supv、umon/user，10 槽）：DMA 在 hypv 启动、完成落在
     目标模式，各写自己 monitor 的掩码行 → pending → 放行 → 投递。
 
@@ -59,7 +59,7 @@ EXITB = 0x00105800
 LDS = _HERE.with_name("pmem_dma_qemu.lds")
 SRC = _HERE.with_name("pmem_dma.S")
 TIMEOUT = runlimit.DEFAULT_TIMEOUT   # 失败路径短时限（ISS-522）
-SLOTS = {"arch-pmem-001": 55, "arch-pmem-002": 10}
+SLOTS = {"arch-pmem-001": 48, "arch-pmem-002": 10}
 
 
 class SetupError(RuntimeError):

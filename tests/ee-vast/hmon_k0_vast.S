@@ -38,11 +38,11 @@ _start:
 	set.rb rb1, SP
 
 	@@ --- 1. trap cause / boot magic (CFXTRAP = 1<<0, magic 0x30001) ---
-	cfx2rd	cfx_hmon, cg5, rc2, rd6
+	cfx2rd	cfx_hmon, cg5, rc4, rd6		@@ excp_cause_id（新布局 rc4）
 	set.rd rd7, 0x0000000000000001
 	cmp.uo	rd8, rd6, rd7
 	br.nz	{rd8}?, [rb0, hmon_exit_b8]
-	cfx2rd	cfx_hmon, cg5, rc4, rd6
+	cfx2rd	cfx_hmon, cg5, rc5, rd6		@@ excp_cause_info（新布局 rc5）
 	set.rd rd7, 0x000000000003ffff
 	and.o	rd6, rd6, rd7
 	set.rd rd7, 0x0000000000030001	@@ 0x0003_0001
@@ -62,9 +62,9 @@ _start:
 	br.nz	{rd8}?, [rb0, hmon_exit_rd8]
 
 	@@ --- 4. cfx_smon: hypv vector = smon e_entry, switch mode = supv (2) ---
-	cfx2rc	cfx_smon, cg3, rc10, rd5
+	cfx2rc	cfx_smon, cg3, rc15, rd5		@@ hypv_excp_vector（原 rc10）
 	set.rd rd6, 0x0000000000000002
-	cfx2rc	cfx_smon, cg3, rc8, rd6
+	cfx2rc	cfx_smon, cg3, rc14, rd6		@@ hypv_switch_run_mode（原 rc8）
 
 	@@ --- 5. hand every cfx's supv permissions to smon (hmon itself excluded) ---
 	@@ User ruling 2026-11-17 (m14-testcases-006): hmon hands *every* cfx
@@ -82,11 +82,11 @@ _start:
 	@@ hmon runs in hypv, so its own writes use the hypv rows (bit3 = 0).
 	@@
 	@@ The cleared source bits are {2, 15}: the kernel starts as cfx_smon (2),
-	@@ and from the first cfx_hart interrupt delivery on its inner_cfx_code is
-	@@ cfx_hart (15) -- `escape` restores only the run mode (DADAO-12 §5.3, no
-	@@ previous cfx in the frame), so the target cfx stays.  Both are the same
-	@@ kernel asking (tools/testcases/arch/min_rom_probe_integ051t.py records
-	@@ the same convention), so both source bits are opened.
+	@@ and async entries deliver to cfx_hart (15); escape restores run mode/cfx/ip
+	@@ from `cg5 rc8`-`rc11` (DADAO-12 §5.3), so the kernel that runs inside the
+	@@ async handler is still cfx_hart when it issues cfx-register accesses.
+	@@ Both are the same kernel asking (tools/testcases/arch/min_rom_probe_integ051t.py
+	@@ records the same convention), so both source bits are opened.
 	.macro	OPEN_SUPV_REGS cfx
 	cfx2rd	\cfx, cg2, rc0, rd20		@@ supv cfxtrap
 	cfx2rd	\cfx, cg2, rc1, rd21		@@ supv cfxmem

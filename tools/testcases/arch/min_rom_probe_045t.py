@@ -148,7 +148,15 @@ def st_o(rd, rb, off):      return (0x21 << 24) | (rd << 18) | (rb << 12) | (off
 def cfx2rd(ha, cg, rc, rd): return (0x7A << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 def cfx2rc(ha, cg, rc, rd): return (0x7B << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 def trap(ha, immu18):       return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
-def escape(ha, imms18):     return (0x7E << 24) | (ha << 18) | (imms18 & 0x3FFFF)
+def escape(ha):             return (0x7E << 24) | (ha << 18)   # imms18 = 0 (SBZ)
+def escape_imm(ha, imms18): return (0x7E << 24) | (ha << 18) | (imms18 & 0x3FFFF)
+def add_si(rd, imm):        return (0x59 << 24) | (rd << 18) | (imm & 0x3FFFF)
+
+
+def ret_seq(ha, off, scr=20):
+    """R3 return: cg5 rc10 = prev ip + off, then `escape cfxHA`."""
+    return [cfx2rd(ha, 5, 2, scr), add_si(scr, off), cfx2rc(ha, 5, 10, scr),
+            escape(ha)]
 def jump_iiii(imms24):      return (0x70 << 24) | (imms24 & 0xFFFFFF)
 def swym():                 return 0x47880000
 
@@ -248,7 +256,7 @@ def case(name, desc):
 
 def set_cfx_vector(cfxha, mode_cg, vec):
     """cfx2rc cfxha, cg=mode_cg, rc=10 (excp_vector), <- rd22."""
-    return load_rd(22, vec) + [cfx2rc(cfxha, mode_cg, 10, 22)]
+    return load_rd(22, vec) + [cfx2rc(cfxha, mode_cg, 15, 22)]
 
 
 def hand(off, code):
@@ -264,12 +272,12 @@ def _trap_vector_roundtrip():
     prog += [trap(0, 0x0123)]               # immu18=0x0123 (general, below 0x3FF00)
     # escape returns to trap+4:
     prog += [cfx2rd(0, 4, 5, 9)]            # escape_num -> rd9
-    prog += [cfx2rd(0, 5, 3, 10)]           # cause_ip   -> rd10
+    prog += [cfx2rd(0, 5, 2, 10)]           # prev ip    -> rd10
     prog += [cfx2rd(0, 5, 0, 11)]           # prev_run_mode -> rd11
     prog += exit_seq(0x00)
     exp = {
         "exit": 0x00,
-        "cfxcode": 0, "mode": HYPV,
+        "cfxcode": 3, "mode": HYPV,   # R3: escape restores prev cfx (hmon)
         "trapn:0": 1, "syncn:0": 0, "escn:0": 1,
         "cid:0": CFXTRAP,
         "cip:0": ROM_BASE + trap_idx * 4,
@@ -279,7 +287,7 @@ def _trap_vector_roundtrip():
         "rd11": HYPV,
     }
     # handler: escape cfx0, imms18=1 (byte offset +4)
-    return build_rom(prog, {0x100: [escape(0, 1)]}), exp
+    return build_rom(prog, {0x100: [*ret_seq(0, 4)]}), exp
 
 
 # -- acc 2: instruction-type trap mask forbid => ILLI -----------------------
@@ -307,7 +315,7 @@ def _escape_fwd_offset():
     prog += [jump_to(j2, EXIT_B)]      # cause_ip + 8
     j3 = len(prog)
     prog += [jump_to(j3, EXIT_C)]      # cause_ip + 12
-    handlers = {0x100: [escape(0, 1)],
+    handlers = {0x100: [*ret_seq(0, 4)],
                 EXIT_A: exit_seq(0x26),
                 EXIT_B: exit_seq(0x37),
                 EXIT_C: exit_seq(0x19)}
@@ -321,7 +329,7 @@ def _escape_fwd_offset():
 def _escape_illegal_offset():
     prog = set_cfx_vector(3, 3, H)     # current mode monitor (hmon) vector
     fault_idx = len(prog)
-    prog += [escape(0, -1)]            # cfxha=0 valid; SBZ violated => ILLI
+    prog += [escape_imm(0, -1)]            # cfxha=0 valid; SBZ violated => ILLI
     prog += exit_seq(0x7E)             # taken only if the illegal offset ran
     exp = {"exit": 0x33, "cid:3": ILLI, "syncn:3": 1,
            "cip:3": ROM_BASE + fault_idx * 4,
@@ -334,7 +342,7 @@ def _escape_illegal_offset():
 def _escape_cross_mask():
     prog = set_cfx_vector(3, 3, H)                  # cfx3 hypv excp_vector = H
     fault_idx = len(prog)
-    prog += [escape(0, 0)]                          # current cfx is hmon (3)
+    prog += [escape(0)]                          # current cfx is hmon (3)
     prog += exit_seq(0x7E)
     exp = {"exit": 0x2C, "cid:3": CFXESC, "syncn:3": 1,
            "cip:3": ROM_BASE + fault_idx * 4}
@@ -349,20 +357,20 @@ def _cfx2_full_regface():
     prog += [cfx2rd(0, 4, 1, 53), cfx2rd(0, 4, 6, 54)]
     # cg0 rc1 cfxmem: write via cfx0, read back via cfx0
     prog += load_rd(20, 0x1111) + [cfx2rc(0, 0, 1, 20), cfx2rd(0, 0, 1, 30)]
-    # cg0/1/2/3 rc8 switch_run_mode per mode
-    prog += load_rd(20, 2) + [cfx2rc(0, 0, 8, 20), cfx2rd(0, 0, 8, 31)]
-    prog += load_rd(20, 1) + [cfx2rc(0, 1, 8, 20), cfx2rd(0, 1, 8, 32)]
-    prog += load_rd(20, 0) + [cfx2rc(0, 2, 8, 20), cfx2rd(0, 2, 8, 33)]
-    prog += load_rd(20, 3) + [cfx2rc(0, 3, 8, 20), cfx2rd(0, 3, 8, 34)]
+    # cg0/1/2/3 rc14 switch_run_mode per mode（原 rc8）
+    prog += load_rd(20, 2) + [cfx2rc(0, 0, 14, 20), cfx2rd(0, 0, 14, 31)]
+    prog += load_rd(20, 1) + [cfx2rc(0, 1, 14, 20), cfx2rd(0, 1, 14, 32)]
+    prog += load_rd(20, 0) + [cfx2rc(0, 2, 14, 20), cfx2rd(0, 2, 14, 33)]
+    prog += load_rd(20, 3) + [cfx2rc(0, 3, 14, 20), cfx2rd(0, 3, 14, 34)]
     # cg3 rc12 cg_reg_deleg (hypv only) RW
     prog += load_rd(20, 0xCAFE) + [cfx2rc(0, 3, 12, 20), cfx2rd(0, 3, 12, 35)]
     # cg4 rc0 cfx_id (RO), rc2 trap_num (RO)
     prog += [cfx2rd(0, 4, 0, 36), cfx2rd(0, 4, 2, 37)]
-    # cg5 rc3 cause_ip (RW), rc0 prev_run_mode (RW), rc5 pending (RW)
-    prog += load_rd(20, 0x5555) + [cfx2rc(0, 5, 3, 20), cfx2rd(0, 5, 3, 38)]
-    prog += load_rd(20, 1) + [cfx2rc(0, 5, 0, 20), cfx2rd(0, 5, 0, 39)]
-    prog += load_rd(20, 7) + [cfx2rc(0, 5, 5, 20), cfx2rd(0, 5, 5, 41)]
-    prog += [cfx2rd(0, 5, 2, 42)]            # cg5 rc2 cause_id (RO)
+    # cg5 rc10 escape ip (HW/RW), rc8 escape run mode (HW/RW), rc11 mask (HW/RW)
+    prog += load_rd(20, 0x5554) + [cfx2rc(0, 5, 10, 20), cfx2rd(0, 5, 10, 38)]
+    prog += load_rd(20, 1) + [cfx2rc(0, 5, 8, 20), cfx2rd(0, 5, 8, 39)]
+    prog += load_rd(20, 7) + [cfx2rc(0, 5, 11, 20), cfx2rd(0, 5, 11, 41)]
+    prog += [cfx2rd(0, 5, 4, 42)]            # cg5 rc4 cause_id (RO)
     # cg6 scratch rc0 / rc3 (RW, N=4)
     prog += load_rd(20, 0xAAAA) + [cfx2rc(0, 6, 0, 20), cfx2rd(0, 6, 0, 43)]
     prog += load_rd(20, 0xBBBB) + [cfx2rc(0, 6, 3, 20), cfx2rd(0, 6, 3, 44)]
@@ -372,15 +380,15 @@ def _cfx2_full_regface():
     prog += [cfx2rd(0, 7, 0, 45), cfx2rd(0, 7, 1, 46)]
     # cg2 rc1 cfxmem (per-mode row)
     prog += load_rd(20, 0x2222) + [cfx2rc(0, 2, 1, 20), cfx2rd(0, 2, 1, 47)]
-    # cfx63 (power): write cause_ip / scratch[1], read back
-    prog += load_rd(20, 0x12345678) + [cfx2rc(63, 5, 3, 20), cfx2rd(63, 5, 3, 48)]
+    # cfx63 (power): write escape ip / scratch[1], read back
+    prog += load_rd(20, 0x12345678) + [cfx2rc(63, 5, 10, 20), cfx2rd(63, 5, 10, 48)]
     prog += load_rd(20, 0xFFFF) + [cfx2rc(63, 6, 1, 20), cfx2rd(63, 6, 1, 49)]
     prog += exit_seq(0x00)
     exp = {
         "exit": 0x00,
         "rd30": 0x1111, "rd31": 2, "rd32": 1, "rd33": 0, "rd34": 3,
         "rd35": 0xCAFE, "rd36": 0, "rd37": 0,
-        "rd38": 0x5555, "rd39": 1, "rd41": 7, "rd42": 0,
+        "rd38": 0x5554, "rd39": 1, "rd41": 7, "rd42": 0,
         "rd43": 0xAAAA, "rd44": 0xBBBB,
         "rd45": 0, "rd46": 0, "rd47": 0x2222,
         "rd48": 0x12345678, "rd49": 0xFFFF,
@@ -395,7 +403,7 @@ def _cfx2_full_regface():
 def _cfx2_cg3_nonhypv():
     # cfx0 hypv vector -> H (trap entry); cfx0 user vector -> EXIT_CONT (fault).
     prog = set_cfx_vector(0, 3, H) + set_cfx_vector(0, 0, ROM_BASE + EXIT_CONT)
-    prog += load_rd(20, USER) + [cfx2rc(0, 3, 8, 20)]   # switch to user
+    prog += load_rd(20, USER) + [cfx2rc(0, 3, 14, 20)]   # switch to user
     prog += load_rd(20, 0) + [cfx2rc(0, 0, 2, 20)]     # user cfxreg mask = 0
     prog += [trap(0, 0)]
     exp = {"exit": 0x2C, "cid:0": CFXREG, "syncn:0": 1}

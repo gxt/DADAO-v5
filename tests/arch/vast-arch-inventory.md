@@ -249,7 +249,7 @@ RTL（`m16-chipyard-016/017`）均已实现 cfx5；`run_arch.py --cfx 5` 的三�
 - **寄存器面**：有。cfx15 在 Vast 掩码内（`components/qemu/patches/target/dadao/cpu.c.patch:55`）；`cg8 rc0/2/3/4/5` = hart_id/cycle/insn/timer_cmp/ctrl|ISTATUS；`cg9` 为 R3 入口记录（`rc0`–`rc2` prev run mode / prev cfx / prev ip、`rc3` prev intr mask、`rc4` `async_src_frame`、`rc5` `async_src_pending`，均 HW/RO 且软件写忽略）+ `rc14` switch（复位 2）、`rc15` vector（低 2 位写忽略），`rc6`–`rc13` ⇒ `CFXREG`（`m18-qemu-008`；`dadao_hart_async_reg_read`/`_write`）。
 - **命令与副作用**：有。单 hart 一次性定时器：`cg8 rc4/rc5` 写、arming（`dadao_hart_reg_write`/`dadao_hart_timer_arm`）；hart-first 下 TIMER/PMEM_DMA 的 delivery pending 落 `cfx_hart cg9 rc5`（`async_src_pending`，位 = **源 cfxha** 15/32），来源 mask 在**当前运行模式 monitor** 的 `cg8 rc1`（`cfx_<monitor>_async_intr_mask`，复位全 1），投递目标固定 `cfx_hart` 的 `cg9 rc15` 向量 / `cg9 rc14` 模式；同一指令边界把所有 pending 且放行的源合并成一次捕获（`cg9 rc4` `async_src_frame` 位图并集，`excp_async_num` 每次进入 +1）。
 - **异常与子原因**：有。异步源**不占 `excp_cause_id`**、无 `cause_info`，源身份 = 源 cfxha（TIMER 15、PMEM_DMA 32）；异步进入只写 `cg9 rc0`–`rc4` 与 **hart 自己的 `cg5 rc8`–`rc11`**（出口意图），**不写** hart `cg5 rc0`–`rc3`；`cg9` 是**进入瞬间的捕获缓冲**：每次进入整体覆盖，无 `frame_valid`、无软件清 `src_frame`、无「帧活动期」门控；异步返回走 `escape cfx_hart`（同步/异步共用出口：跳 `cg5 rc10`、切 `rc8`/`rc9`、`rc11` 整字恢复目标模式 monitor `cg8 rc1`），`escape` 的 `imms18` 必须 0（非 0 ⇒ `ILLI`），目标升权/未实现 cfx/无 monitor ⇒ `CFXESC`（`m18-qemu-008`）。
-- **现有测试载体**：QEMU 单元探针。`tools/testcases/arch/min_rom_probe_m18qemu008.py:1`（21 例 / 150 断言：cg5 入口记录/出口意图、cg0–cg3 **四行各自**的 rc14/rc15 与旧 rc8/rc10 ⇒ `CFXREG`、cg9 新布局、同步/异步进入写入集合、`escape` 正常返回 + 整字恢复 + `imms18`/错 cfxha/未实现目标/升权四类拒绝）；旧 R2 探针（`min_rom_probe_async_094t.py`、`min_rom_probe_integ050t.py`、`min_rom_probe_integ051t.py`、`tests/arch/hart/cfx15.S` + `check_cfx15.py`）仍按 R2 槽位，等 `m18-testcases-004` 的向量改写。
+- **现有测试载体**：QEMU 单元探针。`tools/testcases/arch/min_rom_probe_m18qemu008.py:1`（21 例 / 150 断言：cg5 入口记录/出口意图、cg0–cg3 **四行各自**的 rc14/rc15 与旧 rc8/rc10 ⇒ `CFXREG`、cg9 新布局、同步/异步进入写入集合、`escape` 正常返回 + 整字恢复 + `imms18`/错 cfxha/未实现目标/升权四类拒绝）；`tests/arch/hart/cfx15.S` + `check_cfx15.py` 已由 `m18-testcases-004` 改到 R3（124/38 槽，含正常异步返回 + rc11 整字 + 四类 escape 判据），QEMU 三模式 PASS；旧 R2 探针 `min_rom_probe_async_094t.py`/`min_rom_probe_integ050t.py`/`min_rom_probe_integ051t.py` 仍按 R2 槽位（KNOWN-RED，R3 需重设计 hypv→supv 返回路径）。
 - **现有门控**：`check-arch`（L3 保留清单，`integ050t`/`integ051t` 在 `ARCH_CFX_PROBES`；当前 `check-arch` 只跑 smoke/046t/tlb 载体）。
 
 ### cfx15 hart — gem5
@@ -269,7 +269,7 @@ RTL（`m16-chipyard-016/017`）均已实现 cfx5；`run_arch.py --cfx 5` 的三�
 - **寄存器面**：有。`m16-chipyard-021` 落 cfx_hart cg8 + cg9 十六 rc；`m16-chipyard-024` 改到 `ADR-0061`（cg9 七槽、mask 归 monitor）；`m16-chipyard-026` 改到 R2（捕获缓冲、无帧门控、`escape imms18=2 ⇒ CFXESC`）。
 - **命令与副作用**：有。TIMER 投 `cfx_hart` supv 单向量；`src_frame`/`src_pending` 位 = 源 cfxha。
 - **异常与子原因**：有。R2 捕获缓冲语义（每次进入整体覆盖）。
-- **现有测试载体**：`tests/arch/hart/cfx15.S`（RTL 承载 `cfx15.lds` + `check_hart_rtl.py`；`arch-hart-001` hmon 89 槽（含 `cg9 rc6` 写回/进入模式）、`arch-hart-002` smon/umon 40 槽）。
+- **现有测试载体**：`tests/arch/hart/cfx15.S`（RTL 承载 `cfx15.lds` + `check_hart_rtl.py`；`m18-testcases-004` 已把同一 case 源改到 R3，QEMU 124/38 槽 PASS；RTL 的 cg9/cg5 布局仍待 R3 迁移任务，故 RTL 腿 KNOWN-RED）。
 - **现有门控**：`run_arch --case arch-hart-001/002 --platforms chipyard`（`m16-testcases-013`）。
 
 ---

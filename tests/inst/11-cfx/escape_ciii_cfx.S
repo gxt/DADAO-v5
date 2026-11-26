@@ -1,425 +1,253 @@
-@@ escape_ciii_cfx.S — escape cfxHA, [excp_cause_ip, imms20]（ciii, opc 0x7E）
+@@ escape_ciii_cfx.S — escape cfxHA（ciii, opc 0x7E）
 @@ 大类：11-cfx（核芯功能扩展，`spec/SimRISC-11 §3`）；册目录 `tests/inst/11-cfx/`
 @@ id：escape_ciii_cfx　形式：ciii　opc：0x7E　mask：0xFF000000　value：0x7E000000
-@@ 语义（`spec/DADAO-12 §5.3`，m14-spec-009 起；编码见 `spec/SimRISC-11 §3`）：`escape` 在
-@@   **当前 cfx**（`inner_cfx_code`）的**所选帧**上退出——步骤 0 检查目标/帧：
-@@   `imms18[17:2]` 非 0（SBZ）⇒ ILLI；`imms18 = 3`（cg9 帧 + 偏移 +4）⇒ ILLI；`cfxha` reserved
-@@   ⇒ ILLI；`cfxha != inner_cfx_code` 或所选帧无效（`cg5` 帧 `excp_cause_id == 0`；
-@@   `imms18[1] = 1` 选的 `cg9` 是**捕获缓冲、不是返回帧**）⇒ **CFXESC**（切换任何
-@@   状态之前）。ADR-0061 R2：`escape` 不保存/不恢复任何来源掩码（策略不是现场），
-@@   不以 `cg9` 作为异步返回帧（返回走 smon/umon 正常路径）；步骤 2 恢复
-@@   `inner_run_mode` 与 **`inner_cfx_code` ← `excp_prev_cfx_code`**；步骤 3
-@@   `escape_num += 1`、返回地址 = `excp_cause_ip + ((imms18 & 1) << 2)`（仅 `cg5` 帧）。
-@@   帧选择位 = `imms18[1]`：0 = `cg5` 同步异常帧、1 = `cg9`（合法编码，但所选帧无效
-@@   ⇒ `CFXESC`，见链例 13）。
-@@ ★ 本文件的关键前提（m14-spec-009 新语义）：**boot 移交后应用运行在 cfx_power(63) 上下文**——
-@@   `spec/Kaiwu §1` 的复位 cfx 是 cfx_power(63)；固件 hmon 在 `§6.2` 第 7 步 `escape cfx_hmon`
-@@   会把 `inner_cfx_code` 从 hmon(3) 恢复成进入前的 63（旧语义「escape 不改 `inner_cfx_code`」
-@@   已作废）。故应用**不能**直接 `escape cfx_hmon`（`cfxha(3) != inner_cfx_code(63)` ⇒ CFXESC）；
-@@   成功路径只能在 **monitor 上下文**里执行 ⇒ 本文件自建 monitor 入口：应用写
-@@   `cfx_hmon cg3 rc10`（hypv 异常向量，RW、低 2 位被忽略）指向本文件的 handler，再
-@@   `trap cfx_hmon` 进入 hmon（此时 `inner_cfx_code = 3`），由 handler 执行被测 `escape`
-@@   回到应用；结束前把自建入口撤掉，把 `cfx_hmon` / `cfx_power` 的向量还原成各自的初值
-@@   （`spec/DADAO-13 §1`：= 该 cfx 的 SRAM 起始；hmon = hmon SRAM、power = BootROM）。
-@@ 编码：ciii = opc[31:24] | cfxha[23:18] | imms18[17:0]；`imms18 = imms20 >> 2` ⇒
-@@   `[excp_cause_ip, 0/4]` ⇒ imms18 = 0/1（cg5 帧）、`[async_cause_ip, 8]` ⇒ imms18 = 2（cg9 现场）
+@@ 语义（`spec/DADAO-12 §5.1/§5.3`，`m18-spec-007` / ADR-0061 R3）：
+@@   唯一操作数是 `cfxHA`，`imms18` 必须为 0（SBZ；非 0 ⇒ ILLI）；`cfxha` reserved
+@@   ⇒ ILLI；`cfxha != inner_cfx_code` ⇒ 当前 cfx 的 CFXESC；返回的四元组取自
+@@   当前 cfx 的 `cg5` **出口意图** `rc8`–`rc11`（run mode / cfx code / ip / intr mask）；
+@@   目标模式（`rc8`）不得高于当前模式、目标 cfx（`rc9`）必须已实现、目标模式必须有
+@@   monitor，否则在切换任何状态前报当前 cfx 的 CFXESC；`escape_num` 每次 +1；
+@@   `rc11` **整字**写入目标模式 monitor 的 `cg8 rc1`（与切模式/切 cfx/跳转原子）。
+@@   不设“帧有效位”：`cg5 rc4`（cause id）为 0 也可返回。
+@@ 编码：ciii = opc[31:24] | cfxha[23:18] | imms18[17:0]；`escape cfxHA` ⇒ imms18 = 0。
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 5 / boundary 3 / legality 3（链例 13 + 故障例 8）
+@@ 用例：encoding/semantic/boundary 链例 28 + 故障例 9（共 37 个检查点）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：落点 IP 用 `aip.si` 取自身地址（只读观测）；三类异常的 cause 观测面都是 hmon SRAM 的
-@@   0xE0/0xE8/0xF0 槽（cause_id / cause_ip / cause_info，`spec/DADAO-13 §2`：cause_info = 指令编码）——
-@@   目标侧异常（IALIGN/CFXMEM）由**平台固件** hmon 的「保存-跳转」写这些槽（`spec/Kaiwu §6.2`）；
-@@   CFXESC 交给**当前 cfx = cfx_power**（`§5.3` 步骤 0），故由本文件挂在 `cfx_power` 向量上的
-@@   自建入口写同样三个槽（链例 10/11）。落点/目标块/handler 用 `.org` 钉在 ENTRY+0x880 起。
-@@ GAP（不计入链例，见任务书完成区）：① `escape_num` 计数（chipyard RTL 无 cg4）；
-@@   ② 模式恢复与 trap 保存的 global_cfx_intr_mask 不可观测（Tiny 恒 hypv）；③ `inner_cfx_code`
-@@   本身不可直接读 ⇒ 用「同帧第二次 escape 必判 CFXESC」间接断言恢复（链例 12）；
-@@   ④ 本文件的 handler 是**测试替身**，不是平台固件（平台固件的行为由各故障例的固件路由覆盖）；
-@@   ⑤ 帧选择位的 cg9 路径（`imms18 = 2`）在 ADR-0061 R2 下**不是**异步返回：`cg9` 是进入
-@@     瞬间的捕获缓冲、不是返回帧 ⇒ 所选帧无效 ⇒ **当前 cfx 的 `CFXESC`**（链例 13 断言，
-@@     应用在 cfx_power(63)，故由 cfx_power 的向量记三槽）。Tiny 不实现 `cfx_hart`，故本
-@@     载体只判「cg9 帧选择合法但按无效帧处理」；捕获缓冲的覆盖/一帧多源语义由
-@@     `INTEG-050t/051t` 探针与 IDL 执行器自检覆盖。
-@@   ⑥ **case 12 的 fail 路径不可判定**（`ISS-473`）：旧语义下第 3 次到达后**双 lane
-@@     挂死到超时**（实测，`m15-testcases-019` 复核注入①），不是具名退出；推定原因是
-@@     该次到达已在 monitor 上下文、semihosting 不生效（未逐一取证）。正常路径不受影响；
-@@     本例不作为「fail 路径回归」用例（登记见 `m16-testcases-021` 完成区）。
+@@ 探针：应用运行在 cfx_power(63)/hypv（`spec/Kaiwu §1` 启动链），自建 hmon 入口
+@@   （`cfx_hmon cg3 rc15`）与 cfx_power 入口（`cfx_power cg3 rc15`）分别接管同步
+@@   trap 与 CFXESC；handler 把 `cg5 rc0`–`rc5`/`rc8`–`rc11` 记到 RAM 槽（SSCR/PSCR），
+@@   落点逐项核。期望值全部由 `spec/DADAO-12 §3.6/§5.1/§5.3` 与编码定义内联派生。
+@@ GAP（不计入链例）：① `escape_num` 在 chipyard RTL 无 cg4 ⇒ 三平台不一致
+@@   （QEMU 已实现，链例 12/18 在 QEMU 上生效）；② 升权与“目标模式无 monitor”
+@@   （如 jail→jmon 不存在）在 Tiny 不可构造（Tiny 恒 hypv、无 jail），由
+@@   `tests/arch/hart/cfx15.S`（Vast/supv）承接；③ 异步进入的写入集合需 cfx_hart，
+@@   Tiny 不实现该 cfx ⇒ 同由 `cfx15.S` 承接。
 
 	.include "tests/inst/macros/inst_test.inc"
 
 @@ ---- 本文件局部宏（不改共享宏层；宏体不含检查行）----
-@@ 安装自建 monitor 入口：`cfx_hmon cg3 rc10` = hypv 异常向量（RW；写入忽略低 2 位）
-.macro __MON_INSTALL handler
-	set.rd	rd12, \handler
-	cfx2rc	cfx_hmon, cg3, rc10, rd12
+	.equ	SSCR, TEST_DATA + 0x1C00	@@ hmon handler 记录槽（RAM，power 可读）
+	.equ	PSCR, TEST_DATA + 0x1D00	@@ cfx_power handler 记录槽
+	.equ	P0, 0x0123456789ABCDEF		@@ trap 前 hmon 的 async mask
+	.equ	P1, 0x0000000000000001		@@ 第一次 escape 写的 rc11（整字反例）
+	.equ	P2, 0x8000000000000001		@@ 第二次 escape 写的 rc11（整字反例）
+
+@@ `cg5` 帧记录（rc0–rc5、rc8–rc11）落到 `\base + \off`
+.macro	__REC_FRAME cfx, base, off
+	cfx2rd	\cfx, cg5, rc0, rd5
+	st.o	rd5, [\base, \off + 0x00]
+	cfx2rd	\cfx, cg5, rc1, rd5
+	st.o	rd5, [\base, \off + 0x08]
+	cfx2rd	\cfx, cg5, rc2, rd5
+	st.o	rd5, [\base, \off + 0x10]
+	cfx2rd	\cfx, cg5, rc3, rd5
+	st.o	rd5, [\base, \off + 0x18]
+	cfx2rd	\cfx, cg5, rc4, rd5
+	st.o	rd5, [\base, \off + 0x20]
+	cfx2rd	\cfx, cg5, rc5, rd5
+	st.o	rd5, [\base, \off + 0x28]
+	cfx2rd	\cfx, cg5, rc8, rd5
+	st.o	rd5, [\base, \off + 0x30]
+	cfx2rd	\cfx, cg5, rc9, rd5
+	st.o	rd5, [\base, \off + 0x38]
+	cfx2rd	\cfx, cg5, rc10, rd5
+	st.o	rd5, [\base, \off + 0x40]
+	cfx2rd	\cfx, cg5, rc11, rd5
+	st.o	rd5, [\base, \off + 0x48]
 .endm
 
-@@ 进 hmon 跑被测 `escape`：装入口 → 返回基址进 rd13 → `trap cfx_hmon`
-@@   （应用在 cfx_power(63)：`cfx_hmon` 的 hypv `cfxtrap` 掩码允许 63 ⇒ 可显式 trap）
-.macro __MON_ENTER handler, target
-	__MON_INSTALL \handler
-	set.rd	rd13, \target
-	trap	cfx_hmon, 0x30001
-.endm
-
-@@ handler 公共前置：记进入时的 cause_id（落点断言用）、把返回基址设成用例给的 rd13
-.macro __MON_PRE cfx
-	cfx2rd	\cfx, cg5, rc2, rd63
-	st.o	rd63, [rb22, 0xE0]
-	cfx2rc	\cfx, cg5, rc3, rd13
-.endm
-
-@@ cfx63 侧入口前置：CFXESC 交付给**当前 cfx**（应用在 cfx_power 63）⇒ 帧属于 cfx_power；
-@@   进入时记下 cause_id / cause_ip / cause_info 三个槽（落点断言的独立观测面），
-@@   再把返回基址改成用例给的 rd13（escape 不改写帧的其余字段）
-.macro __MON_PRE_POWER
-	cfx2rd	cfx_power, cg5, rc2, rd63
-	st.o	rd63, [rb22, 0xE0]
-	cfx2rd	cfx_power, cg5, rc3, rd63
-	st.o	rd63, [rb22, 0xE8]
-	cfx2rd	cfx_power, cg5, rc4, rd63
-	st.o	rd63, [rb22, 0xF0]
-	cfx2rc	cfx_power, cg5, rc3, rd13
-.endm
-
-@@ 落点 IP 捕获（`aip.si` 取自身地址，经 rb2rd 搬到 rd；rb25 为本文件临时）
-.macro __LAND_IP_RD rd
-	aip.si	rb25, 0
-	rb2rd	{\rd:\rd}, {rb25:rb25}
+@@ 写当前 cfx 的出口意图：run mode = hypv、cfx = power、ip = \ip、mask = \mask
+.macro	__PREP_ESC cfx, ip, mask
+	set.rd	rd5, 0x0000000000000003
+	cfx2rc	\cfx, cg5, rc8, rd5
+	set.rd	rd5, 0x000000000000003F
+	cfx2rc	\cfx, cg5, rc9, rd5
+	set.rd	rd5, \ip
+	cfx2rc	\cfx, cg5, rc10, rd5
+	set.rd	rd5, \mask
+	cfx2rc	\cfx, cg5, rc11, rd5
 .endm
 
 	__TEST_BEGIN
-	set.rb rb20, HMON_BASE
-	set.rb rb22, HMON_BASE              @@ handler 的槽基址（跨 trap 保留）
-	set.rd	rd11, HMON_BASE                    @@ 固件异常向量值（`spec/DADAO-13 §1` 初值）
-	set.rb rb21, TEST_PAD
-	st.o	rb21, [rb20, 0xF8]              @@ 任何意外异常 ⇒ 故障落点（fail-fast）
-
-	@@ ---- encoding：规范编码字 0x7E0C0001（cfx3，imms18 = 1 ⇒ +4）----
-__c1:
-	__MON_ENTER (ENTRY + 0x1B80), (ENTRY + 0x880)
-	__EXIT	1
-
-	@@ ---- encoding：0x7E0C0000（imms18 = 0 ⇒ +0）----
-__c2:
-	__MON_ENTER (ENTRY + 0x1BC0), (ENTRY + 0x980)
-	__EXIT	2
-
-	@@ ---- semantic：汇编形式 `[excp_cause_ip, 4]` ----
-__c3:
-	__MON_ENTER (ENTRY + 0x1B00), (ENTRY + 0xA80)
-	__EXIT	3
-
-	@@ ---- semantic：汇编形式 `[excp_cause_ip, 0]` ----
-__c4:
-	__MON_ENTER (ENTRY + 0x1B40), (ENTRY + 0xB80)
-	__EXIT	4
-
-	@@ ---- semantic：从「非 trap 的同步异常帧」（ILLI，cause_id = 1<<8）escape ----
-__c5:
-	__MON_INSTALL (ENTRY + 0x1B00)         @@ [+4] 入口（本用例不同 trap，靠 ILLI 陷入）
-	set.rd	rd13, (ENTRY + 0xD80)
-	trap	cfx6, 0                        @@ reserved cfxha ⇒ ILLI（进当前模式 monitor = hmon）
-	__EXIT	5
-
-	@@ ---- semantic：escape 不改写异常帧（cause_id / cause_ip 保持）----
-__c6:
-	__MON_ENTER (ENTRY + 0x1B40), (ENTRY + 0x1300)
-	__EXIT	6
-
-	@@ ---- boundary：返回地址 = 任意编译期固定地址（.text 高端）----
-__c7:
-	__MON_ENTER (ENTRY + 0x1B00), (ENTRY + 0x1450)
-	__EXIT	7
-
-	@@ ---- boundary：目标未 4 字节对齐 ⇒ IALIGN（IP 停在非法地址）----
-	@@   handler 先把向量还原成平台固件再 escape，于是目标侧异常按固件「保存-跳转」落到 0x15A0
-__c8:
-	set.rb rb21, (ENTRY + 0x15A0)
+	set.rb	rb20, HMON_BASE
+	set.rb	rb4, SSCR
+	set.rb	rb5, PSCR
+	@@ 任何意外异常先落到固件 hmon 的返回槽（fail-fast；随后会被还原）
+	set.rb	rb21, TEST_PAD
 	st.o	rb21, [rb20, 0xF8]
-	__MON_ENTER (ENTRY + 0x1C00), ((ENTRY + 0x401))
-	__EXIT	8
 
-	@@ ---- boundary：目标地址 0（Tiny 的 addr[47:42]=0 未映射）⇒ CFXMEM ----
-__c9:
-	set.rb rb21, (ENTRY + 0x16F0)
-	st.o	rb21, [rb20, 0xF8]
-	__MON_ENTER (ENTRY + 0x1C00), 0
-	__EXIT	9
+	@@ ---- hmon 的 async mask = P0，trap 入口记录 rc3 取该快照 ----
+	set.rd	rd5, P0
+	cfx2rc	cfx_hmon, cg8, rc1, rd5
+	@@ hmon 的 escape_num 基线（启动链已 escape 过一次）
+	cfx2rd	cfx_hmon, cg4, rc5, rd5
+	st.o	rd5, [rb4, 0x58]
+	@@ 自建 hmon 入口（hypv 向量）与 cfx_power 入口（CFXESC 承接）
+	set.rd	rd5, hmon_entry
+	cfx2rc	cfx_hmon, cg3, rc15, rd5
+	set.rd	rd5, power_entry
+	cfx2rc	cfx_power, cg3, rc15, rd5
+	@@ 写 power 的出口意图（case 2 用）：hypv / power / case2_land / P2
+	__PREP_ESC cfx_power, case2_land, P2
 
-	@@ ---- legality：cfxha = 当前 cfx（应用在 cfx_power 63）但该帧无效（cause_id = 0）⇒ CFXESC ----
-	@@   CFXESC 交给**当前 cfx**（= cfx_power 63，`§5.3` 步骤 0 伪代码）⇒ 把自建入口挂到
-	@@   cfx_power 的 hypv 向量上，由它记下三槽并 escape 回落点（否则会跳进 power 的复位向量）
-__c10:
-	set.rd	rd12, (ENTRY + 0x1C80)
-	cfx2rc	cfx_power, cg3, rc10, rd12
-	set.rd	rd13, (ENTRY + 0x1840)
-	aip.si	rb25, 0                        @@ rb25 = 本指令地址；+8 = 下面 escape 的地址
-	add.si	rb25, 8
-	escape	cfx_power, [excp_cause_ip, 0]
-	__EXIT	10
+	@@ ==== case 1：同步 trap 的入口记录 + 正常返回四元组 + rc11 整字 + escape_num ====
+__case1:
+case1_trap:
+	trap	cfx_hmon, 0
+case1_land:
+	@@ 1-6 入口记录（硬件在 trap 时写）
+	__CHECK_MEM   1, SSCR, 0x00, 3
+	__CHECK_MEM   2, SSCR, 0x08, 0x000000000000003F
+	set.rb	rb21, SSCR
+	ld.o	rd5, [rb21, 0x10]
+	ld.o	rd6, [rb21, 0x40]
+	__VERIFY_EQ_RD   3, rd5, rd6			@@ rc2 (prev ip) == rc10 (escape ip 副本)
+	set.rd	rd6, 1
+	__CHECK_RD   3, rd6, 1
+	__CHECK_MEM   4, SSCR, 0x18, P0
+	__CHECK_MEM   5, SSCR, 0x20, 0x0000000000000001
+	__CHECK_MEM   6, SSCR, 0x28, 0x7F0C0000
+	@@ 7-10 出口意图（进入时由入口记录复制）
+	__CHECK_MEM   7, SSCR, 0x30, 3
+	__CHECK_MEM   8, SSCR, 0x38, 0x000000000000003F
+	set.rb	rb21, SSCR
+	ld.o	rd5, [rb21, 0x48]
+	ld.o	rd6, [rb21, 0x18]
+	__VERIFY_EQ_RD   9, rd5, rd6			@@ rc11 (意图) == rc3 (入口 mask 副本)
+	set.rd	rd6, 1
+	__CHECK_RD   9, rd6, 1
+	__CHECK_MEM  10, SSCR, 0x48, P0
+	@@ 11 rc11 整字写入目标模式 monitor（hypv → hmon）：读回恰为 P1（增量写会残留 1）
+	cfx2rd	cfx_hmon, cg8, rc1, rd5
+	__CHECK_RD  11, rd5, P1
+	@@ 12 escape_num = 基线 + 1
+	cfx2rd	cfx_hmon, cg4, rc5, rd5
+	ld.o	rd6, [rb4, 0x58]
+	add.si	rd6, 1
+	__VERIFY_EQ_RD  12, rd5, rd6			@@ escape_num = 基线 + 1
+	set.rd	rd6, 1
+	__CHECK_RD  12, rd6, 1
+	@@ 13-16 同步进入只写目标 cfx（hmon）的帧：power 的入口记录保持复位 0
+	cfx2rd	cfx_power, cg5, rc0, rd5
+	__CHECK_RD  13, rd5, 0
+	cfx2rd	cfx_power, cg5, rc1, rd5
+	__CHECK_RD  14, rd5, 0
+	cfx2rd	cfx_power, cg5, rc2, rd5
+	__CHECK_RD  15, rd5, 0
+	cfx2rd	cfx_power, cg5, rc3, rd5
+	__CHECK_RD  16, rd5, 0
 
-	@@ ---- legality：cfxha ≠ 当前 cfx（cfx0 umon）同样 CFXESC（同样交当前 cfx = power）----
-__c11:
-	set.rd	rd13, (ENTRY + 0x1990)
-	aip.si	rb25, 0
-	add.si	rb25, 8
-	escape	cfx_umon, [excp_cause_ip, 4]
-	__EXIT	11
+	@@ ==== case 2：cfx_power 自己的正常返回（四元组成功即证明 cfx=power、mode=hypv、ip 精确） ====
+__case2:
+	escape	cfx_power
+case2_land:
+	@@ 17 目标模式 monitor（hypv → hmon）的 cg8 rc1 = P2 整字
+	cfx2rd	cfx_hmon, cg8, rc1, rd5
+	__CHECK_RD  17, rd5, P2
+	@@ 18 cfx_power 的 escape_num = 0 + 1
+	cfx2rd	cfx_power, cg4, rc5, rd5
+	__CHECK_RD  18, rd5, 1
+	@@ 19 escape 不消费/不清 hmon 的入口记录（仍是 case 1 的 prev mode = hypv）
+	cfx2rd	cfx_hmon, cg5, rc0, rd5
+	__CHECK_RD  19, rd5, 3
 
-	@@ ---- semantic：escape 恢复 `inner_cfx_code` ← `excp_prev_cfx_code`（`§5.3` 步骤 2）----
-	@@   第一次 escape 后应用回到 cfx_power(63) ⇒ 再 `escape cfx_hmon` 必判 CFXESC
-	@@   （cfxha 3 ≠ inner 63）；旧语义（inner 仍为 3）下会直接成功落回本 pad ⇒ 计数超限判红
-__c12:
-	@@ 哨兵槽显式清零（chipyard TLRAM 上电随机；QEMU 恰为 0，不可依赖）：
-	@@   0xC0 = probe 入口记录的 cause_id（0 = 未被调用）、0xC8 = 到达计数
-	set.rd	rd7, 0
-	st.o	rd7, [rb20, 0xC0]
-	st.o	rd7, [rb20, 0xC8]
-	__MON_ENTER (ENTRY + 0x1B40), (ENTRY + 0x1E00)
-	__EXIT	12
+	@@ ==== case 3：cfxha != 当前 cfx ⇒ 当前 cfx(power) 的 CFXESC ====
+__case3:
+	set.rd	rd5, 3
+	st.o	rd5, [rb5, 0x50]
+	__PREP_ESC cfx_power, case2_land, P2
+case3_bad:
+	escape	cfx_hmon
+	__EXIT	20				@@ 未报错 ⇒ 判红
+case3_land:
+	__CHECK_MEM  20, PSCR, 0x20, 0x0000000000000008	@@ CFXESC
+	__CHECK_MEM  21, PSCR, 0x28, 0x7E0C0000		@@ 指令编码
+	set.rb	rb21, PSCR
+	ld.o	rd5, [rb21, 0x10]
+	ld.o	rd6, [rb21, 0x40]
+	__VERIFY_EQ_RD  22, rd5, rd6			@@ prev ip == rc10（进入时复制）
+	set.rd	rd6, 1
+	__CHECK_RD  22, rd6, 1
+	cfx2rd	cfx_hmon, cg8, rc1, rd5
+	__CHECK_RD  23, rd5, P2				@@ 切换任何状态前报错 ⇒ mask 不变
+	__CHECK_MEM  24, PSCR, 0x38, 0x000000000000003F	@@ CFXESC 进入 power 帧：prev cfx = power
 
-	@@ ---- legality：帧选择位 cg9（`imms18 = 2`）不是异步返回帧 ⇒ 当前 cfx 的 CFXESC ----
-	@@   应用在 cfx_power(63)：先装 cfx_power 的 hypv 向量（记三槽后 escape 回落点），
-	@@   再执行 `escape cfx_power, [excp_cause_ip, 8]`。ADR-0061 R2 / `§5.1`：`cg9` 是进入瞬间
-	@@   的捕获缓冲、没有返回帧语义 ⇒ 所选帧无效 ⇒ 在切换任何状态**之前**报 CFXESC；
-	@@   旧语义（cg9 可返回）会跳到 capture 的 cause_ip（本载体为 0）⇒ 不会落到本 pad。
-__c13:
-	set.rd	rd12, (ENTRY + 0x1C80)
-	cfx2rc	cfx_power, cg3, rc10, rd12
-	set.rd	rd13, (ENTRY + 0x1F00)
-	aip.si	rb25, 0                        @@ rb25 = 本指令地址；+8 = 下面 escape 的地址
-	add.si	rb25, 8
-	escape	cfx_power, [excp_cause_ip, 8]
-	__EXIT	13
+	@@ ==== case 4：目标 cfx 未实现（rc9 = 6）⇒ 当前 cfx 的 CFXESC，且不改任何状态 ====
+__case4:
+	set.rd	rd5, 4
+	st.o	rd5, [rb5, 0x50]
+	__PREP_ESC cfx_power, case2_land, P2
+	set.rd	rd5, 0x0000000000000006		@@ 目标 cfx = 6（reserved/未实现）
+	cfx2rc	cfx_power, cg5, rc9, rd5
+case4_bad:
+	escape	cfx_power
+	__EXIT	25				@@ 未报错 ⇒ 判红
+case4_land:
+	__CHECK_MEM  25, PSCR, 0x20, 0x0000000000000008	@@ CFXESC
+	__CHECK_MEM  26, PSCR, 0x28, 0x7EFC0000		@@ 指令编码（cfx63、imms18=0）
+	set.rb	rb21, PSCR
+	ld.o	rd5, [rb21, 0x10]
+	ld.o	rd6, [rb21, 0x40]
+	__VERIFY_EQ_RD  27, rd5, rd6			@@ prev ip == rc10（进入时复制）
+	set.rd	rd6, 1
+	__CHECK_RD  27, rd6, 1
+	cfx2rd	cfx_hmon, cg8, rc1, rd5
+	__CHECK_RD  28, rd5, P2				@@ 目标非法 ⇒ rc11 不落地
 
-__end:
-	jump	[rb0, __finish]
-
-	@@ ---- 落点/目标块（`.org` 钉住绝对地址；期望值写 `ENTRY + <偏移>`）----
-	.org	0x880
-	@@ case 1：+4 落点对（0x880 = 按 +0 落 ⇒ 错）
-	jump	[rb0, __fail1]
-	__LAND_IP_RD rd5
-	__CHECK_RD   1, rd5, (ENTRY + 0x884)
-	jump	[rb0, __c2]
-__fail1:
-	__EXIT	1
-
-	.org	0x980
-	@@ case 2：+0 落点对；+4 = 错
-	jump	[rb0, __t2_ok]
-	jump	[rb0, __fail2]
-__t2_ok:
-	__LAND_IP_RD rd5
-	__CHECK_RD   2, rd5, (ENTRY + 0x988)
-	jump	[rb0, __c3]
-__fail2:
-	__EXIT	2
-
-	.org	0xA80
-	@@ case 3
-	jump	[rb0, __fail3]
-	__LAND_IP_RD rd5
-	__CHECK_RD   3, rd5, (ENTRY + 0xA84)
-	jump	[rb0, __c4]
-__fail3:
-	__EXIT	3
-
-	.org	0xB80
-	@@ case 4
-	jump	[rb0, __t4_ok]
-	jump	[rb0, __fail4]
-__t4_ok:
-	__LAND_IP_RD rd5
-	__CHECK_RD   4, rd5, (ENTRY + 0xB88)
-	jump	[rb0, __c5]
-__fail4:
-	__EXIT	4
-
-	.org	0xD80
-	@@ case 5：ILLI 帧的 escape 落点（+4）；`aip.si` 必须紧贴落点（捕获的就是落点地址）
-	jump	[rb0, __fail5]
-	__LAND_IP_RD rd5
-	__VERIFY_MEM 5, HMON_BASE, 0xE0, 0x100  @@ 帧来源确实是 ILLI（handler 记录的 cause_id）
-	__CHECK_RD   5, rd5, (ENTRY + 0xD84)
-	jump	[rb0, __c6]
-__fail5:
-	__EXIT	5
-
-	.org	0x1300
-	@@ case 6：+0 落点；随后核帧字段未被 escape 改写/消费
-	jump	[rb0, __t6_ok]
-	jump	[rb0, __fail6]
-__t6_ok:
-	cfx2rd	cfx_hmon, cg5, rc3, rd6
-	__VERIFY_RD 6, rd6, (ENTRY + 0x1300)       @@ cause_ip 仍 = handler 写入的返回基址
-	set.rb rb21, HMON_BASE
-	ld.o	rd7, [rb21, 0xE0]                  @@ 进入 hmon 时记录的 cause_id
-	cfx2rd	cfx_hmon, cg5, rc2, rd6
-	__VERIFY_EQ_RD 6, rd6, rd7                 @@ escape 前后一致 ⇒ 帧未被消费
-	__CHECK_RD   6, rd6, 0x1                   @@ 且就是 CFXTRAP（记录实测值）
-	jump	[rb0, __c7]
-__fail6:
-	__EXIT	6
-
-	.org	0x1450
-	@@ case 7
-	jump	[rb0, __fail7]
-	__LAND_IP_RD rd5
-	__CHECK_RD   7, rd5, (ENTRY + 0x1454)
-	jump	[rb0, __c8]
-__fail7:
-	__EXIT	7
-
-	.org	0x15A0
-	@@ case 8：IALIGN 落点（目标侧异常经还原后的平台固件）
-	__VERIFY_MEM 8, HMON_BASE, 0xE8, (ENTRY + 0x401)
-	__CHECK_MEM  8, HMON_BASE, 0xE0, 0x2000     @@ IALIGN（1<<13）
-	jump	[rb0, __c9]
-
-	.org	0x16F0
-	@@ case 9：CFXMEM 落点（目标地址 0）
-	__VERIFY_MEM 9, HMON_BASE, 0xE8, 0
-	set.rb rb21, (HMON_BASE + 0xE0)
-	ld.o	rd23, [rb21, 0]
-	set.rd	rd22, 0xFFFF                     @@ 只比大类 cause_id[15:0]
-	and.o	rd23, rd23, rd22                 @@ 依据 ADR-0056 D2 / contract-see
-						@@ §6.1.1：子原因在 wyde2/wyde3，
-						@@ 本断言对象是大类 CFXMEM（1<<1）
-	__CHECK_RD   9, rd23, 0x2
-	jump	[rb0, __c10]
-
-	.org	0x1840
-	@@ case 10：CFXESC 落点（cause_ip = escape 指令地址，取自 rb25）
-	__VERIFY_MEM 10, HMON_BASE, 0xF0, 0x7EFC0000
-	rb2rd	{rd22:rd22}, {rb25:rb25}            @@ 运行期派生的 escape 地址
-	set.rb rb21, ((HMON_BASE + 0xE8) / 8) * 8
-	ld.o	rd21, [rb21, 0]
-	br.eq	{rd22, rd21}?, [rb0, __t10_ok]
-	__EXIT	10
-__t10_ok:
-	__CHECK_MEM  10, HMON_BASE, 0xE0, 0x8       @@ CFXESC（1<<3）
-	jump	[rb0, __c11]
-
-	.org	0x1990
-	@@ case 11：CFXESC 落点（cfx0，imms18 = 1）
-	__VERIFY_MEM 11, HMON_BASE, 0xF0, 0x7E000001
-	rb2rd	{rd22:rd22}, {rb25:rb25}
-	set.rb rb21, ((HMON_BASE + 0xE8) / 8) * 8
-	ld.o	rd21, [rb21, 0]
-	br.eq	{rd22, rd21}?, [rb0, __t11_ok]
-	__EXIT	11
-__t11_ok:
-	__CHECK_MEM  11, HMON_BASE, 0xE0, 0x8
-	jump	[rb0, __c12]
-
-	@@ ---- 自建 monitor 入口（vector 指向这里；进入时 `inner_cfx_code = 3`）----
-	.org	0x1B00
-__mon_a4:                                      @@ 汇编形式：`[excp_cause_ip, 4]`
-	__MON_PRE cfx_hmon
-	escape	cfx_hmon, [excp_cause_ip, 4]
-
-	.org	0x1B40
-__mon_a0:                                      @@ 汇编形式：`[excp_cause_ip, 0]`
-	__MON_PRE cfx_hmon
-	escape	cfx_hmon, [excp_cause_ip, 0]
-
-	.org	0x1B80
-__mon_e4:                                      @@ 原始编码 0x7E0C0001（cfx3，imms18 = 1 ⇒ +4）
-	__MON_PRE cfx_hmon
-	.dd.t32	0x7E0C0001
-
-	.org	0x1BC0
-__mon_e0:                                      @@ 原始编码 0x7E0C0000（imms18 = 0 ⇒ +0）
-	__MON_PRE cfx_hmon
-	.dd.t32	0x7E0C0000
-
-	.org	0x1C00
-__mon_t0:                                      @@ 目标侧异常用例：先还原平台固件向量再 escape
-	__MON_PRE cfx_hmon
-	cfx2rc	cfx_hmon, cg3, rc10, rd11      @@ 还原 = hmon SRAM 起始（`spec/DADAO-13 §1` 初值）
-	escape	cfx_hmon, [excp_cause_ip, 0]
-
-	.org	0x1C40
-__mon_probe:                                   @@ cfx63 侧入口：只记 cause_id 再 escape 回 rd13（链例 12 用）
-	@@ 应用里第二次 `escape cfx_hmon` 的 CFXESC 交付给**当前 cfx = cfx_power(63)**（`§5.3` 步骤 0）
-	cfx2rd	cfx_power, cg5, rc2, rd63
-	st.o	rd63, [rb22, 0xC0]
-	cfx2rc	cfx_power, cg5, rc3, rd13
-	escape	cfx_power, [excp_cause_ip, 0]
-
-	.org	0x1C80
-__mon_p0:                                      @@ cfx63 侧入口：CFXESC 落点（目标 cfx 帧无效 / cfxha 不符）
-	__MON_PRE_POWER
-	escape	cfx_power, [excp_cause_ip, 0]
-
-	.org	0x1E00
-	@@ case 12：`escape` 恢复 `inner_cfx_code` ← `excp_prev_cfx_code`
-	@@   第一次到达 = handler 的 escape 落点（应用已回到 cfx_power 63），
-	@@     此时再 `escape cfx_hmon` 必须被判 CFXESC（cfxha 3 ≠ inner 63）⇒ probe 入口写 cause_id；
-	@@   第二次到达 = CFXESC 经 probe 入口 escape 回来的落点 ⇒ 断言 cause_id = 1<<3。
-	@@   到达次数上限 2 只作防御：旧语义下第二次 escape 会直接成功、cause_id 恒 0，
-	@@   于是第 3 次到达落到 `__fail12`。**实测（ISS-473，双 lane）：第 3 次到达后
-	@@   挂死到超时，而不是具名退出**（原因推定 = 该次到达已在 monitor 上下文、
-	@@   semihosting `trap cfx0` 不生效；未逐一取证）。故本例 fail 路径**不可用作回归判据**
-	@@   （正常路径 = 两次到达即通过，仍逐字节比较）；判别旧语义请依赖
-	@@   `m16-testcases-021` 的静态/行为断言，不要依赖本例的超时形态。
-	set.rb rb21, HMON_BASE
-	ld.o	rd8, [rb21, 0xC8]                  @@ 到达计数
-	add.si	rd8, 1
-	st.o	rd8, [rb21, 0xC8]
-	ld.o	rd7, [rb21, 0xC0]                  @@ probe 入口记录的 cause_id（0 = 未被调用）
-	set.rd	rd9, 2
-	cmp.uo	rd9, rd8, rd9
-	br.p	{rd9}?, [rb0, __fail12]             @@ 防御：到达 > 2 次（旧语义）⇒ 见上，不可判红
-	br.z	{rd7}?, [rb0, __t12_first]
-	__CHECK_RD  12, rd7, 0x8                    @@ 第二次到达：cause_id = CFXESC（1<<3）
-	jump	[rb0, __c13]
-__t12_first:
-	set.rd	rd12, (ENTRY + 0x1C40)              @@ 安装「记录 CFXESC」入口（挂 cfx_power 向量）
-	cfx2rc	cfx_power, cg3, rc10, rd12
-	set.rd	rd13, (ENTRY + 0x1E00)              @@ 旧语义下 escape 成功会落回本 pad
-	escape	cfx_hmon, [excp_cause_ip, 0]        @@ 应用在 cfx63 ⇒ 新语义下必判 CFXESC
-	__EXIT	12
-__fail12:
-	__EXIT	12
-
-	.org	0x1F00
-	@@ case 13：cg9 帧选择 ⇒ CFXESC 落点（cause_info = escape 指令字 0x7EFC0002）
-	__VERIFY_MEM 13, HMON_BASE, 0xF0, 0x7EFC0002
-	rb2rd	{rd22:rd22}, {rb25:rb25}            @@ 运行期派生的 escape 地址
-	set.rb rb21, ((HMON_BASE + 0xE8) / 8) * 8
-	ld.o	rd21, [rb21, 0]
-	br.eq	{rd22, rd21}?, [rb0, __t13_ok]
-	__EXIT	13
-__t13_ok:
-	__CHECK_MEM  13, HMON_BASE, 0xE0, 0x8       @@ CFXESC（1<<3）
-	jump	[rb0, __end]
-
-__finish:
-	cfx2rc	cfx_hmon, cg3, rc10, rd11              @@ 还原平台固件向量（故障链经固件路由）
-	set.rd	rd12, BOOTROM_BASE                     @@ 还原 cfx_power 向量 = 其 ROM 起始（`DADAO-13 §1`）
-	cfx2rc	cfx_power, cg3, rc10, rd12
+	@@ ---- 收尾：还原平台固件向量（故障链经固件路由）与 hmon mask ----
+	set.rd	rd5, HMON_BASE
+	cfx2rc	cfx_hmon, cg3, rc15, rd5
+	set.rd	rd5, BOOTROM_BASE
+	cfx2rc	cfx_power, cg3, rc15, rd5
+	set.rd	rd5, 0x7FFFFFFFFFFFFFF7
+	cfx2rc	cfx_hmon, cg8, rc1, rd5
 	__TEST_END
 
-	@@ ---- 故障例：cg9 帧 + 偏移 +4（imms18 = 3）与 SBZ 非零（imms18[17:2] ≠ 0）⇒ ILLI ----
-	@@   14：imms18 = 3 = 帧选择位 1 + 偏移 bit2 1；cg9 帧只允许偏移 0 ⇒ ILLI（先于目标/帧判定）
-	TEST_FAULT_ENC  14, ILLI, 0x7E0C0003, rb12, TEST_DATA, rd11, 0
-	@@   15：合法帧选择（imms18 = 2，cg9 捕获缓冲）不改变保留 cfx 判定 ⇒ cfx6 reserved 仍 ILLI
-	TEST_FAULT_ENC  15, ILLI, 0x7E180002, rb12, TEST_DATA, rd11, 0
-	TEST_FAULT_ENC  16, ILLI, 0x7EFDFFFF, rb12, TEST_DATA, rd11, 0
-	TEST_FAULT_ENC  17, ILLI, 0x7EFFFFFE, rb12, TEST_DATA, rd11, 0
+	@@ ---- 自建 hmon 入口：记录同步 trap 的入口/出口字段，改 rc10/rc11 后正常返回 ----
+	.balign	4
+hmon_entry:
+	set.rb	rb2, SSCR
+	__REC_FRAME cfx_hmon, rb2, 0x00
+	set.rd	rd5, case1_land
+	cfx2rc	cfx_hmon, cg5, rc10, rd5
+	set.rd	rd5, P1
+	cfx2rc	cfx_hmon, cg5, rc11, rd5
+	escape	cfx_hmon
+	swym	0
 
-	@@ ---- 故障例：reserved cfxha（6 / 61）⇒ ILLI（先于目标/帧判定）----
-	TEST_FAULT_ENC  18, ILLI, 0x7E180000, rb12, TEST_DATA, rd11, 0
-	TEST_FAULT_ENC  19, ILLI, 0x7EF40000, rb12, TEST_DATA, rd11, 0
+	@@ ---- cfx_power 入口：CFXESC 承接（case 3/4），记录后按 phase 返回对应落点 ----
+	.balign	4
+power_entry:
+	set.rb	rb2, PSCR
+	__REC_FRAME cfx_power, rb2, 0x00
+	ld.o	rd6, [rb2, 0x50]
+	set.rd	rd5, 3
+	br.eq	{rd6, rd5}?, [rb0, __p_land3]
+	set.rd	rd5, 4
+	br.eq	{rd6, rd5}?, [rb0, __p_land4]
+	__EXIT	29				@@ 非预期进入 ⇒ 判红
+__p_land3:
+	set.rd	rd5, case3_land
+	jump	[rb0, __p_escape]
+__p_land4:
+	set.rd	rd5, case4_land
+__p_escape:
+	cfx2rc	cfx_power, cg5, rc10, rd5
+	escape	cfx_power
+	swym	0
 
-	@@ 故障例：SBZ 检查先于 CFXESC —— cfx63 非保留但非当前 cfx（3），SBZ 非零仍报 ILLI
-	@@   （并入原 YAML 的同 id 用例；若先判 cfx 匹配则会是 CFXESC `1<<3`）
-	TEST_FAULT_ENC  20, ILLI, 0x7EFC0006, rb12, TEST_DATA, rd11, 0
-	@@   21：imms18 = 3（cg9 帧 + 偏移 +4）⇒ ILLI，同样先于目标判定
-	TEST_FAULT_ENC  21, ILLI, 0x7EFC0003, rb12, TEST_DATA, rd11, 0
+	@@ ---- 故障例：入口记录 rc0–rc3 只读（写 ⇒ CFXREG）----
+	TEST_FAULT_ENC  29, CFXREG, 0x7B0C5005, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  30, CFXREG, 0x7B0C5045, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  31, CFXREG, 0x7B0C5085, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  32, CFXREG, 0x7B0C50C5, rb12, TEST_DATA, rd11, 0
+
+	@@ ---- 故障例：imms18（SBZ）非 0 / reserved cfxha ⇒ ILLI ----
+	TEST_FAULT_ENC  33, ILLI, 0x7EFC0004, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  34, ILLI, 0x7EFC0002, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  35, ILLI, 0x7EFFFFFF, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  36, ILLI, 0x7E180000, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  37, ILLI, 0x7EF40000, rb12, TEST_DATA, rd11, 0
 
 	__TEST_SECTIONS

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """`pmem_oracle.py` — `tests/arch/pmem/pmem_dma.S` 的独立判据
-（`m16-testcases-014`：cfx32 DMA 完成中断 + 同界多源，R2 捕获缓冲）。
+（`m16-testcases-014`：cfx32 DMA 完成中断 + 同界多源；`m18-testcases-004` 改到 R3）。
 
 期望值**现场**从真源派生，不从实现观测值反推：
 
@@ -11,7 +11,7 @@
   * 源身份 = 源 cfxha（`TIMER` = 15、`PMEM_DMA` = 32）、monitor `cg8 rc1`
     掩码、`cg9` 捕获缓冲 / 每次进入整体覆盖 / 同一界多源一次进入：
     `spec/DADAO-12 §4.7`、`§5.4`、`ADR-0061`、`contract-see §3`；
-  * `escape` 的帧选择位与「不以 cg9 为返回帧」：`§5.1`/`§5.4`；
+  * `escape cfxHA` 的 `imms18` SBZ、`cg5 rc8`–`rc11` 出口意图与三类拒绝：`§5.1`/`§5.3`；
   * `CFXREG`/`CFXESC`/`ILLI` 位号：`contract-see §6.1`；
   * `cfx2rd`/`cfx2rc`/`escape` 编码：`contracts/opcodes.yaml`；
   * `cause_ip`：ELF 符号（投递发生在“下一条指令的边界”，该指令未执行）。
@@ -87,9 +87,6 @@ def facts(root):
     if not re.search(r"每次异步进入都整体覆盖|每次进入整体覆盖", spec):
         raise OracleError("spec §5.4: 'every entry overwrites cg9' not found")
 
-    f["escape_imm2"] = base.encode(
-        base.parse_opcode(root, "escape_ciii_cfx"),
-        cfxcode=f["cfx"]["hart"], imm=2)
     return f
 
 
@@ -103,7 +100,6 @@ def expected(root, mode, syms):
     f = facts(root)
     pmem_bit = 1 << f["mask_bit"]              # 源 cfxha 32
     timer_bit = 1 << f["timer_bit"]            # 源 cfxha 15
-    cfxesc = 1 << f["cause"]["CFXESC"]
     illi = 1 << f["cause"]["ILLI"]
     err = f["err"]
     st_done = 1 << f["status"][1]
@@ -175,15 +171,8 @@ def expected(root, mode, syms):
         ("capture src_pending after delivery = 0", 0),
         ("capture excp_async_num = 1 entry", 1),
         ("capture detail: dma_status = DONE", st_done),
-        # ---- escape imms18=2 ⇒ CFXESC，cg9 不变 ----
-        ("CFXESC: cg5 cause = CFXESC", cfxesc),
-        ("CFXESC: cg5 cause_info = escape encoding", f["escape_imm2"]),
-        ("CFXESC: cg5 prev_run_mode = supv", M["supv"]),
-        ("CFXESC: cg5 prev_cfx_code = cfx_hart", hart),
-        ("CFXESC: cg9 prev_mode unchanged", same(base_slot + 0)),
-        ("CFXESC: cg9 prev_cfx unchanged", same(base_slot + 1)),
-        ("CFXESC: cg9 cause_ip unchanged", same(base_slot + 2)),
-        ("CFXESC: cg9 src_frame unchanged", same(base_slot + 3)),
+        # ---- 正常异步返回：rc11 整字写 smon cg8 rc1（返回到 after_escape） ----
+        ("escape rc11 whole word: smon mask = P1", P1),
         # ---- 源 ack ----
         ("ack: pending after W1C = 0", 0),
         ("ack: src_frame still the capture snapshot", pmem_bit),

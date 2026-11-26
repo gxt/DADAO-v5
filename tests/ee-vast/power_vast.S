@@ -60,9 +60,9 @@ _start:
 	br.nz	{rd8}?, [rb0, power_exit_code]
 
 	@@ cfx_hmon.hypv.excp_vector = hmon e_entry; switch_run_mode = hypv.
-	cfx2rc	cfx_hmon, cg3, rc10, rd5
+	cfx2rc	cfx_hmon, cg3, rc15, rd5		@@ hypv_excp_vector（原 rc10）
 	set.rd rd6, 0x0000000000000003
-	cfx2rc	cfx_hmon, cg3, rc8, rd6
+	cfx2rc	cfx_hmon, cg3, rc14, rd6		@@ hypv_switch_run_mode（原 rc8）
 
 	.if POWER_RTL_BODY
 	@@ RTL payload: load the smon ELF too (type 2 -> smon SRAM), then set the
@@ -94,7 +94,7 @@ boot_magic_trap:
 	.if POWER_RTL_BODY
 	@@ hmon escapes back to the instruction after the trap; hand the test
 	@@ body (loaded by +loadmem) control.  The handover frame keeps the trap
-	@@ IP, so `cfx_hmon cg5 rc3` still reports a BootROM address.
+	@@ IP, so `cfx_hmon cg5 rc2` (prev ip) still reports a BootROM address.
 	set.rb	rb2, 0x00000000ffffff010100	@@ WumingVastAddressMap.appEntry
 	jump	[rb2, rd0, 0]
 	.endif

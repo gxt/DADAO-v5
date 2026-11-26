@@ -25,17 +25,17 @@
 @@ 约束：
 @@   * 调用点不得持有 `rd28`/`rd29`/`rb28`（放行块只用它们；这三只在
 @@     `tests/arch` 与 `tools/chipyard` 的全量探针里均未被占用）；
-@@   * `perm_mon` 必须与测试体同镜像、4 字节对齐（`cg3 rc10` 写丢低 2 位）；
+@@   * `perm_mon` 必须与测试体同镜像、4 字节对齐（`cg3 rc15` 写丢低 2 位）；
 @@   * `PERM_OPEN_DELEG` 只用于实现 `cg3 rc12` 的 cfx（`umon/smon/hmon/hart/
 @@     pmem/time`）；`ptw/cache/power` 的 `cg3 rc12` 是 `CFXREG`；
 @@   * 放行块把固件入口（= `HMON_BASE`，`spec/DADAO-13 §1` 复位值）写回
-@@     `cfx_hmon cg3 rc10`，测试体随后的同步异常仍走平台固件。
+@@     `cfx_hmon cg3 rc15`，测试体随后的同步异常仍走平台固件。
 @@
 @@ 依据：`spec/DADAO-12 §3.1`–`§3.4`（四类同步来源 mask，位索引 = 源 cfx，
 @@ 0 = 允许、1 = 屏蔽）、`§5.2`（`trap` 的 `<mode>_cfxtrap` 判定）、
 @@ `.tao/contracts/contract-see.md §3`。
 
-@@ 平台固件的 hmon 入口 = hmon SRAM 起始（`spec/DADAO-13 §1` 的 `cg3 rc10` 复位值；
+@@ 平台固件的 hmon 入口 = hmon SRAM 起始（`spec/DADAO-13 §1` 的 `cg3 rc15` 复位值；
 @@   Kaiwu-Tiny 与 Kaiwu-Vast 同址）。用到的探针若已从 `machine-*.inc` 得到该符号，
 @@   这里的 `.ifndef` 不改变它。
 .ifndef	HMON_BASE
@@ -46,14 +46,14 @@
 .macro	PERM_MON_OPEN lab
 	set.rb	rb28, \lab
 	rb2rd	rd28, rb28, 1
-	cfx2rc	cfx_hmon, cg3, rc10, rd28		@@ hypv 向量 = 放行块
+	cfx2rc	cfx_hmon, cg3, rc15, rd28		@@ hypv 向量 = 放行块（原 rc10）
 	set.rd	rd28, 3
-	cfx2rc	cfx_hmon, cg3, rc8, rd28		@@ switch_run_mode = hypv
+	cfx2rc	cfx_hmon, cg3, rc14, rd28		@@ switch_run_mode = hypv（原 rc8）
 	trap	cfx_hmon, 0				@@ 进 monitor（源 cfx = 3）
 	@@ 回到 cfx_power / hypv：恢复平台固件的 hmon 入口
 	set.rb	rb28, HMON_BASE
 	rb2rd	rd28, rb28, 1
-	cfx2rc	cfx_hmon, cg3, rc10, rd28
+	cfx2rc	cfx_hmon, cg3, rc15, rd28
 .endm
 
 @@ 目标 cfx 的四类 hypv 源掩码 = 0（允许所有源）。
@@ -72,8 +72,12 @@
 	cfx2rc	\ha, cg3, rc12, rd29
 .endm
 
-@@ 放行结束：回到 `trap + 4`（`excp_cause_ip` 是 trap 的地址）。
+@@ 放行结束：回到 `trap + 4`。新 escape 没有 +4 偏移：返回点取 `cg5 rc10`
+@@ （入口时 = trap 地址），软件先加 4 再 `escape cfx_hmon`。
 .macro	PERM_MON_CLOSE
-	escape	cfx_hmon, [excp_cause_ip, 4]
+	cfx2rd	cfx_hmon, cg5, rc10, rd29
+	add.si	rd29, 4
+	cfx2rc	cfx_hmon, cg5, rc10, rd29
+	escape	cfx_hmon
 	swym	0
 .endm
