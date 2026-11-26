@@ -43,6 +43,12 @@
    - **monitor mask 是每个 monitor cfx（cfx0–3）各自的 64 位寄存器**，位 = 源 cfxha（15/32）。
    - **源 mask 是源自己的事件位图**：不是“一个源一位”，而是“该源的子事件位”——`TIMER` 现在只有一个 `cmp`，所以只有 bit0 有效；将来扩展成两个 `cmp`，就低 2 位有效。源 `pending`/`ack` 同构（按子事件位）。
 
+8. **用户 2026-11-26 定布局**：
+   - 中断源统一接口在 **`cg16`**：`rc16` = pending、`rc17` = mask、`rc18` = ack（W1C）；三个独立寄存器，位 = 该源子事件（当前均只有 bit0 有效）。
+   - `TIMER`（`cfx_hart`）：`cg16 rc0` = timer ctrl、`rc1` = timer cmp；中断面 `rc16/17/18`（原拟 `cg10` 作废）。
+   - `PMEM_DMA`（`cfx_pmem`）：中断面也搬到 `cg16 rc16/17/18`；DMA 引擎寄存器仍留 `cg15`。**子事件合并为一位**（B：`DONE|ERROR` 合并成 bit0“传输结束”），ERR_CODE/DONE/ERROR 细节仍由 cg15 `dma_status` 区分；对外接口与 timer 一致，内部各自解释。
+   - `cg9 rc4/rc5` 仍为 hart 级聚合（bit = 源 cfxha）；monitor mask 仍为每 cfx 64 位（`cg8 rc1`）；`escape` 不变。
+
 ## 待裁定（逐条讨论）
 
 1. `ISTATUS` 置位条件：**到期边沿置位**（每个 armed deadline 只置一次，之后不重复）还是 `cmp<=now` 的持续电平？前者才使 ack 有意义。
