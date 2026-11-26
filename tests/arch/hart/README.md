@@ -54,10 +54,20 @@ R3 出口帧，`m18-gem5-005` 再迁到 **0.8.1-rc 源接口**（`cfx_hart cg15`
 模式上限）：001 写 rc14=0/1/3 读回同值；hmon 首帧把 rc14 抬到 3（hypv）
 才从 hypv 进入、handler 首帧后恢复 2；随后在 supv 下以 rc14=0 验证
 **不进入**（pending 与 `cg15 rc5` 保留），抬到 2 后进入并用
-`prev_run_mode` 证明。RTL 仍在 `m18-chipyard-002/003` 迁移。
+`prev_run_mode` 证明。RTL 由 `m18-chipyard-002/003` 迁到同一模型后
+`arch-hart-001` 124 槽仅 `DIV-17` 的 2 槽（BootROM 交付环境）不同。
 
 ## 运行期证据
 
 运行期证据目录内的 `run.sh`：正向两方三模式、归一化流逐槽（`qemu==rtl`
 字节相同）、gem5 预期红、两条注入（“`rc11` 整字恢复” /
 “旧槽位进入”）先红后 `cp`+md5 还原回绿、门控 rc。
+
+## RTL `escape` 判据探针（`m18-chipyard-002`）
+
+`escape_escalation.S`（`check_escape_rtl.py` 驱动）在 Vast RTL 上从 supv 直接
+覆盖出口判据：`rc11` 整字写目标 monitor 的 `cg15 rc3`、目标模式升权 /
+目标 cfx 未实现 ⇒ 当前 cfx 的 `CFXESC`、`imms18 != 0` ⇒ `ILLI`；成功 =
+`SYS_EXIT 0`，每个失败点有独立退出码。`cfx15.S` 的 0.8.1 载体在 RTL
+（`m18-chipyard-003`）上：S/U 两模式各 38 槽 PASS；H 模式 124 槽仅
+`DIV-17`（RTL 以 `cfx_power` 交付，QEMU/gem5 以 `cfx_hmon` 交付）的 2 槽不同。

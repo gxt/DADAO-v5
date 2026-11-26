@@ -281,6 +281,7 @@ def expected(root, mode, syms):
     err_fault = 1 << err["PA_FAULT"]
     M = f["modes"]
     C = f["cfx"]
+    ALL1 = (1 << 64) - 1
 
     rd = lambda cg, rc, dst: encode(
         parse_opcode(root, "cfx2rd_crrr_cfx"),
@@ -298,13 +299,14 @@ def expected(root, mode, syms):
         prev_mode = M["user"] if mode == M["user"] else M["supv"]
         prev_cfx = C["umon"] if mode == M["user"] else C["smon"]
         return [
-            ("masked: pending = PMEM source bit", src_bit),
+            ("masked: pending summary = PMEM source bit", src_bit),
             ("masked: src_frame kept (capture buffer)", 0),
+            ("masked: excp_async_num = 0", 0),
             ("capture prev_run_mode", prev_mode),
             ("capture prev_cfx_code", prev_cfx),
             ("capture cause_ip = delivery boundary", sym("umode_wait_begin")),
             ("capture src_frame = PMEM source bit", src_bit),
-            ("capture src_pending after delivery = 0", 0),
+            ("capture src_pending stays set (ack-only)", src_bit),
             ("capture excp_async_num = 1 entry", 1),
         ]
 
@@ -322,7 +324,7 @@ def expected(root, mode, syms):
         ("dma_src RW", PATTERN64),
         ("dma_dst RW", PATTERN2),
         ("dma_size is a 30-bit field", 0x3FFFFFFF),
-        ("dma_ctrl: START self-clears, DIR|IRQ_EN read back", 0x6),
+        ("dma_ctrl: START self-clears, DIR reads back, bit2 reserved 0", 0x2),
         ("CFXREG: read cg15 rc5 (cause)", cfxreg),
         ("CFXREG: read cg15 rc5 (info)", rd(15, 5, 5)),
         ("CFXREG: read cg15 rc5 witness", 0xC0DE0002),
@@ -368,7 +370,7 @@ def expected(root, mode, syms):
         ("ILLI: escape imms18=4 (info)", 0x7E3C0004),
         ("ILLI: escape imms18=4 witness", 0xC0DE0006),
         # ---- capture: masked -> pending ------------------------------------
-        ("masked: pending = PMEM source bit", src_bit),
+        ("masked: pending summary = PMEM source bit", src_bit),
         ("masked: src_frame kept (capture buffer)", 0),
         ("masked: excp_async_num = 0", 0),
     ]
@@ -377,42 +379,44 @@ def expected(root, mode, syms):
         ("capture prev_run_mode = hypv", M["hypv"]),
         ("capture prev_cfx_code = cfx_hmon", C["hmon"]),
         ("capture cause_ip = delivery boundary", sym("capture_fallback")),
+        ("capture prev_intr_mask = entry mask", ALL1),
         ("capture src_frame = PMEM source bit", src_bit),
-        ("capture src_pending after delivery = 0", 0),
+        ("capture src_pending stays set (ack-only)", src_bit),
         ("capture excp_async_num = 1 entry", 1),
-        # `escape imms18 = 2` ⇒ CFXESC, cg9 unchanged
+        # `escape imms18 = 2` ⇒ CFXESC, cg15 unchanged
         ("CFXESC: cg5 cause = CFXESC", cfxesc),
         ("CFXESC: cg5 cause_info = escape encoding",
          encode(parse_opcode(root, "escape_ciii_cfx"), cfxcode=C["hart"],
                 imm=2)),
         ("CFXESC: cg5 prev_run_mode = supv", M["supv"]),
         ("CFXESC: cg5 prev_cfx_code = cfx_hart", C["hart"]),
-        ("CFXESC: cg9 prev_mode unchanged", ("slot", base + 0)),
-        ("CFXESC: cg9 prev_cfx unchanged", ("slot", base + 1)),
-        ("CFXESC: cg9 cause_ip unchanged", ("slot", base + 2)),
-        ("CFXESC: cg9 src_frame unchanged", ("slot", base + 3)),
+        ("CFXESC: cg15 prev_mode unchanged", ("slot", base + 0)),
+        ("CFXESC: cg15 prev_cfx unchanged", ("slot", base + 1)),
+        ("CFXESC: cg15 cause_ip unchanged", ("slot", base + 2)),
+        ("CFXESC: cg15 src_frame unchanged", ("slot", base + 3)),
         # ---- same-boundary multi-source ------------------------------------
         ("multi: pending = TIMER | PMEM", timer_bit | src_bit),
-        ("multi: src_frame kept (not delivered yet)", src_bit),
+        ("multi: src_frame kept (last capture)", src_bit),
         ("multi: excp_async_num = 1", 1),
         ("multi capture prev_run_mode = supv", M["supv"]),
         # The first entry already switched to cfx_hart/supv, so the second
         # one records cfx_hart as the interrupted cfx (not cfx_smon).
         ("multi capture prev_cfx_code = cfx_hart", C["hart"]),
         ("multi capture cause_ip = delivery boundary", sym("multi_fallback")),
+        ("multi capture prev_intr_mask", ALL1),
         ("multi capture src_frame = union bitmap", timer_bit | src_bit),
-        ("multi capture src_pending = 0", 0),
+        ("multi capture src_pending stays set (ack-only)", timer_bit | src_bit),
         ("multi capture excp_async_num = 2 entries", 2),
         # ---- source ack ----------------------------------------------------
-        ("ack: pending before W1C = PMEM bit", src_bit),
-        ("ack: pending after W1C = 0", 0),
+        ("ack: pending before ack = PMEM bit", src_bit),
+        ("ack: pending after ack = 0", 0),
         ("ack: unmask with no event does not deliver", 0xDEAD0006),
         # ---- overwrite -----------------------------------------------------
         ("overwrite: prev_run_mode = supv", M["supv"]),
         ("overwrite: cause_ip = new delivery boundary",
          sym("overwrite_fallback")),
-        ("overwrite: src_frame = PMEM bit", src_bit),
-        ("overwrite: src_pending = 0", 0),
+        ("overwrite: prev_intr_mask", ALL1),
+        ("overwrite: src_pending stays set (ack-only)", src_bit),
         ("overwrite: excp_async_num = 3 entries", 3),
     ]
     return exp

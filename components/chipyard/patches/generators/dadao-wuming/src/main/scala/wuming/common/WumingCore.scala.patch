@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..3a244fe
+index 0000000..bcd6d5e
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,2314 @@
+@@ -0,0 +1,2313 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -189,14 +189,13 @@ index 0000000..3a244fe
 +  //
 +  //   cg3 rc0-rc3  cfxtrap / cfxmem / cfxreg / cfxexe source masks   (RW)
 +  //   cg3 rc4      cfx_intr_mask                                     (RW)
-+  //   cg3 rc8      switch_run_mode — Tiny: writes ignored, reads 3
-+  //   cg3 rc10     excp_vector — reset = the cfx's own base; writes drop the
++  //   cg3 rc14     switch_run_mode — Tiny: writes ignored, reads 3
++  //   cg3 rc15     excp_vector — reset = the cfx's own base; writes drop the
 +  //                low 2 bits (DADAO-13 §1)
-+  //   cg5 rc0      excp_prev_run_mode (RW; `escape` restores it)
-+  //   cg5 rc1      excp_prev_cfx_code (RW; saved at entry, `escape` restores
-+  //                `inner_cfx_code` from it — DADAO-12 §5.2/§5.3)
-+  //   cg5 rc2/rc4  excp_cause_id / excp_cause_info (hardware-written)
-+  //   cg5 rc3      excp_cause_ip (RW)
++  //   cg5 rc0-rc3  prev run mode / cfx code / ip / intr mask (entry record, RO)
++  //   cg5 rc4/rc5  excp_cause_id / excp_cause_info (hardware-written)
++  //   cg5 rc8-rc11 escape run mode / cfx code / ip / intr mask (exit intent,
++  //                HW-copied at entry, software writable; `escape` reads these)
 +  //   cg7 rc0-63   internal space descriptors (read-only; writes are CFXREG)
 +  //
 +  // The cfx profile (which cfx exist, which one owns the frame, every per-cfx
@@ -439,7 +438,7 @@ index 0000000..3a244fe
 +  val inst = Mux(ip(2), beatData(31, 0), beatData(63, 32))
 +
 +  // ---- decode ------------------------------------------------------------
-+  val dec = Module(new WumingDecoder(gewuParams.hart.isDefined))
++  val dec = Module(new WumingDecoder)
 +  dec.io.inst := inst
 +  val d = dec.io.dec
 +
@@ -449,11 +448,10 @@ index 0000000..3a244fe
 +  gewu.io.addr.ha := d.cfxHa
 +  gewu.io.addr.cg := d.cfxCg
 +  gewu.io.addr.rc := d.cfxRc
-+  // `escape` is an architectural event: the core states the instruction's
-+  // (cfxha, byte offset) and `gewu` decides whether it is legal.
++  // `escape cfxHA` is an architectural event: the core states the instruction's
++  // `cfxha` and `gewu` decides whether it is legal (the decoder already turned
++  // a non-zero `imms18` into ILLI).
 +  gewu.io.escape.ha := d.cfxHa
-+  gewu.io.escape.off := d.escOff
-+  gewu.io.escape.frame := d.escFrame
 +  gewu.io.escape.valid := false.B
 +  val cfxRegOk = Mux(d.cfxWrite, gewu.io.writeOk, gewu.io.readOk)
 +  // Two-axis authority (`DADAO-12` §5.2 (一), `m16-chipyard-020`; every run
@@ -1461,7 +1459,7 @@ index 0000000..3a244fe
 +        // one `cfx_hart` supv frame (`DADAO-12` §5.4 (五), `ADR-0061` D1/D3).
 +        // `gewu` has already filtered them (running-mode monitor mask, source
 +        // gate) and owns the capture buffer/vector; every delivery overwrites
-+        // `cg9` (R2, no frame phase), and the ack consumes exactly the
++        // `cg15` capture group (no frame phase), and the ack consumes exactly the
 +        // delivered bits.
 +        intrAck := true.B
 +        resvValid := false.B
@@ -1703,11 +1701,12 @@ index 0000000..3a244fe
 +          7.U -> (v =/= srcB)))       // br.ne
 +        finish(Mux(taken, (ip + d.brOff)(63, 0), ip + 4.U))
 +      }.elsewhen(d.isEscape) {
-+        // DADAO-12 §5.3: cfxha must be the current cfx (`inner_cfx_code`) and
-+        // that cfx's frame must be valid; otherwise CFXESC enters the current
-+        // cfx without switching anything.  A legal escape also restores
-+        // `inner_cfx_code` from `cg5 rc1` (§5.3 step 2).  All checks and the
-+        // restore live in `gewu`.
++        // DADAO-12 §5.1/§5.3 (ADR-0061 R3): `cfxha` must be the current cfx,
++        // the target mode may not escalate, and the target cfx / its monitor
++        // must be implemented; otherwise CFXESC enters the current cfx without
++        // switching anything.  A legal escape restores mode/cfx, jumps to the
++        // current cfx's `cg5 rc10` and writes `rc11` whole-word into the target
++        // monitor's `cg15 rc3`.  All checks and the restore live in `gewu`.
 +        gewu.io.escape.valid := true.B
 +        when(!gewu.io.escapeOk) {
 +          // CFXESC lands in the *current* cfx (§5.3 step 0), not in the

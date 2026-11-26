@@ -53,14 +53,26 @@ divergences:
     status: active
     close_when: "chipyard 后端接入 run_arch 且 QEMU/gem5 跑同一 mode_entry case"
 
-  - id: DIV-11
+  - id: DIV-17
     kind: temporary
     scope: [chipyard]
-    impact: "RTL 仍按 R2 的 `escape imms18` 编码规则（Vast 接受 `imms18 ∈ {0,1,2}`、Tiny 只在实现 cfx_hart 时接受 bit1）；R3 规定 `imms18 != 0` 一律 `ILLI`，故在 `m18-chipyard-002` 前 RTL 与 QEMU/gem5/LLVM 不一致。"
-    reason: "`m18-spec-007`（DADAO 0.8.0）把 `escape` 改为无偏移的 `escape cfxHA`：`imms18` 为 SBZ，非 0 ⇒ `ILLI`，旧 `+0/+4` 偏移与帧选择位作废；`m18-llvm-002` 的汇编器已拒绝第二操作数（旧 `escape …, 8` 链例不可再汇编）。gem5 由 `m18-gem5-004`、QEMU 由 `m18-qemu-008` 迁到 R3；RTL 的迁移在 `m18-chipyard-002`。"
-    user_ruling: "2026-11-26（m18-spec-007 / ADR-0061 R3）"
+    impact: "RTL 的 Vast 固定 BootROM 以 **cfx_power(63)/hypv** 交付 `+loadmem` 测试体（`spec/Kaiwu §6.2` 的 Tiny 保存-跳转 hmon），而 QEMU/gem5 的 Vast 固件以 **cfx_hmon(3)** 交付；`arch-hart-001` 首次同步 `trap cfx_hmon` 的 `cg5 rc1 prev_cfx_code` / `rc9 escape_cfx_code` 因此为 63 而非 3。0.8.1-rc 的 `cg15`/`cg16` 源接口迁移后仍只剩这 2 槽差异（其余 122 槽逐槽相同）。"
+    reason: "`m18-testcases-004` 的 `cfx15.S` 以 QEMU/gem5 的 hmon 起点派生期望；RTL 载体仍走 Tiny hmon 保存-跳转路径。源接口/捕获/ack 语义本身一致（`m18-chipyard-003` 实测）。"
+    user_ruling: "2026-11-26（m18-chipyard-002；仅登记 RTL 交付环境差异，不改规范值；m18-chipyard-003 复核保留）"
     status: active
-    close_when: "m18-chipyard-002 合入（RTL 对 `imms18 != 0` 统一 `ILLI`）"
+    close_when: "RTL Vast 的测试体交付统一为 cfx_hmon 起点（chipyard 侧 BootROM 载体任务）"
+    slots:
+      - {case: arch-hart-001, slot: 1, chipyard: 63}
+      - {case: arch-hart-001, slot: 7, chipyard: 63}
+
+  - id: DIV-18
+    kind: temporary
+    scope: [chipyard]
+    impact: "Kaiwu-Tiny RTL 未实现 `cfx0`–`cfx3 cg15 rc3`（无异步模型，访问 ⇒ `CFXREG`），而 QEMU 的 Tiny profile 有该行；`tests/inst/11-cfx/escape_ciii_cfx.S` 的 mask 准备写因此在 RTL Tiny 上触发 `CFXREG`（QEMU 可跑）。Vast RTL 已实现该行并由 `arch-hart-001/002` + `escape_escalation` 覆盖同一出口语义。"
+    reason: "Tiny 的寄存器面保持 M16 基线（`m16-chipyard-019`/`DIV-09` 同源）：Tiny 无 `cfx_hart`/异步模型，`cg15` 不在它实现的寄存器面内；`m18-chipyard-003` 只迁移 Vast 的源接口，不扩大 Tiny 面。"
+    user_ruling: "2026-11-26（m18-chipyard-002；Tiny 面的实现范围；m18-chipyard-003 复核保留）"
+    status: active
+    close_when: "Tiny 侧实现 `cfx0`–`cfx3 cg15 rc3`（或 escape_ciii 的 Tiny 载体改为条件化 mask 准备）"
 
   - id: DIV-09
     kind: temporary

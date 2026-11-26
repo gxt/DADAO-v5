@@ -47,7 +47,8 @@ python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,gem5,chipyard --mode um
 **0.8.1-rc 源接口**（`cfx_hart cg15` 捕获 / monitor `cg15 rc3` 掩码 /
 `cfx_pmem cg16 rc16/17/18`，`cg16 rc18` 只清 pending）；与 QEMU
 `m18-qemu-009/010` 同槽位、同 ELF 签名一致。`arch-pmem-001` 的 hmon 首帧
-把 `cg15 rc14` 抬到 3（hypv），handler ack 后恢复 2。RTL 仍在
-`m18-chipyard-002/003` 迁移。
+把 `cg15 rc14` 抬到 3（hypv），handler ack 后恢复 2。RTL 由
+`m18-chipyard-002/003` 迁到同一模型（`cfx_hart cg15` 捕获 / monitor
+`cg15 rc3` 掩码 / `cfx_pmem cg16 rc16/17/18`，进入不清 pending、`rc18` 才 ack）。
 RTL 寄存器面探针 `pmem.S` 单独直跑（见 `m16-chipyard-022` 的 README 历史）；
-其运行时槽位仍是 0.8.0（`IRQ_EN`/`cg9`），归 RTL 迁移任务。
+0.8.1-rc 起其运行时槽位与本目录其它载体同口径（无 `IRQ_EN`、无 `cg9`）。

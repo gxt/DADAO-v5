@@ -127,6 +127,20 @@ def run_case(case_id, mode, args, tools, work):
     return 0
 
 
+def _registered_slots(case_id):
+    """`expected.yaml` 登记的归一化槽数（登记文件是唯一真源，不写死）。"""
+    try:
+        import yaml
+        data = yaml.safe_load((_HERE.with_name("expected.yaml")).read_text(
+            encoding="utf-8"))
+    except Exception:
+        return None
+    for case in data.get("cases", []):
+        if case.get("id") == case_id:
+            return sum(len(c.get("signature") or []) for c in case["checks"])
+    return None
+
+
 def selfcheck():
     problems = []
     print("=" * 72)
@@ -147,9 +161,11 @@ def selfcheck():
         for case_id, modes in CASES.items():
             for mode in modes:
                 _, exp = build(mode, tools, work)
-                want = 89 if case_id == "arch-hart-001" else 40
-                if len(exp) != want:
-                    problems.append("%s/%s: 期望 %d 槽 ≠ %d"
+                want = _registered_slots(case_id)
+                if want is None:
+                    problems.append("%s: expected.yaml 未登记签名" % case_id)
+                elif len(exp) != want:
+                    problems.append("%s/%s: 现场派生 %d 槽 ≠ expected.yaml %d"
                                     % (case_id, mode, len(exp), want))
                 else:
                     print("  PASS  %s/%s 期望 %d 槽（现场派生）"

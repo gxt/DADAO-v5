@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..3d08bb4
+index 0000000..a34a516
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,2091 @@
+@@ -0,0 +1,2234 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -45,15 +45,14 @@ index 0000000..3d08bb4
 +//                (`rc4` was `<mode>_cfx_intr_mask`; since `ADR-0061` D5 it is a
 +//                reserved hole on a machine with `cfx_hart` ⇒ CFXREG, and the
 +//                legacy RW row is kept only where no async model exists)
-+//   cg3 rc8      switch_run_mode — write accepted, ignored; reads the
++//   cg3 rc14     switch_run_mode — write accepted, ignored; reads the
 +//                configured value (a core that keeps one run mode)
-+//   cg3 rc10     excp_vector — reset = the cfx's own base; writes drop the low
++//   cg3 rc15     excp_vector — reset = the cfx's own base; writes drop the low
 +//                two bits
-+//   cg5 rc0      excp_prev_run_mode (RW; `escape` restores it)
-+//   cg5 rc1      excp_prev_cfx_code (RW; saved at exception entry, `escape`
-+//                restores `inner_cfx_code` from it)
-+//   cg5 rc2/rc4  excp_cause_id / excp_cause_info (hardware-written)
-+//   cg5 rc3      excp_cause_ip (RW)
++//   cg5 rc0-rc3  prev run mode / cfx code / ip / intr mask (entry record, RO)
++//   cg5 rc4/rc5  excp_cause_id / excp_cause_info (hardware-written, read-only)
++//   cg5 rc8-rc11 escape run mode / cfx code / ip / intr mask (exit intent,
++//                HW-copied at entry, software-writable, `rc11` resets all 1s)
 +//   cg7 rc0-63   internal space descriptors (read-only; writes are CFXREG)
 +//
 +// `cfx_ptw` (cfx4 on `Kaiwu-Vast`; absent on `Kaiwu-Tiny`, where those rows are
@@ -84,29 +83,46 @@ index 0000000..3d08bb4
 +// legacy subset above so their observable behaviour does not move:
 +//
 +//   cg0-cg2 rc0-3 four sync source masks (RW; rc4 reserved)
-+//   cg0-cg2 rc8    switch_run_mode (reset 2 = supv)
-+//   cg0-cg2 rc10   excp_vector (reset 0; writes drop the low two bits)
++//   cg0-cg2 rc14   switch_run_mode (reset 2 = supv)
++//   cg0-cg2 rc15   excp_vector (reset 0; writes drop the low two bits)
 +//   cg3 rc12       hypv_cg_reg_deleg (reset all ones, bit3 fixed 1)
 +//   cg4 rc0-rc6    cfx_id / version / trap·sync·async·escape counts /
 +//                  scratch_regs_num (all RO)
-+//   cg5 rc5        excp_pending (RW; synchronous only — the async bitmap is
-+//                  `cfx_hart cg9 rc4`)
 +//   cg6 rc0..N-1   scratch registers (RW, N = `GewuCfxParams.scratchRegs`)
-+//   cg8 rc1        the running mode's async source mask
-+//                  (`cfx_<monitor>_async_intr_mask`, `ADR-0061` D5): RW,
++//   cg15 rc3       the running mode's async source mask
++//                  (`cfx_<monitor>_async_intr_mask`, `ADR-0064` D6): RW,
 +//                  reset all ones, bit = source cfxha, cfx0-cfx3 only
 +//
 +// `cfx_hart` (cfx15 on `Kaiwu-Vast`; absent on `Kaiwu-Tiny`, where its rows are
 +// CFXREG) adds the hart-management face and the seven-slot asynchronous frame
 +// (`DADAO-12` §4.7, `ADR-0061` D7):
 +//
-+//   cg8 rc0/2/3  hart_id / cycle / insn (RO); rc4/rc5 timer_cmp / timer_ctrl
-+//   cg9 rc0-rc2  async_prev_run_mode / _prev_cfx_code / _cause_ip (HW/RW)
-+//   cg9 rc3/rc4  async_src_frame / _src_pending (HW/RO; software writes are
-+//                ignored without an exception)
-+//   cg9 rc5/rc6  async_excp_vector (RW, 4-byte aligned) / async_switch_run_mode
-+//                (RW 2-bit, reset 2 = supv; entry takes the current value)
-+//   cg9 rc7-15   reserved ⇒ CFXREG
++//   cg8 rc0/2/3  hart_id / cycle / insn (RO); `cg8 rc1`/`rc4`/`rc5` reserved
++//   cg15 rc0-rc5 async capture group: prev run mode / prev cfx code / prev ip /
++//                prev intr mask / src frame / raw pending summary (HW/RO;
++//                software writes are ignored without an exception)
++//   cg15 rc14/rc15 async_switch_run_mode (RW 2-bit, reset 2 = supv; also the
++//                entry run-mode upper bound) / async_excp_vector (RW, 4-byte
++//                aligned)
++//   cg15 rc6-rc13 reserved ⇒ CFXREG; `cg9` is reserved (CFXREG)
++//   cg16 rc0/rc1 timer_ctrl (RW; only bit0 ENABLE) / timer_cmp (RW)
++//   cg16 rc16    timer source mask (RW; bit0, 1 = mask, reset all ones)
++//   cg16 rc17    timer source pending (RO; bit0, ack-only clear)
++//   cg16 rc18    timer source ack (W1C; reads 0)
++//   cg16 rc2-rc15/rc19+ reserved ⇒ CFXREG
++//
++// `cfx0`-`cfx3 cg15 rc3` is the running mode's async source mask (`ADR-0064`
++// D6): bit = source cfxha, `0` = allow / `1` = mask, reset all ones; the old
++// `cg8 rc1` is reserved (CFXREG).
++//
++// Source pending (`cg16 rc16/17/18`) is the per-source event latch: an event
++// sets it, only the source ack clears it, and an asynchronous entry never
++// clears it (`ADR-0064` D3).  The source mask only gates the entry.
++//
++// The asynchronous entry obeys the run-mode upper bound (`m18-spec-009`): it
++// only happens while `runMode <= cg15 rc14` (the switch value is also the
++// highest mode that may be interrupted).  A pending source above the bound
++// stays pending with no error.
 +//
 +// `cfx_time` (cfx34 on `Kaiwu-Vast`; absent on `Kaiwu-Tiny`, where its rows are
 +// CFXREG) is the per-system global time counter (`DADAO-12` §4.10): **read
@@ -317,8 +333,9 @@ index 0000000..3d08bb4
 +  * The `cfx_hart` face (`DADAO-12` §4.7, `ADR-0061` D7).
 +  *
 +  * Only the *register* face lives here: `cg8` carries the hart-management
-+  * registers (`hart_id`/`cycle`/`insn`/`timer_cmp`/`timer_ctrl`) and `cg9` the
-+  * seven-slot asynchronous frame (`async_*`).  `hartId` is the value `cg8 rc0`
++  * registers (`hart_id`/`cycle`/`insn`), `cg15` the asynchronous capture group
++  * (`async_*`) and `cg16` the TIMER source face (`ctrl`/`cmp`/mask/pending/
++  * ack).  `hartId` is the value `cg8 rc0`
 +  * reads back (single-hart test machine: 0); the time base and the retire
 +  * pulse come from the core through `GewuFileIO.hart` because they are not cfx
 +  * registers.
@@ -433,9 +450,9 @@ index 0000000..3d08bb4
 +    * `m16-chipyard-024`: the asynchronous model switches when this is set.
 +    *
 +    * `Some` means the machine implements `cfx_hart`, so it has the async
-+    * delivery of `DADAO-12 §5.4` (`ADR-0061`): `cg8`/`cg9` exist, `cg0`–`cg3`
-+    * `rc4` is reserved (no `<mode>_cfx_intr_mask`) and `cfx0`–`cfx3 cg8 rc1` is
-+    * the running mode's `async_intr_mask`.  `None` (Kaiwu-Tiny) keeps the
++    * delivery of `DADAO-12 §5.4` (`ADR-0064`): `cg15`/`cg16` exist, `cg0`–`cg3`
++    * `rc4` is reserved (no `<mode>_cfx_intr_mask`) and `cfx0`–`cfx3 cg15 rc3`
++    * is the running mode's `async_intr_mask`.  `None` (Kaiwu-Tiny) keeps the
 +    * pre-`ADR-0061` register face bit for bit, since it has no async source and
 +    * no `cfx_hart` to deliver to.
 +    */
@@ -499,7 +516,8 @@ index 0000000..3d08bb4
 +  // Same rule for `cfx_cache`: its rows must belong to an implemented cfxha.
 +  require(cache.forall(c => cfx.exists(_.id == c.cfxId)),
 +    "Gewu: `cache.cfxId` must name an implemented cfx")
-+  // Same rule for `cfx_hart`: its cg8/cg9 rows must belong to an implemented cfx.
++  // Same rule for `cfx_hart`: its cg8/cg15/cg16 rows must belong to an
++  // implemented cfx.
 +  require(hart.forall(h => cfx.exists(_.id == h.cfxId)),
 +    "Gewu: `hart.cfxId` must name an implemented cfx")
 +  // Same rule for `cfx_time`: its cg10 rows must belong to an implemented cfx.
@@ -519,8 +537,8 @@ index 0000000..3d08bb4
 +  require(pmem.forall(m => cfx.exists(_.id == m.cfxId)),
 +    "Gewu: `pmem.cfxId` must name an implemented cfx")
 +  // The common mode rows (cg0-cg3 + cg4/cg5/cg6) are defined for every cfx
-+  // (`DADAO-12 §3.1`-§3.4); `cg8 rc1` (the running mode's async source mask,
-+  // `ADR-0061` D5) is only defined for cfx0-cfx3 and is decoded outside this
++  // (`DADAO-12 §3.1`-§3.4); `cg15 rc3` (the running mode's async source mask,
++  // `ADR-0064` D6) is only defined for cfx0-cfx3 and is decoded outside this
 +  // matrix.  `cfx_hart` opts in for its mode rows (the two-axis access model of
 +  // `contract-see §6.3`) while its own cg8 rows are decoded by the hart face.
 +  // `cfx_cache` opts in so U/S can reach its cg8 maintenance rows through the
@@ -578,26 +596,18 @@ index 0000000..3d08bb4
 +    val causeIp = Input(UInt(gp.dataBits.W)) // excp_cause_ip
 +    val info = Input(UInt(gp.dataBits.W)) // excp_cause_info
 +  }
-+  /** `escape cfxHA, [excp_cause_ip, off]` (`DADAO-12` §5.3). */
++  /** `escape cfxHA` (`DADAO-12` §5.1/§5.3, `ADR-0061` R3). */
 +  val escape = new Bundle {
 +    val valid = Input(Bool())
 +    val ha = Input(UInt(6.W))
-+    val off = Input(UInt(gp.dataBits.W))
-+    /**
-+      * `DADAO-12` §5.1: `imms18[1]` is the frame selector — 0 selects the
-+      * `cg5` synchronous frame; 1 selects `cg9`, but `R2` makes `cg9` a
-+      * capture buffer, not a return frame, so such an `escape` always faults
-+      * with the current cfx's `CFXESC` and switches nothing.  The core already
-+      * rejects `imms18 = 3` and `imms18[17:2] != 0` as ILLI.
-+      */
-+    val frame = Input(Bool())
 +  }
-+  /** The `escape` is legal: `ha` is the current cfx and its frame is valid. */
++  /** The `escape` is legal: `ha` is the current cfx, the target cfx and its
++    * monitor are implemented, and the target mode does not escalate. */
 +  val escapeOk = Output(Bool())
-+  /** `escape` return address = `excp_cause_ip + (imms18 << 2)` (§5.3 step 4);
-+    * exposed separately so the core's redirect never routes through the
-+    * entry-vector mux (which would close a combinational loop through
-+    * `entrySel`). */
++  /** `escape` return address = the current cfx's `cg5 rc10` (`escape ip`,
++    * §5.3 step 2); exposed separately so the core's redirect never routes
++    * through the entry-vector mux (which would close a combinational loop
++    * through `entrySel`). */
 +  val escapeTarget = Output(UInt(gp.dataBits.W))
 +
 +  // ---- redirect request (D4: PC and flush stay in the core) --------------
@@ -661,17 +671,18 @@ index 0000000..3d08bb4
 +  }
 +
 +  /**
-+    * Asynchronous delivery (`DADAO-12 §5.4`, `ADR-0061` D1/D3/D5/D6).
++    * Asynchronous entry (`DADAO-12 §5.4`, `ADR-0064` D1/D3/D4/D6).
 +    *
-+    * The source event sets its bit in `cfx_hart cg9 rc4` (`async_src_pending`,
-+    * bit = *source cfxha*); at an instruction boundary `gewu` offers one frame
-+    * carrying **all** pending sources the running mode's monitor mask
-+    * (`cfx0`–`cfx3 cg8 rc1`) lets through.  `ack` performs the entry (frame,
-+    * supv switch, vector), consumes exactly the delivered bits and counts the
-+    * frame once.  A masked event only keeps its pending bit — lifting the
-+    * mask later delivers it; nothing is ever queued per source.  Every entry
-+    * overwrites `cg9` (`R2`, `DADAO-12 §5.4(三)`): `async_src_frame != 0` is a
-+    * capture snapshot, never a gate.
++    * Each source latches its event in its own `cg16 rc17` pending register
++    * and clears it only through `cg16 rc18` (W1C); an asynchronous entry never
++    * clears it (`ADR-0064` D1/D3).  At an instruction boundary `gewu` offers
++    * one frame carrying **all** pending sources that pass both the source's
++    * own `cg16 rc16` mask and the running mode's monitor mask (`cfx0`–`cfx3
++    * cg15 rc3`).  TIMER additionally requires `ENABLE=1`.  `ack` performs the
++    * entry (frame, supv switch, vector) and counts the frame once.  A masked
++    * event only keeps its pending bit — lifting the mask later delivers it;
++    * nothing is ever queued per source.  Every entry overwrites the `cg15`
++    * capture group: `async_src_frame != 0` is a snapshot, never a gate.
 +    */
 +  val intr = new Bundle {
 +    val valid = Output(Bool())
@@ -831,19 +842,28 @@ index 0000000..3d08bb4
 +  // face does not move (Kaiwu-Tiny regression criterion).
 +  val intrMaskOpt: Option[Vec[UInt]] =
 +    if (asyncModel) None else Some(RegInit(VecInit(gp.cfx.map(_ => allOnes))))
-+  // `cfx0`-`cfx3 cg8 rc1` = `cfx_<monitor>_async_intr_mask` (`ADR-0061` D5):
++  // `cfx0`-`cfx3 cg15 rc3` = `cfx_<monitor>_async_intr_mask` (`ADR-0064` D6):
 +  // bit = source cfxha, `0` = allow / `1` = mask, reset all ones.  It is the
 +  // *source policy* of the running mode, so `trap`/`escape` never save it.
 +  val asyncIntrMaskOpt: Option[Vec[UInt]] =
 +    if (asyncModel) Some(RegInit(VecInit(gp.cfx.map(_ => allOnes)))) else None
-+  // cg3 rc10: the cfx's own base (`DADAO-13` §1).
++  // cg3 rc15: the cfx's own base (`DADAO-13` §1).
 +  val vector = RegInit(VecInit(gp.cfx.map(c => c.vectorBase.U(gp.dataBits.W))))
-+  // cg5 rc0 / rc1 / rc2 / rc3 / rc4 exception frame.
++  // cg5 exception frame (`DADAO-12` §3.6, `ADR-0061` R3-D2):
++  //   rc0-rc3 entry record (HW-written, software read-only),
++  //   rc4/rc5 cause id / info (HW-written),
++  //   rc8-rc11 exit intent (HW-copied at entry, software-writable).
 +  val prevMode = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.modeBits.W))))
 +  val prevCfx = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
++  val prevIp = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
++  val prevIntrMask = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
 +  val causeId = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
-+  val causeIp = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
 +  val causeInfo = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
++  val escapeRunMode = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.modeBits.W))))
++  val escapeCfx = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
++  val escapeIp = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
++  // `rc11` resets all ones: fail-safe, every asynchronous source masked.
++  val escapeIntrMask = RegInit(VecInit(gp.cfx.map(_ => allOnes)))
 +  val runMode = RegInit(gp.runModeReset.U(gp.modeBits.W))
 +  // `inner_cfx_code`: the cfx the core currently runs as.  It starts at the cfx
 +  // that owns the reset vector (`spec/Kaiwu §1`), becomes the entry target on an
@@ -901,35 +921,45 @@ index 0000000..3d08bb4
 +    gp.cache.map(c => new CacheRegs(c.exists))
 +  private val cacheExists: Int = gp.cache.map(_.exists).getOrElse(0)
 +
-+  // ---- `cfx_hart` state (`DADAO-12` §4.7, `ADR-0061` D7) ------------------
-+  // `cg8` = hart management (`hart_id`/`cycle`/`insn`/`timer_cmp`/
-+  // `timer_ctrl`); `cg9` = the seven-slot asynchronous frame.  Reset values
-+  // are the spec's: timer off, cmp 0, empty frame, empty pending bitmap,
-+  // vector 0, switch mode supv.  The frame and the pending bitmap are
-+  // HW-write/SW-read-only; the source mask is not here at all (`D5`).
++  // ---- `cfx_hart` state (`DADAO-12` §4.7, `ADR-0064` D2/D3/D5) ------------
++  // `cg8` = hart management (`hart_id`/`cycle`/`insn`); `cg15` = the
++  // asynchronous capture group (`rc0`-`rc5`) plus `rc14`/`rc15` configuration;
++  // `cg16` = the TIMER source face (`ctrl`/`cmp`/mask/pending/ack).  Reset
++  // values are the spec's: timer off, cmp 0, mask all ones, pending 0, empty
++  // record, switch mode supv, vector 0.  The `cg15 rc0`-`rc5` record is
++  // HW-written / software-read-only (writes ignored).
 +  private val hartId = gp.hart.map(_.cfxId)
 +
 +  /** `cfx_hart`'s registers; created only when `gp.hart` is set. */
 +  private class HartRegs {
-+    // cg8: hart management (`§4.7`).
-+    val timerCmp = RegInit(0.U(gp.dataBits.W))
-+    val timerEnable = RegInit(false.B)       // ctrl bit0
-+    val timerImask = RegInit(false.B)        // ctrl bit1
-+    val insn = RegInit(0.U(gp.dataBits.W))   // retired instructions
++    // cg16: the TIMER source face (`ADR-0064` D2).
++    val timerCmp = RegInit(0.U(gp.dataBits.W))   // rc1
++    val timerEnable = RegInit(false.B)           // rc0 bit0 (only field)
++    val timerMask = RegInit(true.B)              // rc16 bit0, 1 = mask, reset 1
++    val timerPending = RegInit(false.B)          // rc17 bit0, ack-only clear
++    /** Entry-probe arming: source pending is sticky, so probing unconditionally
++      * would re-enter at every boundary before the handler can ack (`ADR-0064`
++      * D4).  Set by a new source event or by a write that can unblock one
++      * (masks/config/`escape`), cleared only by an entry (`gem5`/QEMU use the
++      * same one-shot kick). */
++    val asyncKick = RegInit(false.B)
++    val insn = RegInit(0.U(gp.dataBits.W))       // cg8 rc3 retired instructions
 +    /** Last cycle's compare condition: the expiry is an *event* (one pending
-+      * bit per arming), so only a 0→1 transition sets it (`D6`). */
++      * bit per arming), so only a 0→1 transition sets it (`D3`). */
 +    val timerSeen = RegInit(false.B)
 +
-+    // cg9: asynchronous frame (`§4.7`, 7 slots; `rc7`-`rc15` reserved).
-+    val asyncPrevMode = RegInit(0.U(gp.modeBits.W))   // rc0 HW/RW
-+    val asyncPrevCfx = RegInit(0.U(6.W))              // rc1 HW/RW
-+    val asyncCauseIp = RegInit(0.U(gp.dataBits.W))    // rc2 HW/RW
-+    val asyncSrcFrame = RegInit(0.U(gp.dataBits.W))   // rc3 HW/RO
-+    val asyncSrcPending = RegInit(0.U(gp.dataBits.W)) // rc4 HW/RO
-+    val asyncVector = RegInit(0.U(gp.dataBits.W))     // rc5 RW
-+    /** rc6 `async_switch_run_mode`: RW 2-bit, reset 2 = supv (`§4.7`,
-+      * `m18-spec-006`); an asynchronous entry switches to this value. */
++    // cg15: asynchronous entry record / capture buffer (`§4.7`, `ADR-0064` D5).
++    val asyncPrevMode = RegInit(0.U(gp.modeBits.W))   // rc0 HW/RO
++    val asyncPrevCfx = RegInit(0.U(6.W))              // rc1 HW/RO
++    val asyncCauseIp = RegInit(0.U(gp.dataBits.W))    // rc2 HW/RO
++    val asyncPrevMask = RegInit(0.U(gp.dataBits.W))   // rc3 HW/RO
++    val asyncSrcFrame = RegInit(0.U(gp.dataBits.W))   // rc4 HW/RO
++    /** rc14 `async_switch_run_mode`: RW 2-bit, reset 2 = supv (`§4.7`); an
++      * asynchronous entry switches to this value and it is also the run-mode
++      * upper bound of the entry (`m18-spec-009`). */
 +    val asyncSwitch = RegInit(2.U(gp.modeBits.W))
++    /** rc15 `async_excp_vector`: RW, 4-byte aligned (`§4.7`). */
++    val asyncVector = RegInit(0.U(gp.dataBits.W))
 +  }
 +
 +  private val hartRegs: Option[HartRegs] = hartId.map(_ => new HartRegs)
@@ -951,35 +981,55 @@ index 0000000..3d08bb4
 +    val dmaDst = RegInit(0.U(gp.dataBits.W))
 +    val dmaSize = RegInit(0.U(30.W))
 +    val dmaDir = RegInit(false.B)        // bit1 DIR (0 = CFX→PA)
-+    val dmaIrqEn = RegInit(false.B)      // bit2 IRQ_EN
 +    // cg15 rc4: sticky DONE / ERROR and the one-hot ERR_CODE (`[15:3]`).
 +    val done = RegInit(false.B)
 +    val error = RegInit(false.B)
 +    val errCode = RegInit(0.U(13.W))     // bit0 SIZE, 1 CFX_RANGE, 2 PA_RANGE, 3 PA_FAULT
++    // cg16: the PMEM_DMA source face (`ADR-0064` D2/D3).
++    val dmaMask = RegInit(true.B)        // rc16 bit0, 1 = mask, reset 1
++    val dmaPending = RegInit(false.B)    // rc17 bit0, ack-only clear
 +  }
 +
 +  private val pmemRegs: Option[PmemRegs] = pmemId.map(_ => new PmemRegs)
 +
++  // The two asynchronous sources wired on this machine: the hart-local TIMER
++  // (cfxha = `cfx_hart` itself) and `PMEM_DMA` (cfxha 32, `DADAO-12 §4.9`).
++  // Their bits in the hart capture / monitor masks are the *source cfxha*.
++  private val timerSrcBit: UInt = hartId
++    .map(h => (1.U(gp.dataBits.W) << h.U)(gp.dataBits - 1, 0))
++    .getOrElse(0.U(gp.dataBits.W))
++  private val pmemSrcBit: UInt = pmemId
++    .map(h => (1.U(gp.dataBits.W) << h.U)(gp.dataBits - 1, 0))
++    .getOrElse(0.U(gp.dataBits.W))
++  /** `cg15 rc5`: raw pending summary (bit = source cfxha), independent of the
++    * masks; set while a source's `cg16 rc17` is non-zero, cleared only by that
++    * source's ack (`ADR-0064` D4). */
++  private val pendingSummary: UInt =
++    hartRegs.map(r => Mux(r.timerPending, timerSrcBit, 0.U(gp.dataBits.W)))
++      .getOrElse(0.U(gp.dataBits.W)) |
++    pmemRegs.map(p => Mux(p.dmaPending, pmemSrcBit, 0.U(gp.dataBits.W)))
++      .getOrElse(0.U(gp.dataBits.W))
++
 +  // ---- monitor common register face (`m16-chipyard-019`) -------------------
 +  // `DADAO-12 §3`: cg0-cg2 are the three lower run-mode rows, cg3 is hypv (the
-+  // legacy rows above already cover its rc0-rc4/rc8/rc10), cg4 is the config
-+  // block, cg5 rc5 is the pending bitmap, cg6 the scratch registers and cg8
-+  // rc1 the monitor's global interrupt mask.  The state is created only for a
-+  // cfx whose `commonRows` flag is set, so a profile that does not opt in
-+  // (Kaiwu-Tiny, cfx3/cfx63 here) gains no flops and no muxing.
++  // legacy rows above already cover its rc0-rc4/rc14/rc15), cg4 is the config
++  // block, cg6 the scratch registers and cg15 rc3 the monitor's async source
++  // mask.  The state is created only for a cfx whose `commonRows` flag is set,
++  // so a profile that does not opt in (Kaiwu-Tiny, cfx3/cfx63 here) gains no
++  // flops and no muxing.
 +  private class CommonRegs(c: GewuCfxParams) {
 +    /** cg0-cg2: rc0-rc3 sync source masks (`DADAO-12 §3.1`-§3.3; `rc4` is a
 +      * reserved hole since `ADR-0061` D5). */
 +    val mask = RegInit(VecInit(Seq.fill(3)(VecInit(
 +      Seq.fill(4)(c.sourceMaskReset.U(gp.sourceMaskBits.W))))))
-+    /** cg0-cg3 rc8: `switch_run_mode`; modes 0-2 reset to supv, cg3 to hypv
++    /** cg0-cg3 rc14: `switch_run_mode`; modes 0-2 reset to supv, cg3 to hypv
 +      * (`§3.1`-`§3.4`).  `m16-chipyard-020` makes the cg3 row a real register so
 +      * the hypv→U/S hand-off (`trap` with a software-chosen switch value, the
 +      * three-mode environment) is expressible. */
 +    val switchMode = RegInit(VecInit(Seq(
 +      2.U(gp.dataBits.W), 2.U(gp.dataBits.W), 2.U(gp.dataBits.W),
 +      3.U(gp.dataBits.W))))
-+    /** cg0-cg2 rc10: `excp_vector` resets to 0 (`§3.1`-`§3.3`). */
++    /** cg0-cg2 rc15: `excp_vector` resets to 0 (`§3.1`-`§3.3`). */
 +    val vector = RegInit(VecInit(Seq.fill(3)(0.U(gp.dataBits.W))))
 +
 +    /** cg3 rc12 `hypv_cg_reg_deleg`; bit3 is hardware-fixed 1 (`§3.4`). */
@@ -990,10 +1040,6 @@ index 0000000..3d08bb4
 +    val syncNum = RegInit(0.U(gp.dataBits.W))
 +    val asyncNum = RegInit(0.U(gp.dataBits.W))
 +    val escapeNum = RegInit(0.U(gp.dataBits.W))
-+
-+    /** cg5 rc5 `excp_pending` (RW; synchronous only — the async bitmap lives in
-+      * `cfx_hart cg9 rc4`, `ADR-0061` D7). */
-+    val pending = RegInit(0.U(gp.dataBits.W))
 +
 +    /** cg6: `N` scratch registers, `rc >= N` is CFXREG (`§3.7`). */
 +    val scratch = RegInit(VecInit(Seq.fill(c.scratchRegs)(0.U(gp.dataBits.W))))
@@ -1006,13 +1052,12 @@ index 0000000..3d08bb4
 +    /** `cg0-cg2` address decode (the mode row is `io.addr.cg`). */
 +    val isMode = hit && io.addr.cg <= 2.U
 +    val isMask = isMode && io.addr.rc <= 3.U
-+    val isSwitch = isMode && io.addr.rc === 8.U
-+    /** `cg3 rc8`: the hypv-mode `switch_run_mode` of a common cfx. */
-+    val isHypvSwitch = hit && io.addr.cg === 3.U && io.addr.rc === 8.U
-+    val isVector = isMode && io.addr.rc === 10.U
++    val isSwitch = isMode && io.addr.rc === 14.U
++    /** `cg3 rc14`: the hypv-mode `switch_run_mode` of a common cfx. */
++    val isHypvSwitch = hit && io.addr.cg === 3.U && io.addr.rc === 14.U
++    val isVector = isMode && io.addr.rc === 15.U
 +    val isDeleg = hit && io.addr.cg === 3.U && io.addr.rc === 12.U
 +    val isCfg = hit && io.addr.cg === 4.U
-+    val isPending = hit && io.addr.cg === 5.U && io.addr.rc === 5.U
 +    val isScratch = hit && io.addr.cg === 6.U &&
 +      io.addr.rc < c.scratchRegs.U
 +    /** Mode-row index (0/1/2); `cg3` uses the legacy rows, not this matrix. */
@@ -1039,19 +1084,27 @@ index 0000000..3d08bb4
 +  // legacy row so its register face is unchanged.
 +  private val maskRcMax = if (asyncModel) 3.U else 4.U
 +  private val isMask = isCg3 && io.addr.rc <= maskRcMax
-+  private val isSwitchMode = isCg3 && io.addr.rc === 8.U
-+  private val isVector = isCg3 && io.addr.rc === 10.U
++  // `cg0`-`cg3` `rc14`/`rc15` are `<mode>_switch_run_mode` /
++  // `<mode>_excp_vector` (`DADAO-12` §3.1-§3.4, `ADR-0061` R3-D4); the old
++  // `rc8`/`rc10` are reserved holes (CFXREG) and are decoded nowhere.
++  private val isSwitchMode = isCg3 && io.addr.rc === 14.U
++  private val isVector = isCg3 && io.addr.rc === 15.U
 +  private val isPrevMode = io.addr.cg === 5.U && io.addr.rc === 0.U
 +  private val isPrevCfx = io.addr.cg === 5.U && io.addr.rc === 1.U
-+  private val isCauseId = io.addr.cg === 5.U && io.addr.rc === 2.U
-+  private val isCauseIp = io.addr.cg === 5.U && io.addr.rc === 3.U
-+  private val isCauseInfo = io.addr.cg === 5.U && io.addr.rc === 4.U
++  private val isPrevIp = io.addr.cg === 5.U && io.addr.rc === 2.U
++  private val isPrevIntrMask = io.addr.cg === 5.U && io.addr.rc === 3.U
++  private val isCauseId = io.addr.cg === 5.U && io.addr.rc === 4.U
++  private val isCauseInfo = io.addr.cg === 5.U && io.addr.rc === 5.U
++  private val isEscapeMode = io.addr.cg === 5.U && io.addr.rc === 8.U
++  private val isEscapeCfx = io.addr.cg === 5.U && io.addr.rc === 9.U
++  private val isEscapeIp = io.addr.cg === 5.U && io.addr.rc === 10.U
++  private val isEscapeIntrMask = io.addr.cg === 5.U && io.addr.rc === 11.U
 +  private val isSpace = io.addr.cg === 7.U
-+  // `cfx0`-`cfx3 cg8 rc1` = the running mode's asynchronous source mask
-+  // (`ADR-0061` D5).  Only the four monitor cfx have it; `cfx_hart`'s own
-+  // `cg8 rc1` stays a reserved hole (`§4.7`).
++  // `cfx0`-`cfx3 cg15 rc3` = the running mode's asynchronous source mask
++  // (`ADR-0064` D6).  Only the four monitor cfx have it; `cfx_hart`'s own
++  // `cg15 rc3` is the capture record (`§4.7`).
 +  private val isAsyncMask = asyncIntrMaskOpt.isDefined.B && implemented &&
-+    io.addr.ha <= 3.U && io.addr.cg === 8.U && io.addr.rc === 1.U
++    io.addr.ha <= 3.U && io.addr.cg === 15.U && io.addr.rc === 3.U
 +  // cfx_ptw rows (`DADAO-12` §4.5), decoded only when the machine implements the
 +  // cfx: on any other profile these rows stay CFXREG and add no hardware.
 +  private val ptwRows: Option[PtwRows] = ptwId.map { id =>
@@ -1110,46 +1163,58 @@ index 0000000..3d08bb4
 +  private val hartRows: Option[HartRows] = hartId.map { id =>
 +    val isCfx = io.addr.ha === id.U(6.W)
 +    val cg8 = isCfx && io.addr.cg === 8.U
-+    val cg9 = isCfx && io.addr.cg === 9.U
++    val cg15 = isCfx && io.addr.cg === 15.U
++    val cg16 = isCfx && io.addr.cg === 16.U
 +    new HartRows(
 +      isHartId = cg8 && io.addr.rc === 0.U,
 +      isCycle = cg8 && io.addr.rc === 2.U,
 +      isInsn = cg8 && io.addr.rc === 3.U,
-+      isTimerCmp = cg8 && io.addr.rc === 4.U,
-+      isTimerCtrl = cg8 && io.addr.rc === 5.U,
-+      isAsyncPrevMode = cg9 && io.addr.rc === 0.U,
-+      isAsyncPrevCfx = cg9 && io.addr.rc === 1.U,
-+      isAsyncCauseIp = cg9 && io.addr.rc === 2.U,
-+      isAsyncSrcFrame = cg9 && io.addr.rc === 3.U,
-+      isAsyncSrcPending = cg9 && io.addr.rc === 4.U,
-+      isAsyncVector = cg9 && io.addr.rc === 5.U,
-+      isAsyncSwitch = cg9 && io.addr.rc === 6.U)
++      isAsyncPrevMode = cg15 && io.addr.rc === 0.U,
++      isAsyncPrevCfx = cg15 && io.addr.rc === 1.U,
++      isAsyncCauseIp = cg15 && io.addr.rc === 2.U,
++      isAsyncPrevMask = cg15 && io.addr.rc === 3.U,
++      isAsyncSrcFrame = cg15 && io.addr.rc === 4.U,
++      isAsyncSrcPending = cg15 && io.addr.rc === 5.U,
++      isAsyncSwitch = cg15 && io.addr.rc === 14.U,
++      isAsyncVector = cg15 && io.addr.rc === 15.U,
++      isTimerCtrl = cg16 && io.addr.rc === 0.U,
++      isTimerCmp = cg16 && io.addr.rc === 1.U,
++      isTimerMask = cg16 && io.addr.rc === 16.U,
++      isTimerPending = cg16 && io.addr.rc === 17.U,
++      isTimerAck = cg16 && io.addr.rc === 18.U)
 +  }
 +
-+  /** `cfx_hart` row decoders (one-hot by cg/rc construction, `§4.7`/D7). */
++  /** `cfx_hart` row decoders (one-hot by cg/rc construction, `§4.7`). */
 +  private class HartRows(
 +    val isHartId: Bool,
 +    val isCycle: Bool,
 +    val isInsn: Bool,
-+    val isTimerCmp: Bool,
-+    val isTimerCtrl: Bool,
 +    val isAsyncPrevMode: Bool,
 +    val isAsyncPrevCfx: Bool,
 +    val isAsyncCauseIp: Bool,
++    val isAsyncPrevMask: Bool,
 +    val isAsyncSrcFrame: Bool,
 +    val isAsyncSrcPending: Bool,
++    val isAsyncSwitch: Bool,
 +    val isAsyncVector: Bool,
-+    val isAsyncSwitch: Bool) {
-+    // cg8 rc0/2/3 are RO; `timer_cmp`/`timer_ctrl` are RW.  cg9 rc0-rc2 and
-+    // rc5/rc6 are RW; the two bitmaps rc3/rc4 are HW/RO — their write is
-+    // *ignored without an exception*
-+    // (`§4.7`, `ADR-0061` D4), so they stay in the write set.
-+    val anyRead = isHartId || isCycle || isInsn || isTimerCmp || isTimerCtrl ||
-+      isAsyncPrevMode || isAsyncPrevCfx || isAsyncCauseIp || isAsyncSrcFrame ||
-+      isAsyncSrcPending || isAsyncVector || isAsyncSwitch
-+    val anyWrite = isTimerCmp || isTimerCtrl ||
-+      isAsyncPrevMode || isAsyncPrevCfx || isAsyncCauseIp || isAsyncSrcFrame ||
-+      isAsyncSrcPending || isAsyncVector || isAsyncSwitch
++    val isTimerCtrl: Bool,
++    val isTimerCmp: Bool,
++    val isTimerMask: Bool,
++    val isTimerPending: Bool,
++    val isTimerAck: Bool) {
++    // cg8 rc0/2/3 are RO.  cg15 rc0-rc5 are the HW-written capture group
++    // (`§4.7`, `ADR-0064` D5): software writes are *ignored without an
++    // exception* (accepted, no effect), so they stay in the write set;
++    // rc14/rc15 are RW configuration.  cg16 rc0/rc1/rc16/rc18 are RW, rc17
++    // (`pending`) is RO, so a write of it is CFXREG.
++    val anyRead = isHartId || isCycle || isInsn ||
++      isAsyncPrevMode || isAsyncPrevCfx || isAsyncCauseIp || isAsyncPrevMask ||
++      isAsyncSrcFrame || isAsyncSrcPending || isAsyncSwitch || isAsyncVector ||
++      isTimerCtrl || isTimerCmp || isTimerMask || isTimerPending || isTimerAck
++    val anyWrite = isAsyncPrevMode || isAsyncPrevCfx || isAsyncCauseIp ||
++      isAsyncPrevMask || isAsyncSrcFrame || isAsyncSrcPending ||
++      isAsyncSwitch || isAsyncVector ||
++      isTimerCtrl || isTimerCmp || isTimerMask || isTimerAck
 +    val isCfx = anyRead
 +  }
 +
@@ -1159,6 +1224,7 @@ index 0000000..3d08bb4
 +    val isCfx = io.addr.ha === id.U(6.W)
 +    val cg8 = isCfx && io.addr.cg === 8.U
 +    val isDma = isCfx && io.addr.cg === 15.U
++    val cg16 = isCfx && io.addr.cg === 16.U
 +    new PmemRows(
 +      isExist = cg8 && io.addr.rc === 0.U,
 +      isStart = isCfx && io.addr.cg === 12.U,
@@ -1168,7 +1234,10 @@ index 0000000..3d08bb4
 +      isDmaDst = isDma && io.addr.rc === 1.U,
 +      isDmaSize = isDma && io.addr.rc === 2.U,
 +      isDmaCtrl = isDma && io.addr.rc === 3.U,
-+      isDmaStatus = isDma && io.addr.rc === 4.U)
++      isDmaStatus = isDma && io.addr.rc === 4.U,
++      isDmaMask = cg16 && io.addr.rc === 16.U,
++      isDmaPending = cg16 && io.addr.rc === 17.U,
++      isDmaAck = cg16 && io.addr.rc === 18.U)
 +  }
 +
 +  /** The `cfx_pmem` row decoders (one-hot by cg/rc construction). */
@@ -1181,15 +1250,20 @@ index 0000000..3d08bb4
 +    val isDmaDst: Bool,
 +    val isDmaSize: Bool,
 +    val isDmaCtrl: Bool,
-+    val isDmaStatus: Bool) {
++    val isDmaStatus: Bool,
++    val isDmaMask: Bool,
++    val isDmaPending: Bool,
++    val isDmaAck: Bool) {
 +    // `pmem_exist` (cg8 rc0) is RO; `cg15 rc5..63` are reserved and absent from
-+    // every set, so they fall through to CFXREG.
++    // every set, so they fall through to CFXREG.  `cg16 rc17` (`pending`) is
++    // RO as well; `rc16` mask and `rc18` ack are writable.
 +    val anyRead = isExist || isStart || isPmSize || isAttr || isDmaSrc ||
-+      isDmaDst || isDmaSize || isDmaCtrl || isDmaStatus
++      isDmaDst || isDmaSize || isDmaCtrl || isDmaStatus ||
++      isDmaMask || isDmaPending || isDmaAck
 +    // The DONE/ERROR W1C row is writable; `BUSY` itself is read-only, which the
 +    // write block enforces by masking the value.
 +    val anyWrite = isStart || isPmSize || isAttr || isDmaSrc || isDmaDst ||
-+      isDmaSize || isDmaCtrl || isDmaStatus
++      isDmaSize || isDmaCtrl || isDmaStatus || isDmaMask || isDmaAck
 +    val isCfx = anyRead
 +  }
 +
@@ -1234,21 +1308,23 @@ index 0000000..3d08bb4
 +    else commonEntries.map(f).reduce(_ || _)
 +  private val commonRead = anyCommon(e =>
 +    e.isMask || e.isSwitch || e.isHypvSwitch || e.isVector || e.isDeleg ||
-+      (e.isCfg && io.addr.rc <= 6.U) || e.isPending || e.isScratch)
++      (e.isCfg && io.addr.rc <= 6.U) || e.isScratch)
 +  // cg4 is read-only (`DADAO-12 §3.5`); every other common row is RW.
 +  private val commonWrite = anyCommon(e =>
 +    e.isMask || e.isSwitch || e.isHypvSwitch || e.isVector || e.isDeleg ||
-+      e.isPending || e.isScratch)
++      e.isScratch)
 +
 +  // Base rows of every implemented cfx (`DADAO-13` §1, `DADAO-12` §3).
-+  private val readBase = isMask || isSwitchMode || isVector || isPrevMode ||
-+    isPrevCfx || isCauseId || isCauseIp || isCauseInfo || isSpace ||
-+    isAsyncMask
-+  // cg3 rc8 accepts the write and ignores it when the core keeps one mode;
-+  // cg5 rc2/rc4 are hardware-written and cg7 is read-only, so writing them is
-+  // CFXREG (`DADAO-12` §5.2).
-+  private val writeBase = isMask || isSwitchMode || isVector || isPrevMode ||
-+    isPrevCfx || isCauseIp || isAsyncMask
++  private val readBase = isMask || isSwitchMode || isVector ||
++    isPrevMode || isPrevCfx || isPrevIp || isPrevIntrMask ||
++    isCauseId || isCauseInfo ||
++    isEscapeMode || isEscapeCfx || isEscapeIp || isEscapeIntrMask ||
++    isSpace || isAsyncMask
++  // cg3 rc14 accepts the write and ignores it when the core keeps one mode;
++  // cg5 rc0-rc5 are hardware-written, so writing them is CFXREG (`§3.6`,
++  // R3-D2).  cg7 is read-only.
++  private val writeBase = isMask || isSwitchMode || isVector ||
++    isEscapeMode || isEscapeCfx || isEscapeIp || isEscapeIntrMask || isAsyncMask
 +  // `cfx_cache_ctrl` encoding check (`contract-cache` §3 CACHE-11…CACHE-14):
 +  // selection first, then the operation, then the range encoding and operand.
 +  // Only a selected side with a non-`none` operation is checked; `[15:14] = 00`
@@ -1331,19 +1407,25 @@ index 0000000..3d08bb4
 +    case Some(m) => Mux(io.addr.rc === 4.U, m(sel), sourceMask(sel)(rcMaskIndex))
 +    case None => sourceMask(sel)(rcMaskIndex)
 +  }
-+  /** `cfx_<monitor>_async_intr_mask` of the addressed cfx (`cg8 rc1`, D5). */
++  /** `cfx_<monitor>_async_intr_mask` of the addressed cfx (`cg15 rc3`, D6). */
 +  private val asyncMaskData = asyncIntrMaskOpt.map(_(sel))
 +    .getOrElse(0.U(gp.dataBits.W))
-+  // Base read data (every implemented cfx, `DADAO-13` §1 / `DADAO-12` §3).
++  // Base read data (every implemented cfx, `DADAO-13` §1 / `DADAO-12` §3.6).
 +  private val baseRdata = Mux(isAsyncMask, asyncMaskData,
 +    Mux(isMask, maskData,
 +    Mux(isSwitchMode, gp.switchModeValue.U(gp.dataBits.W),
 +      Mux(isVector, vector(sel),
 +        Mux(isPrevMode, prevMode(sel).pad(gp.dataBits),
 +          Mux(isPrevCfx, prevCfx(sel),
-+            Mux(isCauseId, causeId(sel),
-+              Mux(isCauseIp, causeIp(sel),
-+                Mux(isCauseInfo, causeInfo(sel), cg7Rdata)))))))))
++            Mux(isPrevIp, prevIp(sel),
++              Mux(isPrevIntrMask, prevIntrMask(sel),
++                Mux(isCauseId, causeId(sel),
++                  Mux(isCauseInfo, causeInfo(sel),
++                    Mux(isEscapeMode, escapeRunMode(sel).pad(gp.dataBits),
++                      Mux(isEscapeCfx, escapeCfx(sel),
++                        Mux(isEscapeIp, escapeIp(sel),
++                          Mux(isEscapeIntrMask, escapeIntrMask(sel),
++                            cg7Rdata))))))))))))))
 +
 +  // cfx_ptw read data: PTBR reads back as `[63:56] = 0, [55:16] = PPN,
 +  // [15:0] = 0`; ASID as `[15:0]` plus zeros; start as `VA[41:0]` plus zeros
@@ -1371,18 +1453,13 @@ index 0000000..3d08bb4
 +      Mux(rows.isStart, regs.addrStart.pad(gp.dataBits),
 +        Mux(rows.isSize, regs.addrSize, 0.U(gp.dataBits.W)))))
 +
-+  // `cfx_hart` read data (`DADAO-12` §4.7, `ADR-0061` D7).  `timer_ctrl` reads
-+  // back `ENABLE | IMASK << 1 | ISTATUS << 2`, where ISTATUS is the live
-+  // compare condition (`{time} >= timer_cmp && ENABLE`, §4.7).  `cg9` is the
-+  // seven-slot frame: rc3/rc4 are the two HW-written bitmaps (read-only seen
-+  // from software), rc6 is the RW entry-mode register (reset 2 = supv).
++  // `cfx_hart` read data (`DADAO-12` §4.7, `ADR-0064` D2/D3/D5).  `cg16 rc0`
++  // reads back only bit0 ENABLE; `rc16` the source mask bit0, `rc17` the
++  // pending bit0 and `rc18` always 0 (W1C).  `cg15 rc0`-`rc5` is the HW-written
++  // capture group (software read-only), `rc14` the RW entry mode (reset 2 =
++  // supv, also the entry upper bound) and `rc15` the RW vector.
 +  private val hartTime: UInt =
 +    io.hart.map(_.timeValue).getOrElse(0.U(gp.dataBits.W))
-+  private val timerIstatus: Bool =
-+    io.hart.map(_ => {
-+      val r = hartRegs.get
-+      r.timerEnable && hartTime >= r.timerCmp
-+    }).getOrElse(false.B)
 +  private val hartRdata = for {
 +    rows <- hartRows
 +    regs <- hartRegs
@@ -1392,17 +1469,22 @@ index 0000000..3d08bb4
 +        Mux(rows.isInsn, regs.insn,
 +          Mux(rows.isTimerCmp, regs.timerCmp,
 +            Mux(rows.isTimerCtrl,
-+              Cat(0.U((gp.dataBits - 3).W), timerIstatus,
-+                regs.timerImask, regs.timerEnable),
-+              Mux(rows.isAsyncPrevMode, regs.asyncPrevMode.pad(gp.dataBits),
-+                Mux(rows.isAsyncPrevCfx, regs.asyncPrevCfx.pad(gp.dataBits),
-+                  Mux(rows.isAsyncCauseIp, regs.asyncCauseIp,
-+                    Mux(rows.isAsyncSrcFrame, regs.asyncSrcFrame,
-+                      Mux(rows.isAsyncSrcPending, regs.asyncSrcPending,
-+                        Mux(rows.isAsyncVector, regs.asyncVector,
-+                          Mux(rows.isAsyncSwitch,
-+                            regs.asyncSwitch.pad(gp.dataBits),
-+                            0.U(gp.dataBits.W)))))))))))))
++              Cat(0.U((gp.dataBits - 1).W), regs.timerEnable),
++              Mux(rows.isTimerMask,
++                Cat(0.U((gp.dataBits - 1).W), regs.timerMask),
++                Mux(rows.isTimerPending,
++                  Cat(0.U((gp.dataBits - 1).W), regs.timerPending),
++                  Mux(rows.isTimerAck, 0.U(gp.dataBits.W),
++                    Mux(rows.isAsyncPrevMode, regs.asyncPrevMode.pad(gp.dataBits),
++                      Mux(rows.isAsyncPrevCfx, regs.asyncPrevCfx.pad(gp.dataBits),
++                        Mux(rows.isAsyncCauseIp, regs.asyncCauseIp,
++                          Mux(rows.isAsyncPrevMask, regs.asyncPrevMask,
++                            Mux(rows.isAsyncSrcFrame, regs.asyncSrcFrame,
++                              Mux(rows.isAsyncSrcPending, pendingSummary,
++                                Mux(rows.isAsyncSwitch,
++                                  regs.asyncSwitch.pad(gp.dataBits),
++                                  Mux(rows.isAsyncVector, regs.asyncVector,
++                                    0.U(gp.dataBits.W)))))))))))))))))
 +  }
 +
 +  private val baseAndPtw =
@@ -1412,10 +1494,10 @@ index 0000000..3d08bb4
 +  private val basePtwCacheHart =
 +    hartRdata.map(d => Mux(hartRows.get.isCfx, d, basePtwCache)).getOrElse(basePtwCache)
 +
-+  // `cfx_pmem` read data (`DADAO-12` §4.9).  `pmem_exist` is the machine's
-+  // hardware-set bitmap of PM regions (64 regions on this machine);
-+  // `dma_status` reads `BUSY | DONE<<1 | ERROR<<2 | ERR_CODE<<3`, and
-+  // `dma_ctrl` reads back `DIR`/`IRQ_EN` with START always 0 (self-clearing).
++  // `cfx_pmem` read data (`DADAO-12` §4.9, `ADR-0064` D2).  `pmem_exist` is
++  // the machine's hardware-set bitmap of PM regions (64 regions on this
++  // machine); `dma_status` reads `BUSY | DONE<<1 | ERROR<<2 | ERR_CODE<<3`;
++  // `dma_ctrl` reads back `DIR` only (START self-clears, bit2+ reserved 0).
 +  private val pmemRdata = for {
 +    rows <- pmemRows
 +    regs <- pmemRegs
@@ -1427,12 +1509,16 @@ index 0000000..3d08bb4
 +            Mux(rows.isDmaDst, regs.dmaDst,
 +              Mux(rows.isDmaSize, regs.dmaSize.pad(gp.dataBits),
 +                Mux(rows.isDmaCtrl,
-+                  Cat(0.U((gp.dataBits - 3).W), regs.dmaIrqEn, regs.dmaDir,
-+                    0.U(1.W)),
++                  Cat(0.U((gp.dataBits - 2).W), regs.dmaDir, 0.U(1.W)),
 +                  Mux(rows.isDmaStatus,
 +                    Cat(0.U((gp.dataBits - 16).W), regs.errCode, regs.error,
 +                      regs.done, io.pmem.map(_.busy).getOrElse(false.B)),
-+                    0.U(gp.dataBits.W))))))))))
++                    Mux(rows.isDmaMask,
++                      Cat(0.U((gp.dataBits - 1).W), regs.dmaMask),
++                      Mux(rows.isDmaPending,
++                        Cat(0.U((gp.dataBits - 1).W), regs.dmaPending),
++                        Mux(rows.isDmaAck, 0.U(gp.dataBits.W),
++                          0.U(gp.dataBits.W)))))))))))))
 +
 +  private val basePtwCacheHartPmem =
 +    pmemRdata.map(d => Mux(pmemRows.get.isCfx, d, basePtwCacheHart))
@@ -1475,9 +1561,8 @@ index 0000000..3d08bb4
 +                  4.U -> r.asyncNum,
 +                  5.U -> r.escapeNum,
 +                  6.U -> e.c.scratchRegs.U(gp.dataBits.W))),
-+                  Mux(e.isPending, r.pending,
-+                    Mux(e.isScratch, r.scratch(scratchIdx),
-+                      0.U(gp.dataBits.W)))))))))
++                  Mux(e.isScratch, r.scratch(scratchIdx),
++                    0.U(gp.dataBits.W))))))))
 +    })
 +
 +  io.rdata := Mux(commonRead, commonRdata, basePtwCacheHartPmemTime)
@@ -1493,20 +1578,26 @@ index 0000000..3d08bb4
 +    }.elsewhen(isVector) {
 +      // `DADAO-13` §1: the vector is 4-byte aligned, writes drop the low bits.
 +      vector(sel) := Cat(io.wdata(gp.dataBits - 1, 2), 0.U(2.W))
-+    }.elsewhen(isPrevMode) {
-+      prevMode(sel) := io.wdata(gp.modeBits - 1, 0)
-+    }.elsewhen(isPrevCfx) {
-+      // RW (`DADAO-12` §3.6): the stored value is the code word as written;
-+      // only the 6-bit field is used when `escape` restores `inner_cfx_code`.
-+      prevCfx(sel) := io.wdata
-+    }.elsewhen(isCauseIp) {
-+      causeIp(sel) := io.wdata
++    }.elsewhen(isEscapeMode) {
++      // `cg5 rc8`: 2-bit target run mode (`DADAO-12 §3.6`).
++      escapeRunMode(sel) := io.wdata(gp.modeBits - 1, 0)
++    }.elsewhen(isEscapeCfx) {
++      // `cg5 rc9`: 6-bit target cfxha; reads back zero-extended.
++      escapeCfx(sel) := io.wdata(5, 0)
++    }.elsewhen(isEscapeIp) {
++      // `cg5 rc10`: 48-bit return ip, low two bits dropped (4-byte aligned).
++      escapeIp(sel) := Cat(0.U((gp.dataBits - 48).W),
++        io.wdata(47, 2), 0.U(2.W))
++    }.elsewhen(isEscapeIntrMask) {
++      // `cg5 rc11`: whole 64-bit source mask restored by `escape`.
++      escapeIntrMask(sel) := io.wdata
 +    }
-+    // cg3 rc8 is accepted and ignored: no run-mode register to write.
++    // cg3 rc14 is accepted and ignored: no run-mode register to write here;
++    // a common cfx keeps its per-mode row in the common-face block below.
 +  }
 +
-+  // `cfx0`-`cfx3 cg8 rc1`: the running mode's async source mask is ordinary
-+  // RW policy state (`ADR-0061` D5), disjoint from every other row.
++  // `cfx0`-`cfx3 cg15 rc3`: the running mode's async source mask is ordinary
++  // RW policy state (`ADR-0064` D6), disjoint from every other row.
 +  for (m <- asyncIntrMaskOpt) {
 +    when(io.wEn && io.writeOk && isAsyncMask) { m(sel) := io.wdata }
 +  }
@@ -1532,8 +1623,6 @@ index 0000000..3d08bb4
 +      }.elsewhen(e.isDeleg) {
 +        // `cg_reg_deleg` bit3 is hardware-fixed 1 (`DADAO-12 §3.4`).
 +        r.deleg := io.wdata | 8.U
-+      }.elsewhen(e.isPending) {
-+        r.pending := io.wdata
 +      }.elsewhen(e.isScratch) {
 +        r.scratch(scratchIdx) := io.wdata
 +      }
@@ -1609,36 +1698,30 @@ index 0000000..3d08bb4
 +  } {
 +    when(io.wEn && io.writeOk) {
 +      when(rows.isTimerCmp) {
-+        // Writing a new deadline cancels the old condition and is the TIMER
-+        // source's ack (`§4.7`): the pending bit falls and the next compare
-+        // match is a new event.
++        // A new deadline only re-arms; it never clears pending (`ADR-0064`
++        // D3): the event/ack state lives in `cg16 rc17`/`rc18`.
 +        regs.timerCmp := io.wdata
-+        regs.timerSeen := false.B
 +      }.elsewhen(rows.isTimerCtrl) {
-+        // bit0 ENABLE / bit1 IMASK; bit2 ISTATUS is read-only, the rest SBZ.
++        // bit0 ENABLE only; bits 1+ are reserved (read 0 / write ignored).
 +        regs.timerEnable := io.wdata(0)
-+        regs.timerImask := io.wdata(1)
-+      }.elsewhen(rows.isAsyncPrevMode) {
-+        regs.asyncPrevMode := io.wdata(gp.modeBits - 1, 0)
-+      }.elsewhen(rows.isAsyncPrevCfx) {
-+        regs.asyncPrevCfx := io.wdata(5, 0)
-+      }.elsewhen(rows.isAsyncCauseIp) {
-+        // 48-bit core address, 4-byte aligned (`§4.7`; the low two bits of a
-+        // written value are dropped, the same rule the hardware entry uses).
-+        regs.asyncCauseIp := Cat(0.U((gp.dataBits - 48).W),
-+          io.wdata(47, 2), 0.U(2.W))
++      }.elsewhen(rows.isTimerMask) {
++        // Reserved mask bits read 0 / write ignored: only bit0 is stored.
++        regs.timerMask := io.wdata(0)
++      }.elsewhen(rows.isTimerAck) {
++        // W1C: bit0 clears the pending latch; an already-clear bit is a no-op.
++        when(io.wdata(0)) { regs.timerPending := false.B }
++      }.elsewhen(rows.isAsyncSwitch) {
++        // `async_switch_run_mode` (rc14): RW 2-bit, the written value lands and
++        // reads back (`§4.7`); it is also the entry mode upper bound.
++        regs.asyncSwitch := io.wdata(gp.modeBits - 1, 0)
 +      }.elsewhen(rows.isAsyncVector) {
-+        // 48-bit core address, 4-byte aligned (`§4.7`).
++        // `async_excp_vector` (rc15): 48-bit core address, 4-byte aligned.
 +        regs.asyncVector := Cat(0.U((gp.dataBits - 48).W),
 +          io.wdata(47, 2), 0.U(2.W))
-+      }.elsewhen(rows.isAsyncSwitch) {
-+        // `async_switch_run_mode` (rc6): RW 2-bit, the written value lands and
-+        // reads back (`§4.7`, `m18-spec-006`).
-+        regs.asyncSwitch := io.wdata(gp.modeBits - 1, 0)
 +      }
-+      // `async_src_frame`/`async_src_pending` (rc3/rc4) are HW/RO: the write is
-+      // accepted and ignored, the value reads back unchanged and no exception
-+      // is raised (`§4.7`, `ADR-0061` D4).
++      // `cg15 rc0`-`rc5` are the HW-written capture group (`§4.7`, `ADR-0064`
++      // D5): software writes are accepted but ignored, the value reads back
++      // unchanged and no exception is raised.
 +    }
 +    // Retired instruction counter (`§4.7 insn`).
 +    when(io.hart.get.retire) { regs.insn := regs.insn + 1.U }
@@ -1688,23 +1771,15 @@ index 0000000..3d08bb4
 +    io.pmem.map(_.done).getOrElse(false.B)
 +  private val pmemErrEvent: Bool =
 +    io.pmem.map(_.error).getOrElse(false.B)
-+  /** The asynchronous source event of `PMEM_DMA` (`IRQ_EN=1` at DONE/ERROR or
-+    * at a rejected START).  Registered: the raw event depends on a cg15 write
-+    * (`io.wEn`) and feeding it combinationally into `intr.valid` would close a
-+    * loop through the core's own cfx write path. */
++  /** PMEM_DMA's single source sub-event (`ADR-0064` D2/D3): a transfer end
++    * (DONE or ERROR) — including a rejected START's setup error — latches
++    * `cg16 rc17` bit0.  It is sticky and only `cg16 rc18` clears it; the
++    * engine's `dma_status` W1C is separate state cleanup and never touches it.
++    * Registered: `pmemStartErr` depends on the write data, and a combinational
++    * path into `intr.valid` would close a loop through the core's own cfx
++    * write path. */
 +  private val pmemEvent: Bool = RegNext(
-+    ((pmemDoneEvent || pmemErrEvent) &&
-+      pmemRegs.map(_.dmaIrqEn).getOrElse(false.B)) ||
-+      (pmemStartErr && io.wdata(2)), false.B)
-+  /** `dma_status` W1C of DONE/ERROR is the source ack: once neither event bit
-+    * remains, the delivery-pending bit falls too (`DADAO-12 §5.4(二)`). */
-+  private val pmemAck: Bool = pmemRegs.map { regs =>
-+    val w1c = pmemRows.map(_.isDmaStatus).getOrElse(false.B) &&
-+      io.wEn && io.writeOk && !pmemBusy
-+    val doneLeft = regs.done && !io.wdata(1)
-+    val errorLeft = regs.error && !io.wdata(2)
-+    w1c && (io.wdata(1) || io.wdata(2)) && !(doneLeft || errorLeft)
-+  }.getOrElse(false.B)
++    pmemDoneEvent || pmemErrEvent || pmemStartErr, false.B)
 +
 +  for (rows <- pmemRows; regs <- pmemRegs) {
 +    when(io.wEn && io.writeOk) {
@@ -1724,12 +1799,19 @@ index 0000000..3d08bb4
 +        }.elsewhen(rows.isDmaSize) {
 +          regs.dmaSize := io.wdata(29, 0)
 +        }.elsewhen(rows.isDmaCtrl) {
++          // bit0 START is not stored; bit1 DIR; bit2+ reserved (write ignored).
 +          regs.dmaDir := io.wdata(1)
-+          regs.dmaIrqEn := io.wdata(2)
 +        }.elsewhen(rows.isDmaStatus) {
 +          when(io.wdata(1)) { regs.done := false.B }
 +          when(io.wdata(2)) { regs.error := false.B; regs.errCode := 0.U }
 +        }
++      }
++      // `cg16` source face (`ADR-0064` D1): mask RW (bit0), pending RO, ack
++      // W1C.  It is not frozen by BUSY — only the cg15 engine group is.
++      when(rows.isDmaMask) {
++        regs.dmaMask := io.wdata(0)
++      }.elsewhen(rows.isDmaAck) {
++        when(io.wdata(0)) { regs.dmaPending := false.B }
 +      }
 +    }
 +    // Sticky completion (`DONE`/`ERROR` are cleared by W1C only) and the
@@ -1808,9 +1890,11 @@ index 0000000..3d08bb4
 +  io.vector := vector(monitor)
 +  io.entryVector := (if (gp.modeEntry) perModeVector(entryIdx)
 +    else vector(entryIdx))
++  // Trace-only: `cause_id != 0` says a frame was entered.  `escape` does **not**
++  // use it as a validity gate (`ADR-0061` R3-D5: no frame-valid bit).
 +  io.frameValid := hasFrame
 +  io.causeId := causeId(viewIdx)
-+  io.causeIp := causeIp(viewIdx)
++  io.causeIp := prevIp(viewIdx)
 +  io.causeInfo := causeInfo(viewIdx)
 +  io.prevMode := prevMode(viewIdx)
 +  io.prevCfx := prevCfx(viewIdx)
@@ -1866,39 +1950,40 @@ index 0000000..3d08bb4
 +  // a direct-access rule (`contract-see` §3; QEMU `helper_cfx_trap` matches).
 +  io.trapDenied := implemented && axisDenied(0)
 +
-+  // ---- asynchronous delivery (`ADR-0061` D1/D3/D5/D6, hart-first) --------
-+  // Every asynchronous source is delivered to the same `cfx_hart` supv entry,
-+  // whichever mode is running.  Both bitmaps of `cg9` are indexed by the
-+  // *source cfxha* (TIMER = `cfx_hart`'s own id), which is also the index of
-+  // the only mask: the running mode's monitor `cg8 rc1`.  One frame carries
-+  // every pending-and-allowed source.  `R2` (`DADAO-12 §5.4(三)`): a non-zero
-+  // `src_frame` is only the last capture and never blocks an entry — each
-+  // entry overwrites `cg9` as a whole, so there is no frame phase and no
-+  // nesting token.
++  // ---- asynchronous entry (`ADR-0064` D3/D4/D5, hart-first) --------------
++  // Every asynchronous source enters the same `cfx_hart` supv entry, whichever
++  // mode is running.  Each source owns its `cg16 rc16/17/18` mask/pending/ack
++  // (bit = sub-event), and both bitmaps of the `cg15` capture group are indexed
++  // by the *source cfxha* (TIMER = `cfx_hart`'s own id).  Entry needs the
++  // source pending to pass its own mask and the running mode's monitor mask
++  // (`cfx0`-`cfx3 cg15 rc3`); one frame carries every allowed source.  A
++  // non-zero `src_frame` is only the last capture and never blocks an entry —
++  // each entry overwrites the `cg15` capture group as a whole.
 +  private def hartOpt: Option[HartRegs] = hartRegs
-+  /** The two sources wired on this machine: the hart-local TIMER (cfxha =
-+    * `cfx_hart` itself) and `PMEM_DMA` (cfxha 32, `DADAO-12 §4.9`).  Both use
-+    * the same bitmap, the same monitor mask and the same frame. */
-+  private val timerSrcBit: UInt = hartId
-+    .map(h => (1.U(gp.dataBits.W) << h.U)(gp.dataBits - 1, 0))
-+    .getOrElse(0.U(gp.dataBits.W))
-+  private val pmemSrcBit: UInt = pmemId
-+    .map(h => (1.U(gp.dataBits.W) << h.U)(gp.dataBits - 1, 0))
-+    .getOrElse(0.U(gp.dataBits.W))
-+  private val implSrcBits: UInt = timerSrcBit | pmemSrcBit
 +  private val timerCond: Bool = hartOpt.map { r =>
 +    r.timerEnable && hartTime >= r.timerCmp
 +  }.getOrElse(false.B)
-+  /** The expiry is an *event* (`D6`): one pending bit per arming, so only the
-+    * compare condition's rising edge sets it. */
++  /** TIMER expiry (`ADR-0064` D3): one pending bit per arming, so only the
++    * compare condition's rising edge is an event.  `ENABLE` 0→1 with
++    * `cfx_time >= cmp` therefore latches pending once (enable checks the
++    * deadline immediately); `ENABLE=0` never produces a new event. */
 +  private val timerEvent: Bool = hartOpt.map { r =>
 +    timerCond && !r.timerSeen
 +  }.getOrElse(false.B)
-+  /** TIMER's source-local gate (`timer_ctrl` IMASK): a masked expiry is still
-+    * recorded in `src_pending`, only its delivery is held (`§4.7`). */
-+  private val timerGate: UInt = hartOpt.map { r =>
-+    Mux(r.timerImask, timerSrcBit, 0.U(gp.dataBits.W))
-+  }.getOrElse(0.U(gp.dataBits.W))
++  private val timerCmpWrite: Bool =
++    hartRows.map(_.isTimerCmp).getOrElse(false.B) && io.wEn && io.writeOk
++  private val timerAckWrite: Bool =
++    hartRows.map(_.isTimerAck).getOrElse(false.B) && io.wEn && io.writeOk
++  private val pmemAckWrite: Bool =
++    pmemRows.map(_.isDmaAck).getOrElse(false.B) && io.wEn && io.writeOk
++  /** Accepted writes that can make a pending source deliverable (mask/config
++    * or a capture-group write); an ack only removes pending, so it is not a
++    * kick (`ADR-0064` D4).  Registered for the same loop reason as
++    * `pmemEvent`: the core gates its cfx write with `intr.valid`. */
++  private val hartKickWrite: Bool = RegNext(io.wEn && io.writeOk &&
++    (hartRows.map(r => r.isTimerCtrl || r.isTimerCmp || r.isTimerMask ||
++      r.isAsyncSwitch || r.isAsyncVector).getOrElse(false.B) ||
++      pmemRows.map(_.isDmaMask).getOrElse(false.B) || isAsyncMask), false.B)
 +  /** The running mode's async source mask (U→cfx0, J→cfx1, S→cfx2, H→cfx3).
 +    * A mode whose monitor is not implemented has no policy: it stays masked. */
 +  private val asyncMaskByMode: UInt =
@@ -1912,37 +1997,45 @@ index 0000000..3d08bb4
 +      MuxLookup(runMode, allOnes)(perMode.zipWithIndex.map {
 +        case (mask, i) => i.U -> mask })
 +    }
-+  private val asyncPendingNow: UInt = hartOpt.map { r =>
-+    r.asyncSrcPending | Mux(timerEvent, timerSrcBit, 0.U(gp.dataBits.W)) |
-+      Mux(pmemEvent, pmemSrcBit, 0.U(gp.dataBits.W))
-+  }.getOrElse(0.U(gp.dataBits.W))
-+  // The frame the arbiter offers: every pending source that the running
-+  // mode's mask lets through and whose local gate is open.  The `implSrcBits`
-+  // term keeps the frame inside the implemented sources (software cannot write
-+  // the bitmap, so reserved bits can never appear).
++  /** Per-source entry decision (`ADR-0064` D4): `(pending & ~source mask) != 0`
++    * for each source, and TIMER additionally requires `ENABLE=1`.  The source
++    * mask only gates the entry — a masked event still latches `cg16 rc17`.
++    * The frame then applies the running mode's monitor mask; only implemented
++    * sources can appear (their pending bits are the only ones set). */
++  private val timerAllowed: Bool = hartOpt.map { r =>
++    r.timerPending && !r.timerMask && r.timerEnable
++  }.getOrElse(false.B)
++  private val pmemAllowed: Bool = pmemRegs.map { p =>
++    p.dmaPending && !p.dmaMask
++  }.getOrElse(false.B)
 +  private val asyncAllowed: UInt =
-+    asyncPendingNow & ~asyncMaskByMode & ~timerGate & implSrcBits
-+  io.intr.valid := asyncModel.B && asyncAllowed =/= 0.U
++    (Mux(timerAllowed, timerSrcBit, 0.U(gp.dataBits.W)) |
++      Mux(pmemAllowed, pmemSrcBit, 0.U(gp.dataBits.W))) & ~asyncMaskByMode
++  /** Run-mode upper bound (`m18-spec-009`, `DADAO-12 §5.4(一)`): an
++    * asynchronous entry only happens while the running mode is at or below
++    * `cg15 rc14` (the same register that sets the entry mode).  Reset 2 means
++    * `hypv` is never interrupted; a pending source above the bound stays
++    * pending with no error. */
++  private val asyncModeAllowed: Bool = hartOpt.map { r =>
++    runMode <= r.asyncSwitch
++  }.getOrElse(false.B)
 +  io.intr.frame := asyncAllowed
 +  io.intr.vector := hartOpt.map(_.asyncVector).getOrElse(0.U(gp.dataBits.W))
 +
-+  // `src_pending` follows the source events (`D6`): a TIMER expiry or a
-+  // `PMEM_DMA` completion sets its bit, a delivery and the source's ack
-+  // (`timer_cmp` rewrite / `dma_status` W1C) clear it.  Software writes never
-+  // reach it (the row is HW/RO).
-+  private val timerAck: Bool =
-+    hartRows.map(_.isTimerCmp).getOrElse(false.B) && io.wEn && io.writeOk
++  // Source pending latches (`ADR-0064` D3): an event sets it, only the source
++  // ack (W1C) clears it, an asynchronous entry does not touch it.  A same-cycle
++  // event wins over an ack so a fresh event is never lost.  Software writes
++  // never reach the pending rows (`cg16 rc17` is RO).
 +  for (r <- hartOpt) {
-+    val delivered = Mux(io.intr.ack && io.intr.valid, asyncAllowed,
-+      0.U(gp.dataBits.W))
-+    val events = Mux(timerEvent, timerSrcBit, 0.U(gp.dataBits.W)) |
-+      Mux(pmemEvent, pmemSrcBit, 0.U(gp.dataBits.W))
-+    val acked = Mux(timerAck, timerSrcBit, 0.U(gp.dataBits.W)) |
-+      Mux(pmemAck, pmemSrcBit, 0.U(gp.dataBits.W))
-+    r.asyncSrcPending := (r.asyncSrcPending | events) & ~(delivered | acked)
++    when(timerAckWrite && io.wdata(0)) { r.timerPending := false.B }
++    when(timerEvent) { r.timerPending := true.B }
 +    // A rewritten deadline is a fresh arming: the compare condition on the new
 +    // value must be able to raise a new event even if the old one matched.
-+    when(timerAck) { r.timerSeen := false.B }.otherwise { r.timerSeen := timerCond }
++    when(timerCmpWrite) { r.timerSeen := false.B }.otherwise { r.timerSeen := timerCond }
++  }
++  for (p <- pmemRegs) {
++    when(pmemAckWrite && io.wdata(0)) { p.dmaPending := false.B }
++    when(pmemEvent) { p.dmaPending := true.B }
 +  }
 +
 +  // ---- `cfx_ptw` state to the core's address path (D3: outputs) -----------
@@ -1971,24 +2064,42 @@ index 0000000..3d08bb4
 +  }
 +
 +  // ---- events and redirect request (D4) -----------------------------------
-+  // `escape` (`DADAO-12` §5.1/§5.3/§5.4, `ADR-0061` D9): `cfxha` must be the
-+  // *current* cfx (`inner_cfx_code`) and the selected `cg5` frame must carry a
-+  // cause id.  `R2`: `cg9` is a capture buffer, not a return frame, so the
-+  // frame selector `imms18[1] = 1` (assembler `imms20 = 8`) is a legal
-+  // encoding that always faults — "selected frame invalid" ⇒ the current cfx's
-+  // `CFXESC`; it changes neither cfx/mode nor `cg9`.  The core has already
-+  // rejected `imms18 = 3` / `imms18[17:2] != 0` as ILLI.
-+  private val escapeFrame: Bool = io.escape.frame
-+  private val escapeCg5Ok =
-+    io.escape.valid && !escapeFrame && curImplemented &&
-+      io.escape.ha === curCfx && hasFrame
-+  private val escapeOk = escapeCg5Ok
++  // `escape cfxHA` (`DADAO-12` §5.1/§5.3, `ADR-0061` R3-D5): the core already
++  // rejects `imms18 != 0` as ILLI, so the only operand is `cfxha`.  `cfxha`
++  // must be the *current* cfx; the return tuple comes from that cfx's `cg5`
++  // exit intent `rc8`-`rc11`, and every legality check runs before any state
++  // change: target mode ≤ current mode (no escalation), target cfx
++  // implemented, and that mode's monitor implemented.  There is **no**
++  // frame-valid gate (repeated `escape` is software's responsibility).
++  private val escapeTargetMode: UInt = escapeRunMode(viewIdx)
++  private val escapeTargetCfx: UInt = escapeCfx(viewIdx)(5, 0)
++  private val escapeTargetCfxOk: Bool =
++    VecInit(gp.cfx.map(c => c.id.U(6.W) === escapeTargetCfx)).asUInt.orR
++  private val escapeTargetMonitorOk: Bool =
++    VecInit(gp.cfx.map(c => c.id.U(6.W) === escapeTargetMode.pad(6))).asUInt.orR
++  private val escapeOk =
++    io.escape.valid && curImplemented && io.escape.ha === curCfx &&
++      escapeTargetCfxOk && escapeTargetMonitorOk &&
++      escapeTargetMode <= runMode
 +  io.escapeOk := escapeOk
++  /** Probe arming (`ADR-0064` D4): source pending is sticky, so the entry is
++    * only re-evaluated after a source event or a write that can unblock one
++    * (mask/config/`escape`).  Without this the core would re-enter at every
++    * boundary before the handler can ack. */
++  /** `escape` restores the target monitor's `cg15 rc3` and may unblock a
++    * pending source; registered because `escape.valid` is part of the core's
++    * own redirect path and a combinational path would close a loop. */
++  private val escapeKick: Bool = RegNext(escapeOk, false.B)
++  private val asyncKickNow: Bool = hartOpt.map { r =>
++    timerEvent || pmemEvent || hartKickWrite || escapeKick || r.asyncKick
++  }.getOrElse(false.B)
++  io.intr.valid := asyncModel.B && asyncKickNow && asyncAllowed =/= 0.U &&
++    asyncModeAllowed
 +  private val escapeTarget =
-+    (causeIp(viewIdx) + io.escape.off)(gp.dataBits - 1, 0)
++    Cat(0.U((gp.dataBits - 48).W), escapeIp(viewIdx)(47, 2), 0.U(2.W))
 +  io.escapeTarget := escapeTarget
 +  private val escapeCause: UInt = causeId(viewIdx)
-+  private val escapeCauseIp: UInt = causeIp(viewIdx)
++  private val escapeCauseIp: UInt = prevIp(viewIdx)
 +
 +  io.redirect.valid := io.excp.valid || escapeOk
 +  // The target must not depend on `excp.valid`: the core feeds it back into its
@@ -2005,57 +2116,89 @@ index 0000000..3d08bb4
 +  // Exception entry wins over an `escape` return in the same cycle: a core
 +  // either enters an exception or returns from one, never both, and making the
 +  // precedence explicit keeps the state update deterministic.
++  //
++  // The one cycle where an entry and a legal `escape` coincide is the escape
++  // whose return address fails its alignment check: the `escape` commits
++  // (§5.3 step 2 restores mode/cfx) and the resulting `IALIGN` enters
++  // afterwards, so the frame this entry writes must record the *restored*
++  // values (the QEMU model has the same order: restore, then raise).
++  private val entryPrevMode = Mux(escapeOk, escapeRunMode(viewIdx), runMode)
++  private val entryPrevCfx =
++    Mux(escapeOk, escapeCfx(viewIdx), curCfx.pad(gp.dataBits))
++  private val entryPrevIp = io.excp.causeIp
++  private val entryPrevMask =
++    Mux(escapeOk, escapeIntrMask(viewIdx), asyncMaskByMode)
 +  when(io.excp.valid) {
++    // §5.2 step 4: entry record rc0-rc5 + a hardware copy into the exit intent
++    // rc8-rc11.  `prev_cfx_code` is sampled before step 6 rewrites it.
++    prevMode(entryIdx) := entryPrevMode
++    prevCfx(entryIdx) := entryPrevCfx
++    prevIp(entryIdx) := entryPrevIp
++    prevIntrMask(entryIdx) := entryPrevMask
 +    causeId(entryIdx) := io.excp.cause
-+    causeIp(entryIdx) := io.excp.causeIp
 +    causeInfo(entryIdx) := io.excp.info
-+    // §5.2 step 5 saves the *entering* cfx; step 6 switches the target after.
-+    // Keeping the order explicit is what makes a nested entry (an async event
-+    // delivered inside a frame) leave the frame's own cfx recoverable.
-+    //
-+    // The one cycle where an entry and a legal `escape` coincide is the escape
-+    // whose return address fails its alignment check: the `escape` commits
-+    // (§5.3 step 2 restores mode/cfx) and the resulting `IALIGN` enters
-+    // afterwards, so the frame this entry writes must record the *restored*
-+    // values.  Saving the pre-escape ones would make the frame claim it was
-+    // entered from the handler and the next `escape` would leave the core in
-+    // the handler's cfx (the QEMU model has the same order: restore, then
-+    // raise).  `R2` has no `cg9` return, so a legal `escape` always selects
-+    // the `cg5` frame above.
-+    prevMode(entryIdx) := Mux(escapeOk, prevMode(viewIdx), runMode)
-+    prevCfx(entryIdx) :=
-+      Mux(escapeOk, prevCfx(viewIdx), curCfx.pad(gp.dataBits))
++    escapeRunMode(entryIdx) := entryPrevMode
++    escapeCfx(entryIdx) := entryPrevCfx
++    escapeIp(entryIdx) := Cat(0.U((gp.dataBits - 48).W),
++      entryPrevIp(47, 2), 0.U(2.W))
++    escapeIntrMask(entryIdx) := entryPrevMask
 +    // §5.2 step 6: the new run mode is the entry target's `<mode>` switch
-+    // value; without the mode routing (Tiny) it stays hypv exactly as before.
++    // value; without the mode routing (Tiny) it stays hypv as before.
 +    runMode := (if (gp.modeEntry) perModeSwitch(entryIdx)
 +      else gp.hypvMode.U(gp.modeBits.W))
 +    curCfx := entryHa
 +  }.elsewhen(escapeOk) {
-+    runMode := prevMode(viewIdx)
-+    // §5.3 step 2: restore the current cfx of the frame being returned from.
-+    curCfx := prevCfx(viewIdx)(5, 0)
++    // §5.3 steps 1/2: restore the run mode and current cfx from the exit intent.
++    runMode := escapeRunMode(viewIdx)
++    curCfx := escapeCfx(viewIdx)(5, 0)
 +  }
 +
-+  // ---- asynchronous entry (`ADR-0061` D3/D7/D10, hart-first; `R2`) -------
-+  // One *frame* per instruction boundary, whatever the number of sources it
-+  // carries: `src_frame` := the offered union (already pending-and-allowed),
-+  // its bits are consumed from `src_pending` above, the frame is counted once
-+  // (`excp_async_num`) and the saved frame points at the committed
-+  // instruction's successor.  The target is always `cfx_hart` + the fixed
-+  // supv entry.  Every entry overwrites all `cg9` slots; a non-zero
-+  // `src_frame` from the previous entry is just the old snapshot and never
-+  // blocks this one (`DADAO-12 §5.4(三)`, no frame phase, no `frame_valid`).
-+  // The entry mode is the current `cg9 rc6` value (reset 2 = supv), not a
-+  // hard-wired supv (`m18-spec-006`).
++  // §5.3 step 3: `rc11` is written **whole-word** into the target mode
++  // monitor's `cg15 rc3` (user→umon, supv→smon, hypv→hmon), atomically with
++  // the mode/cfx switch and the jump.  A target mode without a monitor row was
++  // rejected above, so at most one entry matches.
++  for (m <- asyncIntrMaskOpt; (c, i) <- gp.cfx.zipWithIndex) {
++    when(escapeOk && escapeTargetMode === c.id.U(6.W)) {
++      m(i) := escapeIntrMask(viewIdx)
++    }
++  }
++
++  // ---- asynchronous entry (`ADR-0064` D3/D4/D5, hart-first) ---------------
++  // One *capture* per instruction boundary, whatever the number of sources it
++  // carries: `rc4` := the offered union (already pending-and-allowed), source
++  // pending is NOT consumed (`ADR-0064` D3), `excp_async_num` counts the entry
++  // once and the record points at the committed instruction's successor.  The
++  // target is `cfx_hart`; the entry mode is `cg15 rc14` (reset 2 = supv), which
++  // is also the entry upper bound.  Every entry overwrites `cg15 rc0`-`rc4` and
++  // copies the exit intent into **hart's own `cg5 rc8`-`rc11`** (never rc0-rc3).
 +  when(io.intr.ack && io.intr.valid) {
 +    for (r <- hartOpt) {
++      val hartIdx = cfxIndexById(gp.hart.get.cfxId)
++      r.asyncKick := false.B
++      val prevMaskNow = asyncMaskByMode
++      val causedIp = Cat(0.U((gp.dataBits - 48).W),
++        io.intr.causeIp(47, 2), 0.U(2.W))
 +      r.asyncPrevMode := runMode
 +      r.asyncPrevCfx := curCfx
-+      r.asyncCauseIp := Cat(0.U((gp.dataBits - 48).W),
-+        io.intr.causeIp(47, 2), 0.U(2.W))
++      r.asyncCauseIp := causedIp
++      r.asyncPrevMask := prevMaskNow
 +      r.asyncSrcFrame := asyncAllowed
++      // `cg15 rc5` is the live raw pending summary (`pendingSummary`); the
++      // entry does not clear source pending (`ADR-0064` D3).
++      escapeRunMode(hartIdx) := runMode
++      escapeCfx(hartIdx) := curCfx.pad(gp.dataBits)
++      escapeIp(hartIdx) := causedIp
++      escapeIntrMask(hartIdx) := prevMaskNow
 +      runMode := r.asyncSwitch
 +      curCfx := gp.hart.get.cfxId.U(6.W)
++    }
++  }
++  // A new source event in the same cycle as an entry re-arms the probe so the
++  // fresh event is not lost (`ADR-0064` D4).  The config write that caused
++  // this entry must NOT re-arm, or it would re-enter before the handler acks.
++  for (r <- hartOpt) {
++    when(timerEvent || pmemEvent) {
++      r.asyncKick := true.B
 +    }
 +  }
 +

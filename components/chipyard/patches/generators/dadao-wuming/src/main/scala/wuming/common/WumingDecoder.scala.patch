@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..2730c5c
+index 0000000..4efe9d3
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
-@@ -0,0 +1,1233 @@
+@@ -0,0 +1,1220 @@
 +// See LICENSE for license details.
 +//
 +// DADAO decoder for the M12 integer core.
@@ -37,9 +37,9 @@ index 0000000..2730c5c
 +//     `rb0` = current IP, offset `imms18 << 2` (spec/SimRISC-06 §1);
 +//   * `trap cfx_hmon, <immu18>` outside the semihosting tag window (CFXTRAP
 +//     handoff); the semihosting window stays `immu18[17:8] == 0x3FF`;
-+//   * `escape cfx_hmon, [excp_cause_ip, 0|4]` (DADAO-12 §5.3);
++//   * `escape cfxHA` (`imms18` SBZ; DADAO-12 §5.1/§5.3);
 +//   * `cfx2rd`/`cfx2rc` for the minimal `cfx_hmon` register subset the two
-+//     stubs use (cg3 rc10 vector, cg5 rc2/rc3/rc4 cause frame).
++//     stubs use (cg3 rc15 vector, cg5 rc2/rc4/rc5 frame).
 +//
 +// The rest of control flow (`call`/`ret`/relative `jump`/`br.eq`/`br.ne`/RAS)
 +// and the full cfx register group stay with m12-chipyard-009/019.
@@ -170,9 +170,6 @@ index 0000000..2730c5c
 +  val brOff    = UInt(64.W)
 +  val isTrap   = Bool()
 +  val isEscape = Bool()
-+  val escOff   = UInt(64.W)
-+  /** `ADR-0060` D4: `imms18[1]` selects the `cg9` asynchronous frame. */
-+  val escFrame = Bool()
 +  val isCfx2   = Bool()
 +  val cfxWrite = Bool()
 +  val cfxHa    = UInt(6.W)
@@ -228,7 +225,7 @@ index 0000000..2730c5c
 +  val isFpSclb  = Bool()
 +}
 +
-+class WumingDecoder(withHart: Boolean = false) extends Module {
++class WumingDecoder extends Module {
 +  val io = IO(new Bundle {
 +    val inst = Input(UInt(32.W))
 +    val dec  = Output(new WumingDecode)
@@ -281,8 +278,7 @@ index 0000000..2730c5c
 +  d.mregStart := 0.U; d.mregBank := WumingBank.RD; d.mregCount := 1.U
 +  d.isSemi := false.B
 +  d.isBr := false.B; d.brCond := 0.U; d.brOff := 0.U
-+  d.isTrap := false.B; d.isEscape := false.B; d.escOff := 0.U
-+  d.escFrame := false.B
++  d.isTrap := false.B; d.isEscape := false.B
 +  d.isCfx2 := false.B; d.cfxWrite := false.B
 +  d.cfxHa := 0.U; d.cfxCg := 0.U; d.cfxRc := 0.U; d.cfxDst := 0.U
 +  d.isLr := false.B; d.isSc := false.B
@@ -1190,23 +1186,14 @@ index 0000000..2730c5c
 +    }
 +    when(!d.isSemi && !cfxAccessible(ha)) { d.ill := true.B }
 +  }.elsewhen(opc === 0x7E.U) {
-+    // escape (DADAO-12 §5.3, ADR-0060 D4): imms18[0] is the byte offset
-+    // (0 / +4) and imms18[1] the frame selector (0 = cg5 sync frame,
-+    // 1 = cfx_hart cg9 async frame).  imms18[17:2] stays SBZ and imms18 = 3
-+    // (cg9 with a non-zero offset) is ILLI.
++    // `escape cfxHA` (DADAO-12 §5.1/§5.3, ADR-0061 R3-D5): the only operand is
++    // `cfxha`; `imms18` is SBZ and any non-zero value is ILLI.  The old +0/+4
++    // byte offset and the `cg9` frame selector are gone; the return tuple comes
++    // from the current cfx's `cg5 rc8`-`rc11`.
 +    recognized := true.B
 +    d.isEscape := true.B
 +    d.cfxHa := ha
-+    d.escOff := Cat(imm18(0), 0.U(2.W))
-+    // The frame selector bit exists only on a machine with `cfx_hart`
-+    // (`ADR-0060` D4).  A profile without cfx15 keeps the pre-0060 SBZ rule
-+    // (`imms18[17:1]` must be 0) so its observable encoding set does not move.
-+    d.escFrame := withHart.B && imm18(1)
-+    when((if (withHart) {
-+      imm18(17, 2) =/= 0.U || (imm18(1) && imm18(0))
-+    } else {
-+      imm18(17, 1) =/= 0.U
-+    })) { d.ill := true.B }
++    when(imm18 =/= 0.U) { d.ill := true.B }
 +    when(!cfxAccessible(ha)) { d.ill := true.B }
 +  }.elsewhen(opc === 0x7A.U || opc === 0x7B.U) {
 +    // cfx2rd / cfx2rc: cfxha[23:18], cg[17:12], rc[11:6], rd[5:0].

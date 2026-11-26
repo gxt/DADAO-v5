@@ -264,12 +264,13 @@ RTL（`m16-chipyard-016/017`）均已实现 cfx5；`run_arch.py --cfx 5` 的三�
 
 ### cfx15 hart — RTL
 
-> 仍按 `ADR-0061` R2（`cg9` 七槽、`escape imms18=2 ⇒ CFXESC`）；R3 迁移由后续 RTL 任务落地。
+> `m18-chipyard-002/003` 已迁到 `ADR-0061` R3 出口帧 + `ADR-0064` 0.8.1-rc
+> 源接口（`cg15` 捕获、`cg15 rc3` monitor 掩码、`cg16 rc16/17/18`）。
 
-- **寄存器面**：有。`m16-chipyard-021` 落 cfx_hart cg8 + cg9 十六 rc；`m16-chipyard-024` 改到 `ADR-0061`（cg9 七槽、mask 归 monitor）；`m16-chipyard-026` 改到 R2（捕获缓冲、无帧门控、`escape imms18=2 ⇒ CFXESC`）。
-- **命令与副作用**：有。TIMER 投 `cfx_hart` supv 单向量；`src_frame`/`src_pending` 位 = 源 cfxha。
-- **异常与子原因**：有。R2 捕获缓冲语义（每次进入整体覆盖）。
-- **现有测试载体**：`tests/arch/hart/cfx15.S`（RTL 承载 `cfx15.lds` + `check_hart_rtl.py`；`m18-testcases-004` 已把同一 case 源改到 R3，QEMU 124/38 槽 PASS；RTL 的 cg9/cg5 布局仍待 R3 迁移任务，故 RTL 腿 KNOWN-RED）。
+- **寄存器面**：有。`cg8 rc0/2/3` hart_id/cycle/insn（`rc1`/`rc4`/`rc5` 归 reserved ⇒ `CFXREG`）；`cg15` 捕获组 `rc0`–`rc5` HW/RO、`rc14` switch（复位 2，兼运行模式上限）、`rc15` vector、`rc6`–`rc13` ⇒ `CFXREG`；`cg16` TIMER 源接口 `rc0` ctrl（仅 ENABLE）/`rc1` cmp/`rc16` mask/`rc17` pending（RO）/`rc18` ack（W1C）；`cg9` 归 reserved。
+- **命令与副作用**：有。TIMER 到期边沿置 `cg16 rc17` bit0（ack 才清、进入不清、写 cmp 只 re-arm、ENABLE 0→1 即使能即检）；每源 `pending & ~源mask` + monitor `cg15 rc3` + 运行模式上限 `cg15 rc14` 一次性合并进入；`cg15 rc4` = 本次源集合、`rc5` = 原始 pending 实时汇总（进入不清）；`cg15` 每次进入整体覆盖。
+- **异常与子原因**：有。异步源不占 `excp_cause_id`；`escape` 按 `cg5 rc8`–`rc11` 返回、`rc11` 整字写目标 monitor `cg15 rc3`。
+- **现有测试载体**：`tests/arch/hart/cfx15.S`（RTL 承载 `cfx15.lds` + `check_hart_rtl.py`；`arch-hart-001/002` 在 Vast 上逐槽 PASS，仅 `DIV-17` 的 2 槽为 BootROM 交付环境差异）。
 - **现有门控**：`run_arch --case arch-hart-001/002 --platforms chipyard`（`m16-testcases-013`）。
 
 ---
@@ -296,8 +297,8 @@ RTL（`m16-chipyard-016/017`）均已实现 cfx5；`run_arch.py --cfx 5` 的三�
 
 - **寄存器面**：有（`m16-chipyard-022`）：`cg8 pmem_exist`、`cg12/13/14`、`cg15` 全量。
 - **命令与副作用**：有。64 KiB SRAM + SRAM↔PA DMA（逐字节、四类 setup 错误、ROM 只读、BUSY 期写忽略）。
-- **异常与子原因**：有。`PMEM_DMA` 源 = 源 cfxha 32，投 `cfx_hart` 的 R2 捕获缓冲（`m16-chipyard-026` 的 R2 语义）。
-- **现有测试载体**：`tests/arch/pmem/pmem.S`（RTL 寄存器面探针 `check_pmem.py`，不进索引）+ `pmem_dma.S`（`check_pmem_rtl.py`；`arch-pmem-001` hmon 55 槽、`arch-pmem-002` smon/umon 10 槽，`m16-testcases-014`）。
+- **异常与子原因**：有。`PMEM_DMA` 源 = 源 cfxha 32；完成（DONE 或 ERROR，含 START 判定错误）置 `cfx_pmem cg16 rc17` bit0，只有 `cg16 rc18` W1C 才清；`dma_status` W1C 只是引擎状态清理；异步进入写 `cfx_hart cg15` 捕获组（`m18-chipyard-003`）。
+- **现有测试载体**：`tests/arch/pmem/pmem.S`（RTL 寄存器面探针 `check_pmem.py`，不进索引；已随 0.8.1-rc 迁移）+ `pmem_dma.S`（`check_pmem_rtl.py`；`arch-pmem-001` hmon 48 槽、`arch-pmem-002` smon/umon 10 槽，`m16-testcases-014`）。
 - **现有门控**：`run_arch --cfx 32 --platforms chipyard`（与 QEMU 两方逐槽）。
 
 ---

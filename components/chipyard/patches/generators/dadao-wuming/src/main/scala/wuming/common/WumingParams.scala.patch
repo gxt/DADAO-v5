@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..fc149d0
+index 0000000..b85460e
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,473 @@
+@@ -0,0 +1,474 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -237,10 +237,11 @@ index 0000000..fc149d0
 +          sourceMaskReset = maskInitCfx,
 +          commonRows = true),
 +        // cfx_hart (`m16-chipyard-021`/`024`, `ADR-0061`): per-hart management
-+        // (cg8) plus the seven-slot asynchronous frame (cg9).  It opts into the
++        // (cg8) plus the asynchronous capture group (cg15) and the TIMER source
++        // face (cg16).  It opts into the
 +        // common mode rows so the two-axis access model of `contract-see §6.3`
 +        // gives supv a `<mode>_cfxreg` mask and the `cg3 rc12` delegation
-+        // bitmap; `cg8 rc1` (the running mode's async source mask) stays
++        // bitmap; `cg15 rc3` (the running mode's async source mask) stays
 +        // cfx0-cfx3 only.
 +        GewuCfxParams(
 +          id = WumingCfxHa.hart,
@@ -300,7 +301,7 @@ index 0000000..fc149d0
 +    // cfx_cache's register rows exist only on Kaiwu-Vast (CACHE-27); Tiny
 +    // keeps the rows undefined, i.e. CFXREG (CACHE-28).
 +    cache = if (p.useVM) Some(GewuCacheParams(WumingCfxHa.cache, 0x3)) else None,
-+    // `cfx_hart`'s cg8/cg9 face exists only on Kaiwu-Vast (`m16-chipyard-021`);
++    // `cfx_hart`'s cg8/cg15/cg16 face exists only on Kaiwu-Vast (`m16-chipyard-021`);
 +    // Kaiwu-Tiny has no cfx15 and gains neither ports nor flops.
 +    hart = if (p.useVM) Some(GewuHartParams(WumingCfxHa.hart, 0)) else None,
 +    // `cfx_pmem` (`m16-chipyard-022`): the register face + DMA command port

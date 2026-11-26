@@ -4,25 +4,27 @@
 @@ `spec/DADAO-12 §4.9` 的 cfx_pmem 寄存器面、DMA 与 `PMEM_DMA` 完成投递：
 @@   * `cg8 rc0 pmem_exist`（RO）、`cg12/13/14 rc0..63`（start/size/attr，RW）；
 @@   * `cg15 rc0..4`：`dma_src`/`dma_dst`/`dma_size`（30 位）/`dma_ctrl`
-@@     （START 自清、DIR/IRQ_EN 读回）/`dma_status`（BUSY、DONE/ERROR W1C、
+@@     （START 自清、DIR 读回、bit2 保留读 0）/`dma_status`（BUSY、DONE/ERROR W1C、
 @@     ERR_CODE one-hot）；BUSY 期 cg15 写被忽略；
+@@   * `cfx_pmem cg16 rc16/17/18`：源 mask / pending（RO）/ ack（W1C），
+@@     子事件合并 bit0 = 「传输结束（DONE 或 ERROR）」（`ADR-0064` D2/D3）；
 @@   * DMA 逐字节搬运（CFX→PA、PA→CFX、非对齐部分拍保留邻居字节）与四类
 @@     setup 错误（SIZE/CFX_RANGE/PA_RANGE/PA_FAULT）、只读 BootROM 可读不可写；
-@@   * 完成投递：`cfx_hart cg9 src_pending` bit32、放行后 `src_frame` = bit32、
-@@     pending 投递即清；同一界 timer(15)+DMA(32) 一次进入、位图并集、
-@@     `excp_async_num` 每次进入 +1；
-@@   * 源 ack：`dma_status` W1C 后 pending 落，解除掩码不产生遗留投递；
-@@   * 覆盖语义：投递后再触发 ⇒ 下一次进入整体覆盖 `cg9`；
-@@   * `escape imms18 = 2` ⇒ 当前 cfx 的 `CFXESC` 且 `cg9` 不变；
-@@   * H/S/U 三模式下掩码各写**当前运行模式** monitor 的 `cg8 rc1`
-@@     （`--defsym TMODE=3/2/0`），投递目标都是 cfx_hart/supv。
+@@   * 完成事件：源 `cfx_pmem cg16 rc17` bit0 置位；`cfx_hart cg15 rc5` 是原始
+@@     pending 汇总（bit32）；**进入不清 pending**，只有 `cg16 rc18` ack 才清；
+@@     同一界 timer(15)+DMA(32) 一次进入、位图并集、`excp_async_num` 每次 +1；
+@@   * 源 ack：`cfx_pmem cg16 rc18` W1C 后 pending 落，解除掩码不产生遗留进入；
+@@   * 覆盖语义：进入后再触发 ⇒ 下一次进入整体覆盖 `cg15`；
+@@   * `escape imms18 = 2` ⇒ 当前 cfx 的 `CFXESC` 且 `cg15` 不变；
+@@   * H/S/U 三模式下掩码各写**当前运行模式** monitor 的 `cg15 rc3`
+@@     （`--defsym TMODE=3/2/0`），异步进入目标都是 cfx_hart/supv。
 @@
 @@ S/U 变体的 DMA 在 hypv 里先启动（长传输），进入 U/S 后完成 ⇒ 完成事件落在
-@@ 目标运行模式；U/S 体只写自己的掩码行并观察 `cfx_hart cg9`（两轴判权下 U/S
+@@ 目标运行模式；U/S 体只写自己的掩码行并观察 `cfx_hart cg15`（两轴判权下 U/S
 @@ 不能访问非 monitor 的 cfx_pmem，这是既有 `m16-chipyard-020` 口径）。
 @@
 @@ 期望值见 `check_pmem.py`（现场从 `spec/DADAO-12 §1/§3.6/§4.9/§5.1/§5.4`、
-@@ `spec/Kaiwu §1.1/§3`、`.tao/adr/adr-0061-*.md`、`contract-see` §3/§6.1 与
+@@ `spec/Kaiwu §1.1/§3`、`.tao/adr/adr-0064-*.md`、`contract-see` §3/§6.1 与
 @@ `contracts/opcodes.yaml` 派生；`pmem_exist` 的读回值是测试机约定
 @@ 「64 个 PM 区域全部存在」，见 README）。
 @@
@@ -44,9 +46,9 @@
 	.endif
 
 	.if TMODE == 3
-	.equ	SIG_SLOTS, 85
+	.equ	SIG_SLOTS, 87
 	.else
-	.equ	SIG_SLOTS, 8
+	.equ	SIG_SLOTS, 9
 	.endif
 
 	@@ cfx_pmem SRAM（`spec/Kaiwu §1.1`：(cfxha 32 << 42) | 0x3ff_0000_0000）
@@ -63,7 +65,6 @@
 	@@ dma_ctrl / dma_status 位（`DADAO-12 §4.9`）
 	.equ	CTRL_START, 1
 	.equ	CTRL_DIR, 2
-	.equ	CTRL_IRQ, 4
 	.equ	ST_BUSY, 1
 	.equ	ST_DONE, 2
 	.equ	ST_ERROR, 4
@@ -73,7 +74,7 @@
 	.equ	PARTIAL,  0xAABBCC0000000000
 	.equ	PARTIALP, 0xAABBCC5A00000000
 
-	@@ 源位图 = 源 cfxha：TIMER = 15、PMEM_DMA = 32（`ADR-0061` D2）
+	@@ 源位图 = 源 cfxha：TIMER = 15、PMEM_DMA = 32（`ADR-0064` D2）
 	.equ	PMEM_BIT,  0x0000000100000000
 	.equ	MASK_ALLOW_PMEM, 0xFFFFFFFEFFFFFFFF
 	.equ	MASK_ALLOW_BOTH, 0xFFFFFFFEFFFF7FFF
@@ -107,7 +108,7 @@
 	cfx2rd	cfx_pmem, cg15, rc\rc, \reg
 .endm
 
-@@ 只填 src/dst/size，不启动（START 由 DMA_GO 单独写，便于带 IRQ_EN）
+@@ 只填 src/dst/size，不启动（START 由 DMA_GO 单独写）
 .macro DMA_SETUP_CFX src_off, pa, size
 	set.rd	rd6, (PMEM_SRAM + \src_off)
 	cfx2rc	cfx_pmem, cg15, rc0, rd6
@@ -140,10 +141,18 @@ __poll_\@:
 @@ 等 pending 的源位出现（DMA 完成在另一运行模式下发生时用）
 .macro POLL_PENDING bit
 __pollp_\@:
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	cfx2rd	cfx_hart, cg15, rc5, rd5
 	set.rd	rd6, \bit
 	and.o	rd5, rd5, rd6
 	br.z	{rd5}?, [rb0, __pollp_\@]
+.endm
+
+@@ R3 `escape cfxHA`：返回点由软件写 `cg5 rc10`（prev ip + 4）
+.macro ESCAPE_SKIP4 cfx
+	cfx2rd	\cfx, cg5, rc2, rd6
+	add.si	rd6, 4
+	cfx2rc	\cfx, cg5, rc10, rd6
+	escape	\cfx
 .endm
 
 .macro EXIT code
@@ -192,7 +201,7 @@ _start:
 	st.o	rd6, [rb1, 0]
 
 	@@ ---- 共用初始化（hypv：两轴判权不生效） ----
-	WCFX_LABEL cfx_hart, cg9, rc5, async_entry
+	WCFX_LABEL cfx_hart, cg15, rc5, async_entry
 	WCFX_LABEL cfx_hart, cg2, rc10, esc9_entry
 	@@ cfx_pmem：U/S 行的源位清 0（0 = 允许），deleg 放开 cg8/cg12..15；
 	@@ supv 行还须清 bit15（supv handler 以 cfx_hart 身份访问 cfx_pmem）。
@@ -204,7 +213,7 @@ _start:
 	WCFX_IMM cfx_hart, cg0, rc2, 0xFFFFFFFFFFFFFFF8
 	WCFX_IMM cfx_hart, cg1, rc2, 0xFFFFFFFFFFFFFFF8
 	WCFX_IMM cfx_hart, cg2, rc2, 0xFFFFFFFFFFFFFFF8
-	WCFX_IMM cfx_hart, cg3, rc12, 0xFFFFFFFFFFFFFCC7
+	WCFX_IMM cfx_hart, cg3, rc12, 0xFFFFFFFFFFFF7FCF
 	@@ cfx_smon：supv handler 以 cfx_hart 身份写它的掩码行
 	WCFX_IMM cfx_smon, cg2, rc2, 0xFFFFFFFFFFFF7FFB
 	WCFX_IMM cfx_smon, cg3, rc12, 0xFFFFFFFFFFFFFCF7
@@ -212,9 +221,12 @@ _start:
 	@@ 兜底：U/S 下的意外同步异常分别进 umon 的 user 行 / smon 的 supv 行
 	WCFX_LABEL cfx_umon, cg0, rc10, smon_fault
 	WCFX_LABEL cfx_smon, cg2, rc10, smon_fault
-	@@ timer 关
-	WCFX_IMM cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
-	WCFX_IMM cfx_hart, cg8, rc5, 0
+	@@ timer 关；两个源的 mask 放开（复位全 1），并 ack 启动链遗留的 pending
+	WCFX_IMM cfx_hart, cg16, rc1, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM cfx_hart, cg16, rc0, 0
+	WCFX_IMM cfx_hart, cg16, rc16, 0
+	WCFX_IMM cfx_pmem, cg16, rc16, 0
+	WCFX_IMM cfx_pmem, cg16, rc18, 1
 
 	.if TMODE == 3
 	jump	[rb0, setup_h]
@@ -229,11 +241,11 @@ _start:
 @@ ---------------------------------------------------------------------------
 setup_h:
 	set.rb	rb1, sig_bytes
-	set.rd	rd6, 85*8
+	set.rd	rd6, 87*8
 	st.o	rd6, [rb1, 0]
 	@@ 首次 trap 的入口 = h_trap_entry（CFXTRAP），随后把向量切到 h_fault
 	WCFX_LABEL cfx_hmon, cg3, rc10, h_trap_entry
-	WCFX_IMM cfx_hmon, cg3, rc8, 3
+	WCFX_IMM cfx_hmon, cg3, rc14, 3
 	trap	cfx_hmon, 0
 	swym	0
 
@@ -247,7 +259,7 @@ h_fault:
 	REC	rd5
 	cfx2rd	cfx_hmon, cg5, rc4, rd5
 	REC	rd5
-	escape	cfx_hmon, [excp_cause_ip, 4]
+	ESCAPE_SKIP4 cfx_hmon
 	swym	0
 
 h_body:
@@ -284,8 +296,8 @@ h_body:
 	PMW	2, 0xFFFFFFFFFFFFFFFF
 	PMR	2, rd5
 	REC	rd5
-	@@ ---- 11 dma_ctrl：写 START|DIR|IRQ_EN，START 自清、DIR/IRQ_EN 读回 ----
-	PMW	3, (CTRL_START | CTRL_DIR | CTRL_IRQ)
+	@@ ---- 11 dma_ctrl：写 START|DIR，START 自清、DIR 读回、bit2 保留读 0 ----
+	PMW	3, (CTRL_START | CTRL_DIR | 4)
 	PMR	3, rd5
 	REC	rd5
 	@@ ---- 12-14 读 cg15 rc5（保留）⇒ CFXREG ----
@@ -491,17 +503,18 @@ h_body:
 	@@ =====================================================================
 	@@ 完成投递：屏蔽期只置 pending（bit32），放行后同一界投递
 	@@ =====================================================================
-	WCFX_IMM cfx_hmon, cg8, rc1, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM cfx_hart, cg15, rc14, 3	@@ hypv 体：模式上限抬到 hypv
+	WCFX_IMM cfx_hmon, cg15, rc3, 0xFFFFFFFFFFFFFFFF
 	DMA_SETUP_CFX 0x100, PA_A, 8
-	DMA_GO (CTRL_START | CTRL_IRQ)
+	DMA_GO CTRL_START
 	POLL_BUSY
-	cfx2rd	cfx_hart, cg9, rc4, rd5
-	REC	rd5				@@ 46 = 1<<32
-	cfx2rd	cfx_hart, cg9, rc3, rd5
-	REC	rd5				@@ 47 = 0
+	cfx2rd	cfx_hart, cg15, rc5, rd5
+	REC	rd5				@@ 46 = 1<<32（pending 汇总）
+	cfx2rd	cfx_hart, cg15, rc4, rd5
+	REC	rd5				@@ 47 = 0（尚无进入，捕获帧不写）
 	cfx2rd	cfx_hart, cg4, rc4, rd5
 	REC	rd5				@@ 48 = 0
-	WCFX_IMM cfx_hmon, cg8, rc1, MASK_ALLOW_PMEM
+	WCFX_IMM cfx_hmon, cg15, rc3, MASK_ALLOW_PMEM
 capture_fallback:
 	set.rd	rd5, 0xDEAD0004
 	REC	rd5
@@ -512,18 +525,20 @@ capture_fallback:
 @@ ---------------------------------------------------------------------------
 async_entry:
 	.if TMODE != 3
-	cfx2rd	cfx_hart, cg9, rc0, rd5
+	cfx2rd	cfx_hart, cg15, rc0, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc1, rd5
+	cfx2rd	cfx_hart, cg15, rc1, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc2, rd5
+	cfx2rd	cfx_hart, cg15, rc2, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc3, rd5
+	cfx2rd	cfx_hart, cg15, rc4, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	cfx2rd	cfx_hart, cg15, rc5, rd5
 	REC	rd5
 	cfx2rd	cfx_hart, cg4, rc4, rd5
 	REC	rd5
+	@@ handler 在返回前 ack 已进入的源
+	WCFX_IMM cfx_pmem, cg16, rc18, 1
 	jump	[rb0, done_ok]
 	.else
 	set.rb	rb4, phase
@@ -539,110 +554,117 @@ async_entry:
 
 	.if TMODE == 3
 async_phase1:
-	@@ 49-54 捕获现场
-	cfx2rd	cfx_hart, cg9, rc0, rd5
+	@@ 49-54 捕获现场（进入不清 pending，rc5 仍置位）
+	cfx2rd	cfx_hart, cg15, rc0, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc1, rd5
+	cfx2rd	cfx_hart, cg15, rc1, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc2, rd5
+	cfx2rd	cfx_hart, cg15, rc2, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc3, rd5
+	cfx2rd	cfx_hart, cg15, rc3, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	cfx2rd	cfx_hart, cg15, rc4, rd5
+	REC	rd5
+	cfx2rd	cfx_hart, cg15, rc5, rd5
 	REC	rd5
 	cfx2rd	cfx_hart, cg4, rc4, rd5
 	REC	rd5
 	@@ escape imms18 = 2（imms20 = 8）：R2 不返回 ⇒ 当前 cfx 的 CFXESC
-	escape	cfx_hart, [excp_cause_ip, 8]
+	set.rd	rd5, 3
+	cfx2rc	cfx_hart, cg5, rc8, rd5
+	escape	cfx_hart
 	swym	0
 
 	@@ ---- 源 ack + 同界多源（timer 15 + DMA 32） ----
+	WCFX_IMM cfx_pmem, cg16, rc18, 1
 	PMW	4, ST_DONE
-	WCFX_IMM cfx_smon, cg8, rc1, 0xFFFFFFFFFFFFFFFF
-	WCFX_IMM cfx_hart, cg8, rc5, 0
+	WCFX_IMM cfx_smon, cg15, rc3, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM cfx_hart, cg16, rc0, 0
 	cfx2rd	cfx_hart, cg8, rc2, rd5
 	add.si	rd5, 150
-	cfx2rc	cfx_hart, cg8, rc4, rd5
-	WCFX_IMM cfx_hart, cg8, rc5, 1
+	cfx2rc	cfx_hart, cg16, rc1, rd5
+	WCFX_IMM cfx_hart, cg16, rc0, 1
 	DMA_SETUP_CFX 0x100, PA_A, 8
-	DMA_GO (CTRL_START | CTRL_IRQ)
+	DMA_GO CTRL_START
 	POLL_BUSY
 	BURN	rd21, rb3
-	cfx2rd	cfx_hart, cg9, rc4, rd5
-	REC	rd5				@@ 63 = TIMER|PMEM
-	cfx2rd	cfx_hart, cg9, rc3, rd5
-	REC	rd5				@@ 64 = 1<<32
+	cfx2rd	cfx_hart, cg15, rc5, rd5
+	REC	rd5				@@ 63 = TIMER|PMEM（pending 汇总）
+	cfx2rd	cfx_hart, cg15, rc4, rd5
+	REC	rd5				@@ 64 = 1<<32（上一次捕获帧）
 	cfx2rd	cfx_hart, cg4, rc4, rd5
 	REC	rd5				@@ 65 = 1
-	WCFX_IMM cfx_smon, cg8, rc1, MASK_ALLOW_BOTH
+	WCFX_IMM cfx_smon, cg15, rc3, MASK_ALLOW_BOTH
 multi_fallback:
 	set.rd	rd5, 0xDEAD0005
 	REC	rd5
 	jump	[rb0, fail_exit]
 
 async_phase2:
-	@@ 66-71 多源捕获现场
-	cfx2rd	cfx_hart, cg9, rc0, rd5
+	@@ 66-71 多源捕获现场（rc5 仍为两源并集，ack 才清）
+	cfx2rd	cfx_hart, cg15, rc0, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc1, rd5
+	cfx2rd	cfx_hart, cg15, rc1, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc2, rd5
+	cfx2rd	cfx_hart, cg15, rc2, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc3, rd5
+	cfx2rd	cfx_hart, cg15, rc3, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	cfx2rd	cfx_hart, cg15, rc4, rd5
+	REC	rd5
+	cfx2rd	cfx_hart, cg15, rc5, rd5
 	REC	rd5
 	cfx2rd	cfx_hart, cg4, rc4, rd5
 	REC	rd5
-	@@ ack 两个源
-	WCFX_IMM cfx_hart, cg8, rc5, 0
-	WCFX_IMM cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
+	@@ ack 两个源（`cg16 rc18` W1C），引擎状态另行 W1C
+	WCFX_IMM cfx_hart, cg16, rc18, 1
+	WCFX_IMM cfx_pmem, cg16, rc18, 1
 	PMW	4, (ST_DONE | ST_ERROR)
-	@@ ---- ack 后 pending 落：屏蔽 → DMA 完成 → W1C → pending=0 ----
-	WCFX_IMM cfx_smon, cg8, rc1, 0xFFFFFFFFFFFFFFFF
+	@@ ---- ack 后 pending 落：屏蔽 → DMA 完成 → ack → pending=0 ----
+	WCFX_IMM cfx_smon, cg15, rc3, 0xFFFFFFFFFFFFFFFF
 	DMA_SETUP_CFX 0x100, PA_A, 8
-	DMA_GO (CTRL_START | CTRL_IRQ)
+	DMA_GO CTRL_START
 	POLL_BUSY
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	cfx2rd	cfx_hart, cg15, rc5, rd5
 	REC	rd5				@@ 72 = 1<<32
-	PMW	4, ST_DONE
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	WCFX_IMM cfx_pmem, cg16, rc18, 1
+	cfx2rd	cfx_hart, cg15, rc5, rd5
 	REC	rd5				@@ 73 = 0
-	WCFX_IMM cfx_smon, cg8, rc1, MASK_ALLOW_PMEM
+	PMW	4, ST_DONE
+	WCFX_IMM cfx_smon, cg15, rc3, MASK_ALLOW_PMEM
 	BURN	rd21, rb3
 	set.rd	rd5, 0xDEAD0006
-	REC	rd5				@@ 74 = 无遗留投递的见证
+	REC	rd5				@@ 74 = 无遗留进入的见证
 	@@ ---- 覆盖语义：屏蔽期再完成，放行后第二次进入整体覆盖 ----
-	WCFX_IMM cfx_smon, cg8, rc1, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM cfx_smon, cg15, rc3, 0xFFFFFFFFFFFFFFFF
 	DMA_SETUP_CFX 0x100, PA_A, 8
-	DMA_GO (CTRL_START | CTRL_IRQ)
+	DMA_GO CTRL_START
 	POLL_BUSY
-	WCFX_IMM cfx_smon, cg8, rc1, MASK_ALLOW_PMEM
+	WCFX_IMM cfx_smon, cg15, rc3, MASK_ALLOW_PMEM
 overwrite_fallback:
 	set.rd	rd5, 0xDEAD0007
 	REC	rd5
 	jump	[rb0, fail_exit]
 
 async_phase3:
-	@@ 75-79 覆盖后的现场
-	cfx2rd	cfx_hart, cg9, rc0, rd5
+	@@ 75-79 覆盖后的现场（pending 仍置位，ack 才清）
+	cfx2rd	cfx_hart, cg15, rc0, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc2, rd5
+	cfx2rd	cfx_hart, cg15, rc2, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc3, rd5
+	cfx2rd	cfx_hart, cg15, rc3, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc4, rd5
+	cfx2rd	cfx_hart, cg15, rc5, rd5
 	REC	rd5
 	cfx2rd	cfx_hart, cg4, rc4, rd5
 	REC	rd5
-	WCFX_IMM cfx_hart, cg8, rc5, 0
-	WCFX_IMM cfx_hart, cg8, rc4, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM cfx_pmem, cg16, rc18, 1
 	PMW	4, ST_DONE
 	jump	[rb0, done_ok]
 	.endif
 
 @@ ---------------------------------------------------------------------------
-@@ CFXESC 处理（escape imms18 = 2）：记 cfx_hart cg5 帧与 cg9 快照后返回 +4
+@@ CFXESC 处理（escape imms18 = 2）：记 cfx_hart cg5 帧与 cg15 快照后返回 +4
 @@ ---------------------------------------------------------------------------
 esc9_entry:
 	.if TMODE == 3
@@ -654,15 +676,15 @@ esc9_entry:
 	REC	rd5
 	cfx2rd	cfx_hart, cg5, rc1, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc0, rd5
+	cfx2rd	cfx_hart, cg15, rc0, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc1, rd5
+	cfx2rd	cfx_hart, cg15, rc1, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc2, rd5
+	cfx2rd	cfx_hart, cg15, rc2, rd5
 	REC	rd5
-	cfx2rd	cfx_hart, cg9, rc3, rd5
+	cfx2rd	cfx_hart, cg15, rc3, rd5
 	REC	rd5
-	escape	cfx_hart, [excp_cause_ip, 4]
+	ESCAPE_SKIP4 cfx_hart
 	swym	0
 	.else
 	jump	[rb0, smon_fault]
@@ -673,14 +695,14 @@ esc9_entry:
 @@ ---------------------------------------------------------------------------
 setup_u:
 	set.rb	rb1, sig_bytes
-	set.rd	rd6, 8*8
+	set.rd	rd6, 9*8
 	st.o	rd6, [rb1, 0]
 	WCFX_LABEL cfx_umon, cg3, rc10, u_entry
-	WCFX_IMM cfx_umon, cg3, rc8, 0
-	@@ hypv 里启动 8 KiB 长传输（IRQ_EN）；完成事件落在 user
+	WCFX_IMM cfx_umon, cg3, rc14, 0
+	@@ hypv 里启动 8 KiB 长传输；完成事件落在 user
 	PMW	4, (ST_DONE | ST_ERROR)
 	DMA_SETUP_CFX 0x2000, PA_D, 0x800
-	DMA_GO (CTRL_START | CTRL_IRQ)
+	DMA_GO CTRL_START
 	trap	cfx_umon, 0
 	swym	0
 
@@ -689,13 +711,13 @@ u_entry:
 
 setup_s:
 	set.rb	rb1, sig_bytes
-	set.rd	rd6, 8*8
+	set.rd	rd6, 9*8
 	st.o	rd6, [rb1, 0]
 	WCFX_LABEL cfx_smon, cg3, rc10, s_entry
-	WCFX_IMM cfx_smon, cg3, rc8, 2
+	WCFX_IMM cfx_smon, cg3, rc14, 2
 	PMW	4, (ST_DONE | ST_ERROR)
 	DMA_SETUP_CFX 0x2000, PA_D, 0x800
-	DMA_GO (CTRL_START | CTRL_IRQ)
+	DMA_GO CTRL_START
 	trap	cfx_smon, 0
 	swym	0
 
@@ -705,19 +727,21 @@ s_entry:
 @@ S/U 共用：屏蔽本模式行 → 等 DMA 完成 ⇒ 只置 pending → 放行 ⇒ 投递
 mode_body:
 	.if TMODE == 0
-	WCFX_IMM cfx_umon, cg8, rc1, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM cfx_umon, cg15, rc3, 0xFFFFFFFFFFFFFFFF
 	.else
-	WCFX_IMM cfx_smon, cg8, rc1, 0xFFFFFFFFFFFFFFFF
+	WCFX_IMM cfx_smon, cg15, rc3, 0xFFFFFFFFFFFFFFFF
 	.endif
 	POLL_PENDING PMEM_BIT
-	cfx2rd	cfx_hart, cg9, rc4, rd5
-	REC	rd5				@@ 0 = 1<<32
-	cfx2rd	cfx_hart, cg9, rc3, rd5
-	REC	rd5				@@ 1 = 0
+	cfx2rd	cfx_hart, cg15, rc5, rd5
+	REC	rd5				@@ 0 = 1<<32（pending 汇总）
+	cfx2rd	cfx_hart, cg15, rc4, rd5
+	REC	rd5				@@ 1 = 0（尚无进入）
+	cfx2rd	cfx_hart, cg4, rc4, rd5
+	REC	rd5				@@ 2 = 0
 	.if TMODE == 0
-	WCFX_IMM cfx_umon, cg8, rc1, MASK_ALLOW_PMEM
+	WCFX_IMM cfx_umon, cg15, rc3, MASK_ALLOW_PMEM
 	.else
-	WCFX_IMM cfx_smon, cg8, rc1, MASK_ALLOW_PMEM
+	WCFX_IMM cfx_smon, cg15, rc3, MASK_ALLOW_PMEM
 	.endif
 umode_wait_begin:
 	set.rd	rd5, 0xDEAD0033

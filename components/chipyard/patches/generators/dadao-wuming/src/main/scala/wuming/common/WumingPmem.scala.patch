@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingPmem.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingPmem.scala
 new file mode 100644
-index 0000000..9fae4f6
+index 0000000..9062b5a
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingPmem.scala
-@@ -0,0 +1,205 @@
+@@ -0,0 +1,206 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" cfx_pmem byte mover (`m16-chipyard-022`).
@@ -11,7 +11,8 @@ index 0000000..9fae4f6
 +// `spec/DADAO-12 §4.9` defines the cfx_pmem DMA as a block move between the
 +// cfx's 64 KiB SRAM and physical memory.  The *registers* and every
 +// architecture-visible status value live in `gewu` (`GewuFile`): START,
-+// DIR/IRQ_EN, BUSY/DONE/ERROR/ERR_CODE and the setup checks (SIZE /
++// DIR (bit2 reserved, read 0 / write ignored), BUSY/DONE/ERROR/ERR_CODE
++// and the setup checks (SIZE /
 +// CFX_RANGE / PA_RANGE / PA_FAULT) are all decided there.  This module is only
 +// the byte mover: it receives a validated `start` plus the raw src/dst/size
 +// and drives one TileLink client port.

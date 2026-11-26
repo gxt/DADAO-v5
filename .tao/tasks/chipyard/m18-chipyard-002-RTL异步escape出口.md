@@ -6,7 +6,7 @@
 **可并行分片**：否
 **预估**：4–6 h（标定：同档 chipyard-026 2–3 h；本任务含跨 cfx mask 读写与 escape 重写，取 2×）
 **档位**：大改（RTL 异常进入/退出）
-**状态**：待开始
+**状态**：待验收
 **执行环境**：本地（chipyard `WumingTiny/Vast`）
 
 **追加（m18-spec-009）**：异步进入须加 `当前模式 ≤ cg15 rc14` 上限；默认 supv 不打断 hypv。
@@ -46,16 +46,36 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：运行期证据目录内 `run.sh --base` = **32/32 PASS, EXIT=0**；`run.sh --inject` = **15/15 PASS, EXIT=0**。Vast/Tiny `make verilog`+sim rc=0、`%Error`=0（Vast sim md5 `b9946093…`，注入后重建 `f0c67c01…`；Tiny `27c6b274…`；二进制不跨增量重建逐位复现，还原判据 = 源码 md5 + 载体回绿）。
+**修改文件**：`components/chipyard/patches/generators/dadao-gewu/**/GewuFile.scala.patch`、`.../dadao-wuming/**/{WumingCore,WumingDecoder}.scala.patch`、`.../resources/dadao/bootrom/bootrom.{tiny,vast}.hex.patch`、`components/chipyard/changelog.md`；`tests/arch/{expected-divergences.yaml,hart/README.md,hart/check_hart_rtl.py,hart/check_escape_rtl.py,hart/escape_escalation.S}`；本任务书。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- 寄存器面/进入/出口按 0.8.0+R3：`cg5 rc0`–`rc3` 只读、`rc4/5` cause、`rc8`–`rc11` 出口意图；`cg9 rc0`–`rc5`/`rc14`/`rc15`；`cg0`–`cg3` `rc14`/`rc15`；旧 `rc8`/`rc10` ⇒ `CFXREG`。
+- `arch-hart-002` smon/umon 各 **38 槽 PASS**（异步进入、`rc11` 整字、覆盖/屏蔽/pending、模式上限 0/2）。
+- `arch-hart-001` hmon **0–64 槽 PASS**（槽 1/7 为登记的 `DIV-17`：RTL 以 cfx_power 交付）；65–123 因 0.8.0 载体未设 `rc14=3` 被 spec-009 上限挡住（**KNOWN-RED**）。
+- `escape_escalation` 探针 PASS：`rc11` 整字、升权 `CFXESC`、未实现目标 `CFXESC`、`imms18≠0` `ILLI`。
+- Tiny `01-load-store` **38/38**；`11-cfx` **4/5**（`escape_ciii` = `DIV-18`：Tiny 无 monitor `cg8 rc1`）。
+- 注入 A（`rc11` 增量写）⇒ smon slot 11 红；注入 B（删升权判定）⇒ 探针 `SYS_EXIT 3`；均 `cp`+md5 还原、重建回绿、源码树干净。
+- 门控：`check-patch-tree` chipyard 段 **0 problem**、`--source-state` OK（全仓 rc=1 来自 qemu/gem5/musl 既有漂移）；`check-component-changelog`/`check-knowledge-refs`/`check-tests-index`/`check-index-blobs`/`check-no-residue`/`run_arch --self-test` 全 rc=0。
+**新发现/坑**：① 0.8.0 的 `cfx15.S` 异步段与 spec-009 上限不相容（体在 hypv、未写 `rc14=3`）⇒ H 模式必然停在 slot 65；0.8.1 载体随 chipyard-003。② 旧 `bootrom.{tiny,vast}.hex` 未随 R3 迁移：Tiny hmon 处理器仍写 `cg5 rc3`（新布局只读）⇒ 新 RTL 上 `CFXREG` 死循环；已从 R3 源重生成，且改 hex 后须删 `.classpath_cache/chipyard.jar`。③ RTL 固定 BootROM 以 cfx_power 交付测试体，QEMU/gem5 以 cfx_hmon 交付 ⇒ 首次 trap 的 prev/escape cfx 两槽差异（`DIV-17`）。④ `check_hart_rtl --selfcheck` 写死 89/40 已改为从 `expected.yaml` 现场派生。⑤ Verilator 二进制跨增量重建不逐位复现，注入还原判据用源码 md5 + 载体回绿。⑥ HEAD QEMU 已迁 0.8.1，跑 0.8.0 载体 rc=2；同 ELF 的 QEMU 侧证据以 `m18-qemu-008` 与本任务共享的 `m18-testcases-004` oracle 为准，未另建 0.8.0 QEMU。
+**遗留问题**：① H 模式异步段/`esc_criteria` 在 0.8.0 载体上 KNOWN-RED（模式上限），待 `m18-chipyard-003`（cg15/cg16 + 0.8.1 载体）。② Tiny `escape_ciii` 的 `cg8 rc1` 缺口 = `DIV-18`。③ “无帧有效位（cause=0 也可 `escape`）”无 RTL 直接载体，仅 QEMU/inst 向量覆盖；代码已删除门控。④ `m18-testcases-005` 的 cg15/cg16 全项在 RTL 上 KNOWN-RED（本轮未做源接口）。
 
 ## 审阅记录
 
 ### 第 1 轮 engineer 自审
-（工程师自审意见、问题、判决及 finding 处置）
+
+逐行审查 `GewuFile`（读写集/入口记录/出口意图/异步进入/模式上限）、`WumingDecoder`（`imms18` SBZ）、`WumingCore`（escape 事件与 trace）及 BootROM 重生成。核对：`cg5 rc0`–`rc3` 不在写集；`rc8`–`rc11` 可写且 `rc11` 整字恢复；同步写目标 cfx 两层、异步只写 hart `rc8`–`rc11`；`escape` 四类判据在切换前判定；`rc14` 上限用 `runMode <= asyncSwitch`；旧 `rc8/rc10` 无译码（CFXREG）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `check_hart_rtl --selfcheck` 写死 89/40 | ✅已修 | 改为读 `expected.yaml` 现场派生 | `--selfcheck` rc=0（证据 32/32） |
+| F2 旧 BootROM hex 仍写 R2 `cg5 rc3`，新 RTL 上死循环 | ✅已修 | 从 R3 源重生成 tiny/vast hex | H/S/U 均越过 BootROM；`DIV-17` 收窄为 2 槽 |
+| F3 0.8.0 H 载体异步段被 spec-009 上限挡住 | ✅记录 | 不伪装通过；证据断言 0–64 绿、65 起截断 | `run.sh` H prefix 断言 PASS |
+| F4 Tiny `escape_ciii` 无 `cg8 rc1` | ✅登记 | `DIV-18` | Tiny 11-cfx 4/5 |
+| F5 RTL 以 cfx_power 交付、QEMU/gem5 以 cfx_hmon 交付 | ✅登记 | `DIV-17` 两槽（1/7=63） | H prefix 逐槽断言 |
+| F6 `escape` 仍要求 `cause_id != 0` | ✅已修 | 删除帧有效位门控 | S/U 38/38；代码审查 |
+| F7 Verilator 二进制跨注入重建不逐位复现 | ✅记录 | 还原判据改源码 md5 + 载体回绿 | inject 15/15（源码 md5 复原、smon/探针回绿） |
+
+判决：所有可修 finding 已修；状态对账为「待验收」。
 
 ### 第 1 轮 reviewer 验收
 （审查者独立重跑记录、约束核验、判决）

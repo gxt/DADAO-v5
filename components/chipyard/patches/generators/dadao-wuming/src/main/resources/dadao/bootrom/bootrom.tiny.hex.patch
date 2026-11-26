@@ -1,6 +1,6 @@
 diff --git a/generators/dadao-wuming/src/main/resources/dadao/bootrom/bootrom.tiny.hex b/generators/dadao-wuming/src/main/resources/dadao/bootrom/bootrom.tiny.hex
 new file mode 100644
-index 0000000..f0d11f8
+index 0000000..93fe463
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/resources/dadao/bootrom/bootrom.tiny.hex
 @@ -0,0 +1,22 @@
@@ -21,8 +21,8 @@ index 0000000..f0d11f8
 +40 d8 40 01 59 10 00 10 21 10 70 f8 7f 0f 00 01 4e 0a ff ff 4a 09 ff 01 4a 08 01 00 71 08 00 00
 +71 00 00 00
 +@002000
-+21 fc 00 d8 7a 0c 50 bf 21 fc 00 d8 7a 0c 50 ff 21 fc 00 d8 7a 0c 51 3f 21 fc 00 d8 20 fc 00 dc
-+7b 0c 50 ff 20 fc 00 b4 7e 0c 00 00 00 00 00 00
++21 fc 00 d8 7a 0c 51 3f 21 fc 00 d8 7a 0c 50 bf 21 fc 00 d8 7a 0c 51 7f 21 fc 00 d8 20 fc 00 dc
++7b 0c 52 bf 20 fc 00 b4 7e 0c 00 00 00 00 00 00
 +@00e000
 +44 42 4f 54 00 01 00 01 00 03 00 01 00 00 00 00 00 00 00 01 00 00 00 03 00 00 00 00 00 00 20 00
 +00 00 00 00 00 00 00 30 00 00 00 00 00 00 00 00
