@@ -84,6 +84,7 @@ MASK_PATTERN = 0x0123456789ABCDEF
 OFF_FH_HMON = 0x400
 OFF_HMON_PROG = 0x600
 OFF_ASYNC = 0x700
+OFF_AFTER = 0x780
 
 ROM_BASE = P.ROM_BASE
 SPEC = "spec/DADAO-12-SEE-主管系统运行环境.md"
@@ -207,6 +208,12 @@ def spec_facts():
         raise OracleError("spec §4.9: IRQ_EN must be removed")
     if not re.search(r"ack 才清|只有 `cg16 rc18` 的 W1C 才清", text):
         raise OracleError("spec: ack-only pending rule not found")
+    # DADAO-12 §5.4(一): asynchronous entry has a run-mode upper bound equal to
+    # cg15 rc14 (reset 2 = supv), so hypv is not interrupted by default.
+    if not re.search(r"运行模式上限（进入判据）", text):
+        raise OracleError("spec §5.4: run-mode upper bound clause not found")
+    if not re.search(r"当前运行模式 ≤ `cfx_hart cg15 rc14`", text):
+        raise OracleError("spec §5.4: mode-cap comparison missing")
     facts["pmem_mask_reset"] = 1
     return facts
 
@@ -697,6 +704,91 @@ def case_dma_merge_two_completions():
     }
 
 
+def _async_record_handler():
+    """Handler that records the capture in GPRs, acks TIMER and escapes.
+
+    Runs with `cfx_hart` as the current cfx (self access bypasses the cfx
+    axis); the probe opens the supv delegation row where needed.
+    """
+    h = P.Seq()
+    h.e(P.add_si(25, 1))                    # number of async entries
+    rd(h, HA_HART, CG4, 4, 10)              # excp_async_num
+    rd(h, HA_HART, CG15, 0, 11)             # prev run mode
+    rd(h, HA_HART, CG15, 1, 12)             # prev cfx code
+    rd(h, HA_HART, CG15, 4, 13)             # src frame
+    rd(h, HA_HART, CG16, 17, 14)            # timer pending before ack
+    wr(h, HA_HART, CG16, 18, 1, tmp=15)     # ack TIMER
+    h.e(P.escape(HA_HART, 0))
+    return h
+
+
+def case_async_mode_cap_hypv_block_supv_enter():
+    """`cg15 rc14` (reset 2 = supv) is the run-mode upper bound (DADAO-12
+    §5.4(一)): a pending TIMER does not enter from hypv (pending and `rc5`
+    survive), then enters normally once execution returns to supv."""
+    s = P.Seq()
+    body_setup(s, MASK_TIMER_ONLY)           # hmon monitor allows TIMER
+    wr(s, HA_SMON, CG15, 3, MASK_TIMER_ONLY) # supv monitor allows TIMER
+    wr(s, HA_HART, CG15, 14, MODE_SUPV)      # the reset value, written explicitly
+    rd(s, HA_HART, CG15, 14, 30)
+    wr(s, HA_HART, CG15, 15, ROM_BASE + OFF_ASYNC)
+    # The supv handler reads cfx_hart's own cg15/cg16/cg4: open the hypv
+    # cg_reg_deleg row that gates supv access (0x8 = every cg but fixed bit3).
+    wr(s, HA_HART, CG3, 12, 0x8)
+    _arm_timer(s)
+    s.e(P.jump_rel(1))
+    s.mark("after_blocked")
+    rd(s, HA_HART, CG4, 4, 31)               # 0: hypv > rc14 => no entry
+    rd(s, HA_HART, CG16, 17, 32)             # source pending kept
+    rd(s, HA_HART, CG15, 5, 33)              # rc5 summary kept
+    # Leave hmon for supv with the timer still pending: the next instruction
+    # boundary is mode 2 <= rc14, so the capture is delivered in supv.
+    wr(s, HA_HMON, CG5, 8, MODE_SUPV, tmp=12)
+    wr(s, HA_HMON, CG5, 9, HA_SMON, tmp=12)
+    wr(s, HA_HMON, CG5, 10, ROM_BASE + OFF_AFTER, tmp=12)
+    wr(s, HA_HMON, CG5, 11, MASK_TIMER_ONLY, tmp=12)
+    s.e(P.escape(HA_HMON, 0))
+    return P.build_rom(s.resolve(), {
+        OFF_FH_HMON: fault_handler(HA_HMON),
+        OFF_ASYNC: _async_record_handler().resolve(),
+        OFF_AFTER: P.exit_seq(0),
+    }), {
+        "rd25": 1,
+        "rd30": MODE_SUPV,
+        "rd31": 0, "rd32": 1, "rd33": 1 << 15,
+        "rd10": 1, "rd11": MODE_SUPV, "rd12": HA_SMON,
+        "rd13": 1 << 15, "rd14": 1,
+        "mymode": MODE_SUPV, "mycfx": HA_SMON,
+    }
+
+
+def case_async_mode_cap_hypv_open():
+    """With `cg15 rc14 = 3` (hypv) the same pending TIMER enters from hypv;
+    `cg15 rc0` records hypv and `escape cfx_hart` restores hypv/hmon."""
+    s = P.Seq()
+    body_setup(s, MASK_TIMER_ONLY)
+    wr(s, HA_HART, CG15, 14, MODE_HYPV)
+    rd(s, HA_HART, CG15, 14, 30)
+    wr(s, HA_HART, CG15, 15, ROM_BASE + OFF_ASYNC)
+    _arm_timer(s)
+    s.e(P.jump_rel(1))
+    s.mark("after_async")
+    rd(s, HA_HART, CG4, 4, 31)               # one entry
+    rd(s, HA_HART, CG15, 4, 33)              # TIMER source bit
+    s.e(*P.exit_seq(0))
+    return P.build_rom(s.resolve(), {
+        OFF_FH_HMON: fault_handler(HA_HMON),
+        OFF_ASYNC: _async_record_handler().resolve(),
+    }), {
+        "rd25": 1,
+        "rd30": MODE_HYPV,
+        "rd31": 1, "rd33": 1 << 15,
+        "rd10": 1, "rd11": MODE_HYPV, "rd12": HA_HMON,
+        "rd13": 1 << 15, "rd14": 1,
+        "mymode": MODE_HYPV, "mycfx": HA_HMON,
+    }
+
+
 CASES = {
     "hart_layout": case_hart_layout,
     "hart_layout_reserved": case_hart_layout_reserved,
@@ -715,6 +807,9 @@ CASES = {
     "reserved_cg8_5": case_reserved_cg8_5,
     "source_mask_gate": case_source_mask_gate,
     "dma_merge_two_completions": case_dma_merge_two_completions,
+    "async_mode_cap_hypv_block_supv_enter":
+        case_async_mode_cap_hypv_block_supv_enter,
+    "async_mode_cap_hypv_open": case_async_mode_cap_hypv_open,
 }
 
 

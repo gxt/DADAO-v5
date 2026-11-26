@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..c5dd7ac
+index 0000000..3cc26c4
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,4154 @@
+@@ -0,0 +1,4160 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -3289,6 +3289,12 @@ index 0000000..c5dd7ac
 +    uint64_t srcs = 0;
 +
 +    if (!a) {
++        return 0;
++    }
++    /* DADAO-12 §5.4(一): run-mode upper bound.  `cg15 rc14` is both the
++     * target mode and the highest mode that may be interrupted; a mode above
++     * it is not entered (source pending and cg15 rc5 are kept, no error). */
++    if (env->inner_run_mode > a->switch_run_mode) {
 +        return 0;
 +    }
 +    mon = cfx_idx(env, env->inner_run_mode & 0x3);
