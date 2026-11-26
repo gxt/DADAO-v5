@@ -505,3 +505,12 @@
   closed_in: null
   resolved_by: null
   title: "【P1·跨里程碑】`m18-spec-007`（`24f3fdb2`，2026-11-26 01:09，`DADAO-12` 升 0.8.0）重排了异步层，M16 刚对齐的三实现与探针全部过时：① `cg9` 新布局（rc0–rc5 入口记录 HW/RO、rc6–13 reserved、rc14 switch、rc15 vector）；② `cg5` 重排（rc0–rc3 prev_*、rc4 cause id、rc5 cause info、rc8–rc11 出口意图）；③ `escape cfxHA` 的 `imms18` 必须为 0，旧 `+0/+4` 与 cg9 frame selector 作废、返回地址取 `cg5 rc10`。影响：RTL（028）、QEMU（qemu-007）、gem5（gem5-025）的 cg9/escape 实现与 `tests/arch/hart`、`tests/arch/pmem`（013/014）、`check_cfx15` oracle 均不符 ⇒ `run_arch --self-test` 在 master 已 rc=1（oracle 断言旧 `HW/RW`），`check-arch-vast` 无法跑。需按 spec-007 全链重对齐（方向=改实现/oracle，不回退 spec）。"
+- id: ISS-m16-013
+  scope:
+  - infra
+  - qemu
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P1·环境】共享 Tiny BootROM 与安装根 QEMU 不同步：2026-11-26 19:16 另一会话用新 LLVM 重建 `.dadao/tests/bootrom/tiny/bootrom_tiny.bin` 为 `5cee63c5…`，而安装根 `qemu-system-dadao` 仍是 `8b49d6d9…`（旧构建）⇒ QEMU 直接挂死（`m16-chipyard-033` 实测）。缓解：用签入 hex 解码出的 `a5d78816…`（= `tests/unit/gem5/tiny_hmon/expected.yaml::shared_bootrom_md5`，已存于运行期证据目录）跑 QEMU；根治：M18 合入新 LLVM/spec 后重建 QEMU 并 `install-host`，同时按新工具链重生成签入 bootrom hex，两侧 md5 对齐。"
