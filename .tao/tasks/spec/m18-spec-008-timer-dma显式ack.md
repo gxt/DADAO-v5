@@ -50,6 +50,8 @@
    - `PMEM_DMA` 的 `cg15 dma_ctrl.IRQ_EN`（bit2）**删除**：中断屏蔽统一由 `cg16 rc16` 的 bit0 控制，`dma_ctrl` 只剩 `START`（自清）与 `DIR`（用户 2026-11-26 选 A）。
    - `cg9 rc4/rc5` 仍为 hart 级聚合（bit = 源 cfxha）；monitor mask 仍为每 cfx 64 位（`cg8 rc1`）；`escape` 不变。
 
+9. **DMA ack 范围（用户 2026-11-26 选 B）**：`cg16 rc18` 的 ack 只清**中断 pending**；`dma_status` 的 `DONE/ERROR/ERR_CODE` 仍由 `dma_status` 自己的 W1C 清。**澄清**：这不是“两条中断 ack”——`rc18` 是唯一的中断 ack；`dma_status` 的 W1C 只是**引擎状态清理**，两者对象不同，软件可以先 `rc18` ack 中断、再按需清 status。
+
 ## 待裁定（逐条讨论）
 
 1. `ISTATUS` 置位条件：**到期边沿置位**（每个 armed deadline 只置一次，之后不重复）还是 `cmp<=now` 的持续电平？前者才使 ack 有意义。
