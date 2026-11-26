@@ -689,3 +689,9 @@
 7. **`m18-linux-025`（链⑧）**：负载自旋修复（等 ⑦ 的新模型）。
 8. **`m18-linux-006`（链⑨）**：LTP 两轮一致复跑（等 ⑦⑧）。
 9. **`m18-qemu-007`（链⑩）**：移除 QEMU 的 `cfx_jmon`（等 ⑦）。
+
+## M18 波2：每源 pending/mask/ack（`m18-spec-008`，ADR-0064）
+
+**目标**：中断源的 pending/mask/ack 归源；显式 W1C ack；pending ack 才清；`cfx_hart` 捕获 `cg9→cg15`，monitor mask `cg8 rc1→cg15 rc3`；timer `cfx_hart cg16 rc0/rc1/rc16/17/18`；DMA `cfx_pmem cg16 rc16/17/18`、删 `IRQ_EN`；`cg15 rc4/rc5` 聚合；`escape rc11` 写 `cg15 rc3`；版本 `0.8.1-rc`。
+
+**链**：`m18-spec-008`（等 `m18-linux-026` 收口）→ `m18-qemu-009` ∥ `m18-testcases-005` → `m18-chipyard-003` / `m18-gem5-005` / `m18-idl-004` → `m18-linux-027`。
