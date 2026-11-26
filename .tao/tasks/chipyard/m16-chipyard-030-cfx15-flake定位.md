@@ -2,7 +2,7 @@
 
 **模块**：chipyard
 **项目里程碑**：M16
-**依赖**：无（当期构建 `1260b0f0…`、探针为 master 版）
+**依赖**：无。`m18-chipyard-002/003` 已合入（`cfx15.S` 按 spec-007 重写、cg9/cg5/escape 新布局），`m16-chipyard-033` 已合入（RegRAS 环形缓冲）；chipyard 源树 `7b1d785`、Vast sim `0ead2519…`、Tiny sim `71cbed98…`，安装根 QEMU `e470dc56…`
 **可并行分片**：否（共享 `components/chipyard` / `tests/arch/hart`）
 **预估**：2–4 h
 **档位**：大改（复核 ≤60 min）
@@ -17,7 +17,7 @@
 1. **量化**：同一构建、同一 ELF、同一命令跑 **≥20 次**（hmon/smon/umon 各一轮），记录每次 cycle/退出码/槽数；统计挂死频率与是否与模式/时序相关。
 2. **定位**：挂死时 dump `+verbose` 尾部与 `_start`/中断/`escape` 痕迹；判断卡在 boot、异步投递、`escape`、还是仿真器（Verilator/harness）；与 `ISS-m16-008` 的"旧 ELF"区别开（本任务是**当期 ELF**）。
 3. **修复或收敛**：若是 RTL/探针竞态，修并补可复现用例；若是仿真器/harness 的偶发（如 `+max-cycles` 边界、随机种子、内存模型），给证据并登记为已知 flake（`expected-divergences` 不适用，走 issue 的 GAP）。
-4. **回归**：修复后 20 次全绿；cfx15 89/40/40、pmem 55、time 7、cache、ptw 代表集不回归。
+4. **回归**：修复后 20 次全绿；代表集不回归（槽数以现场派生为准：当前 `arch-hart-001` 124 槽、`arch-hart-002` S/U 各 38 槽、`arch-pmem-001` 48 槽；`time`/`cache`/`ptw` 代表集按 `tests/arch.yaml` 现取）。
 
 ## 不做
 
