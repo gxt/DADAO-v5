@@ -62,6 +62,8 @@
 14. **异步进入判定（用户 2026-11-26 选 A）**：逐源判定 `(pending & ~源mask) != 0` 且 monitor mask 的 `[源 cfxha] == 0` 且（timer 还要求 `ENABLE=1`）；同一边界所有可进入源**合并成一次进入**；`cg9 rc4` 的位 = **源 cfxha**（不含子事件），源内细节回源读 `pending`。
 15. **timer 使能即检（用户选 A）**：`ENABLE` 0→1 时若 `cfx_time >= cmp`，立即置一次 `pending` bit0（之后不写新 `cmp` 不再置）。
 
+16. **ack 容错（用户选 A）**：对 `pending=0` 的位写 ack = no-op；对保留位写 1 被忽略、不报错；访问不存在的 `rc` 才是 `CFXREG`。ack 可按位图整体写。
+
 ## 待裁定（逐条讨论）
 
 1. `ISTATUS` 置位条件：**到期边沿置位**（每个 armed deadline 只置一次，之后不重复）还是 `cmp<=now` 的持续电平？前者才使 ack 有意义。
