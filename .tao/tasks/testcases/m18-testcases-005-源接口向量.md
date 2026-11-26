@@ -21,6 +21,7 @@
    - 进入判定：源 mask 与 monitor mask 各自生效、多源合并、`cg15 rc4/rc5` 聚合；
    - `escape rc11` 写 `cg15 rc3` 整字。
 3. 执行侧：QEMU（qemu-009 构建）+ RTL/gem5/IDL 可跑项；不可跑项登记 KNOWN-RED。
+4. **补 qemu-009 reviewer F3 的两处覆盖**：① 直接断言 monitor `cg15 rc3` **复位全 1**（不能先写 ALL1 再读）；② `cg15 rc6`–`rc13`、`cg8 rc5` 等 reserved 槽访问 ⇒ `CFXREG`。
 4. 旧槽位/旧措辞 grep 0；生成物重算。
 
 ## 验收

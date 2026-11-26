@@ -52,13 +52,13 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
-| m18-qemu-009 | 2026-11-26 13:44 | 3–4 h | **波2-③** QEMU 源接口（cg15 捕获、cg15 rc3 mask、cg16 mask/pending/ack、IRQ_EN 删除、ack 才清） |
 | m18-linux-026 | 2026-11-26 08:18 | 4–6 h | 内核迁移异步 escape（去 jmon、`cg5 rc8–rc11` 出口）；**暂停，等波2 spec-008/qemu-009/testcases-005 后重启**（目标 0.8.1-rc） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-qemu-009 | 2026-11-26 14:31 | QEMU 源接口（cg15 捕获、cg15 rc3 mask、cg16 mask/pending/ack、IRQ_EN 删除、ack 才清）；探针 10/91、证据 20/20 |
 | m18-spec-008 | 2026-11-26 13:44 | 每源 pending/mask/ack（cg15 捕获、cg15 rc3 mask、cg16 源接口、ack 才清、ADR-0064、0.8.1-rc）；22/22、38 文件/132 断言 |
 | m18-idl-003 | 2026-11-26 10:47 | IDL 迁 R3（cg5/cg9 新布局、`escape cfxHA`、`rc11` 整字）；`check-idl` 274/274、self-test 119/119；补 spec-007 F3 |
 | m18-testcases-004 | 2026-11-26 10:04 | 异步 escape 出口向量 + R3 载体迁移（inst 274/274、smoke 10/10、证据 38/38；`pmem` 48 槽、进入自证） |
