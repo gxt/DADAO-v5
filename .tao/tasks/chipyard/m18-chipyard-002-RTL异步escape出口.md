@@ -6,7 +6,7 @@
 **可并行分片**：否
 **预估**：4–6 h（标定：同档 chipyard-026 2–3 h；本任务含跨 cfx mask 读写与 escape 重写，取 2×）
 **档位**：大改（RTL 异常进入/退出）
-**状态**：待验收
+**状态**：已验证
 **执行环境**：本地（chipyard `WumingTiny/Vast`）
 
 **追加（m18-spec-009）**：异步进入须加 `当前模式 ≤ cg15 rc14` 上限；默认 supv 不打断 hypv。
@@ -78,4 +78,15 @@
 判决：所有可修 finding 已修；状态对账为「待验收」。
 
 ### 第 1 轮 reviewer 验收
-（审查者独立重跑记录、约束核验、判决）
+
+**重跑记录（审查者独立执行，不采信完成区转述）**
+- `git diff 1407b926..1adad422` = 12 文件，与完成区「修改文件」逐项对上；无 QEMU/gem5/IDL/LLVM/内核/spec/契约/Makefile 改动；未 push（`origin/master..HEAD` 仅本地 WIP）；状态 `待验收`；完成区 15 行 ≤30。
+- 源码语义逐行（`GewuFile`/`WumingDecoder`/`WumingCore` patch）：`cg5 rc0–rc3` 不在写集（写 ⇒ `CFXREG`）、`rc4/rc5`=cause id/info、`pending` 已删、`rc8–rc11` 出口意图且 `rc11` 复位全 1；`cg9 rc0–rc5`/`rc14`/`rc15`（`rc6–13` 无译码 ⇒ `CFXREG`）；`cg0–cg3` switch/vector 走 `rc14/rc15`、旧 `rc8/rc10` 全仓无译码；同步进入写 `rc0–rc5`+`rc8–rc11`、异步进入只写 `cg9 rc0–rc4` + hart `cg5 rc8–rc11`（不碰 `rc0–rc3`）；`escape` 六判据齐（`imms18≠0⇒ILLI`、`ha==curCfx`、`curImplemented`、目标 cfx、目标 monitor、`escapeTargetMode<=runMode`）+ 跳 `rc10` + `rc11` 整字写目标 monitor + `escapeNum+1`；上限 `runMode <= cg9 rc14` 进 `intr.valid`。
+- `git diff 1adad422..c37b2868` 对照：003 未回退上述任一条；`cg9→cg15`、`cg8 rc1→cg15 rc3` 属 `m18-spec-008` 迁移，出口意图/上限/六判据原样。
+- 自带证据（读记录）：运行期证据目录 `run-base.EXIT=0` + `summary: 32/32`；`run-inject.EXIT=0` + `summary: 15/15`（注入 A `rc11` 增量写 ⇒ smon 红、注入 B 删升权 ⇒ 探针 `SYS_EXIT 3`；`cp`+md5 还原重建回绿）。
+- 行为证据（我重跑 003 运行期证据目录内 `run.sh --base` = 32/32、EXIT=0；共享源树已是 003 状态，按约定不重放 002）：`arch-hart-002` smon/umon 各 38 槽 PASS、`arch-hart-001` 124 槽仅 `DIV-17`(1/7)=63、`arch-pmem-001` 48 槽、`arch-pmem-002` 10×2；我另跑 Tiny `01-load-store` 38/38、`11-cfx` 4/5（`escape_ciii` = `DIV-18`）；cache 代表集 RTL `arch-cache-001/002/003` PASS、`004` 登记 GAP（`run_arch` rc=0）。
+- 采信（未亲跑）：0.8.0 QEMU 同 ELF 腿以共享 oracle（`m18-qemu-008`/`m18-testcases-004`）为准，本任务未建 0.8.0 QEMU（完成区已披露）。
+
+**finding（不阻断）** F1 交接记录只在批次册（`ed5a42a3`）与 M16 台账 033 行，本任务书/030 台账行未写 ⇒ 文档级，交 architect 收尾补。F2 `run.sh` 的 `check-patch-tree chipyard problems` 在工具零输出时恒过（同脚本 `source-state` 兜底）⇒ 建议补 rc 断言。
+
+**判决**：Accepted
