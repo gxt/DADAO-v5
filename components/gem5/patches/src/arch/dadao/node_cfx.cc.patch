@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..0e4c185
+index 0000000..11b2be6
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1608 @@
+@@ -0,0 +1,1684 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -73,12 +73,18 @@ index 0000000..0e4c185
 +constexpr unsigned kAsyncTimerBit = CfxhaHart;   /* TIMER      = 15 */
 +constexpr unsigned kAsyncPmemBit = CfxhaPmem;    /* PMEM_DMA   = 32 */
 +
-+/** cg9 rc0/rc1/rc2/rc5/rc6 width masks (spec/DADAO-12 §4.7): run mode 2 bits,
-+ *  cfxha 6 bits, `cause_ip`/`excp_vector` a 48-bit 4-byte-aligned address. */
++/** cg9 rc0/rc1/rc2 width masks (spec/DADAO-12 §4.7): run mode 2 bits,
++ *  cfxha 6 bits, `prev ip`/`excp_vector` a 48-bit 4-byte-aligned address. */
 +constexpr uint64_t kAsyncModeMask = 0x3;
 +constexpr uint64_t kAsyncCfxMask = 0x3F;
 +constexpr uint64_t kAsyncIpMask = 0x0000FFFFFFFFFFFFULL;
 +constexpr uint64_t kAsyncIpAlign = ~0x3ULL;
++
++/** cg5 rc8/rc9/rc10 widths (spec/DADAO-12 §3.6): run mode 2 bits, cfxha
++ *  6 bits, escape ip a 48-bit 4-byte-aligned address; rc11 is a whole 64-bit
++ *  source-mask word. */
++constexpr uint64_t kEscapeModeMask = 0x3;
++constexpr uint64_t kEscapeCfxMask = 0x3F;
 +
 +/** cfx_hart is the single async delivery target (`hart-first`, §5.4). */
 +constexpr unsigned kAsyncSwitchMode = NodeSupv;
@@ -194,6 +200,23 @@ index 0000000..0e4c185
 +    return off < size && len <= size - off;
 +}
 +
++/** Monitor serving a run mode (spec/DADAO-12 §5.2: U->umon, J->jmon,
++ *  S->smon, H->hmon); -1 when that row is not implemented. */
++int
++monitorCfx(unsigned mode)
++{
++    return nodeCfxIndex(mode & 0x3);
++}
++
++/** `cg8 rc1` snapshot of the monitor serving `mode`.  With no monitor row the
++ *  fail-safe value is all ones (the same value `cg5 rc11` resets to). */
++uint64_t
++monitorIntrMask(const NodeState &s, unsigned mode)
++{
++    const int mon = monitorCfx(mode);
++    return mon >= 0 ? s.cfx[mon].globalCfxIntrMask : ~0ULL;
++}
++
 +} // anonymous namespace
 +
 +int
@@ -288,14 +311,15 @@ index 0000000..0e4c185
 +    s.timerCtrl = 0;
 +
 +    // cfx_hart cg9 async capture buffer reset values (spec/DADAO-12 §4.7):
-+    // every slot 0 except the `rc6` reset value (supv = 2).
++    // every slot 0 except the `rc14` reset value (supv = 2).
 +    s.asyncPrevRunMode = 0;
 +    s.asyncPrevCfxCode = 0;
-+    s.asyncCauseIp = 0;
++    s.asyncPrevIp = 0;
++    s.asyncPrevIntrMask = 0;
 +    s.asyncSrcFrame = 0;
 +    s.asyncSrcPending = 0;
-+    s.asyncExcpVector = 0;
 +    s.asyncSwitchRunMode = kAsyncSwitchMode;
++    s.asyncExcpVector = 0;
 +
 +    if (s.dmaEvent == nullptr) {
 +        auto *event = new NodeDmaEvent;
@@ -393,23 +417,29 @@ index 0000000..0e4c185
 +    else
 +        s.cfx[ci].excpSyncNum++;
 +
-+    // step 5: save the previous run mode and current cfx (no independent
-+    // cfx-mask state).  `prevCfxCode` must be sampled *before* step 6 rewrites
-+    // `cfxCode` (DADAO-12 §5.2 step 5/6), so a frame that receives a nested
-+    // async delivery still knows the cfx it interrupted.
-+    s.cfx[ci].prevRunMode = entryMode;
-+    s.cfx[ci].prevCfxCode = s.cfxCode & 0x3F;
++    // step 5: entry record (cg5 rc0-rc3, spec/DADAO-12 §3.6).  The previous
++    // run mode and current cfx are sampled *before* step 6 rewrites them
++    // (§5.2 step 5/6); the prev intr mask is the entry run-mode monitor's
++    // `cg8 rc1` snapshot.  rc4/rc5 are the cause fields, and rc8-rc11 are the
++    // export intent copied from rc0-rc3 (the same write set `trap` uses).
++    NodeCfxRegs &r = s.cfx[ci];
++    const uint64_t prevMask = monitorIntrMask(s, entryMode);
++    r.prevRunMode = entryMode & kEscapeModeMask;
++    r.prevCfxCode = s.cfxCode & kEscapeCfxMask;
++    r.prevIp = causeIp & kAsyncIpMask;
++    r.prevIntrMask = prevMask;
++    r.causeId = cause;
++    r.causeInfo = causeInfo;
++    r.escapeRunMode = r.prevRunMode;
++    r.escapeCfxCode = r.prevCfxCode;
++    r.escapeIp = r.prevIp;
++    r.escapeIntrMask = r.prevIntrMask;
 +
 +    // step 6: switch to the entry-mode values; the cfx target changes but
 +    // there is no cfx-mask layer to switch.
-+    vec = s.cfx[ci].mode[entryMode].excpVector;
-+    s.runMode = s.cfx[ci].mode[entryMode].switchRunMode & 0x3;
++    vec = r.mode[entryMode].excpVector;
++    s.runMode = r.mode[entryMode].switchRunMode & 0x3;
 +    s.cfxCode = static_cast<uint8_t>(target);
-+
-+    // step 5 continued: record cause ip / id / info
-+    s.cfx[ci].causeIp = causeIp;
-+    s.cfx[ci].causeId = cause;
-+    s.cfx[ci].causeInfo = causeInfo;
 +
 +    // step 7: the caller jumps to the vector
 +    *entered = true;
@@ -497,8 +527,10 @@ index 0000000..0e4c185
 +      case 3: return &m->cfxexe;
 +      // rc4 (`cfx_intr_mask`) is not defined any more (spec/DADAO-12 §3,
 +      // ADR-0061 D5): the async source mask is the monitor's cg8 rc1.
-+      case 8: return &m->switchRunMode;
-+      case 10: return &m->excpVector;
++      // `rc14`/`rc15` are the switch/vector slots (m18-spec-007); `rc8`/`rc10`
++      // are reserved holes now (access => CFXREG).
++      case 14: return &m->switchRunMode;
++      case 15: return &m->excpVector;
 +      case 12: return &m->cgRegDeleg;
 +      default: return nullptr;
 +    }
@@ -538,14 +570,14 @@ index 0000000..0e4c185
 +    const int cfxha = kCfxhaMap[ci];
 +
 +    if (cg <= 2) {
-+        if (rc <= 3 || (rc >= 8 && rc <= 11))
++        if (rc <= 3 || rc == 14 || rc == 15)
 +            return cfxModeReg(&r.mode[cg], rc);
 +        return nullptr;
 +    }
 +    if (cg == 3) {
 +        if (s.runMode != NodeHypv)
 +            return nullptr; // cg3 is hypv-only (DADAO-13 §1)
-+        if (rc <= 3 || (rc >= 8 && rc <= 12))
++        if (rc <= 3 || rc == 12 || rc == 14 || rc == 15)
 +            return cfxModeReg(&r.mode[3], rc);
 +        return nullptr;
 +    }
@@ -563,12 +595,19 @@ index 0000000..0e4c185
 +        }
 +      case 5:
 +        switch (rc) {
-+          case 0: return &r.prevRunMode;
-+          case 1: return &r.prevCfxCode;
-+          case 2: return write ? nullptr : &r.causeId;
-+          case 3: return &r.causeIp;
-+          case 4: return write ? nullptr : &r.causeInfo;
-+          case 5: return &r.pending;
++          /* cg5 entry record (HW/RO) + cause fields (HW): a software write
++           * has no register and takes CFXREG.  rc8-rc11 are the escape
++           * intent (HW/RW, spec/DADAO-12 §3.6). */
++          case 0: return write ? nullptr : &r.prevRunMode;
++          case 1: return write ? nullptr : &r.prevCfxCode;
++          case 2: return write ? nullptr : &r.prevIp;
++          case 3: return write ? nullptr : &r.prevIntrMask;
++          case 4: return write ? nullptr : &r.causeId;
++          case 5: return write ? nullptr : &r.causeInfo;
++          case 8: return &r.escapeRunMode;
++          case 9: return &r.escapeCfxCode;
++          case 10: return &r.escapeIp;
++          case 11: return &r.escapeIntrMask;
 +          default: return nullptr;
 +        }
 +      case 6:
@@ -730,23 +769,26 @@ index 0000000..0e4c185
 +}
 +
 +/** cfx_hart cg9 async capture buffer (spec/DADAO-12 §4.7/§5.4, ADR-0061 D7).
-+ *  Seven slots; `rc7`-`rc15` are reserved and raise CFXREG (the caller does
-+ *  that when this returns false).  `rc3`/`rc4` are HW/RO: a software write is
-+ *  ignored, reads back the hardware value and raises nothing; `rc0`-`rc2`
-+ *  and `rc5`/`rc6` are HW/RW.  Widths follow the spec row: 2-bit run mode,
-+ *  6-bit cfxha, 48-bit 4-byte-aligned addresses; `rc6` is RW with reset 2
-+ *  (supv) and an async entry takes its current value (§4.7, m18-spec-006). */
++ *  Entry record `rc0`-`rc5` (prev run mode / prev cfx code / prev ip / prev
++ *  intr mask / source bitmap / raw pending); `rc6`-`rc13` are reserved and
++ *  raise CFXREG (the caller does that when this returns false).  `rc0`-`rc5`
++ *  are HW/RO: a software write is ignored, reads back the hardware value and
++ *  raises nothing.  `rc14`/`rc15` are the RW configuration slots.  Widths
++ *  follow the spec row: 2-bit run mode, 6-bit cfxha, 48-bit 4-byte-aligned
++ *  addresses; `rc14` is RW with reset 2 (supv) and an async entry takes its
++ *  current value (§4.7, m18-spec-006). */
 +bool
 +hartAsyncRegRead(const NodeState &s, unsigned rc, uint64_t *val)
 +{
 +    switch (rc) {
 +      case 0: *val = s.asyncPrevRunMode & kAsyncModeMask; return true;
 +      case 1: *val = s.asyncPrevCfxCode & kAsyncCfxMask; return true;
-+      case 2: *val = s.asyncCauseIp & kAsyncIpMask; return true;
-+      case 3: *val = s.asyncSrcFrame; return true;
-+      case 4: *val = s.asyncSrcPending; return true;
-+      case 5: *val = s.asyncExcpVector & kAsyncIpMask; return true;
-+      case 6: *val = s.asyncSwitchRunMode & kAsyncModeMask; return true;
++      case 2: *val = s.asyncPrevIp & kAsyncIpMask; return true;
++      case 3: *val = s.asyncPrevIntrMask; return true;
++      case 4: *val = s.asyncSrcFrame; return true;
++      case 5: *val = s.asyncSrcPending; return true;
++      case 14: *val = s.asyncSwitchRunMode & kAsyncModeMask; return true;
++      case 15: *val = s.asyncExcpVector & kAsyncIpMask; return true;
 +      default: return false;
 +    }
 +}
@@ -755,22 +797,21 @@ index 0000000..0e4c185
 +hartAsyncRegWrite(NodeState &s, unsigned rc, uint64_t val)
 +{
 +    switch (rc) {
-+      case 0: s.asyncPrevRunMode = val & kAsyncModeMask; return true;
-+      case 1: s.asyncPrevCfxCode = val & kAsyncCfxMask; return true;
++      case 0:
++      case 1:
 +      case 2:
-+        s.asyncCauseIp = val & kAsyncIpMask & kAsyncIpAlign;
-+        return true;
 +      case 3:
 +      case 4:
++      case 5:
 +        // HW/RO: the write is ignored and raises nothing (§4.7, ADR-0061 D4).
 +        return true;
-+      case 5:
-+        s.asyncExcpVector = val & kAsyncIpMask & kAsyncIpAlign;
-+        return true;
-+      case 6:
++      case 14:
 +        // RW, 2 bits (spec/DADAO-12 §4.7): the write lands and the async
 +        // entry uses the current value; reset remains 2 (supv).
 +        s.asyncSwitchRunMode = val & kAsyncModeMask;
++        return true;
++      case 15:
++        s.asyncExcpVector = val & kAsyncIpMask & kAsyncIpAlign;
 +        return true;
 +      default:
 +        return false;
@@ -1265,18 +1306,28 @@ index 0000000..0e4c185
 +        return false;
 +
 +    // Capture: whole-buffer overwrite, bitmap union, delivered bits removed.
++    // `rc3` is the interrupted run-mode monitor's `cg8 rc1` snapshot, i.e. the
++    // same value the export intent `rc11` gets (spec/DADAO-12 §5.4).
 +    s.asyncSrcFrame = allowed;
 +    s.asyncSrcPending &= ~allowed;
 +    s.asyncPrevRunMode = s.runMode & kAsyncModeMask;
 +    s.asyncPrevCfxCode = s.cfxCode & kAsyncCfxMask;
-+    s.asyncCauseIp = currentPc(tc) & kAsyncIpMask & kAsyncIpAlign;
++    s.asyncPrevIp = currentPc(tc) & kAsyncIpMask & kAsyncIpAlign;
++    s.asyncPrevIntrMask = mask;
 +
 +    const int hart = nodeCfxIndex(CfxhaHart);
 +    if (hart < 0)
 +        return false;
-+    s.cfx[hart].excpAsyncNum++;
++    NodeCfxRegs &h = s.cfx[hart];
++    h.excpAsyncNum++;
++    // Export intent on the hart's own cg5 rc8-rc11 only: `rc0`-`rc3` are the
++    // sync entry record and are *not* written by an async entry (§3.6/§5.4).
++    h.escapeRunMode = s.asyncPrevRunMode;
++    h.escapeCfxCode = s.asyncPrevCfxCode;
++    h.escapeIp = s.asyncPrevIp;
++    h.escapeIntrMask = s.asyncPrevIntrMask;
 +
-+    // Entry: vector = cg9 rc5, target cfx = cfx_hart, run mode = cg9 rc6
++    // Entry: vector = cg9 rc15, target cfx = cfx_hart, run mode = cg9 rc14
 +    // (RW, reset 2 = supv; the current value is used, spec/DADAO-12 §4.7).
 +    s.runMode = s.asyncSwitchRunMode & kAsyncModeMask;
 +    s.cfxCode = static_cast<uint8_t>(CfxhaHart);
@@ -1358,46 +1409,58 @@ index 0000000..0e4c185
 +bool
 +nodeEscape(ThreadContext *tc, NodeState &s, uint8_t cfxha, uint32_t byteOffset)
 +{
-+    const uint64_t imms18 = (byteOffset >> 2) & 0x3FFFF;
++    // `escape cfxHA` has no offset any more: `imms18` is SBZ and B6 rejects a
++    // non-zero value before this hook, so byteOffset is always 0 (R3).
++    (void)byteOffset;
 +    const uint64_t info = (uint64_t(0x7E) << 24) |
-+                          (uint64_t(cfxha & 0x3F) << 18) | imms18;
++                          (uint64_t(cfxha & 0x3F) << 18);
 +    const Addr pc = currentPc(tc);
 +
-+    // Step 0 (DADAO-12 §5.3): SBZ (`imms18[17:2]`), then `imms18 = 3`
-+    // (cg9 frame selector with offset +4), then reserved cfx -- all ILLI
-+    // before any target/frame decision or state change.
-+    if ((imms18 >> 2) != 0 || imms18 == 3) {
-+        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
-+        return true;
-+    }
++    // Step 0 (DADAO-12 §5.1/§5.3): reserved cfx => ILLI before anything else.
 +    if (nodeCfxReserved(cfxha)) {
 +        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
 +        return true;
 +    }
++    // `cfxha` must be the current cfx; a wrong operand is the *current* cfx's
++    // CFXESC before any state change.
++    if (cfxha != s.cfxCode) {
++        nodeCfxRaise(tc, s, CauseCfxEsc, s.cfxCode, pc, info);
++        return true;
++    }
 +    const int ci = nodeCfxIndex(s.cfxCode);
-+    // `imms18[1] = 1` selects `cfx_hart cg9`, a capture buffer and never a
-+    // return frame: the selected frame is invalid => the current cfx's
-+    // CFXESC, with cfx/run mode/cg9 untouched (DADAO-12 §5.1).  A wrong
-+    // target (`cfxha != inner_cfx_code`) or an empty cg5 frame (§5.3 step 0)
-+    // takes the same exit.
-+    if (imms18 == 2 || ci < 0 || cfxha != s.cfxCode ||
-+        s.cfx[ci].causeId == 0) {
++    if (ci < 0) {
++        // No SEE state to read: explicit failure, never a silent success.
 +        nodeCfxRaise(tc, s, CauseCfxEsc, s.cfxCode, pc, info);
 +        return true;
 +    }
 +
-+    // step 2: restore the previous run mode and current cfx from the frame.
-+    // The async source mask is *not* a frame field: trap/escape neither save
-+    // nor restore it (spec/DADAO-12 §5.4(一), ADR-0061 D5).  The cfx restore
-+    // is what lets a frame that received a nested async delivery escape at
-+    // all: entry step 6 moved cfxCode to cfx_hart, so the cfxha check would
-+    // otherwise fail with CFXESC (DADAO-12 §5.3 step 0/2).
-+    s.runMode = s.cfx[ci].prevRunMode & 0x3;
-+    s.cfxCode = static_cast<uint8_t>(s.cfx[ci].prevCfxCode & 0x3F);
-+    // step 3: increment the escape counter
++    // The export intent is the *only* source of the return tuple.  Every
++    // rejection below happens before the mode/cfx/mask/PC switch.
++    const NodeCfxRegs &r = s.cfx[ci];
++    const unsigned targetMode = r.escapeRunMode & kEscapeModeMask;
++    const unsigned targetCfx = r.escapeCfxCode & kEscapeCfxMask;
++    // Privilege: only same level or down; an upward return is CFXESC.
++    if (targetMode > (s.runMode & kEscapeModeMask)) {
++        nodeCfxRaise(tc, s, CauseCfxEsc, s.cfxCode, pc, info);
++        return true;
++    }
++    // Target cfx must be implemented and the target mode must have a monitor.
++    if (nodeCfxIndex(targetCfx) < 0 || monitorCfx(targetMode) < 0) {
++        nodeCfxRaise(tc, s, CauseCfxEsc, s.cfxCode, pc, info);
++        return true;
++    }
++
++    const uint64_t retIp = r.escapeIp & kAsyncIpMask & kAsyncIpAlign;
++    const uint64_t retMask = r.escapeIntrMask;
++
++    // Switch mode/cfx, count the escape, restore the target monitor mask as
++    // one word and jump -- atomically, effective at the first instruction of
++    // `rc10` (spec/DADAO-12 §5.1/§5.3 step 3).
++    s.runMode = targetMode;
++    s.cfxCode = static_cast<uint8_t>(targetCfx);
 +    s.cfx[ci].escapeNum++;
-+    // step 4: return to cause_ip + (imms18 << 2)
-+    setPc(tc, s.cfx[ci].causeIp + uint64_t(byteOffset));
++    s.cfx[monitorCfx(targetMode)].globalCfxIntrMask = retMask;
++    setPc(tc, retIp);
 +    s.traceForce = true;
 +    return true;
 +}
@@ -1604,6 +1667,19 @@ index 0000000..0e4c185
 +        }
 +    } else if (cg == 3 && rc == 12) {
 +        *p = val | (1ULL << 3);
++    } else if (cg <= 3 && rc == 14) {
++        // `<mode>_switch_run_mode` is a 2-bit field (spec/DADAO-12 §3.1-§3.4).
++        *p = val & kEscapeModeMask;
++    } else if (cg <= 3 && rc == 15) {
++        // `<mode>_excp_vector` is a 48-bit address; the low two bits are
++        // ignored on write (DADAO-13 §1 for cg3, same encoding for all rows).
++        *p = val & kAsyncIpMask & kAsyncIpAlign;
++    } else if (cg == 5 && rc == 8) {
++        *p = val & kEscapeModeMask;
++    } else if (cg == 5 && rc == 9) {
++        *p = val & kEscapeCfxMask;
++    } else if (cg == 5 && rc == 10) {
++        *p = val & kAsyncIpMask & kAsyncIpAlign;
 +    } else {
 +        *p = val;
 +    }

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..50ff761
+index 0000000..568cfbf
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,469 @@
+@@ -0,0 +1,476 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -118,7 +118,8 @@ index 0000000..50ff761
 +/** One cfx mode row (cg0-cg3, spec/DADAO-12 §3; DADAO-13 §1 for cg3).
 + *  rc4 (the pre-`ADR-0061` `cfx_intr_mask`) is **not defined** any more:
 + *  async source masks live in `cg8 rc1` of cfx0-cfx3, so rc4 keeps no state
-+ *  and an access raises CFXREG (spec/DADAO-12 §3).  `rc9`/`rc11` stay
++ *  and an access raises CFXREG (spec/DADAO-12 §3).  `rc14`/`rc15` are the
++ *  switch/vector slots (m18-spec-007); `rc8`/`rc10` and `rc9`/`rc11` are
 + *  reserved holes. */
 +struct NodeCfxMode
 +{
@@ -143,17 +144,23 @@ index 0000000..50ff761
 +    uint64_t excpAsyncNum = 0;
 +    uint64_t escapeNum = 0;
 +    uint64_t scratchRegsNum = 0;
++    /* cg5 rc0-rc3 entry record (HW/RO, spec/DADAO-12 §3.6): prev run mode,
++     * prev cfx code, prev ip and the prev run-mode monitor `cg8 rc1`
++     * snapshot.  Software writes raise CFXREG. */
 +    uint64_t prevRunMode = 0;
-+    /* cg5 rc1 (spec/DADAO-12 §3.6): `inner_cfx_code` at exception entry, saved
-+     * by step 5 before step 6 rewrites it and restored by `escape` (§5.3). */
 +    uint64_t prevCfxCode = 0;
++    uint64_t prevIp = 0;
++    uint64_t prevIntrMask = 0;
++    /* cg5 rc4/rc5 cause fields (HW, read back). */
 +    uint64_t causeId = 0;
-+    uint64_t causeIp = 0;
 +    uint64_t causeInfo = 0;
-+    /* cg5 rc5 `excp_pending` (sync frame field, spec/DADAO-12 §3.6).  The
-+     * async pending bitmap is *not* here: it belongs to `cfx_hart cg9 rc4`
-+     * (NodeState::asyncSrcPending, §4.7/§5.4). */
-+    uint64_t pending = 0;
++    /* cg5 rc8-rc11 escape intent (HW/RW): copied from the entry record at
++     * exception entry, writable by software, and the only source `escape`
++     * consults.  `rc11` resets to all ones (fail-safe). */
++    uint64_t escapeRunMode = 0;
++    uint64_t escapeCfxCode = 0;
++    uint64_t escapeIp = 0;
++    uint64_t escapeIntrMask = ~0ULL;
 +    /* cfx0-cfx3 cg8 rc1 `cfx_<monitor>_async_intr_mask`: bit = source cfxha,
 +     * 0 = allow, 1 = mask, reset all ones (ADR-0061 D5). */
 +    uint64_t globalCfxIntrMask = 0;
@@ -359,19 +366,19 @@ index 0000000..50ff761
 +
 +    /* cfx_hart cg9 async capture buffer (spec/DADAO-12 §4.7/§5.4, ADR-0061
 +     * D7).  Every async entry overwrites the capture slots wholesale
-+     * (`rc0`-`rc3`, plus clearing the delivered bits of `rc4`); there is no
-+     * frame phase, no frame_valid and no "software writes 0 to release the
-+     * frame".  `asyncSrcFrame`/`asyncSrcPending` are HW-written and
-+     * software-read-only (a write is ignored, no exception). */
++     * (`rc0`-`rc4`); there is no frame phase, no frame_valid and no
++     * "software writes 0 to release the frame".  `rc0`-`rc5` are HW-written
++     * and software-read-only (a write is ignored, no exception). */
 +    uint64_t asyncPrevRunMode = 0;    /* cg9 rc0 (2 bits)   */
 +    uint64_t asyncPrevCfxCode = 0;    /* cg9 rc1 (6 bits)   */
-+    uint64_t asyncCauseIp = 0;        /* cg9 rc2 (48 bits)  */
-+    uint64_t asyncSrcFrame = 0;       /* cg9 rc3 (HW/RO)    */
-+    uint64_t asyncSrcPending = 0;     /* cg9 rc4 (HW/RO)    */
-+    uint64_t asyncExcpVector = 0;     /* cg9 rc5 (48 bits)  */
-+    /* cg9 rc6 `async_switch_run_mode`: RW, reset 2 (supv); an async entry
++    uint64_t asyncPrevIp = 0;         /* cg9 rc2 (48 bits)  */
++    uint64_t asyncPrevIntrMask = 0;   /* cg9 rc3 (64 bits)  */
++    uint64_t asyncSrcFrame = 0;       /* cg9 rc4 (HW/RO)    */
++    uint64_t asyncSrcPending = 0;     /* cg9 rc5 (HW/RO)    */
++    /* cg9 rc14 `async_switch_run_mode`: RW, reset 2 (supv); an async entry
 +     * uses the current value (spec/DADAO-12 §4.7, m18-spec-006). */
 +    uint64_t asyncSwitchRunMode = NodeSupv;
++    uint64_t asyncExcpVector = 0;     /* cg9 rc15 (48 bits) */
 +
 +    Event *dmaEvent = nullptr;
 +    Event *timerEvent = nullptr;

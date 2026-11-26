@@ -42,5 +42,5 @@ python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,gem5,chipyard --mode sm
 python3 tests/arch/run_arch.py --cfx 32 --platforms qemu,gem5,chipyard --mode umon
 ```
 
-`arch-pmem-001/002` 三方逐槽（QEMU+gem5+RTL）：gem5 的 R2 异步面（`cfx_hart cg9` 捕获缓冲、monitor `cg8 rc1` 掩码、pending 与同界一次捕获）由 `m16-gem5-026` 补齐；R3 迁移待 gem5 任务。
+`arch-pmem-001/002` 三方逐槽（QEMU+gem5+RTL）：gem5 的 R2 异步面（`cfx_hart cg9` 捕获缓冲、monitor `cg8 rc1` 掩码、pending 与同界一次捕获）由 `m16-gem5-026` 补齐，`m18-gem5-004` 迁到 **R3 出口帧 + 0.8.0 源接口**（`escape cfxHA`、`cg5 rc8`–`rc11` 出口意图、`cg9` 新槽位）；QEMU 的 0.8.1-rc 源接口（`cg15`/`cg16`）由 `m18-qemu-009` 落地，gem5 的对应迁移在 `m18-gem5-005`，两者之间记 `DIV-16`（temporary，统一测试前不作判据）。
 RTL 寄存器面探针 `pmem.S` 单独直跑（见 `m16-chipyard-022` 的 README 历史）。

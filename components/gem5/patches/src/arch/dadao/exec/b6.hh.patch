@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/exec/b6.hh b/src/arch/dadao/exec/b6.hh
 new file mode 100644
-index 0000000..5fd5262
+index 0000000..da2bb96
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6.hh
 @@ -0,0 +1,148 @@
@@ -98,11 +98,11 @@ index 0000000..5fd5262
 +                          uint64_t val) = 0;
 +
 +    // trap/escape control transfer (SEE frame model lives in the adapter).
-+    // escapeFrom() is only reached for the `cg5` frame (bit1 = 0); the `cg9`
-+    // selection is a capture buffer, not a return frame, so the core reports
-+    // CFXESC itself and never calls this hook for it (DADAO-12 §5.1/§5.4).
-+    // escapeFrom() false => CFXESC (wrong frame/target), decided before any
-+    // state change.
++    // `escape cfxHA` has no offset any more: `imms18` is SBZ and the core
++    // rejects any non-zero value with ILLI before calling this hook, so
++    // byteOffset is always 0 (kept in the signature for the adapters/tests).
++    // escapeFrom() false => CFXESC (no SEE state), decided before any state
++    // change; a rejected target is reported by the hook itself.
 +    virtual void trapTo(uint8_t cfxha, uint32_t immu18) = 0;
 +    virtual bool escapeFrom(uint8_t cfxha, uint32_t byteOffset) = 0;
 +

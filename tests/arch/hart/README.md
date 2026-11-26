@@ -46,12 +46,15 @@ python3 tests/arch/run_arch.py --case arch-hart-002 --mode smon ...   # / umon �
 ```
 
 **三方逐槽**：`arch-hart-001/002` 在 QEMU、gem5、RTL 上各过本平台 oracle 后
-比较归一化签名（gem5 的 R2 异步面由 `m16-gem5-026` 补齐：`cg9` 七槽、monitor
-`cg8 rc1` 掩码、pending/一次捕获/每次进入覆盖）。**`cg9 rc14` 按
-`m18-spec-007` 判**（RW、复位 2、异步进入取该值）：001 写 rc14=0/1/3 读回同值，
-并在 supv 下以 rc14=0 / 2 连续投递，用下一次进入的 `prev_run_mode` 证明进入
-模式（0 ⇒ user、2 ⇒ supv）。QEMU 由 `m18-qemu-008` 对齐；RTL/gem5 的 R3
-迁移仍待各自任务（本轮为 QEMU-only 证据）。
+比较归一化签名。gem5 侧：`m16-gem5-026` 补齐 R2 异步面，`m18-gem5-004` 迁到
+**R3 出口帧 + 0.8.0 源接口**（`cg5 rc0`–`rc5` 入口记录 / `rc8`–`rc11` 出口意图、
+`cg9 rc0`–`rc5` 捕获、`rc14`/`rc15`、monitor `cg8 rc1` 掩码、`escape cfxHA`）；
+**`cg9 rc14` 按 `m18-spec-007` 判**（RW、复位 2、异步进入取该值）：001 写
+rc14=0/1/3 读回同值，并在 supv 下以 rc14=0 / 2 连续投递，用下一次进入的
+`prev_run_mode` 证明进入模式（0 ⇒ user、2 ⇒ supv）。QEMU 由 `m18-qemu-008`
+对齐；QEMU 的 **0.8.1-rc 源接口**（`cg15`/`cg16`）由 `m18-qemu-009` 落地，
+gem5 的对应迁移在 `m18-gem5-005`——两者之间同一 ELF 的槽位不同，记
+`DIV-16`（temporary），统一测试前不作判据。
 
 ## 运行期证据
 

@@ -7,7 +7,7 @@
 # 逃过判据）——`case` + `slot`（0 基）+ `chipyard`（RTL 侧期望）；该槽在
 # QEMU/gem5 侧仍按规范值判。差异被修好时该例外不再成立 ⇒ 承载判红，提示删除条目。
 schema: 1
-updated: "2026-11-25"
+updated: "2026-11-26"
 
 divergences:
   - id: DIV-01
@@ -56,11 +56,11 @@ divergences:
   - id: DIV-11
     kind: temporary
     scope: [chipyard]
-    impact: "`escape` 的 frame selector（`imms18` bit1）只在实现 cfx_hart 的机器（Vast）上生效：Tiny 保留旧 SBZ 规则（`imms18[17:1] ≠ 0` ⇒ `ILLI`），故规范已定为合法的 `escape …, 8`（`imms18 = 2`，选 cg9 现场）在 Tiny 上仍报 `ILLI`；Vast 上按 R2 恒为当前 cfx 的 `CFXESC`（`cg9` 是捕获缓冲、不是返回帧，`m16-chipyard-026`）。"
-    reason: "Tiny 无 cfx15（没有 cfx_hart），`m16-chipyard-024` 以「Tiny 无 cfx15 不变」为硬判据，`WumingDecoder` 的 `withHart` 门控因此保留。spec（`DADAO-12 §5.1`：`imms18 ∈ {0,1,2}`、汇编层 `imms20 ∈ {0,4,8}`）与工具链（`m16-llvm-001`：`escape …, 8` 可汇编、`…, 12` 被拒）均已落地。`m18-testcases-003` 的链例 13 断言 `escape …, 8` 在 Vast 上 ⇒ 当前 cfx 的 `CFXESC`；Tiny 因 `withHart` 门控仍判 `ILLI`，该链例因此在 Tiny 上 rc=1（`m16-chipyard-026` 的 pre-026/current 两版 Tiny RTL 对同一测试源逐镜像字节相同，属本条偏离本身）。"
-    user_ruling: "2026-11-23（任务书：Tiny 无 cfx15 不回归）"
+    impact: "RTL 仍按 R2 的 `escape imms18` 编码规则（Vast 接受 `imms18 ∈ {0,1,2}`、Tiny 只在实现 cfx_hart 时接受 bit1）；R3 规定 `imms18 != 0` 一律 `ILLI`，故在 `m18-chipyard-002` 前 RTL 与 QEMU/gem5/LLVM 不一致。"
+    reason: "`m18-spec-007`（DADAO 0.8.0）把 `escape` 改为无偏移的 `escape cfxHA`：`imms18` 为 SBZ，非 0 ⇒ `ILLI`，旧 `+0/+4` 偏移与帧选择位作废；`m18-llvm-002` 的汇编器已拒绝第二操作数（旧 `escape …, 8` 链例不可再汇编）。gem5 由 `m18-gem5-004`、QEMU 由 `m18-qemu-008` 迁到 R3；RTL 的迁移在 `m18-chipyard-002`。"
+    user_ruling: "2026-11-26（m18-spec-007 / ADR-0061 R3）"
     status: active
-    close_when: "放开 `WumingDecoder` 的无 cfx_hart 门控（Tiny 按 §5.1 接受 `imms18 = 2`，因无 cg9 帧 ⇒ `CFXESC`），并补一条 Tiny 侧编码用例；届时删除本条"
+    close_when: "m18-chipyard-002 合入（RTL 对 `imms18 != 0` 统一 `ILLI`）"
 
   - id: DIV-09
     kind: temporary
@@ -78,3 +78,12 @@ divergences:
     reason: "QEMU 是功能模型，没有 I 阵列：任何写回 RAM 的 `address_space_write` 都会经 `DIRTY_MEMORY_CODE` 的 `tb_invalidate_phys_range()` 使 TB 失效（`m16-qemu-003` 新发现①）。因此「D clean 后未发 I 命令」在 QEMU 上恒取新码，而 CACHE-19 的 `I|clean` no-op 要求在 gem5/RTL 上仍取旧码——同一槽在 QEMU 上不可能与 gem5/RTL 同值。该点的独立判据改由 RTL 缓存日志承担（`check_cache_rtl.py`：`icache` 不得出现 `op=clean`），gem5 的负例由 `m16-gem5-022` 的证据承担。"
     user_ruling: "2026-11-24（本任务；DIV-01 的同类功能模型限制）"
     status: active
+
+  - id: DIV-16
+    kind: temporary
+    scope: [gem5]
+    impact: "gem5 的异步捕获/监视掩码仍是 0.8.0 布局：`cfx_hart cg9 rc0`–`rc5` 入口记录、`rc14`/`rc15` 配置、monitor 的 `cg8 rc1` 掩码；spec/QEMU 已是 0.8.1-rc（RTL 由 DIV-11 与 m18-chipyard-002/003 另行覆盖）（`cfx_hart cg15`、`cg15 rc3` 掩码、`cg16` 源 mask/pending/ack）。同一 ELF 若按 0.8.0 槽位访问，gem5 可跑而 QEMU 对 `cg9` 报 `CFXREG`；按 0.8.1 槽位则反之——两者在统一测试前不作判据。"
+    reason: "用户 2026-11-26 排序：escape 出口帧与中断源接口「两个功能都更新完再统一测试」。gem5 按 `m18-gem5-004`（R3 出口帧，0.8.0 源接口面）→ `m18-gem5-005`（源接口迁移 `cg15`/`cg16`）串行落地；此前 `arch-hart-00x`/`arch-pmem-00x` 的跨实现差异记 KNOWN-RED，不当作失败，也不放宽本平台的 oracle。"
+    user_ruling: "2026-11-26（m18-spec-008 / ADR-0064 排序）"
+    status: active
+    close_when: "m18-gem5-005 合入（gem5 迁移 `cg15`/`cg16`、`cg15 rc3` 掩码）"

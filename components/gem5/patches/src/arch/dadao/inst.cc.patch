@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..6bf732c
+index 0000000..f8fcef7
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,1044 @@
+@@ -0,0 +1,1038 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -756,11 +756,9 @@ index 0000000..6bf732c
 +        // to the current run-mode monitor.  The platform hooks deliver the
 +        // target/frame errors themselves (tinyEscape/nodeEscape); this
 +        // fallback is the encoding-level case in which the hook is not
-+        // called at all -- B6 raises CFXESC before `escapeFrom()` for
-+        // `imms18[1] = 1` (cg9 is a capture buffer, not a return frame,
-+        // §5.1).  Address it to `inner_cfx_code`: an unreachable vector then
-+        // stops with the Kaiwu §7.1 other-cfx code (`0x80 | cfxha`), not the
-+        // monitor code.
++        // called at all (no SEE frame model on this machine).  Address it to
++        // `inner_cfx_code`: an unreachable vector then stops with the Kaiwu
++        // §7.1 other-cfx code (`0x80 | cfxha`), not the monitor code.
 +        if (fs) {
 +            const int target = ctx.currentCfx();
 +            if (target >= 0)
@@ -775,10 +773,10 @@ index 0000000..6bf732c
 +        uint64_t cfxha = 0, imms18 = 0;
 +        exec::fieldValue(decoded, "cfxha", cfxha);
 +        exec::fieldValue(decoded, "imms18", imms18);
-+        panic("DADAO B6: %s cfx%llu offset 0x%llx raised CFXESC "
++        panic("DADAO B6: %s cfx%llu imms18=0x%llx raised CFXESC "
 +              "(SEE frame model not implemented)", id,
 +              (unsigned long long)cfxha,
-+              (unsigned long long)((imms18 & 0x3FFFF) << 2));
++              (unsigned long long)(imms18 & 0x3FFFF));
 +      }
 +      default:
 +        // Any NotB* here means the dispatched core rejected an instruction
@@ -993,15 +991,11 @@ index 0000000..6bf732c
 +                               static_cast<uint32_t>(immu18));
 +            return NoFault;
 +        }
-+        if (id == "escape_ciii_cfx") {
-+            uint64_t cfxha = 0, imms18 = 0;
-+            exec::fieldValue(decoded, "cfxha", cfxha);
-+            exec::fieldValue(decoded, "imms18", imms18);
-+            DadaoISA::nodeEscape(tc, node, static_cast<uint8_t>(cfxha),
-+                                 static_cast<uint32_t>((imms18 & 0x3FFFF)
-+                                                       << 2));
-+            return NoFault;
-+        }
++        // `escape_ciii_cfx` is intentionally **not** special-cased here: it is
++        // routed through B6 (`runB6` -> `executeEscape` -> `escapeFrom`) so
++        // the R3 rule "imms18 is SBZ; non-zero => ILLI" has exactly one
++        // implementation (exec/b6.cc), shared with Tiny.  A direct call here
++        // swallowed imms18 and turned a nonzero value into CFXESC.
 +        if (id == "cfx2rd_crrr_cfx" || id == "cfx2rc_crrr_cfx") {
 +            uint64_t cfxha = 0, cg = 0, rc = 0, rd = 0;
 +            exec::fieldValue(decoded, "cfxha", cfxha);

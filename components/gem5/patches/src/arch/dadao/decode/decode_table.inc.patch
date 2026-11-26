@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/decode/decode_table.inc b/src/arch/dadao/decode/decode_table.inc
 new file mode 100644
-index 0000000..cfa3b72
+index 0000000..c14f393
 --- /dev/null
 +++ b/src/arch/dadao/decode/decode_table.inc
 @@ -0,0 +1,1621 @@
@@ -957,7 +957,7 @@ index 0000000..cfa3b72
 +inline constexpr const char *kRules84[] = {"encode_cfx_reserved"};
 +inline constexpr const char *kLegality84[] = {"cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kRules85[] = {"encode_sbz", "encode_cfx_reserved"};
-+inline constexpr const char *kLegality85[] = {"imms18[17:2] == 0", "imms18 != 3", "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
++inline constexpr const char *kLegality85[] = {"imms18 == 0", "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kRules86[] = {"encode_cfx_reserved"};
 +inline constexpr const char *kLegality86[] = {"cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kRules87[] = {"encode_sbz", "encode_cfx_reserved"};
@@ -1397,7 +1397,7 @@ index 0000000..cfa3b72
 +    {"ret_riii_ra", "ret", "riii", "m1", "contract-isa §8.5/§8.6.2", "SimRISC-06: ret", 0xff000000u, 0x76000000u, 0x76, -1, 267, 2, 5, kRules82, 1, kLegality82, 1},
 +    {"cfx2rd_crrr_cfx", "cfx2rd", "crrr", "m1", "contract-isa §13.6", "SimRISC-11: cfx2rd", 0xff000000u, 0x7a000000u, 0x7a, -1, 269, 4, 6, kRules83, 1, kLegality83, 1},
 +    {"cfx2rc_crrr_cfx", "cfx2rc", "crrr", "m1", "contract-isa §13.6", "SimRISC-11: cfx2rc", 0xff000000u, 0x7b000000u, 0x7b, -1, 273, 4, 6, kRules84, 1, kLegality84, 1},
-+    {"escape_ciii_cfx", "escape", "ciii", "m1", "contract-isa §13.6", "SimRISC-11: escape", 0xff000000u, 0x7e000000u, 0x7e, -1, 277, 2, 6, kRules85, 2, kLegality85, 3},
++    {"escape_ciii_cfx", "escape", "ciii", "m1", "contract-isa §13.6", "SimRISC-11: escape", 0xff000000u, 0x7e000000u, 0x7e, -1, 277, 2, 6, kRules85, 2, kLegality85, 2},
 +    {"trap_ciii_cfx", "trap", "ciii", "m1", "contract-isa §13.6", "SimRISC-11: trap", 0xff000000u, 0x7f000000u, 0x7f, -1, 279, 2, 6, kRules86, 1, kLegality86, 1},
 +    {"fence_ciii_cfx", "fence", "ciii", "m9", "contract-isa §14.1", "SimRISC-11: fence", 0xff000000u, 0x79000000u, 0x79, -1, 281, 2, 6, kRules87, 2, kLegality87, 2},
 +    {"swym_oiii_imm", "swym", "oiii", "m1", "contract-isa §13.1", "SimRISC-12: swym", 0xfffc0000u, 0x47880000u, 0x47, 34, 283, 1, 6, nullptr, 0, nullptr, 0},
