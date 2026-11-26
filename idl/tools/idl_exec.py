@@ -26,7 +26,7 @@ CLI：
         [--max-steps N] [--image-out <file>] [--json-out <file>]
 
 `--self-test` 覆盖寄存器组初值/写回、48 位地址截断、大端读写、RAS 压弹栈、
-异常进入、`escape` 帧选择与 `cfx_hart cg9` 异步捕获、semihosting；`--elf` 运行一个
+异常进入、`escape` 帧选择与 `cfx_hart cg15` 异步捕获、semihosting；`--elf` 运行一个
 镜像并输出最终架构状态（四组寄存器、退出码、SYS_WRITEC 字节流）。
 """
 from __future__ import annotations
@@ -59,13 +59,14 @@ RESERVED_CFX = set(range(6, 15)) | set(range(16, 32)) | set(range(35, 62))
 # Tiny 实现的两个 cfx（spec/Kaiwu §3、contract-see §3）。
 IMPLEMENTED_CFX = {3: "hmon", 63: "power"}
 
-# cfx_hart（spec/DADAO-12 §4.7）：异步捕获缓冲 `cg9` 的唯一持有者、所有异步源的唯一
-# 投递目标（ADR-0061 D1/D3；§5.4）。Tiny profile 不实现该 cfx（`IMPLEMENTED_CFX`），
+# cfx_hart（spec/DADAO-12 §4.7）：异步捕获缓冲 `cg15` 的唯一持有者、所有异步源的唯一
+# 异步进入目标（ADR-0064 D4/D5；§5.4）。Tiny profile 不实现该 cfx（`IMPLEMENTED_CFX`），
 # 本模型仍按 spec 建模捕获语义（`Machine.async_post`/`async_entry`）；自检白盒注入
 # hart 的寄存器面后断言。
 CFX_HART = 15
-# 异步源身份 = 源 cfxha（ADR-0061 D2；§5.4（一））：TIMER = cfx_hart 自身、PMEM_DMA = cfx_pmem。
-ASYNC_SRC_TIMER, ASYNC_SRC_PMEM = 1 << CFX_HART, 1 << 32
+CFX_PMEM = 32
+# 异步源身份 = 源 cfxha（ADR-0064 D4；§5.4（一））：TIMER = cfx_hart 自身、PMEM_DMA = cfx_pmem。
+ASYNC_SRC_TIMER, ASYNC_SRC_PMEM = 1 << CFX_HART, 1 << CFX_PMEM
 
 # cg5 异常现场（spec/DADAO-12 §3.6）：rc0–rc3 入口记录（HW/RO）、rc4/rc5 原因字段
 # （HW）、rc8–rc11 出口意图（HW/RW，进入时复制、软件可改、escape 只认这一份）。
@@ -73,17 +74,22 @@ CG5_PREV_MODE, CG5_PREV_CFX, CG5_PREV_IP, CG5_PREV_INTR_MASK, \
     CG5_CAUSE_ID, CG5_CAUSE_INFO = 0, 1, 2, 3, 4, 5
 CG5_ESC_RUN_MODE, CG5_ESC_CFX_CODE, CG5_ESC_IP, CG5_ESC_INTR_MASK = \
     8, 9, 10, 11
-# cg8 来源掩码（ADR-0061 D5；spec/DADAO-12 §4.1–§4.4）：`cfx0`–`cfx3`
-# （umon/jmon/smon/hmon）的 `rc1` = 本运行模式的异步来源掩码
-# `cfx_<monitor>_async_intr_mask`——位 = 源 cfxha、0 = 允许、1 = 屏蔽、复位全 1；
-# 投递时按**当前运行模式**取该模式 monitor 的行求值。
-CG8_ASYNC_INTR_MASK = 1
-# cg9 异步入口记录/捕获缓冲（spec/DADAO-12 §4.7）：rc0–rc5 入口记录（HW/RO）、
-# rc14/rc15 配置（RW），rc6–rc13 reserved（访问 ⇒ CFXREG）。rc4/rc5 为位图 HW/RO，
-# 无有效位、无 frame_valid、软件不清 src_frame。出口意图在 hart 自己的 `cg5 rc8–rc11`。
-CG9_PREV_MODE, CG9_PREV_CFX, CG9_PREV_IP, CG9_PREV_INTR_MASK, \
-    CG9_SRC_FRAME, CG9_SRC_PENDING = 0, 1, 2, 3, 4, 5
-CG9_SWITCH, CG9_VECTOR = 14, 15
+# cg15（spec/DADAO-12 §4.7；ADR-0064 D5/D6）：`cfx_hart` 的异步入口记录/捕获缓冲
+# ——rc0–rc5 入口记录（HW/RO）、rc14/rc15 配置（RW），rc6–rc13 reserved（⇒ CFXREG）；
+# rc4 为本次源集合、rc5 为原始 pending 汇总（位 = 源 cfxha），无有效位/无 frame_valid。
+# `cfx0`–`cfx3`（monitor）只有 `rc3` = 本运行模式异步来源掩码（位 = 源 cfxha，
+# 0 = 允许、1 = 屏蔽、复位全 1，按**当前运行模式**取行求值）。
+CG15_PREV_MODE, CG15_PREV_CFX, CG15_PREV_IP, CG15_PREV_INTR_MASK, \
+    CG15_SRC_FRAME, CG15_SRC_PENDING = 0, 1, 2, 3, 4, 5
+CG15_ASYNC_INTR_MASK = 3
+CG15_SWITCH, CG15_VECTOR = 14, 15
+# cg16 源侧统一中断面（spec/DADAO-12 §4.7/§4.9；ADR-0064 D1–D3）：rc16 mask /
+# rc17 pending / rc18 ack（W1C），位 = 该源子事件（当前均只有 bit0）。`cfx_hart`
+# 另有 rc0 timer_ctrl（仅 bit0 ENABLE）与 rc1 timer_cmp。只有 `cfx_hart`/`cfx_pmem`
+# 实现 cg16，其它 cfx（含 hmon/power）访问 ⇒ CFXREG。
+CG16_TIMER_CTRL, CG16_TIMER_CMP = 0, 1
+CG16_MASK, CG16_PENDING, CG16_ACK = 16, 17, 18
+CG16_SUBEVENT0 = 1          # 子事件 bit0：timer 到期 / DMA 传输结束（DONE|ERROR）
 # cg3（spec/DADAO-12 §3.4）：0..3 四类同步来源 mask、12 cg 级授权位图、14 切模式、
 # 15 向量；rc4 不定义（ADR-0061 D5 删除 `<mode>_cfx_intr_mask`，访问 ⇒ CFXREG）。
 CG3_TRAP, CG3_MEM, CG3_REG, CG3_EXE, CG3_SWITCH, CG3_VECTOR = \
@@ -319,7 +325,11 @@ def _sext(value, bits):
 
 
 class Cfx:
-    """单个已实现 cfx 的寄存器面（cg3/cg4/cg5/cg7/cg8/cg9，Tiny 只实现 hmon/power）。"""
+    """单个已实现 cfx 的寄存器面（cg3/cg4/cg5/cg7/cg15/cg16，Tiny 只实现 hmon/power）。
+
+    `cfx_hart` 的 cg8 计数面（hart_id/cycle/insn）与 `cfx_pmem` 的 cg15 DMA 引擎面
+    不在本模型范围；对它们的访问走通用分支 ⇒ `CFXREG`（与 Tiny 不实现这两个 cfx 一致）。
+    """
 
     def __init__(self, cfxha, vector, switch_mode, sync_mask):
         self.cfxha = cfxha
@@ -335,19 +345,23 @@ class Cfx:
         self.cg5 = [0] * 12
         self.cg5[CG5_ESC_INTR_MASK] = MASK64
         self.cg7 = [0] * 64
-        # cg8（ADR-0061 D5）：cfx0–cfx3 的 rc1 = 本模式异步来源掩码（复位全 1）。
-        # cfx_hart 的 cg8 计数/定时器面不在本模型范围（访问 ⇒ CFXREG，见任务书遗留）。
-        self.cg8 = [0] * 16
-        if cfxha in MODE_MONITOR.values():
-            self.cg8[CG8_ASYNC_INTR_MASK] = MASK64
-        # cg9 异步入口记录/捕获缓冲（spec/DADAO-12 §4.7）：只有 cfx_hart 持有；
-        # None = 该 cfx 不实现 cg9（访问 ⇒ CFXREG）。`rc14`（`async_switch_run_mode`）
-        # 为 RW 2 位字段、复位 2（supv）；异步进入取该寄存器的当前值（§5.4（五））。
+        # cg15（ADR-0064 D5/D6）：cfx_hart 持有异步入口记录/捕获缓冲；cfx0–cfx3
+        # 只有 rc3 = 本模式异步来源掩码（复位全 1）。None = 该 cfx 不实现 cg15
+        # （访问 ⇒ CFXREG；cfx_pmem 的 cg15 DMA 引擎面不在本模型范围）。
+        self.cg15 = None
         if cfxha == CFX_HART:
-            self.cg9 = [0] * 16
-            self.cg9[CG9_SWITCH] = MODE_SUPV
-        else:
-            self.cg9 = None
+            self.cg15 = [0] * 16
+            self.cg15[CG15_SWITCH] = MODE_SUPV   # rc14 复位 2（supv）
+        elif cfxha in MODE_MONITOR.values():
+            self.cg15 = [0] * 16
+            self.cg15[CG15_ASYNC_INTR_MASK] = MASK64
+        # cg16（ADR-0064 D1–D3）：只有 cfx_hart 与 cfx_pmem 实现；mask 复位全 1。
+        self.cg16 = None
+        if cfxha in (CFX_HART, CFX_PMEM):
+            self.cg16 = [0] * 19
+            self.cg16[CG16_MASK] = MASK64
+        # TIMER 硬件状态：是否有一个已 arm 的 deadline 待判定（`cg16 rc1` 写 / 使能即检）。
+        self.timer_armed = False
 
     def set_space(self, block, desc, start, size, attr):
         self.cg7[4 * block + CG7_DESC] = desc
@@ -372,25 +386,58 @@ class Cfx:
                     self.cg3[rc] = value & MASK64
                 return 0
             return self.cg3[rc]
-        if cg == 8 and self.cfxha in MODE_MONITOR.values() \
-                and rc == CG8_ASYNC_INTR_MASK:
-            if write:
-                self.cg8[rc] = value & MASK64
-            return self.cg8[rc]
-        # cg9（§4.7）：rc0–rc5 入口记录 HW/RO（软件写忽略、不产生异常）；
-        # rc14/rc15 软件可读写；rc6–rc13 及其余 rc 保留（访问 ⇒ CFXREG）。
-        if cg == 9 and self.cg9 is not None and \
-                (0 <= rc <= 5 or rc in (CG9_SWITCH, CG9_VECTOR)):
-            if rc <= 5:
+        if cg == 15 and self.cg15 is not None:
+            # cfx_hart：rc0–rc5 入口记录 HW/RO（软件写忽略、不产生异常），
+            # rc14/rc15 软件可读写，其余保留（访问 ⇒ CFXREG）。cfx0–cfx3：
+            # 只有 rc3 = 异步来源掩码（RW，整 64 位）。
+            if self.cfxha == CFX_HART and \
+                    (0 <= rc <= 5 or rc in (CG15_SWITCH, CG15_VECTOR)):
+                if rc <= 5:
+                    if write:
+                        return 0
+                    return self.cg15[rc]
                 if write:
-                    return 0
-                return self.cg9[rc]
-            if write:
-                if rc == CG9_SWITCH:      # 2 位字段（进入时取 rc14）
-                    self.cg9[rc] = value & 0x3
-                else:                     # rc15：48 位核内地址，忽略低 2 位
-                    self.cg9[rc] = value & MASK48 & ~0x3
-            return self.cg9[rc]
+                    if rc == CG15_SWITCH:      # 2 位字段（进入时取 rc14）
+                        self.cg15[rc] = value & 0x3
+                    else:                      # rc15：48 位核内地址，忽略低 2 位
+                        self.cg15[rc] = value & MASK48 & ~0x3
+                return self.cg15[rc]
+            if self.cfxha in MODE_MONITOR.values() and \
+                    rc == CG15_ASYNC_INTR_MASK:
+                if write:
+                    self.cg15[rc] = value & MASK64
+                return self.cg15[rc]
+        # cg16（§4.7/§4.9；ADR-0064 D1–D3）：源侧统一中断面。cfx_hart 实现
+        # rc0 timer_ctrl（仅 bit0）/ rc1 timer_cmp / rc16 mask / rc17 pending /
+        # rc18 ack；cfx_pmem 只有 rc16/17/18。其余 rc 与其它 cfx ⇒ CFXREG。
+        if cg == 16 and self.cg16 is not None:
+            if self.cfxha == CFX_HART:
+                known = 0 <= rc <= 1 or \
+                    rc in (CG16_MASK, CG16_PENDING, CG16_ACK)
+            else:
+                known = rc in (CG16_MASK, CG16_PENDING, CG16_ACK)
+            if known:
+                if rc == CG16_TIMER_CTRL:
+                    if write:
+                        self.cg16[rc] = value & 0x1     # 只留 bit0 ENABLE
+                    return self.cg16[rc]
+                if rc == CG16_TIMER_CMP:
+                    if write:
+                        self.cg16[rc] = value & MASK64
+                    return self.cg16[rc]
+                if rc == CG16_MASK:
+                    if write:                           # 保留位写忽略
+                        self.cg16[rc] = value & CG16_SUBEVENT0
+                    return self.cg16[rc]
+                if rc == CG16_PENDING:                  # RO：写入 ⇒ CFXREG
+                    if write:
+                        raise Fault("CfxReg", info=0)
+                    return self.cg16[rc]
+                # rc18 ack：W1C，读 0；对已清位写 1 为 no-op；保留位忽略。
+                if write:
+                    self.cg16[CG16_PENDING] &= \
+                        ~(value & CG16_SUBEVENT0) & MASK64
+                return 0
         if cg == 4 and 0 <= rc <= 6:
             if write:
                 raise Fault("CfxReg", info=0)
@@ -444,6 +491,9 @@ class Machine:
         self.ip = 0
         self.mode = MODE_HYPV
         self.cfx_code = 63
+        # cfx_time_value 的白盒注入点（spec/DADAO-12 §4.10）：Tiny 不实现 cfx_time，
+        # 定时器语义只在自检里用该值判定「到期边沿」（单位同 `timer_cmp`）。
+        self.time_value = 0
         self.steps = 0
         self.halted = False
         self.exit_code = None
@@ -469,7 +519,7 @@ class Machine:
         h[CG5_PREV_MODE] = MODE_HYPV
         h[CG5_PREV_CFX] = 63
         h[CG5_PREV_IP] = 0
-        h[CG5_PREV_INTR_MASK] = self.cfx[3].cg8[CG8_ASYNC_INTR_MASK]
+        h[CG5_PREV_INTR_MASK] = self.cfx[3].cg15[CG15_ASYNC_INTR_MASK]
         h[CG5_CAUSE_ID] = 1 << CAUSE_BIT["CfxTrap"]
         h[CG5_CAUSE_INFO] = 0x30001       # power stub 的 boot_magic（spec/Kaiwu §6.2）
         h[CG5_ESC_RUN_MODE] = h[CG5_PREV_MODE]
@@ -711,13 +761,13 @@ class Machine:
         if cfx is None:
             raise ExecError("exception target cfx %r not implemented" % (target,))
         # §3.6/§5.2 步骤 4：入口记录 = 异常前运行模式、cfx、ip、当前模式 monitor 的
-        # `cg8 rc1` 快照；`rc8`–`rc11` 是硬件复制的出口意图（软件随后可改）。
+        # `cg15 rc3` 快照；`rc8`–`rc11` 是硬件复制的出口意图（软件随后可改）。
         mon_ha = MODE_MONITOR.get(self.mode, 3)
         mon = self.cfx.get(mon_ha)
-        if mon is None:
+        if mon is None or mon.cg15 is None:
             raise ExecError("exception entry: monitor cfx %d for mode %d "
                             "not implemented" % (mon_ha, self.mode))
-        prev_mask = mon.cg8[CG8_ASYNC_INTR_MASK] & MASK64
+        prev_mask = mon.cg15[CG15_ASYNC_INTR_MASK] & MASK64
         onehot = 1 << CAUSE_BIT[cause]
         cfx.cg5[CG5_PREV_MODE] = self.mode
         cfx.cg5[CG5_PREV_CFX] = self.cfx_code
@@ -751,7 +801,7 @@ class Machine:
         目标运行模式不得高于当前模式、目标 cfx 必须已实现、目标模式必须有对应 monitor，
         否则在切换任何状态之前报 `CFXESC`。不设帧有效位（`cg5 rc4 == 0` 也可返回），
         重复 `escape` 由软件负责。成功后 `escape_num` +1，跳 `rc10`，并把 `rc11`
-        **整字**写入目标模式 monitor 的 `cg8 rc1`（与切模式/切 cfx/跳转原子完成）。
+        **整字**写入目标模式 monitor 的 `cg15 rc3`（与切模式/切 cfx/跳转原子完成）。
         """
         cur = self.cfx.get(self.cfx_code)
         if cur is None:
@@ -766,88 +816,192 @@ class Machine:
             raise Fault("CfxEsc", cause_ip=self.ip)
         mon_ha = MODE_MONITOR[target_mode]
         mon = self.cfx.get(mon_ha)
-        if mon is None:                      # 目标模式没有对应 monitor（如 jail→jmon）
+        if mon is None or mon.cg15 is None:  # 目标模式没有对应 monitor（如 jail→jmon）
             raise Fault("CfxEsc", cause_ip=self.ip)
         # 步骤 1–3：恢复运行模式与当前 cfx（rc8/rc9）、escape_num++、跳 rc10、
-        # rc11 整字恢复目标模式 monitor 的 cg8 rc1（策略快照由软件写回）。
+        # rc11 整字恢复目标模式 monitor 的 cg15 rc3（策略快照由软件写回）。
         cur.cg4[CG4_ESCAPE_NUM] += 1
         self.mode = target_mode
         self.cfx_code = target_cfx
         self.ip = cur.cg5[CG5_ESC_IP] & MASK48 & ~0x3
-        mon.cg8[CG8_ASYNC_INTR_MASK] = \
+        mon.cg15[CG15_ASYNC_INTR_MASK] = \
             cur.cg5[CG5_ESC_INTR_MASK] & MASK64
         self.jumped = True
 
-    # -- 异步进入（spec/DADAO-12 §5.4；ADR-0061 D1–D7） --------------------
+    # -- 异步进入（spec/DADAO-12 §5.4；ADR-0064 D3–D6/D9） -----------------
     def async_mask(self, mode=None):
         """当前运行模式 monitor 的异步来源掩码（`cfx_<monitor>_async_intr_mask`）。
 
-        spec/DADAO-12 §5.4（一）/ADR-0061 D5：取当前运行模式对应 monitor（U→umon、
-        J→jmon、S→smon、H→hmon）的 `cg8 rc1`；位 = 源 cfxha，0 = 允许、1 = 屏蔽，
-        复位全 1。monitor 未实现 ⇒ 显式失败（不静默放行）。
+        spec/DADAO-12 §4.1–§4.4/§5.4（一）/ADR-0064 D6：取当前运行模式对应 monitor
+        （U→umon、J→jmon、S→smon、H→hmon）的 `cg15 rc3`；位 = 源 cfxha，
+        0 = 允许、1 = 屏蔽，复位全 1。monitor 未实现 ⇒ 显式失败（不静默放行）。
         """
         mode = self.mode if mode is None else mode
         mon_ha = MODE_MONITOR[mode & 0x3]
         mon = self.cfx.get(mon_ha)
-        if mon is None:
+        if mon is None or mon.cg15 is None:
             raise ExecError("async mask: monitor cfx %d for mode %d not implemented"
                             % (mon_ha, mode))
-        return mon.cg8[CG8_ASYNC_INTR_MASK] & MASK64
+        return mon.cg15[CG15_ASYNC_INTR_MASK] & MASK64
 
-    def _async_cg9(self):
+    def _async_hart(self):
+        """`cfx_hart`（异步捕获缓冲持有者）；本 profile 未实现 ⇒ None。"""
         hart = self.cfx.get(CFX_HART)
-        if hart is None or hart.cg9 is None:
-            raise ExecError("cfx_hart (cfxha %d) not implemented: "
-                            "no async capture buffer" % CFX_HART)
-        return hart.cg9
+        if hart is None or hart.cg15 is None:
+            return None
+        return hart
+
+    def refresh_async_summary(self):
+        """把源 `cg16 rc17` 的 pending 汇总到 `cfx_hart cg15 rc5`（位 = 源 cfxha）。
+
+        spec/DADAO-12 §4.7/§5.4（六）/ADR-0064 D4：某源 pending 任一子事件置位
+        时置位、该源 pending 全清（ack 后）时落位；异步进入**不改** rc5。
+        """
+        hart = self._async_hart()
+        if hart is None:
+            return 0
+        summary = 0
+        for src_ha in (CFX_HART, CFX_PMEM):
+            src = self.cfx.get(src_ha)
+            if src is not None and src.cg16 is not None \
+                    and src.cg16[CG16_PENDING]:
+                summary |= 1 << src_ha
+        hart.cg15[CG15_SRC_PENDING] = summary
+        return summary
 
     def async_post(self, src_bits):
-        """源侧事件：置 `cfx_hart cg9 rc4`（`async_src_pending`）的源位（§5.4（五））。
+        """源侧事件：置各源 `cg16 rc17` 的子事件 bit0（§5.4（四）/ADR-0064 D3）。
 
-        位 = 源 cfxha（`ASYNC_SRC_TIMER` = bit 15、`ASYNC_SRC_PMEM` = bit 32）；与当前
-        运行模式无关——mask 只阻止投递，pending 保留到放行（D6）。
+        位 = 源 cfxha（`ASYNC_SRC_TIMER` = bit 15、`ASYNC_SRC_PMEM` = bit 32）。
+        与当前运行模式是否放行无关——mask 只阻止异步进入，pending 保留到 ack；
+        同一源多次事件合并为 bit0（不计数）。TIMER 的正常到期边沿由 `timer_check`
+        判定（受 `ENABLE` 门控）；本方法是源事件/白盒注入入口。
         """
-        self._async_cg9()[CG9_SRC_PENDING] |= src_bits & MASK64
+        for src_ha in (CFX_HART, CFX_PMEM):
+            if not (src_bits >> src_ha) & 1:
+                continue
+            src = self.cfx.get(src_ha)
+            if src is None or src.cg16 is None:
+                raise ExecError("async source cfx %d not implemented" % src_ha)
+            src.cg16[CG16_PENDING] |= CG16_SUBEVENT0
+        self.refresh_async_summary()
+
+    def timer_check(self, now=None):
+        """TIMER 到期边沿（spec/DADAO-12 §4.7 `cg16`；ADR-0064 D3）。
+
+        `ENABLE=1` 且有一个已 arm 的 deadline 且 `cfx_time_value >= timer_cmp` ⇒ 置
+        pending bit0 一次、随后 disarm（每个已 arm 的 deadline 只置位一次）。
+        `ENABLE=0` 时到期不置位；写 `cmp` 只重新 arm，不清 pending。
+        """
+        hart = self.cfx.get(CFX_HART)
+        if hart is None or hart.cg16 is None:
+            return False
+        now = self.time_value if now is None else now
+        if not (hart.cg16[CG16_TIMER_CTRL] & 0x1):
+            return False
+        if not hart.timer_armed:
+            return False
+        if now < hart.cg16[CG16_TIMER_CMP]:
+            return False
+        hart.cg16[CG16_PENDING] |= CG16_SUBEVENT0
+        hart.timer_armed = False
+        self.refresh_async_summary()
+        return True
+
+    def async_ready_sources(self, mon_mask=None):
+        """当前指令边界可进入的源集合（位 = 源 cfxha；§5.4（一）/ADR-0064 D4/D9）。
+
+        逐源判定：`(pending & ~源mask) != 0`、当前运行模式 monitor 的
+        `cg15 rc3[源 cfxha] == 0`，`TIMER` 还要求 `ENABLE=1`；且**当前运行模式
+        ≤ `cfx_hart cg15 rc14`**（运行模式上限）。不满足 ⇒ 该源不进入
+        （pending 与 `cg15 rc5` 保留、不报错）。
+        """
+        hart = self._async_hart()
+        if hart is None:
+            return 0
+        if (self.mode & 0x3) > (hart.cg15[CG15_SWITCH] & 0x3):
+            return 0
+        mon_mask = self.async_mask() if mon_mask is None else mon_mask
+        ready = 0
+        for src_ha in (CFX_HART, CFX_PMEM):
+            src = self.cfx.get(src_ha)
+            if src is None or src.cg16 is None:
+                continue
+            pending = src.cg16[CG16_PENDING] & CG16_SUBEVENT0
+            if not pending:
+                continue
+            if src.cg16[CG16_MASK] & pending:       # 源自身 gate
+                continue
+            if src_ha == CFX_HART and \
+                    not (src.cg16[CG16_TIMER_CTRL] & 0x1):
+                continue                            # TIMER 还要求 ENABLE=1
+            if (mon_mask >> src_ha) & 1:            # 运行模式 gate
+                continue
+            ready |= 1 << src_ha
+        return ready
+
+    def cfx_write(self, cfxha, cg, rc, value):
+        """cfx2rc：写寄存器并施加机器级副作用（timer arm/使能即检、pending 汇总）。
+
+        存储层语义仍在 `Cfx.access`（存在性/权限 ⇒ CFXREG）；本方法只补硬件行为：
+        写 `cg16 rc1` 重新 arm deadline、写 `cg16 rc0` 的 ENABLE 0→1 立即检到期
+        （spec/DADAO-12 §4.7；ADR-0064 D3），任一写后刷新 `cg15 rc5` 汇总。
+        """
+        cfx = self.cfx.get(cfxha)
+        if cfx is None:
+            raise Fault("CfxReg", info=0)
+        prev_enable = 0
+        if cfxha == CFX_HART and cfx.cg16 is not None:
+            prev_enable = cfx.cg16[CG16_TIMER_CTRL] & 0x1
+        cfx.access(cg, rc, True, value)
+        if cfxha == CFX_HART and cg == 16:
+            if rc == CG16_TIMER_CMP:
+                cfx.timer_armed = True               # 写 cmp 只重新 arm
+                self.timer_check()
+            elif rc == CG16_TIMER_CTRL:
+                enable = cfx.cg16[CG16_TIMER_CTRL] & 0x1
+                if enable and not prev_enable:       # ENABLE 0→1：使能即检
+                    cfx.timer_armed = True
+                    self.timer_check()
+        self.refresh_async_summary()
 
     def async_entry(self):
-        """指令边界的一次异步进入尝试（spec/DADAO-12 §5.4（五）；ADR-0061 D3/D4）。
+        """指令边界的一次异步进入尝试（spec/DADAO-12 §5.4；ADR-0064 D4–D6/D9）。
 
-        返回 True = 已进入（切到 `cg9 rc14` 运行模式与 `rc15` 向量）。**一帧多源**：同一
-        边界上所有 pending 且被当前模式掩码放行的源一次性捕获——`src_frame` = 这些位的
-        并集、`src_pending` 扣除这些位、`excp_async_num` **每次进入 +1**（与源个数无关）。
-        **每次进入整体覆盖** `cg9`：不因 `src_frame != 0` 拒绝进入或只置 pending，没有
-        "帧活动期"、没有 `frame_valid`。无 pending 或全被屏蔽 ⇒ 不进入、pending 保留。
-        写入集合 = `cg9 rc0`–`rc4` + hart 自己的 `cg5 rc8`–`rc11`；**不写** hart
-        `cg5 rc0`–`rc3`（入口记录在 `cg9`，§4.7/§5.4）。
+        返回 True = 已进入（切到 `cg15 rc14` 运行模式与 `rc15` 向量）。**逐源判定、
+        多源合并**：放行源 = `async_ready_sources()`；`src_frame` = 其位并集，
+        `excp_async_num` **每次进入 +1**（与源个数无关）。**每次进入整体覆盖**
+        `cg15 rc0`–`rc4`（不因 `src_frame != 0` 拒绝，无 frame_valid/活动期）。
+        **进入不清源 pending、也不改 `cg15 rc5`**：只有源 `cg16 rc18` 的 W1C 才清。
+        写入集合 = `cg15 rc0`–`rc4` + hart 自己的 `cg5 rc8`–`rc11`；**不写** hart
+        `cg5 rc0`–`rc3`（入口记录在 `cg15`，§4.7/§5.4）。
 
         本 profile 无 `cfx_hart` 行（Tiny 不实现，且 TIMER 源即本 cfx）⇒ 没有异步源，
         返回 False（不进入）。
         """
-        hart = self.cfx.get(CFX_HART)
-        if hart is None or hart.cg9 is None:
+        hart = self._async_hart()
+        if hart is None:
             return False
-        cg9 = hart.cg9
-        if cg9[CG9_SRC_PENDING] == 0:                 # 无源事件 ⇒ 不查掩码、不进入
-            return False
+        self.timer_check()                  # 到期边沿在指令边界判定
+        self.refresh_async_summary()
         temp_mask = self.async_mask() & MASK64
-        allowed = cg9[CG9_SRC_PENDING] & ~temp_mask & MASK64
+        allowed = self.async_ready_sources(temp_mask)
         if allowed == 0:
             return False
         prev_ip = self.ip & MASK48 & ~0x3             # 已提交指令之后的 rb0
-        cg9[CG9_SRC_FRAME] = allowed                  # 捕获快照：整体覆盖
-        cg9[CG9_SRC_PENDING] = (cg9[CG9_SRC_PENDING] & ~allowed) & MASK64
-        cg9[CG9_PREV_MODE] = self.mode & 0x3
-        cg9[CG9_PREV_CFX] = self.cfx_code & 0x3F
-        cg9[CG9_PREV_IP] = prev_ip
-        cg9[CG9_PREV_INTR_MASK] = temp_mask
+        hart.cg15[CG15_SRC_FRAME] = allowed           # 捕获快照：整体覆盖
+        hart.cg15[CG15_PREV_MODE] = self.mode & 0x3
+        hart.cg15[CG15_PREV_CFX] = self.cfx_code & 0x3F
+        hart.cg15[CG15_PREV_IP] = prev_ip
+        hart.cg15[CG15_PREV_INTR_MASK] = temp_mask
         # 出口意图在 hart 自己的 cg5 rc8–rc11（入口记录不写 cg5 rc0–rc3）。
         hart.cg5[CG5_ESC_RUN_MODE] = self.mode & 0x3
         hart.cg5[CG5_ESC_CFX_CODE] = self.cfx_code & 0x3F
         hart.cg5[CG5_ESC_IP] = prev_ip
         hart.cg5[CG5_ESC_INTR_MASK] = temp_mask
-        self.mode = cg9[CG9_SWITCH] & 0x3             # 取 rc14（RW，复位 2 = supv）
+        self.mode = hart.cg15[CG15_SWITCH] & 0x3      # 取 rc14（RW，复位 2 = supv）
         self.cfx_code = CFX_HART
-        self.ip = cg9[CG9_VECTOR] & MASK48
+        self.ip = hart.cg15[CG15_VECTOR] & MASK48
         hart.cg4[CG4_ASYNC_NUM] += 1
         self.reservation = None                       # 进入清本 hart 保留标记
         self.jumped = True
@@ -2214,7 +2368,7 @@ def _op_cfx2r(m, insn):
         value = cfx.access(cg, rc, False)
     else:
         value = 0
-        cfx.access(cg, rc, True, m.get("rd", rd))
+        m.cfx_write(cfxha, cg, rc, m.get("rd", rd))   # 含 timer/pending 硬件副作用
     if insn.id.startswith("cfx2rd"):
         m.set("rd", rd, value)
 
@@ -2876,7 +3030,7 @@ def self_test():
     eq("semihost_write_unavailable",
        (m5.get("rd", 8), m5.rd8_defined, len(m5.output)), (16, True, 0))
 
-    # 8. cg5/cg9/cg3 槽位、权限与复位（spec/DADAO-12 §3.4/§3.6/§4.7）
+    # 8. cg5/cg15/cg16/cg3 槽位、权限与复位（spec/DADAO-12 §3.4/§3.6/§4.7/§4.9）
     CAUSE_IP6 = 0xFFFF_FF01_0200
     c5 = Cfx(3, 0x0FFF_0000_0000, MODE_HYPV, MASK64)
     eq("cg5_reset_entry", [c5.cg5[i] for i in range(6)], [0] * 6)
@@ -2903,23 +3057,107 @@ def self_test():
         (CG5_ESC_RUN_MODE, CG5_ESC_CFX_CODE, CG5_ESC_IP, CG5_ESC_INTR_MASK)],
        [0x3, 0x3F, MASK48 & ~0x3, 0x1234_5678_9ABC_DEF0])
 
+    # cg15/cg16 槽位与复位（spec/DADAO-12 §4.7/§4.9；ADR-0064 D1–D6）
     ch = Cfx(CFX_HART, 0x0FFF_0000_1000, MODE_SUPV, MASK64)
-    eq("cg9_reset_switch", ch.cg9[CG9_SWITCH], MODE_SUPV)
-    eq("cg9_reset_vector", ch.cg9[CG9_VECTOR], 0)
+    eq("cg15_reset_switch", ch.cg15[CG15_SWITCH], MODE_SUPV)
+    eq("cg15_reset_vector", ch.cg15[CG15_VECTOR], 0)
+    eq("cg15_reset_capture", [ch.cg15[i] for i in range(6)], [0] * 6)
     for rc in range(6):                   # 入口记录 + 两个位图：软件写忽略
-        ch.access(9, rc, True, 0xFFFF)
-        eq("cg9_hw_ro_%d" % rc, ch.cg9[rc], 0)
+        ch.access(15, rc, True, 0xFFFF)
+        eq("cg15_hw_ro_%d" % rc, ch.cg15[rc], 0)
     for rc in (6, 7, 13, 63):             # rc6–rc13 及其余保留 ⇒ CFXREG
         try:
-            ch.access(9, rc, True, 0)
-            eq("cg9_reserved_%d" % rc, "no-fault", "CfxReg")
+            ch.access(15, rc, True, 0)
+            eq("cg15_reserved_%d" % rc, "no-fault", "CfxReg")
         except Fault as exc:
-            eq("cg9_reserved_%d" % rc, exc.cause, "CfxReg")
-    ch.access(9, CG9_SWITCH, True, MODE_JAIL)
-    ch.access(9, CG9_VECTOR, True, 0x0FFF_0000_1007)
-    eq("cg9_config_write",
-       (ch.cg9[CG9_SWITCH], ch.cg9[CG9_VECTOR]),
+            eq("cg15_reserved_%d" % rc, exc.cause, "CfxReg")
+    ch.access(15, CG15_SWITCH, True, MODE_JAIL)
+    ch.access(15, CG15_VECTOR, True, 0x0FFF_0000_1007)
+    eq("cg15_config_write",
+       (ch.cg15[CG15_SWITCH], ch.cg15[CG15_VECTOR]),
        (MODE_JAIL, 0x0FFF_0000_1004))
+
+    # 旧 cg9 捕获组、旧 cg8 掩码/定时器面全部归 reserved（访问 ⇒ CFXREG）。
+    for cg, rc, name in ((9, 0, "cg9_reserved_0"),
+                         (9, 5, "cg9_reserved_5"),
+                         (9, 14, "cg9_reserved_14"),
+                         (8, 1, "cg8_rc1_reserved"),
+                         (8, 4, "cg8_rc4_reserved"),
+                         (8, 5, "cg8_rc5_reserved")):
+        try:
+            ch.access(cg, rc, True, 0)
+            eq(name, "no-fault", "CfxReg")
+        except Fault as exc:
+            eq(name, exc.cause, "CfxReg")
+
+    # monitor 行（cfx0–cfx3）的 cg15：只有 rc3 = 异步来源掩码（复位全 1）。
+    hmon0 = Cfx(3, 0x0FFF_0000_0000, MODE_HYPV, MASK64)
+    eq("cg15_monitor_mask_reset",
+       hmon0.access(15, CG15_ASYNC_INTR_MASK, False), MASK64)
+    hmon0.access(15, CG15_ASYNC_INTR_MASK, True, 0xA5)
+    eq("cg15_monitor_mask_rw",
+       hmon0.access(15, CG15_ASYNC_INTR_MASK, False), 0xA5)
+    for rc in (0, 1, 2, 4, 5, 6, 14, 15):
+        try:
+            hmon0.access(15, rc, True, 0)
+            eq("cg15_monitor_reserved_%d" % rc, "no-fault", "CfxReg")
+        except Fault as exc:
+            eq("cg15_monitor_reserved_%d" % rc, exc.cause, "CfxReg")
+    try:
+        hmon0.access(8, 1, True, 0)       # 旧掩码行归 reserved
+        eq("cg8_rc1_monitor_reserved", "no-fault", "CfxReg")
+    except Fault as exc:
+        eq("cg8_rc1_monitor_reserved", exc.cause, "CfxReg")
+
+    # cg16：只有 cfx_hart / cfx_pmem 实现；mask 复位全 1、pending RO、ack W1C。
+    ch16 = Cfx(CFX_HART, 0x0FFF_0000_1000, MODE_SUPV, MASK64)
+    eq("cg16_reset",
+       [ch16.cg16[rc] for rc in (CG16_TIMER_CTRL, CG16_TIMER_CMP,
+                                 CG16_MASK, CG16_PENDING, CG16_ACK)],
+       [0, 0, MASK64, 0, 0])
+    ch16.access(16, CG16_TIMER_CTRL, True, 0xFF)
+    eq("cg16_timer_ctrl_bit0", ch16.access(16, CG16_TIMER_CTRL, False), 1)
+    ch16.access(16, CG16_TIMER_CMP, True, 0x1234_5678_9ABC_DEF0)
+    eq("cg16_timer_cmp_rw",
+       ch16.access(16, CG16_TIMER_CMP, False), 0x1234_5678_9ABC_DEF0)
+    ch16.access(16, CG16_MASK, True, 0xFFFF_FFFF_FFFF_FFFE)
+    eq("cg16_mask_bit0_only", ch16.access(16, CG16_MASK, False), 0)
+    try:
+        ch16.access(16, CG16_PENDING, True, 1)
+        eq("cg16_pending_ro", "no-fault", "CfxReg")
+    except Fault as exc:
+        eq("cg16_pending_ro", exc.cause, "CfxReg")
+    eq("cg16_ack_reads_zero", ch16.access(16, CG16_ACK, False), 0)
+    for rc in (2, 3, 19, 63):
+        try:
+            ch16.access(16, rc, True, 0)
+            eq("cg16_hart_reserved_%d" % rc, "no-fault", "CfxReg")
+        except Fault as exc:
+            eq("cg16_hart_reserved_%d" % rc, exc.cause, "CfxReg")
+    cpm = Cfx(CFX_PMEM, 0x0FFF_0000_2000, MODE_SUPV, MASK64)
+    eq("cg16_pmem_reset_mask", cpm.cg16[CG16_MASK], MASK64)
+    for rc in (CG16_TIMER_CTRL, CG16_TIMER_CMP, 2, 63):
+        try:
+            cpm.access(16, rc, True, 0)
+            eq("cg16_pmem_reserved_%d" % rc, "no-fault", "CfxReg")
+        except Fault as exc:
+            eq("cg16_pmem_reserved_%d" % rc, exc.cause, "CfxReg")
+    for obj, name in ((hmon0, "hmon"), (Cfx(63, 0, MODE_HYPV, MASK64),
+                                        "power")):
+        try:
+            obj.access(16, CG16_MASK, True, 0)
+            eq("cg16_absent_%s" % name, "no-fault", "CfxReg")
+        except Fault as exc:
+            eq("cg16_absent_%s" % name, exc.cause, "CfxReg")
+
+    # cg15 只由 cfx_hart（捕获组）与 monitor（rc3 掩码）实现；其它 cfx ⇒ CFXREG。
+    for obj, name in ((Cfx(63, 0, MODE_HYPV, MASK64), "power"),
+                      (Cfx(CFX_PMEM, 0, MODE_SUPV, MASK64), "pmem")):
+        try:
+            obj.access(15, 0, True, 0)
+            eq("cg15_absent_%s" % name, "no-fault", "CfxReg")
+        except Fault as exc:
+            eq("cg15_absent_%s" % name, exc.cause, "CfxReg")
 
     c3 = Cfx(3, 0x0FFF_0000_0000, MODE_HYPV, MASK64)
     eq("cg3_reset_switch_vector", (c3.cg3[CG3_SWITCH], c3.cg3[CG3_VECTOR]),
@@ -2937,12 +3175,12 @@ def self_test():
        (MODE_HYPV, 0x0FFF_0000_0004))
 
     # 8b. 同步进入的写入集合：cg5 rc0–rc5 + rc8–rc11（rc8–rc11 = 入口记录副本；
-    #     rc3/rc11 = 当前模式 monitor 的 cg8 rc1 快照）。
+    #     rc3/rc11 = 当前模式 monitor 的 cg15 rc3 快照）。
     ms = _mk_machine()
     ms.cfx_code = 63
     ms.mode = MODE_HYPV
     ms.ip = CAUSE_IP6
-    ms.cfx[3].cg8[CG8_ASYNC_INTR_MASK] = 0x0F0F_0F0F_0F0F_0F0F
+    ms.cfx[3].cg15[CG15_ASYNC_INTR_MASK] = 0x0F0F_0F0F_0F0F_0F0F
     ms.take_exception("Malign", CAUSE_IP6, 0x1234)
     hs = ms.cfx[3].cg5
     eq("sync_entry_record",
@@ -2964,11 +3202,11 @@ def self_test():
     he.cg5[CG5_ESC_CFX_CODE] = 63
     he.cg5[CG5_ESC_IP] = CAUSE_IP6
     he.cg5[CG5_ESC_INTR_MASK] = 0x1111_2222_3333_4444
-    he.cg8[CG8_ASYNC_INTR_MASK] = 0x5
+    he.cg15[CG15_ASYNC_INTR_MASK] = 0x5
     _op_escape(me, me.dec.decode(0x7E0C0000))       # escape cfx_hmon（imms18 = 0）
     eq("escape_return_ip", me.ip, CAUSE_IP6)
     eq("escape_return_state", (me.mode, me.cfx_code), (MODE_HYPV, 63))
-    eq("escape_rc11_whole_word", he.cg8[CG8_ASYNC_INTR_MASK],
+    eq("escape_rc11_whole_word", he.cg15[CG15_ASYNC_INTR_MASK],
        0x1111_2222_3333_4444)
     eq("escape_num_inc", he.cg4[CG4_ESCAPE_NUM], 1)
 
@@ -3012,7 +3250,7 @@ def self_test():
         hh.cg5[CG5_ESC_CFX_CODE] = 63
         hh.cg5[CG5_ESC_IP] = CAUSE_IP6
         hh.cg5[CG5_ESC_INTR_MASK] = 0x5
-        hh.cg8[CG8_ASYNC_INTR_MASK] = 0xA5
+        hh.cg15[CG15_ASYNC_INTR_MASK] = 0xA5
         setup(mm, hh)
         try:
             _op_escape(mm, mm.dec.decode(0x7E0C0000))
@@ -3020,7 +3258,7 @@ def self_test():
         except Fault as exc:
             eq(name, exc.cause, "CfxEsc")
         eq(name + "_keeps_state",
-           (mm.ip, mm.mode, mm.cfx_code, hh.cg8[CG8_ASYNC_INTR_MASK],
+           (mm.ip, mm.mode, mm.cfx_code, hh.cg15[CG15_ASYNC_INTR_MASK],
             hh.cg4[CG4_ESCAPE_NUM]),
            (0xFFFF_FF01_0100, mode, 3, 0xA5, 0))
 
@@ -3046,37 +3284,61 @@ def self_test():
     hart2.cg5[CG5_ESC_CFX_CODE] = 3
     hart2.cg5[CG5_ESC_IP] = CAUSE_IP6
     hart2.cg5[CG5_ESC_INTR_MASK] = 0xABCD_EF01_2345_6789
-    smon.cg8[CG8_ASYNC_INTR_MASK] = 0x5
+    smon.cg15[CG15_ASYNC_INTR_MASK] = 0x5
     _op_escape(mh, mh.dec.decode(0x7E3C0000))       # escape cfx_hart
     eq("async_escape_return",
        (mh.ip, mh.mode, mh.cfx_code,
-        smon.cg8[CG8_ASYNC_INTR_MASK], hart2.cg4[CG4_ESCAPE_NUM]),
+        smon.cg15[CG15_ASYNC_INTR_MASK], hart2.cg4[CG4_ESCAPE_NUM]),
        (CAUSE_IP6, MODE_SUPV, 3, 0xABCD_EF01_2345_6789, 1))
 
-    # 9. 异步捕获（spec/DADAO-12 §5.4）：源身份 = 源 cfxha（TIMER 15 / PMEM_DMA 32）；
-    #    mask 在**当前运行模式** monitor 的 cg8 rc1（复位全 1）；一帧多源；每次进入整体
-    #    覆盖（无 frame_valid/活动期）；写入集合 = cg9 rc0–rc4 + hart cg5 rc8–rc11。
-    ma = _mk_machine()
-    hart = Cfx(CFX_HART, 0x0FFF_0000_1000, MODE_SUPV, MASK64)
-    hart.cg9[CG9_VECTOR] = 0x0FFF_0000_1000
-    hart.cg9[CG9_SWITCH] = MODE_SUPV
-    ma.cfx[CFX_HART] = hart
-    ma.mode = MODE_HYPV                   # 当前模式 monitor = hmon（cfx3）
-    ma.cfx_code = 63
-    ma.ip = 0xFFFF_FF01_0200
+    # 9. 异步进入（spec/DADAO-12 §5.4；ADR-0064 D4–D6/D9）：源接口在源 cfx 的
+    #    cg16（rc16 mask / rc17 pending / rc18 ack），捕获缓冲在 cfx_hart cg15；
+    #    运行模式掩码在当前模式 monitor 的 cg15 rc3（复位全 1）；进入不清 pending。
+    def _async_pair(mode=MODE_HYPV, switch=MODE_SUPV, time_value=0):
+        mm = _mk_machine()
+        hh = Cfx(CFX_HART, 0x0FFF_0000_1000, MODE_SUPV, MASK64)
+        pp = Cfx(CFX_PMEM, 0x0FFF_0000_2000, MODE_SUPV, MASK64)
+        hh.cg15[CG15_VECTOR] = 0x0FFF_0000_1000
+        hh.cg15[CG15_SWITCH] = switch
+        mm.cfx[CFX_HART] = hh
+        mm.cfx[CFX_PMEM] = pp
+        if MODE_MONITOR[mode] not in mm.cfx:
+            mm.cfx[MODE_MONITOR[mode]] = Cfx(
+                MODE_MONITOR[mode], 0x0FFF_0000_3000, MODE_SUPV, MASK64)
+        mm.mode = mode
+        mm.cfx_code = 63
+        mm.ip = 0xFFFF_FF01_0200
+        mm.time_value = time_value
+        return mm, hh, pp, mm.cfx[MODE_MONITOR[mode]]
+
+    ma, hart, pmem, mon = _async_pair()
     eq("async_src_identity", (ASYNC_SRC_TIMER, ASYNC_SRC_PMEM),
        (0x8000, 0x1_0000_0000))
     eq("async_mask_reset_all1", ma.async_mask(), MASK64)
+    # 源 mask 复位全 1 ⇒ 只置 pending、不进入；cg15 rc5 汇总置位。
     ma.async_post(ASYNC_SRC_TIMER)
-    eq("async_masked_no_entry", ma.async_entry(), False)
-    eq("async_masked_pending_kept", hart.cg9[CG9_SRC_PENDING], ASYNC_SRC_TIMER)
-    ma.cfx[3].access(8, CG8_ASYNC_INTR_MASK, True,
-                     MASK64 & ~ASYNC_SRC_TIMER)      # 打开 bit15（hmon）
+    eq("async_source_mask_blocks", ma.async_entry(), False)
+    eq("async_source_mask_pending",
+       (hart.cg16[CG16_PENDING], hart.cg15[CG15_SRC_PENDING]),
+       (CG16_SUBEVENT0, ASYNC_SRC_TIMER))
+    # 打开 hmon 行与源 mask；先置 ENABLE=1（timer 源放行），再判定模式上限。
+    mon.access(15, CG15_ASYNC_INTR_MASK, True,
+               MASK64 & ~ASYNC_SRC_TIMER)
+    hart.access(16, CG16_MASK, True, 0)
+    ma.cfx_write(CFX_HART, 16, CG16_TIMER_CTRL, 1)
+    eq("async_mode_ceiling_blocks", ma.async_entry(), False)
+    eq("async_mode_ceiling_keeps_pending",
+       (hart.cg16[CG16_PENDING], hart.cg15[CG15_SRC_PENDING]),
+       (CG16_SUBEVENT0, ASYNC_SRC_TIMER))
+    # rc14 配成 hypv(3) ⇒ 进入；源 pending 不清、rc5 不变。
+    hart.cg15[CG15_SWITCH] = MODE_HYPV
     eq("async_open_entry", ma.async_entry(), True)
-    eq("async_single_frame", hart.cg9[CG9_SRC_FRAME], ASYNC_SRC_TIMER)
-    eq("async_pending_consumed", hart.cg9[CG9_SRC_PENDING], 0)
+    eq("async_single_frame", hart.cg15[CG15_SRC_FRAME], ASYNC_SRC_TIMER)
+    eq("async_pending_not_consumed",
+       (hart.cg16[CG16_PENDING], hart.cg15[CG15_SRC_PENDING]),
+       (CG16_SUBEVENT0, ASYNC_SRC_TIMER))
     eq("async_entry_record",
-       [hart.cg9[i] for i in range(4)],
+       [hart.cg15[i] for i in range(4)],
        [MODE_HYPV, 63, 0xFFFF_FF01_0200, MASK64 & ~ASYNC_SRC_TIMER])
     eq("async_cg5_entry_not_written", [hart.cg5[i] for i in range(4)],
        [0, 0, 0, 0])
@@ -3084,67 +3346,119 @@ def self_test():
        [hart.cg5[i] for i in range(8, 12)],
        [MODE_HYPV, 63, 0xFFFF_FF01_0200, MASK64 & ~ASYNC_SRC_TIMER])
     eq("async_enter_target",
-       (ma.mode, ma.cfx_code, ma.ip), (MODE_SUPV, CFX_HART, 0x0FFF_0000_1000))
+       (ma.mode, ma.cfx_code, ma.ip),
+       (MODE_HYPV, CFX_HART, 0x0FFF_0000_1000))
     eq("async_num_per_entry", hart.cg4[CG4_ASYNC_NUM], 1)
-    eq("async_no_pending_no_entry", ma.async_entry(), False)
+    # ack 才清 pending：W1C bit0；保留位/已清位写 1 为 no-op；ack 读 0。
+    hart.access(16, CG16_ACK, True, 0xFFFF_FFFF_FFFF_FFFE)
+    eq("async_ack_reserved_ignored",
+       hart.cg16[CG16_PENDING], CG16_SUBEVENT0)
+    hart.access(16, CG16_ACK, True, 1)
+    ma.refresh_async_summary()
+    eq("async_ack_clears_pending",
+       (hart.cg16[CG16_PENDING], hart.cg15[CG15_SRC_PENDING]), (0, 0))
+    hart.access(16, CG16_ACK, True, 1)
+    eq("async_ack_idempotent", hart.cg16[CG16_PENDING], 0)
+    eq("async_ack_reads_zero", hart.access(16, CG16_ACK, False), 0)
 
-    # 每次进入整体覆盖 + mask 取**当前模式** monitor：进入后处于 supv，源位 15 被 smon
-    # 屏蔽、位 32 放行 ⇒ 第二次进入覆盖 src_frame（旧模型若有"帧活动期"会拒绝/只置 pending）。
-    smon = Cfx(2, 0x0FFF_0000_3000, MODE_SUPV, MASK64)
-    ma.cfx[2] = smon
-    smon.access(8, CG8_ASYNC_INTR_MASK, True, MASK64 & ~ASYNC_SRC_PMEM)
-    eq("async_mask_from_current_monitor", ma.async_mask(), MASK64 & ~ASYNC_SRC_PMEM)
-    ma.async_post(ASYNC_SRC_TIMER | ASYNC_SRC_PMEM)
-    eq("async_overwrite_entry", ma.async_entry(), True)
-    eq("async_overwrite_frame", hart.cg9[CG9_SRC_FRAME], ASYNC_SRC_PMEM)
-    eq("async_masked_source_stays_pending",
-       hart.cg9[CG9_SRC_PENDING], ASYNC_SRC_TIMER)
-    eq("async_overwrite_prev",
-       (hart.cg9[CG9_PREV_MODE], hart.cg9[CG9_PREV_CFX],
-        hart.cg9[CG9_PREV_IP], hart.cg9[CG9_PREV_INTR_MASK]),
-       (MODE_SUPV, CFX_HART, 0x0FFF_0000_1000,
-        MASK64 & ~ASYNC_SRC_PMEM))
-    eq("async_overwrite_intent",
-       [hart.cg5[i] for i in range(8, 12)],
-       [MODE_SUPV, CFX_HART, 0x0FFF_0000_1000, MASK64 & ~ASYNC_SRC_PMEM])
-    eq("async_overwrite_num", hart.cg4[CG4_ASYNC_NUM], 2)
-
-    # 一帧多源：同一界上两个源同时放行 ⇒ 一次进入、src_frame = 位并集、计数 +1。
-    mb = _mk_machine()
-    hartb = Cfx(CFX_HART, 0x0FFF_0000_1000, MODE_SUPV, MASK64)
-    hartb.cg9[CG9_VECTOR] = 0x0FFF_0000_1000
-    hartb.cg9[CG9_SWITCH] = MODE_SUPV
-    mb.cfx[CFX_HART] = hartb
-    mb.cfx[3].access(8, CG8_ASYNC_INTR_MASK, True, 0)      # hmon 全放行
+    # 9b. 两个 mask 层各自生效：monitor 放行但源 mask=1 ⇒ 不进入；
+    #     源 mask 放行但 monitor 屏蔽该源 ⇒ 不进入。
+    mb, hb, pb, monb = _async_pair(mode=MODE_SUPV, switch=MODE_SUPV)
+    monb.access(15, CG15_ASYNC_INTR_MASK, True, 0)     # hmon 全放行
+    hb.access(16, CG16_MASK, True, CG16_SUBEVENT0)        # 源 mask=1
+    mb.cfx_write(CFX_HART, 16, CG16_TIMER_CTRL, 1)
     mb.async_post(ASYNC_SRC_TIMER)
-    mb.async_post(ASYNC_SRC_PMEM)
-    eq("async_multi_entry_once", mb.async_entry(), True)
+    eq("async_source_mask_gate", mb.async_entry(), False)
+    eq("async_source_mask_gate_pending",
+       hb.cg15[CG15_SRC_PENDING], ASYNC_SRC_TIMER)
+    hb.access(16, CG16_MASK, True, 0)
+    monb.access(15, CG15_ASYNC_INTR_MASK, True, ASYNC_SRC_TIMER)
+    eq("async_monitor_mask_gate", mb.async_entry(), False)
+    monb.access(15, CG15_ASYNC_INTR_MASK, True, 0)
+    eq("async_mask_open_entry", mb.async_entry(), True)
+    eq("async_mask_open_frame", hb.cg15[CG15_SRC_FRAME], ASYNC_SRC_TIMER)
+    eq("async_enter_target_default", (mb.mode, mb.cfx_code),
+       (MODE_SUPV, CFX_HART))
+
+    # 9c. 一帧多源：同一界两个源同时放行 ⇒ 一次进入、frame = 位并集、计数 +1；
+    #     下一界只放行一个源时仍整体覆盖 frame，未 ack 的源 pending 保留。
+    mc, hc, pc, monc = _async_pair(mode=MODE_SUPV, switch=MODE_SUPV)
+    monc.access(15, CG15_ASYNC_INTR_MASK, True, 0)
+    hc.access(16, CG16_MASK, True, 0)
+    pc.access(16, CG16_MASK, True, 0)
+    mc.cfx_write(CFX_HART, 16, CG16_TIMER_CTRL, 1)
+    mc.async_post(ASYNC_SRC_TIMER | ASYNC_SRC_PMEM)
+    eq("async_multi_entry_once", mc.async_entry(), True)
     eq("async_multi_frame_union",
-       hartb.cg9[CG9_SRC_FRAME], ASYNC_SRC_TIMER | ASYNC_SRC_PMEM)
-    eq("async_multi_pending_drained", hartb.cg9[CG9_SRC_PENDING], 0)
-    eq("async_multi_num_once", hartb.cg4[CG4_ASYNC_NUM], 1)
+       hc.cg15[CG15_SRC_FRAME], ASYNC_SRC_TIMER | ASYNC_SRC_PMEM)
+    eq("async_multi_pending_kept",
+       (hc.cg16[CG16_PENDING], pc.cg16[CG16_PENDING],
+        hc.cg15[CG15_SRC_PENDING]),
+       (CG16_SUBEVENT0, CG16_SUBEVENT0,
+        ASYNC_SRC_TIMER | ASYNC_SRC_PMEM))
+    eq("async_multi_num_once", hc.cg4[CG4_ASYNC_NUM], 1)
+    hc.access(16, CG16_MASK, True, CG16_SUBEVENT0)   # 只屏蔽 TIMER 源
+    mc.cfx_code = CFX_HART
+    mc.ip = 0x0FFF_0000_1000
+    eq("async_overwrite_entry", mc.async_entry(), True)
+    eq("async_overwrite_frame", hc.cg15[CG15_SRC_FRAME], ASYNC_SRC_PMEM)
+    eq("async_overwrite_num", hc.cg4[CG4_ASYNC_NUM], 2)
 
-    # `cg9 rc14`（`async_switch_run_mode`）：RW 2 位字段、复位 2（supv，§4.7），异步进入
-    # **取该寄存器当前值**（§5.4（五））——不是硬固定 supv：写入非 supv 值后进入落到写入值。
-    eq("async_switch_reset", Cfx(CFX_HART, 0, 0, MASK64).cg9[CG9_SWITCH], MODE_SUPV)
-    mcx = _mk_machine()
-    hartc = Cfx(CFX_HART, 0x0FFF_0000_4000, MODE_SUPV, MASK64)
-    hartc.cg9[CG9_VECTOR] = 0x0FFF_0000_4000
-    mcx.cfx[CFX_HART] = hartc
-    mcx.cfx[3].access(8, CG8_ASYNC_INTR_MASK, True, 0)      # hmon 全放行
-    hartc.access(9, CG9_SWITCH, True, MODE_JAIL)
-    eq("async_switch_write", hartc.cg9[CG9_SWITCH], MODE_JAIL)
-    mcx.mode = MODE_HYPV
-    mcx.async_post(ASYNC_SRC_TIMER)
-    eq("async_switch_entry", mcx.async_entry(), True)
-    eq("async_switch_entry_uses_rc14", mcx.mode, MODE_JAIL)
+    # 9d. TIMER 源还要求 ENABLE=1：pending 已置位但 ENABLE=0 ⇒ 不进入。
+    md, hd, pd, mond = _async_pair(mode=MODE_SUPV, switch=MODE_SUPV)
+    mond.access(15, CG15_ASYNC_INTR_MASK, True, 0)
+    hd.access(16, CG16_MASK, True, 0)
+    md.async_post(ASYNC_SRC_TIMER)
+    eq("async_timer_disable_blocks", md.async_entry(), False)
+    md.cfx_write(CFX_HART, 16, CG16_TIMER_CTRL, 1)
+    eq("async_timer_enable_entry", md.async_entry(), True)
 
-    # src_frame / src_pending 是 HW/RO：软件写忽略（不改变读数、不产生异常）。
-    hartb.access(9, CG9_SRC_FRAME, True, 0)
-    hartb.access(9, CG9_SRC_PENDING, True, ASYNC_SRC_TIMER)
-    eq("async_bitmaps_hw_ro",
-       (hartb.cg9[CG9_SRC_FRAME], hartb.cg9[CG9_SRC_PENDING]),
-       (ASYNC_SRC_TIMER | ASYNC_SRC_PMEM, 0))
+    # 9e. TIMER（cfx_hart cg16 rc0/rc1）：ENABLE 门控、到期边沿只置一次、
+    #     使能即检、写 cmp 不清 pending、ack 才清。
+    mt, ht, _, mont = _async_pair(mode=MODE_SUPV)
+    mt.time_value = 100
+    eq("timer_reset_pending", ht.cg16[CG16_PENDING], 0)
+    mt.cfx_write(CFX_HART, 16, CG16_TIMER_CMP, 50)
+    eq("timer_disabled_no_pending", mt.timer_check(), False)
+    eq("timer_disabled_pending_zero", ht.cg16[CG16_PENDING], 0)
+    mt.cfx_write(CFX_HART, 16, CG16_TIMER_CTRL, 1)   # 0→1 且 100>=50 ⇒ 立即置位
+    eq("timer_enable_immediate", ht.cg16[CG16_PENDING], CG16_SUBEVENT0)
+    eq("timer_enable_summary", ht.cg15[CG15_SRC_PENDING], ASYNC_SRC_TIMER)
+    mt.cfx_write(CFX_HART, 16, CG16_TIMER_CMP, 200)  # 只重新 arm，不清 pending
+    eq("timer_cmp_write_keeps_pending",
+       ht.cg16[CG16_PENDING], CG16_SUBEVENT0)
+    mt.cfx_write(CFX_HART, 16, CG16_ACK, 1)
+    eq("timer_ack_clears",
+       (ht.cg16[CG16_PENDING], ht.cg15[CG15_SRC_PENDING]), (0, 0))
+    mt.time_value = 200
+    eq("timer_expiry_edge", mt.timer_check(), True)
+    eq("timer_expiry_pending", ht.cg16[CG16_PENDING], CG16_SUBEVENT0)
+    eq("timer_edge_once", mt.timer_check(), False)   # 每个 deadline 只置一次
+
+    # 9f. PMEM_DMA（cfx_pmem cg16）：bit0 = 传输结束（DONE|ERROR 合并），ack 前
+    #     多次完成合并为一位；ack 只清 pending（dma_status 另行 W1C，不在本模型）。
+    mf, hf, pf, monf = _async_pair(mode=MODE_SUPV)
+    mf.async_post(ASYNC_SRC_PMEM)
+    mf.async_post(ASYNC_SRC_PMEM)
+    eq("dma_merge_two_completions", pf.cg16[CG16_PENDING], CG16_SUBEVENT0)
+    eq("dma_summary_bit32", hf.cg15[CG15_SRC_PENDING], ASYNC_SRC_PMEM)
+    pf.access(16, CG16_ACK, True, 1)
+    mf.refresh_async_summary()
+    eq("dma_ack_clears_pending",
+       (pf.cg16[CG16_PENDING], hf.cg15[CG15_SRC_PENDING]), (0, 0))
+
+    # 9g. 运行模式上限：当前 supv(2)、rc14=1(jail) ⇒ 不进入；rc14=2 ⇒ 进入。
+    mg, hg, pg, mong = _async_pair(mode=MODE_SUPV, switch=MODE_JAIL)
+    mong.access(15, CG15_ASYNC_INTR_MASK, True, 0)
+    hg.access(16, CG16_MASK, True, 0)
+    mg.cfx_write(CFX_HART, 16, CG16_TIMER_CTRL, 1)
+    mg.async_post(ASYNC_SRC_TIMER)
+    eq("async_ceiling_supv_no_entry", mg.async_entry(), False)
+    eq("async_ceiling_supv_pending",
+       hg.cg15[CG15_SRC_PENDING], ASYNC_SRC_TIMER)
+    hg.cg15[CG15_SWITCH] = MODE_SUPV
+    eq("async_ceiling_supv_entry", mg.async_entry(), True)
+
 
     failed = [c for c in checks if not c[1]]
     for name, ok, got, want in checks:

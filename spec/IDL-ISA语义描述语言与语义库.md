@@ -309,7 +309,7 @@ builtin function cfx_escape_enter {
     异常退出（`escape`，同步与异步**共用**）：按 SEE 的异常退出流程，从**当前 cfx**
     的出口意图 `cg5 rc8`–`rc11` 恢复运行模式（`rc8`）与当前核芯功能扩展（`rc9`），
     `escape_num` 递增，控制转到 `rc10`；并把 `rc11` **整字**写入目标运行模式 monitor
-    的 `cg8 rc1`（user→umon、supv→smon、hypv→hmon），该写入与切模式/切 cfx/跳转
+    的 `cg15 rc3`（user→umon、supv→smon、hypv→hmon），该写入与切模式/切 cfx/跳转
     **原子完成**，在 `rc10` 的第一条指令前生效。不设帧有效位：`cg5 rc4 == 0` 也可
     返回，重复 `escape` 由软件负责。目标运行模式**不得高于**当前模式、目标 cfx 必须
     已实现、目标模式必须有对应 monitor（如 jail 的 jmon 不存在）⇒ 在切换任何状态前
@@ -347,14 +347,15 @@ builtin function cfx_fence {
 }
 ```
 
-**异步捕获（`cfx_hart cg9`，见 `spec/DADAO-12 §4.7`/`§5.4`）**——硬件行为，不新增库函数：
+**异步捕获（`cfx_hart cg15` 与源 `cg16`，见 `spec/DADAO-12 §4.7`/`§5.4`）**——硬件行为，不新增库函数：
 
 - **源身份 = 源 cfxha**：`TIMER` = 15、`PMEM_DMA` = 32；异步源**不占** `excp_cause_id`，不存在按旧宏 cause 编号（17/18）编址的来源位。
-- **`cg9` 布局**：`rc0` `async_prev_run_mode`（HW/RO）、`rc1` `async_prev_cfx_code`（HW/RO）、`rc2` `async_prev_ip`（HW/RO，已提交指令之后的 `rb0`）、`rc3` `async_prev_intr_mask`（HW/RO，进入前当前模式 monitor 的 `cg8 rc1` 快照）、`rc4` `async_src_frame`（HW/RO）、`rc5` `async_src_pending`（HW/RO）、`rc14` `async_switch_run_mode`（RW，复位 2 = supv）、`rc15` `async_excp_vector`（RW，48 位、忽略低 2 位）；`rc6`–`rc13` reserved（访问 ⇒ `CFXREG`）。`rc4`/`rc5` 的位索引 = 源 cfxha，软件写忽略。
-- **来源掩码在 monitor**：当前运行模式 monitor（`cfx0`–`cfx3`）的 `cg8 rc1`（`cfx_<monitor>_async_intr_mask`），位 = 源 cfxha、`0` = 允许、`1` = 屏蔽、复位全 1；投递时**按当前运行模式**取该行求值。掩码不随帧保存/恢复。
-- **一帧多源**：同一指令边界上所有 pending 且被放行的源**一次性**进入同一捕获——`rc4` = 这些位的并集、`rc5` 扣除这些位、`excp_async_num` 每次进入 +1（与源个数无关）。
-- **捕获缓冲**：每次进入**整体覆盖** `rc0`–`rc5`；不因 `rc4 != 0` 拒绝进入或只置 pending，没有"帧活动期"、没有 `frame_valid`、没有软件清 `rc4`。
-- **进入的写入集合**：异步只写 `cg9 rc0`–`rc4` 与 **`cfx_hart` 自己的 `cg5 rc8`–`rc11`**（出口意图），**不写** hart `cg5 rc0`–`rc3`；同步进入（含 `trap`）写目标 cfx 的 `cg5 rc0`–`rc5` 与 `rc8`–`rc11`。返回用 `escape cfxHA`（同步/异步共用，见 `cfx_escape_enter`）。
+- **源侧三寄存器（`cg16`）**：每个源在自身 cfx 提供 `rc16` mask（`1=屏蔽`、`0=允许`、复位全 1）、`rc17` pending（事件置位、**ack 才清**、异步进入不清、复位 0、RO）、`rc18` ack（W1C：写 1 清对应位、读 0、已清位/保留位写 1 为 no-op）。`TIMER` 当前只有 bit0（cmp 到期）、`PMEM_DMA` 只有 bit0（传输结束 = `DONE|ERROR`，ack 前多次完成合并为一位）。`cfx_hart` 另有 `rc0` timer_ctrl（只留 bit0 `ENABLE`）与 `rc1` timer_cmp（写只重新 arm、不清 pending；`ENABLE` 0→1 且已到期立即置位一次）。
+- **`cg15` 布局**：`rc0` `async_prev_run_mode`、`rc1` `async_prev_cfx_code`、`rc2` `async_prev_ip`（已提交指令之后的 `rb0`）、`rc3` `async_prev_intr_mask`（HW/RO，进入前当前模式 monitor 的 `cg15 rc3` 快照）、`rc4` `async_src_frame`（本次源集合）、`rc5` `async_src_pending`（原始 pending 汇总）、`rc14` `async_switch_run_mode`（RW，复位 2 = supv，同时是**运行模式上限**）、`rc15` `async_excp_vector`（RW，48 位、忽略低 2 位）；`rc6`–`rc13` reserved（访问 ⇒ `CFXREG`）。`rc4`/`rc5` 的位索引 = 源 cfxha，软件写忽略。
+- **来源掩码在 monitor**：当前运行模式 monitor（`cfx0`–`cfx3`）的 `cg15 rc3`（`cfx_<monitor>_async_intr_mask`），位 = 源 cfxha、`0` = 允许、`1` = 屏蔽、复位全 1；求值时**按当前运行模式**取该行。源 mask 与 monitor 掩码**互不替代**，异步进入同时受两者约束。
+- **逐源判定、一帧多源**：同一指令边界上逐源判定 `(源 pending & ~源 mask) != 0`，且当前运行模式 monitor 的 `cg15 rc3[源 cfxha] == 0`，`TIMER` 还要求 `ENABLE=1`，且**当前运行模式 ≤ `cg15 rc14`**（模式上限，默认 2 ⇒ 不打断 `hypv`）。所有放行源**一次性**进入同一捕获——`rc4` = 这些位的并集、`excp_async_num` 每次进入 +1（与源个数无关）；进入**不清**源 pending、**不改** `rc5`。
+- **捕获缓冲**：每次进入**整体覆盖** `rc0`–`rc4`；不因 `rc4 != 0` 拒绝进入或只置 pending，没有"帧活动期"、没有 `frame_valid`、没有软件清 `rc4`。上限或掩码不满足 ⇒ 不进入，源 pending 与 `rc5` 保留、不报错。
+- **进入的写入集合**：异步只写 `cg15 rc0`–`rc4` 与 **`cfx_hart` 自己的 `cg5 rc8`–`rc11`**（出口意图），**不写** hart `cg5 rc0`–`rc3`；同步进入（含 `trap`）写目标 cfx 的 `cg5 rc0`–`rc5` 与 `rc8`–`rc11`。返回用 `escape cfxHA`（同步/异步共用，见 `cfx_escape_enter`）；handler 必须在 `escape` 前 ack 已进入的源（`cg16 rc18`），想延后则保持该源 mask 为 1。
 
 ### 4.7 浮点原语（`idl/lib/fp.idl`）
 
@@ -459,7 +460,7 @@ UDB 本身若干转写错误（溢出判据、无符号比较、qNaN 置 NV、�
 - **控制流写回**：`jump` 把 `target` 的**完整 64 位**写回 `rb0`（`[63:48]` 保留进位、不强制清 0），取指取低 48 位；`ip()` 不再假定高 16 位为 0（与 `SimRISC-06 §1/§2` 及三执行机一致）。
 - **浮点库**：新增 `idl/lib/fp.idl`（ft/binary32 族，§4.7）；`render.py` 的「已声明函数」扫描面加 `idl/lib/*.idl`（含 `?` 后缀的函数名）。fo/binary64 族同库追加：位操作底座 + 64 位整型转换 + `fo_to_ft`/`ft_to_fo` + `is_dp_*` 谓词；算术 `fo_add`/`fo_sub`/`fo_mul`/`fo_div`/`fo_muladd`/`fo_sqrt`、取整/缩放、以及 `ft_rem`/`fo_rem` 取余；§4.7 指针同步扩到两族 + 取余。
 - **ft 族补正**：f32 舍入原语的 tininess 改「舍入后」检测（IEEE 754-2019 §7.5）；`ft_sqrt`/`round_ft_to_integral` 的类型层缺陷修掉（函数体 type_check 0 例外）；补 `i32_to_fo`/`ui32_to_fo`（精确转换）与 `ft_scale`（scaleB）。
-- **异常退出改用出口意图**：§4.6 `cfx_escape_enter` 改为 `escape cfxHA`（`imms18` 必须 0，SBZ 非零 ⇒ ILLI），从当前 cfx 的 `cg5 rc8`–`rc11` 出口意图返回（`rc8`/`rc9` 恢复模式与 cfx、`rc10` 返回地址、`rc11` 整字恢复目标模式 monitor 的 `cg8 rc1`）；不设帧有效位。目标模式不得升权、目标 cfx 未实现或无 monitor ⇒ 当前 cfx 的 `CFXESC`。同步与异步共用该出口。§4.6 增「异步捕获」口径：源身份 = 源 cfxha（15/32）、`cg9 rc0`–`rc5` 入口记录 + `rc14/rc15` 配置、来源掩码在当前运行模式 monitor 的 `cg8 rc1`、一帧多源、每次进入整体覆盖；异步只写 `cg9 rc0`–`rc4` 与 hart `cg5 rc8`–`rc11`。
+- **异常退出改用出口意图**：§4.6 `cfx_escape_enter` 改为 `escape cfxHA`（`imms18` 必须 0，SBZ 非零 ⇒ ILLI），从当前 cfx 的 `cg5 rc8`–`rc11` 出口意图返回（`rc8`/`rc9` 恢复模式与 cfx、`rc10` 返回地址、`rc11` 整字恢复目标模式 monitor 的 `cg15 rc3`）；不设帧有效位。目标模式不得升权、目标 cfx 未实现或无 monitor ⇒ 当前 cfx 的 `CFXESC`。同步与异步共用该出口。§4.6 增「异步捕获」口径：源身份 = 源 cfxha（15/32）、源侧 `cg16 rc16/17/18`（mask/pending/ack，`TIMER` 另有 `rc0 ENABLE`/`rc1 cmp`）、`cfx_hart cg15 rc0`–`rc5` 入口记录 + `rc14/rc15` 配置（`rc14` 兼运行模式上限）、来源掩码在当前运行模式 monitor 的 `cg15 rc3`、逐源判定多源合并、pending 只有 ack 才清、每次进入整体覆盖；异步只写 `cg15 rc0`–`rc4` 与 hart `cg5 rc8`–`rc11`。
 
 ### 0.1.0（初版后修订）
 

@@ -83,7 +83,7 @@ if (cfxHA != inner_cfx_code()) {              # cfxha 必须是当前 cfx，否�
 }
 
 # 步骤 1–3：按当前 cfx 的出口意图 cg5 rc8–rc11 恢复运行模式与当前 cfx（rc8/rc9）、
-# escape_num++、跳转 rc10，并把 rc11 整字写入目标模式 monitor 的 cg8 rc1（与切模式/
+# escape_num++、跳转 rc10，并把 rc11 整字写入目标模式 monitor 的 cg15 rc3（与切模式/
 # 切 cfx/跳转原子完成）。目标模式不得升权、目标 cfx 必须已实现且目标模式有 monitor，
 # 否则在切换任何状态前报当前 cfx 的 CFXESC；这些检查与整字恢复由语义库函数按 SEE 完成。
 cfx_escape_enter(cfxHA);

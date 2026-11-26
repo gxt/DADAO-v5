@@ -54,7 +54,7 @@ sha256 = "18ac0bab4b527779af7189958c44923b2f683d6987c237decaf719ab44caa234"
 
 [files."SimRISC-11.idl"]
 owner = "idl"
-sha256 = "480f86044ea04b4d95ccd44851c2b5ee9b31d02376d4a8f8ff4e94cc62b5fd9d"
+sha256 = "ccbb0f8210b222e58cd62828e82efef76689d8b0016eeffb4337b314aeca67a3"
 
 [files."SimRISC-12.idl"]
 owner = "idl"
