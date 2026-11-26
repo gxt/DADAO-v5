@@ -47,6 +47,7 @@
    - 中断源统一接口在 **`cg16`**：`rc16` = **mask**、`rc17` = **pending**、`rc18` = **ack（W1C）**（2026-11-26 用户订正顺序）；三个独立寄存器，位 = 该源子事件（当前均只有 bit0 有效）。
    - `TIMER`（`cfx_hart`）：`cg16 rc0` = timer ctrl（**只留 bit0 `ENABLE`**；`IMASK` 由 `rc16` 取代、`ISTATUS` 由 `rc17` 取代）、`rc1` = timer cmp；中断面 `rc16/17/18`（原拟 `cg10` 作废）。
    - `PMEM_DMA`（`cfx_pmem`）：中断面也搬到 `cg16 rc16/17/18`；DMA 引擎寄存器仍留 `cg15`。**子事件合并为一位**（B：`DONE|ERROR` 合并成 bit0“传输结束”），ERR_CODE/DONE/ERROR 细节仍由 cg15 `dma_status` 区分；对外接口与 timer 一致，内部各自解释。
+   - `PMEM_DMA` 的 `cg15 dma_ctrl.IRQ_EN`（bit2）**删除**：中断屏蔽统一由 `cg16 rc16` 的 bit0 控制，`dma_ctrl` 只剩 `START`（自清）与 `DIR`（用户 2026-11-26 选 A）。
    - `cg9 rc4/rc5` 仍为 hart 级聚合（bit = 源 cfxha）；monitor mask 仍为每 cfx 64 位（`cg8 rc1`）；`escape` 不变。
 
 ## 待裁定（逐条讨论）
