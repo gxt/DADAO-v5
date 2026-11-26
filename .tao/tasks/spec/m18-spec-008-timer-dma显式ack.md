@@ -69,7 +69,16 @@
 18. **ADR（用户 2026-11-26 选 A）**：新立 **ADR-0064**「中断源 pending/mask/ack 归源、显式 W1C ack」，取代 `ADR-0061 D5`（mask 唯一归 monitor）与 `D6`（投递即清）；`ADR-0061 R3` 的出口帧继续有效。
 
 19. **时序（用户 2026-11-26 选 A）**：`m18-linux-026` 先按 `0.8.0` 收口（出口帧/去 jmon）；本任务随后落地，再由 `m18-linux-027` 只改 ack/timer 寄存器。
-20. **默认口径（待用户确认）**：DMA ack 前多次完成合并为 bit0（不计数）；`cg16` 只在 `cfx_hart`/`cfx_pmem` 实现，其它 cfx 访问 ⇒ `CFXREG`；旧 timer `cg8 rc4/rc5` 归 reserved（`CFXREG`），DMA `ctrl.IRQ_EN` 位保留但写忽略/读 0；`cg9 rc4/rc5` 位 = 源 cfxha，`rc3 prev intr mask` 不变；monitor `cg8 rc1` 不变。
+20. **默认口径（用户 2026-11-26 部分订正）**：
+   - DMA ack 前多次完成合并为 bit0（不计数）；
+   - `cg16` 只在 `cfx_hart`/`cfx_pmem` 实现，其它 cfx 访问 ⇒ `CFXREG`；
+   - **DMA `dma_ctrl.IRQ_EN` 位不保留**（从定义中删除；该位按保留位读 0/写忽略）；
+   - **旧 timer `cg8 rc4/rc5` 归 reserved（访问 ⇒ `CFXREG`）**；
+   - **`cfx_hart` 的异步捕获组由 `cg9` 改为 `cg15`**（`rc0`–`rc4`、`rc14`/`rc15` 编号不变）；
+   - **monitor 的 `async_intr_mask` 由 `cg8 rc1` 改为 `cg15 rc3`**（umon/jmon/smon/hmon 四个模式行；`cg8 rc1` 归 reserved）；
+   - `cg15 rc3` 位 = 源 cfxha；`cg9` 不再用于异步；
+   - `cg9 rc4/rc5` 的“聚合”含义随之移到 `cg15 rc4/rc5`；`rc3 prev intr mask` 含义不变；
+   - `escape` 语义不变，但 `rc11` 的写入目标改为目标模式 monitor 的 **`cg15 rc3`**。
 
 ## 待裁定（逐条讨论）
 
