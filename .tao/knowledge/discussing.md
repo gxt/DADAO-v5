@@ -694,4 +694,12 @@
 
 **目标**：中断源的 pending/mask/ack 归源；显式 W1C ack；pending ack 才清；`cfx_hart` 捕获 `cg9→cg15`，monitor mask `cg8 rc1→cg15 rc3`；timer `cfx_hart cg16 rc0/rc1/rc16/17/18`；DMA `cfx_pmem cg16 rc16/17/18`、删 `IRQ_EN`；`cg15 rc4/rc5` 聚合；`escape rc11` 写 `cg15 rc3`；版本 `0.8.1-rc`。
 
-**链**：`m18-spec-008`（等 `m18-linux-026` 收口）→ `m18-qemu-009` ∥ `m18-testcases-005` → `m18-chipyard-003` / `m18-gem5-005` / `m18-idl-004` → `m18-linux-027`。
+**链**：`m18-spec-008`（已验证）→ `m18-qemu-009`（已验证）→ `m18-testcases-005`（向量）→ 各实现「先出口帧、后源接口」→ 重启 `m18-linux-026`（两项一起）→ 跨实现测试。
+
+**用户 2026-11-26 排序要求**：escape 退出帧与中断源接口**相互协作**，**两个功能都更新完再统一测试**；实现按组件顺序：
+
+- RTL：`m18-chipyard-002`（R3 出口帧）→ `m18-chipyard-003`（源接口）→ 测
+- gem5：`m18-gem5-004`（R3 出口帧）→ `m18-gem5-005`（源接口）→ 测
+- IDL：`m18-idl-003`（已合入）→ `m18-idl-004`（源接口）→ 测
+- 内核：重启 `m18-linux-026` 时**同时**含 R3 出口帧与 `cg15/cg16` 源接口（原 `m18-linux-027` 并入 026；不再单独派）
+- 统一测试（`m18-testcases-005` 复跑 + 025 自旋 + 006 LTP）放在以上实现齐备后；此前的跨实现红一律记 KNOWN-RED，不作为判据。
