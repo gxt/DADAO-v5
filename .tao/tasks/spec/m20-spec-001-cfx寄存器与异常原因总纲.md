@@ -39,6 +39,8 @@
 - **cfx 编号迁移（2026-11-26 用户确认）**：删除 `cfx_llc`；原 **33/34 归 reserved**（`cfx_time` 旧 34 不保留兼容入口）；`cfx_time` 新 code = **62**，`cfx_uart` 新 code = **61**，`cfx_power` 保持 63；**不保留旧编号别名**，所有 spec/契约/别名/LLVM/引擎/内核/测试按新编号重写。
 - **cfx_uart 实例（2026-11-26 用户确认）**：只保留 **2 个 UART**，按 cg/bit 编号称为 **UART32/UART33**，寄存器组用 **cg32/cg33**；中断位用 **bit32/bit33**。`cfx_uart cg16` 的 `rc16 mask`/`rc17 pending`/`rc18 ack` 是 64 位位图，只使用 **bit32/bit33**（不是 bit0/bit1 的 2 位字段），其余位保留；`(pending & ~mask)` 只判这两位。旧 UART0/UART1 的命名不再保留（位置/编号按 32/33 重写）。
 - **UART 中断投递（2026-11-26 用户确认）**：按 cfx code 编号，作为**异步源**触发 `cfx_hart` 中断——源身份 = **cfxha 61**（`cfx_uart`），`cg16` 的 bit32/33 为 UART32/UART33 子事件；`mask`/`pending`/`ack` 语义同 `cfx_pmem cg16`；`cfx_uart` 自己的异常原因表不再列 UART0–31 中断；Linux 通过 `cfx_uart cg16` 读 pending/ack。
+- **中断删除（2026-11-26 用户确认）**：删除 `cfx_hart` 的 `1<<8 IPI`；删除 `cfx_power` 异常原因表后三项 `1<<8 POWEROFF`/`1<<9 HARD_RESET`/`1<<10 SOFT_RESET`；`cfx_uart` 只保留 UART32/33 的 cg16 异步子事件，删除 UART0–31 中断行。
+- **每 cfx 的异常原因表（2026-11-26 用户确认）**：所有**非 reserved** cfx 都统一包含五种同步原因：`1<<0 CFXTRAP`、`1<<1 CFXMEM`、`1<<2 CFXREG`、`1<<3 CFXESC`、`1<<7 CFXPERM`；`cfx_ptw` 也包含（不再只有 CFXTRAP/CFXESC）。reserved cfx 不实现寄存器面，不列原因表。
 - **`cfx_ptw cg8 rc4` 位映射（2026-11-26 用户确认）**：`bit0..7` = MISSIGP/MISSISP/MISSIGPF/MISSISPF/MISSDGP/MISSDSP/MISSDGPF/MISSDSPF；`bit8..14` = NUPERM/NJPERM/NSPERM/NHPERM/NRPERM/NWPERM/NXPERM；`bit15` = **PTWFAIL**（原 ADWBFAIL 的 PTE 物理访问/回写失败）。读到 0 或多位的处理由**软件**定义。
 - **并入 `m18-spec-001` 的既有口径**（原任务待开始，未实施）：每个**非 reserved** cfx 的 `scratch_regs_num` 缺省值 = **2**（范围 2..64）；reserved cfx 不实现该寄存器（访问仍 `CFXREG`）；原 QEMU/gem5/chipyard 的默认 4 改为 2，相关 `tests/arch`/`tests/inst/11-cfx` 期望与探针随本批统一调整。该任务不再单独派发，内容全部并入本总纲。
 
@@ -60,10 +62,8 @@
 
 1. **新 cg6（旧 cg7）**：搬移是否保持“每 4 rc 一个空间、16 块、只读”全部语义？新 cg6 是否还有 reserved/扩展空间。
 2. **PTWFAIL / PTWFAULT**：所有 PTW 相关 fault 的细节放 `cfx_ptw cg8 rc4`，one-hot `[15:0]`；同步异常表只留 `PTWFAULT`（`1<<15`）；高位 PTW 位图删除。监视器读取选现有 delegation（`cfx_ptw cg3 rc12` bit8=0；`cg2 rc2` 仅放行 cfx2，不放行 cfx0/cfx1；hmon 为 hypv 直接读）；`trap cfx_ptw` 仅 fallback。仍待定：HBI 初始化清单、`PTWFAIL`/`ADWBFAIL` 名称关系、零/多位非法判据、写入/清除/嵌套/多 hart 语义、高位位图删除后的 handler/测试迁移、`cause_info` 口径、无专用测试时如何证明一致。
-3. **中断删除**：`cfx_hart` 的 IPI（现 `1<<8`）、`cfx_uart` 仅保留 UART32/UART33 后的其余 UART 中断、`cfx_power` 异常原因表后三项（现 `POWEROFF`/`HARD_RESET`/`SOFT_RESET`）的准确索引；Linux/QEMU/gem5/RTL 的现有消费者清理顺序。
-4. **每个 cfx 都有 CFXPERM**：`CFXPERM` 在哪些 cfx 的异常原因表新增/已有；是否包括 reserved cfx；与两轴权限/掩码拒绝路径的关系。
-5. **版本与契约**：是否升 spec/contracts 版本号；是否需要 ADR；迁移是否分阶段（spec → 契约/别名 → IDL → QEMU/gem5/RTL → Linux → tests）。
-6. **测试策略**：除“PTWFAIL 不增加用例”外，其余名称/编号/cg 迁移是否补最小回归；哪些测试只需生成器刷新、哪些需新向量。
+3. **版本与契约**：是否升 spec/contracts 版本号；是否需要 ADR；迁移是否分阶段（spec → 契约/别名 → IDL → QEMU/gem5/RTL → Linux → tests）。
+4. **测试策略**：除“PTWFAIL 不增加用例”外，其余名称/编号/cg 迁移是否补最小回归；哪些测试只需生成器刷新、哪些需新向量。
 
 ## 约束
 
@@ -77,4 +77,4 @@
 **修改文件**：本任务书
 **验收结果**：待用户讨论
 **新发现/坑**：
-**遗留问题**：cg4/cg5/cg6/cg7 映射已定（旧 cg7→新 cg6、scratch 2..16/rc63 向下、缺省 2、cg4 rc0–5 / cg5 rc0–3 之外的 reserved）；PTW 采用 `PTWFAULT 1<<15` + `cfx_ptw cg8 rc4` one-hot，16 位映射、软件处理 0/多位、delegation（仅放行 cfx2）已定；cfx 编号（删 llc、33/34 reserved、time=62/uart=61、无旧别名）已定；UART32/UART33 用 cg32/cg33、bit32/bit33、cg16 用 bit32/33、异步源 cfxha61 已定；中断删除（IPI/其他 UART/power 后三项）、CFXPERM、版本/ADR、测试策略仍待讨论；影响模块任务未拆。
+**遗留问题**：cg4/cg5/cg6/cg7 映射已定（旧 cg7→新 cg6、scratch 2..16/rc63 向下、缺省 2、cg4 rc0–5 / cg5 rc0–3 之外的 reserved）；PTW 采用 `PTWFAULT 1<<15` + `cfx_ptw cg8 rc4` one-hot，16 位映射、软件处理 0/多位、delegation（仅放行 cfx2）已定；cfx 编号（删 llc、33/34 reserved、time=62/uart=61、无旧别名）已定；UART32/UART33 用 cg32/cg33、bit32/bit33、cg16 用 bit32/33、异步源 cfxha61 已定；中断删除（IPI/power 后三项/UART0–31）与每 cfx 五种原因（含 CFXPERM）已定；版本/ADR、测试策略、cg6 细节仍待讨论；影响模块任务未拆。
