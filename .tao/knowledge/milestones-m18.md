@@ -47,6 +47,9 @@
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
 
+
+
+
 | m18-linux-028 | 2026-11-27 21:40 | 异步返回主因修（user 异步交接 smon 后不 escape ⇒ `CFXESC`）；`CFXESC` 0/100、LTP 3 clean、soak 0/1000；残余 `ISS-m18-011`、`ISS-m18-012` |
 
 | m18-linux-007 | 2026-11-27 19:52 | pthread create/join 闭环（`create×4`/join 双路径/TLS/detach/负向 `EAGAIN`）；5/5 连过、`run.sh` 40/0；忙等复现器 8/8 归 `ISS-m18-009` |
