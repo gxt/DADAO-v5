@@ -68,11 +68,24 @@ divergences:
   - id: DIV-18
     kind: temporary
     scope: [chipyard]
-    impact: "Kaiwu-Tiny RTL 未实现 `cfx0`–`cfx3 cg15 rc3`（无异步模型，访问 ⇒ `CFXREG`），而 QEMU 的 Tiny profile 有该行；`tests/inst/11-cfx/escape_ciii_cfx.S` 的 mask 准备写因此在 RTL Tiny 上触发 `CFXREG`（QEMU 可跑）。Vast RTL 已实现该行并由 `arch-hart-001/002` + `escape_escalation` 覆盖同一出口语义。"
-    reason: "Tiny 的寄存器面保持 M16 基线（`m16-chipyard-019`/`DIV-09` 同源）：Tiny 无 `cfx_hart`/异步模型，`cg15` 不在它实现的寄存器面内；`m18-chipyard-003` 只迁移 Vast 的源接口，不扩大 Tiny 面。"
-    user_ruling: "2026-11-26（m18-chipyard-002；Tiny 面的实现范围；m18-chipyard-003 复核保留）"
+    impact: "Kaiwu-Tiny RTL 的 `cfx_hmon`/`cfx_power` 无 `cg4`（未开 `commonRows`），且 `cfx0`–`cfx3 cg15 rc3`（本运行模式异步来源掩码）未实现（无异步模型）⇒ `tests/inst/11-cfx/escape_ciii_cfx.S` 对这些行的访问在 Tiny 上**真触发 `CFXREG`**（`1<<2`，`cause_info` = 指令编码）。用例已按平台能力条件化：受控 handler 记录实测 `cause_id`/`cause_info`，按「槽值 = (cause_info[31:0] << 32) | cause_id[15:0]」写进点号 11/12/17/18/23/28 的签名槽；点号 4/10 的入口 mask 快照取 `cg15 rc3` 复位值（全 1）。Tiny 的**全部逐槽期望值由本条目 `slots` 声明**（8 槽）；IDL/QEMU/gem5/Vast 仍按规范值逐条真实检查（不放宽）。Tiny 上点 11/12/17/18 的探测异常会重写 hmon 入口帧，故点 19 读到的是最近探测帧的 `prev mode`（恒 hypv=3）：值仍取自真实硬件、清帧仍判红，仅「escape 不清入口记录」的证明力在 Tiny 上弱化。"
+    reason: "Tiny 的寄存器面保持 M16 基线（`m16-chipyard-019`/`DIV-09` 同源）：`commonRows = p.useVM`（Tiny 为 false ⇒ 无 `cg4`），`asyncIntrMaskOpt`（`cg15 rc3`）仅在 `gp.hart` 定义（Vast）时创建。Tiny 缺这两处访问面是**被验证的行为**（CFXREG + cause 记录），不是用例跳过、也不写常量槽。"
+    user_ruling: "2026-11-26（m18-chipyard-002：Tiny 面保持 M16 基线）；2026-11-27（裁定 1：不写常量、不跳过，真触发 CFXREG 并逐槽声明）"
     status: active
-    close_when: "Tiny 侧实现 `cfx0`–`cfx3 cg15 rc3`（或 escape_ciii 的 Tiny 载体改为条件化 mask 准备）"
+    close_when: "Tiny 侧实现 `cfx0`–`cfx3 cg15 rc3` 且 `cfx_hmon`/`cfx_power` 打开 `cg4` 行 ⇒ 用例按规范值直接检查、删除本条目与全部 `slots`"
+    slots:
+      # 点号 4/10（0 基 3/9）：入口 mask 快照 = `cg15 rc3` 复位值全 1（`DADAO-12 §3.6`）
+      - {case: escape_ciii_cfx, slot: 3, chipyard: 0xffffffffffffffff}
+      - {case: escape_ciii_cfx, slot: 9, chipyard: 0xffffffffffffffff}
+      # 点号 11/17/23/28（0 基 10/16/22/27）：cfx2rd cfx_hmon,cg15,rc3,rd5 = 0x7A0CF0C5
+      - {case: escape_ciii_cfx, slot: 10, chipyard: 0x7a0cf0c500000004}
+      - {case: escape_ciii_cfx, slot: 16, chipyard: 0x7a0cf0c500000004}
+      - {case: escape_ciii_cfx, slot: 22, chipyard: 0x7a0cf0c500000004}
+      - {case: escape_ciii_cfx, slot: 27, chipyard: 0x7a0cf0c500000004}
+      # 点号 12（0 基 11）：cfx2rd cfx_hmon,cg4,rc5,rd5 = 0x7A0C4145
+      - {case: escape_ciii_cfx, slot: 11, chipyard: 0x7a0c414500000004}
+      # 点号 18（0 基 17）：cfx2rd cfx_power,cg4,rc5,rd5 = 0x7AFC4145
+      - {case: escape_ciii_cfx, slot: 17, chipyard: 0x7afc414500000004}
 
   - id: DIV-09
     kind: temporary
