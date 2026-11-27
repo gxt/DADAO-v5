@@ -31,6 +31,14 @@
   closed_in: M18
   resolved_by: m20-testcases-008（`3fa495a4` 重生成 `tests/case-ledger.tsv`，master 上 `check-case-ledger` 已 rc=0；M18 侧仅观察到该红，未代改）
   title: "【P2·跨册】master 的 `check-case-ledger` 已红：`348cb004`（`m17-testcases-008`「`escape` 按平台条件化」）改了 `tests/inst/11-cfx/escape_ciii_cfx.S` 但没有重生成 `tests/case-ledger.tsv`，出现 8 行 `__CHECK_*` 多余。`m18-linux-018` 提交前逐字节确认 `case-ledger.tsv` 与 `escape_ciii_cfx.S` 在 master 与其分支完全相同 ⇒ 非 018 引入；`m18-linux-018` 的 `run.sh` 基线比对因此报「new red gate」，属陈旧 `baseline-gates.txt` 误报。处置：由 `tests/inst` 归属方在 master 上按生成器 `--write` 重生成 `case-ledger.tsv`（或立 repair 任务），并更新 `baseline-gates.txt`。跨册，M18 不代改。"
+- id: ISS-m18-009
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P1】用户态异步捕获/返回路径**丢任务**（可确定性复现）：`m18-linux-007` 的纯用户态忙等探针 **8/8** 触发，控制台末行为 `K2 async user frame_ip=…`，此后无 `PTHREAD end`、无 die/panic，任务不再推进。此前的 `ISS-m18-005`（随机 case `HOST_TIMEOUT`：`mm-pfnmap`/`mm-map-populate`/`futex-wait-timeout`/`fstat02`）疑为同族，不能再按宿主 flake 计。影响：任何长时间跑在用户态、不频繁 syscall 的负载都可能静默停摆（LTP/kselftest 的随机超时来源）。处置：`m18-linux-028` 复现→定位（`cg15`/`cg16`/`cg5 rc8–rc11`、调度与内核栈）→修复，修后忙等 0/≥20、LTP 两轮一致。"
 - id: ISS-m18-002
   scope:
   - infra

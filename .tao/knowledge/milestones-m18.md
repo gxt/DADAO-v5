@@ -32,6 +32,7 @@
 | --- | --- | --- |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
+| m18-linux-028 | 3–5 h | 用户态异步返回丢任务（007 忙等探针 8/8 复现；`ISS-m18-005` 疑同族）；修后 0/≥20 + LTP 两轮 |
 
 > **已作废（2026-11-23，ADR-0060）**：`m18-qemu-002`（monitor-first QEMU）reviewer Accepted 但**不合入 master**，分支留参考；`m18-qemu-003`（旧探针迁 monitor-first）未开工、被 hart-first 取代。
 
