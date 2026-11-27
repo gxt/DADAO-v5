@@ -24,7 +24,6 @@
 | m19-gem5-001 | 4–8 h | gem5 实现 `swym N`（12 位、1+N、原子）并补周期/ILLI 用例 |
 | m19-chipyard-003 | 4–8 h | chipyard RTL 实现 `swym N`（12 位、1+N、原子）并补 Verilator 用例 |
 | m19-testcases-001 | 2–4 h | `swym N` 测试程序：1/2/4096 拍、高位 ILLI、原子中断 |
-| m19-gem5-002 | 4–8 h | gem5 Tiny profile 迁移到新 ROM/RAM/hmon/entry/DUMP |
 | m19-testcases-003 | 4–8 h | 宿主工具 DUMP 0x800（pt_regs）与 BootROM 8 KiB 构建器 |
 | m19-integ-001 | 4–8 h | 新几何下 QEMU/gem5/chipyard 三平台签名/退出一致性 |
 
