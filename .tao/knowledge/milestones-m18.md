@@ -30,7 +30,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
 
@@ -41,6 +40,7 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m18-linux-018 | 2026-11-27 15:16 | 2–3 h | 套件环境补齐（TMPFS/MEMFD、`/proc/iomem`、非 root uid + 006 新增 `PATH`/`/etc/passwd`）；先确认 `mlockall02 die-no-vma` 非内核缺陷 |
+| m18-linux-007 | 2026-11-27 17:52 | 2–3 h | pthread create/join 端到端闭环（K6 缺口；`pthread_create`×N/join 返回值/TLS/detach/exit + 负向用例）；0.8.1-rc + 自建 QEMU |
 
 ## 已验证
 
