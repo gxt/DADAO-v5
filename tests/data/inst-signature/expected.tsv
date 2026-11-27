@@ -1284,6 +1284,7 @@ tests/inst/03-wyde-imm/set.zw_rwii_rd.S	11	value	0x000000000000ffff	0x0000000000
 tests/inst/03-wyde-imm/set.zw_rwii_rd.S	12	value	0x0000000000000001	0x0000000000000001	tests/inst/03-wyde-imm/set.zw_rwii_rd.S:54
 tests/inst/03-wyde-imm/set.zw_rwii_rd.S	13	value	0x8000000000000000	0x8000000000000000	tests/inst/03-wyde-imm/set.zw_rwii_rd.S:56
 tests/inst/03-wyde-imm/set.zw_rwii_rd.S	14	value	0x00005a5a00000000	0x00005A5A00000000	tests/inst/03-wyde-imm/set.zw_rwii_rd.S:60
+tests/inst/03-wyde-imm/set.zw_rwii_rd.S	15	value	0x3333000000000000	0x3333000000000000	tests/inst/03-wyde-imm/set.zw_rwii_rd.S:68
 tests/inst/04-arith-logic-octa/add.si_riii_rd.S	1	value	0x00000000000000f8	0x00000000000000F8	tests/inst/04-arith-logic-octa/add.si_riii_rd.S:38
 tests/inst/04-arith-logic-octa/add.si_riii_rd.S	2	value	0x000000000001ffff	0x000000000001FFFF	tests/inst/04-arith-logic-octa/add.si_riii_rd.S:44
 tests/inst/04-arith-logic-octa/add.si_riii_rd.S	3	value	0x0123456789abcdf0	0x0123456789ABCDF0	tests/inst/04-arith-logic-octa/add.si_riii_rd.S:47
@@ -1298,6 +1299,7 @@ tests/inst/04-arith-logic-octa/add.si_riii_rd.S	11	value	0x800000000001fffe	0x80
 tests/inst/04-arith-logic-octa/add.si_riii_rd.S	12	value	0x7ffffffffffe0000	0x7FFFFFFFFFFE0000	tests/inst/04-arith-logic-octa/add.si_riii_rd.S:74
 tests/inst/04-arith-logic-octa/add.si_riii_rd.S	13	value	0x0000000000010001	0x0000000000010001	tests/inst/04-arith-logic-octa/add.si_riii_rd.S:77
 tests/inst/04-arith-logic-octa/add.si_riii_rd.S	14	value	0xa5a5a5a55a5a6c8e	0xA5A5A5A55A5A6C8E	tests/inst/04-arith-logic-octa/add.si_riii_rd.S:80
+tests/inst/04-arith-logic-octa/add.si_riii_rd.S	15	value	0x000000000000fffe	0x000000000000FFFE	tests/inst/04-arith-logic-octa/add.si_riii_rd.S:83
 tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	1	value	0x0000000000000082	0x0000000000000082	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S:29
 tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	2	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S:37
 tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	3	value	0x0000000000000082	0x0000000000000082	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S:40
@@ -1312,6 +1314,8 @@ tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	11	value	0x0000000000000000	0x00
 tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	12	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S:67
 tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	13	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S:70
 tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	14	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S:73
+tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	15	value	0x0000000000000001	0x0000000000000001	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S:76
+tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	16	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S:79
 tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	1	value	0x0000000000000082	0x0000000000000082	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S:29
 tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	2	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S:37
 tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	3	value	0x0000000000000082	0x0000000000000082	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S:40
@@ -1325,6 +1329,8 @@ tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	10	value	0x0000000000000000	0x00
 tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	11	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S:64
 tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	12	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S:67
 tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	13	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S:70
+tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	14	value	0x0000000000000001	0x0000000000000001	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S:73
+tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	15	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S:76
 tests/inst/04-arith-logic-octa/and.o_orrr_rd.S	1	value	0xaaaaaaaa00000000	0xAAAAAAAA00000000	tests/inst/04-arith-logic-octa/and.o_orrr_rd.S:25
 tests/inst/04-arith-logic-octa/and.o_orrr_rd.S	2	value	0x0f0f0f0f0f0f0f0f	0x0F0F0F0F0F0F0F0F	tests/inst/04-arith-logic-octa/and.o_orrr_rd.S:33
 tests/inst/04-arith-logic-octa/and.o_orrr_rd.S	3	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/and.o_orrr_rd.S:36
@@ -1678,6 +1684,7 @@ tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	15	value	0x0000000042424242	0x000
 tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	16	value	0x0000001090909080	0x0000001090909080	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S:78
 tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	17	value	0x1090909080000000	0x1090909080000000	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S:82
 tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	18	value	0x0000001090909080	0x0000001090909080	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S:86
+tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	19	value	0x8000000000000000	0x8000000000000000	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S:89
 tests/inst/04-arith-logic-octa/shr.so_orri_rd.S	1	value	0x03c3c3c3c3c3c3c3	0x03C3C3C3C3C3C3C3	tests/inst/04-arith-logic-octa/shr.so_orri_rd.S:25
 tests/inst/04-arith-logic-octa/shr.so_orri_rd.S	2	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/04-arith-logic-octa/shr.so_orri_rd.S:32
 tests/inst/04-arith-logic-octa/shr.so_orri_rd.S	3	value	0x03c3c3c3c3c3c3c3	0x03C3C3C3C3C3C3C3	tests/inst/04-arith-logic-octa/shr.so_orri_rd.S:35
@@ -1707,6 +1714,7 @@ tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	14	value	0xffffffffffffffff	0xFF
 tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	15	value	0xffffffffc0c0c0c0	0xFFFFFFFFC0C0C0C0	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S:75
 tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	16	value	0xffffffffff030303	0xFFFFFFFFFF030303	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S:79
 tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	17	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S:83
+tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	18	value	0xc000000000000000	0xC000000000000000	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S:86
 tests/inst/04-arith-logic-octa/shr.uo_orri_rd.S	1	value	0x03c3c3c3c3c3c3c3	0x03C3C3C3C3C3C3C3	tests/inst/04-arith-logic-octa/shr.uo_orri_rd.S:25
 tests/inst/04-arith-logic-octa/shr.uo_orri_rd.S	2	value	0x0000000000000001	0x0000000000000001	tests/inst/04-arith-logic-octa/shr.uo_orri_rd.S:32
 tests/inst/04-arith-logic-octa/shr.uo_orri_rd.S	3	value	0x03c3c3c3c3c3c3c3	0x03C3C3C3C3C3C3C3	tests/inst/04-arith-logic-octa/shr.uo_orri_rd.S:35
@@ -1736,6 +1744,7 @@ tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	14	value	0x0000000000000001	0x00
 tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	15	value	0x0000000010909090	0x0000000010909090	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S:74
 tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	16	value	0x0000000000424242	0x0000000000424242	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S:78
 tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	17	value	0x00000001ffffffff	0x00000001FFFFFFFF	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S:82
+tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	18	value	0x4000000000000000	0x4000000000000000	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S:85
 tests/inst/04-arith-logic-octa/sub.so_rrrr_rd.S	1	value	0x0000000000000046	0x0000000000000046	tests/inst/04-arith-logic-octa/sub.so_rrrr_rd.S:29
 tests/inst/04-arith-logic-octa/sub.so_rrrr_rd.S	2	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/sub.so_rrrr_rd.S:37
 tests/inst/04-arith-logic-octa/sub.so_rrrr_rd.S	3	value	0x0000000000000046	0x0000000000000046	tests/inst/04-arith-logic-octa/sub.so_rrrr_rd.S:40
@@ -1879,6 +1888,8 @@ tests/inst/06-control-flow/br.eq_rrii_rd.S	9	value	0x0000000000000001	1	tests/in
 tests/inst/06-control-flow/br.eq_rrii_rd.S	10	value	0x0000ffffff011500	(ENTRY + 0x1400)	tests/inst/06-control-flow/br.eq_rrii_rd.S:88
 tests/inst/06-control-flow/br.eq_rrii_rd.S	11	value	0x0000ffffff010900	(ENTRY + 0x800)	tests/inst/06-control-flow/br.eq_rrii_rd.S:91
 tests/inst/06-control-flow/br.eq_rrii_rd.S	12	value	0x0000ffffff011c00	(ENTRY + 0x1B00)	tests/inst/06-control-flow/br.eq_rrii_rd.S:98
+tests/inst/06-control-flow/br.eq_rrii_rd.S	13	value	0x0000ffffff013cfc	(ENTRY + 0x3BFC)	tests/inst/06-control-flow/br.eq_rrii_rd.S:120
+tests/inst/06-control-flow/br.eq_rrii_rd.S	14	value	0x0000ffffff011d10	(ENTRY + 0x1C10)	tests/inst/06-control-flow/br.eq_rrii_rd.S:123
 tests/inst/06-control-flow/br.n_riii_rd.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/br.n_riii_rd.S:32
 tests/inst/06-control-flow/br.n_riii_rd.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/br.n_riii_rd.S:39
 tests/inst/06-control-flow/br.n_riii_rd.S	3	value	0x0000000000000001	1	tests/inst/06-control-flow/br.n_riii_rd.S:43
@@ -1904,6 +1915,7 @@ tests/inst/06-control-flow/br.ne_rrii_rd.S	9	value	0x0000000000000000	0	tests/in
 tests/inst/06-control-flow/br.ne_rrii_rd.S	10	value	0x0000ffffff011500	(ENTRY + 0x1400)	tests/inst/06-control-flow/br.ne_rrii_rd.S:88
 tests/inst/06-control-flow/br.ne_rrii_rd.S	11	value	0x0000ffffff010900	(ENTRY + 0x800)	tests/inst/06-control-flow/br.ne_rrii_rd.S:91
 tests/inst/06-control-flow/br.ne_rrii_rd.S	12	value	0x0000ffffff011c00	(ENTRY + 0x1B00)	tests/inst/06-control-flow/br.ne_rrii_rd.S:98
+tests/inst/06-control-flow/br.ne_rrii_rd.S	13	value	0x0000ffffff011d00	(ENTRY + 0x1C00)	tests/inst/06-control-flow/br.ne_rrii_rd.S:113
 tests/inst/06-control-flow/br.nn_riii_rd.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/br.nn_riii_rd.S:32
 tests/inst/06-control-flow/br.nn_riii_rd.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/br.nn_riii_rd.S:39
 tests/inst/06-control-flow/br.nn_riii_rd.S	3	value	0x0000000000000001	1	tests/inst/06-control-flow/br.nn_riii_rd.S:43
@@ -2027,12 +2039,15 @@ tests/inst/06-control-flow/jump_iiii_rb.S	3	value	0x0000000000000001	1	tests/ins
 tests/inst/06-control-flow/jump_iiii_rb.S	4	value	0x0000ffffff011500	(ENTRY + 0x1400)	tests/inst/06-control-flow/jump_iiii_rb.S:74
 tests/inst/06-control-flow/jump_iiii_rb.S	5	value	0x0000ffffff010900	(ENTRY + 0x800)	tests/inst/06-control-flow/jump_iiii_rb.S:77
 tests/inst/06-control-flow/jump_iiii_rb.S	6	value	0x0000ffffff0119a0	(ENTRY + 0x18A0)	tests/inst/06-control-flow/jump_iiii_rb.S:80
+tests/inst/06-control-flow/jump_iiii_rb.S	7	value	0x0000ffffff013d00	(ENTRY + 0x3C00)	tests/inst/06-control-flow/jump_iiii_rb.S:100
+tests/inst/06-control-flow/jump_iiii_rb.S	8	value	0x0000ffffff011d20	(ENTRY + 0x1C20)	tests/inst/06-control-flow/jump_iiii_rb.S:103
 tests/inst/06-control-flow/jump_rrii_rb.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/jump_rrii_rb.S:30
 tests/inst/06-control-flow/jump_rrii_rb.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/jump_rrii_rb.S:39
 tests/inst/06-control-flow/jump_rrii_rb.S	3	value	0x0000000000000000	0	tests/inst/06-control-flow/jump_rrii_rb.S:46
 tests/inst/06-control-flow/jump_rrii_rb.S	4	value	0x0000ffffff011500	(ENTRY + 0x1400)	tests/inst/06-control-flow/jump_rrii_rb.S:73
 tests/inst/06-control-flow/jump_rrii_rb.S	5	value	0x0000ffffff010900	(ENTRY + 0x800)	tests/inst/06-control-flow/jump_rrii_rb.S:78
 tests/inst/06-control-flow/jump_rrii_rb.S	6	value	0x0000ffffff0119a0	(ENTRY + 0x18A0)	tests/inst/06-control-flow/jump_rrii_rb.S:83
+tests/inst/06-control-flow/jump_rrii_rb.S	7	value	0x0000ffffff011d40	(ENTRY + 0x1C40)	tests/inst/06-control-flow/jump_rrii_rb.S:98
 tests/inst/06-control-flow/ret_riii_ra.S	1	value	0x0000000000000001	1	tests/inst/06-control-flow/ret_riii_ra.S:54
 tests/inst/06-control-flow/ret_riii_ra.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/ret_riii_ra.S:56
 tests/inst/06-control-flow/ret_riii_ra.S	3	value	0x0000ffffff010900	(ENTRY + 0x800)	tests/inst/06-control-flow/ret_riii_ra.S:72

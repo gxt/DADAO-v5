@@ -10,7 +10,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：iiii = opc | imms24[23:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（本文件不需要数据区）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
-@@ 用例：encoding 1 / semantic 1 / overlap 1 / boundary 3（链例 6 + 故障例 1）
+@@ 用例：encoding 1 / semantic 1 / overlap 1 / boundary 5（链例 8 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：跳转**距离与落点地址**用 `.org` 钉住的槽位 + `__LAND_IP`（`aip.si` 取 IP）核，
@@ -79,11 +79,34 @@ __ck5:
 __ck6:
 	__CHECK_RD          6, rd24, (ENTRY + 0x18A0)
 
+	@@ ---- boundary：大距离（imms24 << 2；+0x2000 / -0x2000）----
+	@@ 前向 0x1C00 + 0x2000 ⇒ 落点 0x3C00；后向 0x3C20 - 0x2000 ⇒ 落点 0x1C20
+	set.rd	rd24, 0
+	jump	[rb0, __jf]
+	.org	0x1C00
+__jf:
+	jump	[rb0, 0x2000]
+	.org	0x1C20
+__jb_land:
+	__PREP_LAND_JUMP	__jck_l
+	.org	0x3C00
+__jf_land:
+	__PREP_LAND_JUMP	__jck_f
+	.org	0x3C20
+__jb:
+	jump	[rb0, -0x2000]
+	.org	0x3C40
+__jck_f:
+	__CHECK_RD          7, rd24, (ENTRY + 0x3C00)
+	jump	[rb0, __jb]
+__jck_l:
+	__CHECK_RD          8, rd24, (ENTRY + 0x1C20)
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ 目标落在 SRAM 之下（imms24 = -0x40000 ⇒ rb0 - 0x100000）⇒ 取指 CFXMEM
-	TEST_FAULT_CF       7, CFXMEM, 0x70FC0000
+	TEST_FAULT_CF       9, CFXMEM, 0x70FC0000
 
 	__TEST_SECTIONS

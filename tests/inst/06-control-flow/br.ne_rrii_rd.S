@@ -10,7 +10,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：rrii = opc | rdha[23:18] | rdhb[17:12] | imms12[11:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd`/`set.rb` 拼条件寄存器；**不使用数据区**）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
-@@ 用例：encoding 2 / semantic 5 / overlap 2 / boundary 3（链例 12 + 故障例 1）
+@@ 用例：encoding 2 / semantic 5 / overlap 2 / boundary 4（链例 13 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：条件寄存器用 `set.rd` 拼常量（被测分支不参与造初值）、期望内联；跳转/不跳由
@@ -97,13 +97,28 @@ __d_l3:                                  @@ 0x1B00：大距离落点
 __d_ck_l:
 	__CHECK_RD         12, rd24, (ENTRY + 0x1B00)
 
+	@@ ---- boundary：最大负编码偏移（imms12 = -2048 ⇒ -0x2000；0x3C00 ⇒ 落点 0x1C00）----
+	set.rd	rd5, 0x42
+	set.rd	rd6, 0x99
+	set.rd	rd24, 0
+	jump	[rb0, __m_b]
+	.org	0x1C00
+__m_b_land:
+	__PREP_LAND_JUMP	__m_ck
+	.org	0x3C00
+__m_b:
+	br.ne	{rd5, rd6}?, [rb0, -0x2000]
+	.org	0x3C20
+__m_ck:
+	__CHECK_RD         13, rd24, (ENTRY + 0x1C00)
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ 目标落在紧随的保留编码字（零字，非代码）⇒ 取指读到保留编码 ⇒ UNDI
-	TEST_FAULT_BR2      13, br.ne, rd5, 0x42, rd6, 0x99, UNDI, __rsvd13
-__rsvd13:
+	TEST_FAULT_BR2      14, br.ne, rd5, 0x42, rd6, 0x99, UNDI, __rsvd14
+__rsvd14:
 	.dd.t32	0
 
 	__TEST_SECTIONS

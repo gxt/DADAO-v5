@@ -1523,7 +1523,7 @@ asm	tests/inst/03-wyde-imm/set.zw_rwii_rb.S	TEST_WI_RB          14, set.zw, rb18
 asm	tests/inst/03-wyde-imm/set.zw_rwii_rb.S	TEST_WI_RB_MEM       7, set.zw, rb14, wp2, 0xABCD, 0x0123456789ABCDEF, 0x40	1
 asm	tests/inst/03-wyde-imm/set.zw_rwii_rb.S	__CHECK_MEM          1, SCRATCH, 0, 0x0000000012340000	1
 asm	tests/inst/03-wyde-imm/set.zw_rwii_rb.S	__CHECK_MEM          2, SCRATCH, 0, 0xFFFF000000000000	1
-asm	tests/inst/03-wyde-imm/set.zw_rwii_rd.S	TEST_FAULT_WI       15, set.zw, rd0, ILLI, wp0, 0x0001	1
+asm	tests/inst/03-wyde-imm/set.zw_rwii_rd.S	TEST_FAULT_WI       16, set.zw, rd0, ILLI, wp0, 0x0001	1
 asm	tests/inst/03-wyde-imm/set.zw_rwii_rd.S	TEST_WI_RD           3, set.zw, rd10, wp0, 0x1234, 0xFFFFFFFFFFFFFFFF, 0x0000000000001234	1
 asm	tests/inst/03-wyde-imm/set.zw_rwii_rd.S	TEST_WI_RD           4, set.zw, rd11, wp1, 0x8000, 0x0123456789ABCDEF, 0x0000000080000000	1
 asm	tests/inst/03-wyde-imm/set.zw_rwii_rd.S	TEST_WI_RD           5, set.zw, rd12, wp2, 0xFFFF, 0xA5A55A5A0F0FF0F0, 0x0000FFFF00000000	1
@@ -1538,6 +1538,7 @@ asm	tests/inst/03-wyde-imm/set.zw_rwii_rd.S	TEST_WI_RD          14, set.zw, rd18
 asm	tests/inst/03-wyde-imm/set.zw_rwii_rd.S	TEST_WI_RD_MEM       7, set.zw, rd14, wp2, 0xABCD, 0x0123456789ABCDEF, 0x40	1
 asm	tests/inst/03-wyde-imm/set.zw_rwii_rd.S	__CHECK_RD           1, rd5, 0x0000ABCD00000000	1
 asm	tests/inst/03-wyde-imm/set.zw_rwii_rd.S	__CHECK_RD           2, rd63, 0x0001000000000000	1
+asm	tests/inst/03-wyde-imm/set.zw_rwii_rd.S	__CHECK_RD          15, rd19, 0x3333000000000000	1
 asm	tests/inst/04-arith-logic-octa/add.si_riii_rd.S	TEST_AR_SI           3, add.si, rd5, 0x0123456789ABCDEF, 1, 0x0123456789ABCDF0	1
 asm	tests/inst/04-arith-logic-octa/add.si_riii_rd.S	TEST_AR_SI           4, add.si, rd5, 0x0123456789ABCDEF, -1, 0x0123456789ABCDEE	1
 asm	tests/inst/04-arith-logic-octa/add.si_riii_rd.S	TEST_AR_SI           5, add.si, rd5, 0x0123456789ABCDEF, 0, 0x0123456789ABCDEF	1
@@ -1550,7 +1551,8 @@ asm	tests/inst/04-arith-logic-octa/add.si_riii_rd.S	TEST_AR_SI          11, add.
 asm	tests/inst/04-arith-logic-octa/add.si_riii_rd.S	TEST_AR_SI          12, add.si, rd7, 0x8000000000000000, -131072, 0x7FFFFFFFFFFE0000	1
 asm	tests/inst/04-arith-logic-octa/add.si_riii_rd.S	TEST_AR_SI          13, add.si, rd7, 0x000000000000FFFF, 2, 0x0000000000010001	1
 asm	tests/inst/04-arith-logic-octa/add.si_riii_rd.S	TEST_AR_SI          14, add.si, rd8, 0xA5A5A5A55A5A5A5A, 4660, 0xA5A5A5A55A5A6C8E	1
-asm	tests/inst/04-arith-logic-octa/add.si_riii_rd.S	TEST_FAULT_ALU_SI   15, add.si, ILLI, rd0, 1	1
+asm	tests/inst/04-arith-logic-octa/add.si_riii_rd.S	TEST_AR_SI          15, add.si, rd5, 0x0000000000010000, -2, 0x000000000000FFFE	1
+asm	tests/inst/04-arith-logic-octa/add.si_riii_rd.S	TEST_FAULT_ALU_SI   16, add.si, ILLI, rd0, 1	1
 asm	tests/inst/04-arith-logic-octa/add.si_riii_rd.S	__CHECK_RD   1, rd5, 0x00000000000000F8	1
 asm	tests/inst/04-arith-logic-octa/add.si_riii_rd.S	__CHECK_RD   2, rd63, 0x000000000001FFFF	1
 asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	TEST_AR_DUAL         3, add.so, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0x0000000000000064, rd8, 0x000000000000001E, 0x0000000000000000, 0x0000000000000082	1
@@ -1565,8 +1567,10 @@ asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	TEST_AR_DUAL        11, add.
 asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	TEST_AR_DUAL        12, add.so, rd10, rd11, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, rd10, 0xFFFFFFFFFFFFFFFF, rd12, 0x0000000000000001, 0x0000000000000000, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	TEST_AR_DUAL        13, add.so, rd10, rd11, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF, rd12, 0x0000000000000001, rd11, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	TEST_AR_DUAL        14, add.so, rd10, rd11, 0x0000000000000000, 0x0000000000000000, rd13, 0x8000000000000000, rd13, 0x8000000000000000, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000	1
-asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	TEST_FAULT_DUAL     15, add.so, ILLI, rd0, rd0, rd7, rd8	1
-asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	TEST_FAULT_DUAL     16, add.so, ILLI, rd5, rd5, rd7, rd8	1
+asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	TEST_AR_DUAL        15, add.so, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0xFFFFFFFFFFFFFFFF, rd8, 0x0000000000000002, 0x0000000000000000, 0x0000000000000001	1
+asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	TEST_AR_DUAL        16, add.so, rd5, rd6, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, rd7, 0x0000000000000000, rd8, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000	1
+asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	TEST_FAULT_DUAL     17, add.so, ILLI, rd0, rd0, rd7, rd8	1
+asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	TEST_FAULT_DUAL     18, add.so, ILLI, rd5, rd5, rd7, rd8	1
 asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	__CHECK_RD   1, rd6, 0x0000000000000082	1
 asm	tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S	__CHECK_RD   2, rd1, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	TEST_AR_DUAL         3, add.uo, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0x0000000000000064, rd8, 0x000000000000001E, 0x0000000000000000, 0x0000000000000082	1
@@ -1580,8 +1584,10 @@ asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	TEST_AR_DUAL        10, add.
 asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	TEST_AR_DUAL        11, add.uo, rd10, rd11, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, rd10, 0xFFFFFFFFFFFFFFFF, rd12, 0x0000000000000001, 0x0000000000000001, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	TEST_AR_DUAL        12, add.uo, rd10, rd11, 0x0000000000000000, 0x8000000000000000, rd12, 0x8000000000000000, rd11, 0x8000000000000000, 0x0000000000000001, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	TEST_AR_DUAL        13, add.uo, rd10, rd11, 0x0000000000000000, 0x0000000000000000, rd13, 0x8000000000000000, rd13, 0x8000000000000000, 0x0000000000000001, 0x0000000000000000	1
-asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	TEST_FAULT_DUAL     14, add.uo, ILLI, rd0, rd0, rd7, rd8	1
-asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	TEST_FAULT_DUAL     15, add.uo, ILLI, rd5, rd5, rd7, rd8	1
+asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	TEST_AR_DUAL        14, add.uo, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0xFFFFFFFFFFFFFFFF, rd8, 0x0000000000000002, 0x0000000000000001, 0x0000000000000001	1
+asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	TEST_AR_DUAL        15, add.uo, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0x8000000000000000, rd8, 0x7FFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	TEST_FAULT_DUAL     16, add.uo, ILLI, rd0, rd0, rd7, rd8	1
+asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	TEST_FAULT_DUAL     17, add.uo, ILLI, rd5, rd5, rd7, rd8	1
 asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	__CHECK_RD   1, rd6, 0x0000000000000082	1
 asm	tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S	__CHECK_RD   2, rd1, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/and.o_orrr_rd.S	TEST_AR_ORRR         3, and.o, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xAAAAAAAAAAAAAAAA, rd7, 0x5555555555555555, 0x0000000000000000	1
@@ -1963,7 +1969,8 @@ asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        15, shl.o
 asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        16, shl.o, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0x0000000000000007, 0x0000001090909080	1
 asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        17, shl.o, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0x000000000000001F, 0x1090909080000000	1
 asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        18, shl.o, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0xFFFFFFFFFFFFFFC7, 0x0000001090909080	1
-asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_FAULT_ALU3     19, shl.o, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        19, shl.o, rd5, 0x0000000000000000, rd6, 0xFFFFFFFFFFFFFFFF, rd7, 0x000000000000003F, 0x8000000000000000	1
+asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_FAULT_ALU3     20, shl.o, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	__CHECK_RD   1, rd5, 0x3C3C3C3C3C3C3C3C	1
 asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	__CHECK_RD   2, rd63, 0x0000000000000002	1
 asm	tests/inst/04-arith-logic-octa/shr.so_orri_rd.S	TEST_AR_ORRI         3, shr.so, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0F0F0F0F0F0F0F0F, 2, 0x03C3C3C3C3C3C3C3	1
@@ -1994,7 +2001,8 @@ asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_AR_ORRR        14, shr.
 asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_AR_ORRR        15, shr.so, rd5, 0x0000000000000000, rd6, 0xFFFFFFFF81818181, rd7, 0x0000000000000001, 0xFFFFFFFFC0C0C0C0	1
 asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_AR_ORRR        16, shr.so, rd5, 0x0000000000000000, rd6, 0xFFFFFFFF81818181, rd7, 0x0000000000000007, 0xFFFFFFFFFF030303	1
 asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_AR_ORRR        17, shr.so, rd5, 0x0000000000000000, rd6, 0xFFFFFFFF81818181, rd7, 0x000000000000001F, 0xFFFFFFFFFFFFFFFF	1
-asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_FAULT_ALU3     18, shr.so, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_AR_ORRR        18, shr.so, rd5, 0x0000000000000000, rd6, 0x8000000000000000, rd7, 0x0000000000000001, 0xC000000000000000	1
+asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_FAULT_ALU3     19, shr.so, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	__CHECK_RD   1, rd5, 0x03C3C3C3C3C3C3C3	1
 asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	__CHECK_RD   2, rd63, 0xE000000000000000	1
 asm	tests/inst/04-arith-logic-octa/shr.uo_orri_rd.S	TEST_AR_ORRI         3, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0F0F0F0F0F0F0F0F, 2, 0x03C3C3C3C3C3C3C3	1
@@ -2025,7 +2033,8 @@ asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_AR_ORRR        14, shr.
 asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_AR_ORRR        15, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000021212121, rd7, 0x0000000000000001, 0x0000000010909090	1
 asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_AR_ORRR        16, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000021212121, rd7, 0x0000000000000007, 0x0000000000424242	1
 asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_AR_ORRR        17, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFFFFFFFF80000001, rd7, 0x000000000000001F, 0x00000001FFFFFFFF	1
-asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_FAULT_ALU3     18, shr.uo, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_AR_ORRR        18, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x8000000000000000, rd7, 0x0000000000000001, 0x4000000000000000	1
+asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_FAULT_ALU3     19, shr.uo, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	__CHECK_RD   1, rd5, 0x03C3C3C3C3C3C3C3	1
 asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	__CHECK_RD   2, rd63, 0x0000000000000001	1
 asm	tests/inst/04-arith-logic-octa/sub.so_rrrr_rd.S	TEST_AR_DUAL         3, sub.so, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0x0000000000000064, rd8, 0x000000000000001E, 0x0000000000000000, 0x0000000000000046	1
@@ -2178,12 +2187,14 @@ asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	TEST_BR2            6, br.eq, rd0
 asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	TEST_BR2            7, br.eq, rd5, 0x0000000000000042, rd6, 0x8000000000000042, 0	1
 asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	TEST_BR2            8, br.eq, rd5, 0x0123456789ABCDEF, rd5, 0x0000000000000000, 1	1
 asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	TEST_BR2            9, br.eq, rd0, 0xFFFFFFFFFFFFFFFF, rd0, 0x0000000000000000, 1	1
-asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	TEST_FAULT_BR2      13, br.eq, rd5, 0x42, rd6, 0x42, UNDI, __rsvd13	1
+asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	TEST_FAULT_BR2      15, br.eq, rd5, 0x42, rd6, 0x42, UNDI, __rsvd15	1
 asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	__CHECK_RD          1, rd24, 0	1
 asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	__CHECK_RD          2, rd24, 0	1
 asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	__CHECK_RD         10, rd24, (ENTRY + 0x1400)	1
 asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	__CHECK_RD         11, rd24, (ENTRY + 0x800)	1
 asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	__CHECK_RD         12, rd24, (ENTRY + 0x1B00)	1
+asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	__CHECK_RD         13, rd24, (ENTRY + 0x3BFC)	1
+asm	tests/inst/06-control-flow/br.eq_rrii_rd.S	__CHECK_RD         14, rd24, (ENTRY + 0x1C10)	1
 asm	tests/inst/06-control-flow/br.n_riii_rd.S	TEST_BR1	3, br.n, rd5, 0xFFFFFFFFFFFFFFFF, 1	1
 asm	tests/inst/06-control-flow/br.n_riii_rd.S	TEST_BR1	4, br.n, rd5, 0x8000000000000000, 1	1
 asm	tests/inst/06-control-flow/br.n_riii_rd.S	TEST_BR1	5, br.n, rd5, 0x0000000000000000, 0	1
@@ -2205,12 +2216,13 @@ asm	tests/inst/06-control-flow/br.ne_rrii_rd.S	TEST_BR2            6, br.ne, rd0
 asm	tests/inst/06-control-flow/br.ne_rrii_rd.S	TEST_BR2            7, br.ne, rd5, 0x0000000000000042, rd6, 0x8000000000000042, 1	1
 asm	tests/inst/06-control-flow/br.ne_rrii_rd.S	TEST_BR2            8, br.ne, rd5, 0x0123456789ABCDEF, rd5, 0x0000000000000000, 0	1
 asm	tests/inst/06-control-flow/br.ne_rrii_rd.S	TEST_BR2            9, br.ne, rd0, 0xFFFFFFFFFFFFFFFF, rd0, 0x0000000000000000, 0	1
-asm	tests/inst/06-control-flow/br.ne_rrii_rd.S	TEST_FAULT_BR2      13, br.ne, rd5, 0x42, rd6, 0x99, UNDI, __rsvd13	1
+asm	tests/inst/06-control-flow/br.ne_rrii_rd.S	TEST_FAULT_BR2      14, br.ne, rd5, 0x42, rd6, 0x99, UNDI, __rsvd14	1
 asm	tests/inst/06-control-flow/br.ne_rrii_rd.S	__CHECK_RD          1, rd24, 0	1
 asm	tests/inst/06-control-flow/br.ne_rrii_rd.S	__CHECK_RD          2, rd24, 1	1
 asm	tests/inst/06-control-flow/br.ne_rrii_rd.S	__CHECK_RD         10, rd24, (ENTRY + 0x1400)	1
 asm	tests/inst/06-control-flow/br.ne_rrii_rd.S	__CHECK_RD         11, rd24, (ENTRY + 0x800)	1
 asm	tests/inst/06-control-flow/br.ne_rrii_rd.S	__CHECK_RD         12, rd24, (ENTRY + 0x1B00)	1
+asm	tests/inst/06-control-flow/br.ne_rrii_rd.S	__CHECK_RD         13, rd24, (ENTRY + 0x1C00)	1
 asm	tests/inst/06-control-flow/br.nn_riii_rd.S	TEST_BR1	3, br.nn, rd5, 0x0000000000000000, 1	1
 asm	tests/inst/06-control-flow/br.nn_riii_rd.S	TEST_BR1	4, br.nn, rd5, 0x7FFFFFFFFFFFFFFF, 1	1
 asm	tests/inst/06-control-flow/br.nn_riii_rd.S	TEST_BR1	5, br.nn, rd5, 0xFFFFFFFFFFFFFFFF, 0	1
@@ -2338,20 +2350,23 @@ asm	tests/inst/06-control-flow/call_rrii_ra.S	__CHECK_RD         11, rd26, 0x000
 asm	tests/inst/06-control-flow/call_rrii_ra.S	__CHECK_RD         12, rd24, (ENTRY + 0xE40)	1
 asm	tests/inst/06-control-flow/call_rrii_ra.S	__CHECK_RD         13, rd25, (0x0002000000000000 + ENTRY + 0xE04)  @@ 计数 1→2	1
 asm	tests/inst/06-control-flow/call_rrii_ra.S	__CHECK_RD         14, rd26, 0x0001000000000000       @@ RACNT 不变（仍 1）	1
-asm	tests/inst/06-control-flow/jump_iiii_rb.S	TEST_FAULT_CF       7, CFXMEM, 0x70FC0000	1
+asm	tests/inst/06-control-flow/jump_iiii_rb.S	TEST_FAULT_CF       9, CFXMEM, 0x70FC0000	1
 asm	tests/inst/06-control-flow/jump_iiii_rb.S	__CHECK_RD          1, rd24, 0	1
 asm	tests/inst/06-control-flow/jump_iiii_rb.S	__CHECK_RD          2, rd24, 1	1
 asm	tests/inst/06-control-flow/jump_iiii_rb.S	__CHECK_RD          3, rd24, 1	1
 asm	tests/inst/06-control-flow/jump_iiii_rb.S	__CHECK_RD          4, rd24, (ENTRY + 0x1400)	1
 asm	tests/inst/06-control-flow/jump_iiii_rb.S	__CHECK_RD          5, rd24, (ENTRY + 0x800)	1
 asm	tests/inst/06-control-flow/jump_iiii_rb.S	__CHECK_RD          6, rd24, (ENTRY + 0x18A0)	1
-asm	tests/inst/06-control-flow/jump_rrii_rb.S	TEST_FAULT_ADDR0    7, jump, CFXMEM	1
+asm	tests/inst/06-control-flow/jump_iiii_rb.S	__CHECK_RD          7, rd24, (ENTRY + 0x3C00)	1
+asm	tests/inst/06-control-flow/jump_iiii_rb.S	__CHECK_RD          8, rd24, (ENTRY + 0x1C20)	1
+asm	tests/inst/06-control-flow/jump_rrii_rb.S	TEST_FAULT_ADDR0    8, jump, CFXMEM	1
 asm	tests/inst/06-control-flow/jump_rrii_rb.S	__CHECK_RD          1, rd24, 0	1
 asm	tests/inst/06-control-flow/jump_rrii_rb.S	__CHECK_RD          2, rd24, 0	1
 asm	tests/inst/06-control-flow/jump_rrii_rb.S	__CHECK_RD          3, rd24, 0	1
 asm	tests/inst/06-control-flow/jump_rrii_rb.S	__CHECK_RD          4, rd24, (ENTRY + 0x1400)	1
 asm	tests/inst/06-control-flow/jump_rrii_rb.S	__CHECK_RD          5, rd24, (ENTRY + 0x800)	1
 asm	tests/inst/06-control-flow/jump_rrii_rb.S	__CHECK_RD          6, rd24, (ENTRY + 0x18A0)	1
+asm	tests/inst/06-control-flow/jump_rrii_rb.S	__CHECK_RD          7, rd24, (ENTRY + 0x1C40)	1
 asm	tests/inst/06-control-flow/ret_riii_ra.S	TEST_FAULT_CF      19, ILLI, 0x76000001	1
 asm	tests/inst/06-control-flow/ret_riii_ra.S	TEST_FAULT_CF      20, ILLI, 0x7603FFFF	1
 asm	tests/inst/06-control-flow/ret_riii_ra.S	TEST_FAULT_RAS     21, RASUF, ret rd0, 0	1

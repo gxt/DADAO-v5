@@ -6,7 +6,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | rdhd[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 5 / boundary 4 / overlap 3 + 迁移 3（m13-testcases-045）（链例 17 + 故障例 1）
+@@ 用例：encoding 2 / semantic 6 / boundary 4 / overlap 3 + 迁移 3（m13-testcases-045）（链例 18 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联
@@ -81,11 +81,14 @@
 	@@   手算：0xFFFFFFFF80000001 >> 31 = 0x00000001FFFFFFFF（对比 shr.so 同位型 >> 31 = 全 1）
 	TEST_AR_ORRR        17, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFFFFFFFF80000001, rd7, 0x000000000000001F, 0x00000001FFFFFFFF
 
+	@@ 符号位单置 >> 1：逻辑右移高位补 0 ⇒ 0x4000..（与 shr.so 同一输入对照）
+	TEST_AR_ORRR        18, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x8000000000000000, rd7, 0x0000000000000001, 0x4000000000000000
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU3     18, shr.uo, ILLI, rd0, rd6, rd7
+	TEST_FAULT_ALU3     19, shr.uo, ILLI, rd0, rd6, rd7
 
 	__TEST_SECTIONS

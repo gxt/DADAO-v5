@@ -6,7 +6,7 @@
 @@ 立即数分片：wp0/wp1/wp2/wp3 = bits[15:0]/[31:16]/[47:32]/[63:48]（LSW..MSW，`spec/SimRISC-03 §1`）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 WDATA（`_MEM` 期望的来源）/ SCRATCH（rb/rf 实测落点）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 5 / boundary 6 / overlap 1（链例 14 + 故障例 1）
+@@ 用例：encoding 2 / semantic 5 / boundary 7 / overlap 1（链例 15 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：目的在 rd 直接比；在 rb/rf 用同组 `st.o` 落到 SCRATCH 再逐字节比 —— 不借被测指令；
@@ -59,10 +59,18 @@
 	@@ 目的=隐式源：旧值被整体丢弃
 	TEST_WI_RD          14, set.zw, rd18, wp2, 0x5A5A, 0xA5A55A5A0F0FF0F0, 0x00005A5A00000000
 
+	@@ ---- boundary ----
+	@@ 连续分片写：每次 set.zw 清掉其余 48 位（后写覆盖先写，不是插入）⇒ 只剩最后写的 wp3
+	set.rd	rd19, 0x1111222233334444
+	set.zw	rd19, wp0, 0x1111
+	set.zw	rd19, wp1, 0x2222
+	set.zw	rd19, wp3, 0x3333
+	__CHECK_RD          15, rd19, 0x3333000000000000
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 	@@ 目的 rd0 ⇒ ILLI（dst_rd0；汇编器放行该编码）
-	TEST_FAULT_WI       15, set.zw, rd0, ILLI, wp0, 0x0001
+	TEST_FAULT_WI       16, set.zw, rd0, ILLI, wp0, 0x0001
 
 	__TEST_SECTIONS

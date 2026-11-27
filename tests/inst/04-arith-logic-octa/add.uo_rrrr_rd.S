@@ -7,7 +7,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：rrrr = opc | ha[23:18] | hb[17:12] | hc[11:6] | hd[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 4 / boundary 4 / overlap 3（链例 13 + 故障例 2）
+@@ 用例：encoding 2 / semantic 5 / boundary 5 / overlap 3（链例 15 + 故障例 2）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联；
@@ -69,14 +69,20 @@
 	@@ 两源同名：x + x = 2x（进位 1）
 	TEST_AR_DUAL        13, add.uo, rd10, rd11, 0x0000000000000000, 0x0000000000000000, rd13, 0x8000000000000000, rd13, 0x8000000000000000, 0x0000000000000001, 0x0000000000000000
 
+	@@ 全 1 + 2：进位 1、低半 1（与 add.so 同一对操作数对照：有符号高半 0）
+	TEST_AR_DUAL        14, add.uo, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0xFFFFFFFFFFFFFFFF, rd8, 0x0000000000000002, 0x0000000000000001, 0x0000000000000001
+
+	@@ 0x8000..0 + 0x7FFF..F = 全 1：进位 0（进位阈值下沿）
+	TEST_AR_DUAL        15, add.uo, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0x8000000000000000, rd8, 0x7FFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_dual_same：两个目的同为 rd0
-	TEST_FAULT_DUAL     14, add.uo, ILLI, rd0, rd0, rd7, rd8
+	TEST_FAULT_DUAL     16, add.uo, ILLI, rd0, rd0, rd7, rd8
 
 	@@ dst_dual_same：两个目的为同一非 rd0 寄存器
-	TEST_FAULT_DUAL     15, add.uo, ILLI, rd5, rd5, rd7, rd8
+	TEST_FAULT_DUAL     17, add.uo, ILLI, rd5, rd5, rd7, rd8
 
 	__TEST_SECTIONS

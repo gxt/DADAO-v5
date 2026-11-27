@@ -11,7 +11,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：rrii = opc | rbha[23:18] | rdhb[17:12] | imms12[11:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rb`/`set.rd` 拼基址与偏移寄存器）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
-@@ 用例：encoding 1 / semantic 1 / overlap 1 / boundary 3（链例 6 + 故障例 1）
+@@ 用例：encoding 1 / semantic 1 / overlap 1 / boundary 4（链例 7 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：跳转**距离与落点地址**用 `.org` 钉住的槽位 + `__LAND_IP`（`aip.si` 取 IP）核，
@@ -82,11 +82,26 @@ __ck5:
 __ck6:
 	__CHECK_RD          6, rd24, (ENTRY + 0x18A0)
 
+	@@ ---- boundary：rdHB 负偏移（整 64 位有符号加；基址 ENTRY+0x1D40 + (-0x100) ⇒ 落点 0x1C40）----
+	set.rb	rb5, (ENTRY + 0x1D40)
+	set.rd	rd6, -0x100
+	set.rd	rd24, 0
+	jump	[rb0, __slot7]
+	.org	0x1C40
+__l7:
+	__PREP_LAND_JUMP	__ck7
+	.org	0x1C60
+__slot7:
+	jump	[rb5, rd6, 0]
+	.org	0x1D00
+__ck7:
+	__CHECK_RD          7, rd24, (ENTRY + 0x1C40)
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ 目标地址 0（rb5 = 0、rd6 = 0、imms12 = 0）⇒ 取指 CFXMEM
-	TEST_FAULT_ADDR0    7, jump, CFXMEM
+	TEST_FAULT_ADDR0    8, jump, CFXMEM
 
 	__TEST_SECTIONS

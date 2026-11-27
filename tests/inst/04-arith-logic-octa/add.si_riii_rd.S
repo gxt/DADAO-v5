@@ -6,7 +6,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：riii = opc | rdha[23:18] | imms18[17:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 5 / boundary 6 / overlap 1（链例 14 + 故障例 1）
+@@ 用例：encoding 2 / semantic 5 / boundary 7 / overlap 1（链例 15 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联；
@@ -79,11 +79,14 @@
 	@@ 目的=源：旧值参与运算（同一寄存器读写）
 	TEST_AR_SI          14, add.si, rd8, 0xA5A5A5A55A5A5A5A, 4660, 0xA5A5A5A55A5A6C8E
 
+	@@ 负立即数借位跨 wyde：0x10000 + (-2) = 0xFFFE（与点 13 的正进位互补）
+	TEST_AR_SI          15, add.si, rd5, 0x0000000000010000, -2, 0x000000000000FFFE
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU_SI   15, add.si, ILLI, rd0, 1
+	TEST_FAULT_ALU_SI   16, add.si, ILLI, rd0, 1
 
 	__TEST_SECTIONS
