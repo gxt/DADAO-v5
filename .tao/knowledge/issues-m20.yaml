@@ -156,3 +156,12 @@
   closed_in: null
   resolved_by: null
   title: '【P3】gem5 SE futex 剩余项（m20-gem5-002 复核）：① `FUTEX_WAKE`/`FUTEX_REQUEUE` 对未映射 `uaddr`/`uaddr2` 不返回 `EFAULT`（Linux `get_futex_key` 会）；② 跨引擎探针 `requeue.neg-wake-woken` 依赖 100 ms 停靠窗，高负载下偶发 `want=2 got=1`（空载 5/5 全绿，只假红不假绿）。处置：补 futex key 地址校验；探针改用确定性的唤醒/停靠同步，不复用时间窗。'
+- id: ISS-m20-005
+  scope:
+  - chipyard
+  - testcases
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P2】chipyard 腿在 62 并发全量 `check-idl-full` 下偶发对单个镜像输出 **0 字节签名流**且进程 rc=0（`m20-testcases-009`：首次 273/274，失败项 `ftadd_orrr_rf`；原样重试 1 次 274/274 四方一致，槽值无差异）。影响：并发下会产生假红，且 0 字节签名不会触发位移/槽数校验，可能反向掩盖真红（若 runner 只看 rc）。处置：runner/驱动对 <预期槽数或空签名做显式报错（非 rc=0 静默跳过），并查 RTL 侧签名 dump 的 flush/竞争窗口；定位前 `check-idl-full` 结论一律按「失败即重试 1 次 + 保留两次日志」记录。'
