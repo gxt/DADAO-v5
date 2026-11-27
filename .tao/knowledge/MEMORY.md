@@ -7,10 +7,10 @@
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
 - **2026-11-22 基线**：
-  - **已归档**：M14（76 册）、M15（66 册，达成 2026-11-22）→ `.tao/archive/M14/`、`M15/`。**M16/M17 台账已清零、未归档**；M16 批次 3 在跑（`m16-qemu-001`/`m16-chipyard-016`）；**M18 重新开工（M18-A）**。
+  - **已归档**：M14（76 册）、M15（66 册，达成 2026-11-22）→ `.tao/archive/M14/`、`M15/`。**M16 已归档（95 册，2026-11-27，`.tao/archive/M16/`）**；M17 台账已清零、未归档；**M18 重新开工（M18-A）**。
   - **时间口径（ADR-0058 Accepted）**：guest 性能/超时只用 `cfx_time`（或 gem5 cycles）；semihosting elapsed/`gettimeofday` 只作宿主 liveness。picolibc `times()` 已按 `SYS_TICKFREQ` 缩放（`ISS-502` 闭合）；`sysconf(_SC_CLK_TCK)` 未同步（`ISS-506`）。
   - **picolibc 安装根**：17 patches（含 `times()` 缩放 + lds `.text.start` 段首）。合入组件补丁后增量 `build-<c>` 不重放补丁：删源树 → `make fetch` → `apply_series.py --component picolibc` → rebuild。
-  - **已知基线红**：`check-patch-tree` musl 10 + gem5 5（`ISS-507`）；`check-milestones-fresh` 台账「预估：中」（`ISS-508`）；picolibc harness `.done` 无库指纹（`ISS-504`，跑前删 `picolibc-tests-run`）。
+  - **已知基线红**：`check-patch-tree` musl 2（M18 面既有；gem5 的 5 条已随 `m18-gem5-004/005` 重放清零）；`check-milestones-fresh` 台账「预估：中」（`ISS-508`）；picolibc harness `.done` 无库指纹（`ISS-504`，跑前删 `picolibc-tests-run`）。
   - **chipyard sim md5 `25c1d3f4…`**（构建必须用 `.conda-env` 的 `PATH`+`RISCV`，`ISS-474`）；qemu md5 `50752f5f…`（同环境同时段才可比，`ISS-451`/`453`）。
   - **队列**：M18 `005`/`014`/`002` 已验证；`006`（LTP）reviewer 在跑；`ADR-0059 Accepted` + SEE/SBI `0.8.0-rc`、cause 17/18 已落 master；`m18-qemu-002` 待 006 reviewer 释放 QEMU 运行时后派（`m16-qemu-003` 已加依赖）；`m18-linux-020`（信号帧 ABI）等 006；其余待开始：`007`–`013`、`015`–`019`、`qemu-001`；M19（2 件，需硬件在场）、M20（2 件，未开工）；`open` issue 94。
 
@@ -19,7 +19,8 @@
 | 主题 | 真源 |
 | --- | --- |
 | 项目总览 / 里程碑 / 版本号 | 根 `README.md` |
-| 当前进度 / 任务台账（待开始·进行中·已验证） / 裁定 | `.tao/knowledge/milestones-m16.md`（M16）等活册（M16–M20）；M15 及以前已归档（`.tao/archive/M15/`…`M11/`） |
+| 当前进度 / 任务台账（待开始·进行中·已验证） / 裁定 | `.tao/knowledge/milestones-m17.md`–`milestones-m20.md`（活册）；M16 及以前已归档（`.tao/archive/M16/`…`M11/`） |
+| M16 归档 / 回顾 / 关闭 issue（gem5 Timing + chipyard wuming + `tests/arch` 三方载体） | `.tao/archive/M16/`（`README.md` / `m16-retrospective.md` / `issues-closed.md`） |
 | M15 归档 / 回顾 / 关闭 issue（ISA 语义结构化：IDL v0 + 12 册 operation + 渲染/门控） | `.tao/archive/M15/`（`README.md` / `m15-retrospective.md` / `issues-closed.md`） |
 | M14 归档 / 回顾 / 关闭 issue（Linux bring-up K0–K5） | `.tao/archive/M14/`（`README.md` / `m14-retrospective.md` / `issues-closed.md`） |
 | M11 归档 / 回顾 / 关闭 issue | `.tao/archive/M11/`（`README.md` / `m11-retrospective.md` / `issues-closed.md`） |
@@ -37,7 +38,7 @@
 | 构建 / 测试节点（机型 / 组网 / 软件包 / 就绪判据） | `.tao/knowledge/nodes.md` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
 | 已关闭 issue 的教训 | `.tao/knowledge/lessons.md` |
-| issue / 待裁定口径 | `.tao/knowledge/issues-{left,m16…m19}.yaml`（按里程碑分册，各自会话独占写）/ `discussing.md` |
+| issue / 待裁定口径 | `.tao/knowledge/issues-{left,m17…m20}.yaml`（按里程碑分册，各自会话独占写）/ `discussing.md` |
 | M14 内核与主流 ISA 差异盘点（八份 / 195 条 / 七根因） | `components/linux/kernel-diff-vs-mainstream-isa.md`（索引）→ 各任务书「盘点结论」段 |
 | 历史归档 | `.tao/archive/M*/`（M1–M15） |
 | 临时 / 一次性产物 | `/tmp/opencode/<任务ID>/` |
@@ -116,7 +117,7 @@
 
 ## 历史与归档
 
-- 任务台账：`.tao/knowledge/milestones-m16.md`（M16）等活册（三分表：待开始 / 进行中 / 已验证；按任务书 `**项目里程碑**` 分派）；**M12–M15 台账已合并进 `.tao/archive/M12/`、`M13/`、`M14/`、`M15/`（M15：2026-11-22，`m15-integ-001`）并删除**，M11 及以前同。
+- 任务台账：`.tao/knowledge/milestones-m17.md`–`milestones-m20.md`（活册；三分表：待开始 / 进行中 / 已验证；按任务书 `**项目里程碑**` 分派）；**M12–M16 台账已合并进 `.tao/archive/M12/`、`M13/`、`M14/`、`M15/`（2026-11-22，`m15-integ-001`）、`M16/`（2026-11-27，`m16-integ-001`）并删除**，M11 及以前同。
 - M10 完成任务书与 issue 快照：`.tao/archive/M10/`。
 - 已归档 issue：`.tao/archive/M*/issues-closed.md`（按 `closed_in` 取集）；**收尾后活台账不再保留已归档的 `closed` 项**（用户 2026-11-25）：`--check` 在删除前一次性核对、`--verify` 在删除后自检快照；`issues-left` 只放未解决项。
 - 一次性过程与长日志：运行期日志目录（可删、未归档）；临时产物：`/tmp/opencode/<任务ID>/`。

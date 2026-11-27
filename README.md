@@ -1,6 +1,6 @@
 # DADAO for SimRISC 0.5.7
 
-基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Kaiwu`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M15）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m16.md`（M16）**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
+基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Kaiwu`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M16）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m17.md`–`milestones-m20.md`**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
 
 ## 当前版本号
 
@@ -17,7 +17,7 @@
 
 ## 项目里程碑
 
-> 已完成里程碑（M1–M15 已归档）；**进行中**：M16（gem5 Timing + chipyard wuming）、M17（IDL 可执行参考模型 + 四方差分）、M18（Linux 测试集 + K6）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
+> 已完成里程碑（M1–M16 已归档）；**进行中**：M17（IDL 可执行参考模型 + 四方差分）、M18（Linux 测试集 + K6）、M19、M20（issue 清仓 + 四方差分基准）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
 
 | 里程碑 | 达成日 | 主题 |
 | --- | --- | --- |
@@ -36,6 +36,7 @@
 | M13 | 2026-11-15 | 三平台差分对齐（QEMU/gem5/chipyard，含浮点）：864 镜像逐例一致、差异 0 + `rf2rf` 批 + 伪指令体系迁章 |
 | M14 | 2026-11-22 | Linux bring-up（K0–K5）：`arch/dadao` 用户态闭环 + 启动 ABI/时钟/信号面 + K3 退役 |
 | M15 | 2026-11-22 | ISA 语义结构化：IDL v0 + 12 册 operation（263 条）+ 渲染/门控 + SimRISC 0.5.7 |
+| M16 | 2026-11-27 | gem5 Timing / chipyard wuming 与 `tests/arch` 三方载体对齐（Tiny + Vast；cfx 0/2/3/4/5/15/32/34/63） |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -159,3 +160,12 @@
 - **测试资产与基础设施**：每 `.S` 一镜像（904→**272**）、`tests/ee-tiny`/`ee-user`/`ee-vast` 资产集中、装载统一 `set.rd`/`set.rb`/`set.fo`→`set.rf`、picolibc Tiny 地址图与 `times()` 缩放、`refs/` 清空（数据源迁 `tests/data/`）、`CONFIG_DADAO_*` 钉子门控。
 - **遗留（要点）**：`ISS-502`（picolibc `clock()` 单位错 1000×）已关闭；`ISS-504/505/506`（picolibc harness 缓存假绿、`_SC_CLK_TCK` 口径）转 M16；`ISS-507` 属非里程碑项。
 - **归档**：`.tao/archive/M15/`（`README.md` 五节 / `m15-retrospective.md` / `issues-closed.md` 1 条；**66 册已迁入**，`check-archive` PASS）；`milestones-m15.md` 已合并进归档并删除。
+
+### M16（2026-11-27）gem5 Timing / chipyard wuming 与 `tests/arch` 三方载体对齐
+
+- **定位**：对齐 gem5 `TimingSimpleCPU` 与 `chipyard-wuming`（RTL），覆盖 `tiny`/`vast` 两机型；只做 Timing（`Minor`/`O3` 待 `wuqing`/`wuxing` RTL）；另含 ISA 语义对齐（`ADR-0056` 子原因编码、`DADAO-12 §5.2` 同步异常路由）。
+- **gem5 / chipyard**：Timing 钩子（默认 0 延迟）、Tiny/Vast 机型面、cfx 寄存器面与异常、PTW/TLB、D/I cache、pmem、power、time、异步 escape 出口帧与源接口；RTL 侧 `dadao-gewu` 独立 generator、`cfx_power_ctrl` 写侧、`WumingRegFile` RegRAS 改环形缓冲（`phys(i)=1+((base+i)%63)`，C1 空栈 PUSH 不推进 base）。
+- **`tests/arch`**：23 条用例（umon/ptw/cache/hart/pmem/time/power）+ QEMU/gem5/RTL 三承载、`expected-divergences.yaml`、`rtl-coverage.yaml`、`run_arch.py`（`--self-test`/单平台/多平台）；`make check-arch-smoke` 进 L2。
+- **闭环要点**：`m16-chipyard-030` 把 `cfx15.S`「偶发挂死」定位为 `+max-cycles=200000` 截断（harness 时钟 = 2× core + 786）的测量伪影；`m16-chipyard-033` 去掉 RegRAS 每周期 62 槽搬移。
+- **遗留（要点）**：`ISS-535`（`cfx_pmem` PA→SRAM DMA 直读未实现，P4 backlog → `issues-left.yaml`）；**三方差分收口按用户 2026-11-27 裁定移交 M20**（`m20-integ-001/002`；现场红项与工具链缺口见 `discussing.md` N40）。
+- **归档**：`.tao/archive/M16/`（`README.md` 五节 / `m16-retrospective.md` / `issues-closed.md` 56 条；**95 册已迁入**，`check-archive` PASS）；`milestones-m16.md` 已合并进归档并删除。

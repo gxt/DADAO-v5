@@ -223,3 +223,13 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`idl/docs/trace-format.md` 仍引用全仓不存在的 `check_trace_parity.py`（`m17-idl-024` 复核查出，既有陈旧引用）；同文另有 2026-11-25 的 `249457` 旧记录数（已标日期、非门控值）。处置：随下次 trace 文档维护删/改该引用与旧计数。
+
+- id: ISS-535
+  scope:
+  - chipyard
+  - testcases
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P4·backlog】`cfx_pmem` 的 PA→SRAM DMA 直读未实现（`m16-testcases-009` 遗留）：D 侧可见性目前用 invalidate/flush 后重填读回观察；直读路径（DMA 主动读 PA 写 SRAM）需另立子用例与 RTL/探针支持。
