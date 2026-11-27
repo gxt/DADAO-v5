@@ -1,6 +1,6 @@
 # 发展历程 -- 用AI编程-v5
 
-> 本文记录 DADAO-v5 用 AI Agent 从零实现软件栈的里程碑（M1–M16）。
+> 本文记录 DADAO-v5 用 AI Agent 从零实现软件栈的里程碑（M1–M17）。
 
 ## 一句话
 
@@ -8,7 +8,7 @@ DADAO-v5 在上游规范（SimRISC 0.5.x + AEE/SEE/HEE + ABI/SBI/HBI）之上，
 
 ## 项目里程碑
 
-> 已完成里程碑（M1–M16；M11–M16 见文末）。
+> 已完成里程碑（M1–M17；M11–M17 见文末）。
 
 | 里程碑 | 达成日 | 主题 |
 | --- | --- | --- |
@@ -28,6 +28,7 @@ DADAO-v5 在上游规范（SimRISC 0.5.x + AEE/SEE/HEE + ABI/SBI/HBI）之上，
 | M14 | 2026-11-22 | Linux bring-up（K0–K5） |
 | M15 | 2026-11-22 | ISA 语义结构化（IDL v0 + 12 册 operation + 渲染/门控） |
 | M16 | 2026-11-27 | gem5 Timing / chipyard wuming 与 `tests/arch` 三方载体对齐 |
+| M17 | 2026-11-27 | IDL 可执行参考模型 + 四方差分（golden = IDL） |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -103,7 +104,7 @@ DADAO-v5 在上游规范（SimRISC 0.5.x + AEE/SEE/HEE + ABI/SBI/HBI）之上，
 - **终局验收**：回归运行四行全过（C 库测试 / 编译器测试套件 / 基准 / 资源场景）；静态、快速、全量三层与里程碑门控全绿；本期里程碑核验完成；一项"退役失效的早期门控判据、清过时基准"的清理登记在本期之后。
 - **状态**：**M10 达成（2026-11-01）**；Linux 内核支持整体推到下一期。
 
-## M11–M16（2026-11-09 – 2026-11-27；逐期日期见各条）
+## M11–M17（2026-11-09 – 2026-11-27；逐期日期见各条）
 
 - **M11（2026-11-09）gem5 SE/FS 收口**：gem5 的 SE 与 FS 两条路径与 QEMU **双向一致**（完整 tset 套件）；发布 SimRISC 0.5.6；建立「组件 commit 锁 + 补丁集可重放」的纪律。
 - **M12（2026-11-15）Chipyard 上跑通 `Kaiwu-Tiny`**：非 cfx 指令全实现（解码/ALU/访存/控制流/RAS/位操作/原子/FP/`cfx`），启动链（`power → hmon`）+ semihosting 闭环；`embench` 与 `picolibc-full` 与 QEMU **逐例状态一致**。
@@ -112,3 +113,5 @@ DADAO-v5 在上游规范（SimRISC 0.5.x + AEE/SEE/HEE + ABI/SBI/HBI）之上，
 - **M15（2026-11-22）ISA 语义结构化**：把 `spec/` 升级为「每条指令一段可解析的 operation」——`idl/` 为源（`SimRISC-01`–`12.idl` 全量 **263** 条 + 语义库 v1 + 浮点库 `idl/lib/fp.idl`），`render.py` 生成 `spec/` 内 IDL 块且 `check-idl-sync` 逐字节守护，`.idl` 全部 sha256 锁；发布 SimRISC **0.5.7**；与 `riscv-unified-db` 263 条逐条差异判定（一致 100 / 偏离 68 / 特有 95）。同批收口测试资产（每 `.S` 一镜像 272、`ee-tiny`/`ee-user`/`ee-vast` 集中、装载统一伪指令）与基础设施（`refs/` 清空、清单锁、`CONFIG` 钉子门控）。**不执行**语义（执行归 M17）。
 
 - **M16（2026-11-27）gem5 Timing / chipyard wuming 与 `tests/arch` 三方载体对齐**：gem5 `TimingSimpleCPU` 只加「每指令延迟」钩子（默认 0，行为逐字节不变），Tiny/Vast 两机型面与 cfx 寄存器面/异常/PTW/TLB/cache/pmem/power/time 全量落地；RTL 侧 `dadao-gewu` 独立 generator、`cfx_power_ctrl` 写侧、`WumingRegFile` RegRAS 改环形缓冲（去掉每周期 62 槽搬移）；`tests/arch` 23 条用例 + QEMU/gem5/RTL 三承载与 `expected-divergences.yaml`；`cfx15.S`「偶发挂死」定位为 `+max-cycles` 预算截断的测量伪影。三方差分收口移交 M20。
+
+- **M17（2026-11-27）IDL 可执行参考模型 + 四方差分**：把 M15 结构化的 `.idl` 跑起来，作 IDL/QEMU/gem5/RTL 四方差分的**参考模型（golden = IDL）**——Python 解析器覆盖 263 条 operation，执行器分阶段补齐非 FP 222 镜像与 FP 50 镜像，`tests/inst` **274** 镜像签名槽 + 退出码四方一致；逐指令 trace 274/274；`check-idl` 进 L2、全四方 `check-idl-full` 进 night-run；权限异常编码扁平化（`ADR-0062`）与 `opcodes.yaml` 单一写者（`ADR-0063`）落地。

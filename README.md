@@ -1,6 +1,6 @@
 # DADAO for SimRISC 0.5.7
 
-基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Kaiwu`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M16）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m17.md`–`milestones-m20.md`**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
+基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Kaiwu`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M17）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m18.md`–`milestones-m20.md`**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
 
 ## 当前版本号
 
@@ -17,7 +17,7 @@
 
 ## 项目里程碑
 
-> 已完成里程碑（M1–M16 已归档）；**进行中**：M17（IDL 可执行参考模型 + 四方差分）、M18（Linux 测试集 + K6）、M19、M20（issue 清仓 + 四方差分基准）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
+> 已完成里程碑（M1–M17 已归档）；**进行中**：M18（Linux 测试集 + K6）、M19、M20（issue 清仓 + 四方差分基准）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
 
 | 里程碑 | 达成日 | 主题 |
 | --- | --- | --- |
@@ -37,6 +37,7 @@
 | M14 | 2026-11-22 | Linux bring-up（K0–K5）：`arch/dadao` 用户态闭环 + 启动 ABI/时钟/信号面 + K3 退役 |
 | M15 | 2026-11-22 | ISA 语义结构化：IDL v0 + 12 册 operation（263 条）+ 渲染/门控 + SimRISC 0.5.7 |
 | M16 | 2026-11-27 | gem5 Timing / chipyard wuming 与 `tests/arch` 三方载体对齐（Tiny + Vast；cfx 0/2/3/4/5/15/32/34/63） |
+| M17 | 2026-11-27 | IDL 可执行参考模型 + 四方差分（IDL/QEMU/gem5/RTL，golden = IDL）：274 镜像零红 |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -169,3 +170,12 @@
 - **闭环要点**：`m16-chipyard-030` 把 `cfx15.S`「偶发挂死」定位为 `+max-cycles=200000` 截断（harness 时钟 = 2× core + 786）的测量伪影；`m16-chipyard-033` 去掉 RegRAS 每周期 62 槽搬移。
 - **遗留（要点）**：`ISS-535`（`cfx_pmem` PA→SRAM DMA 直读未实现，P4 backlog → `issues-left.yaml`）；**三方差分收口按用户 2026-11-27 裁定移交 M20**（`m20-integ-001/002`；现场红项与工具链缺口见 `discussing.md` N40）。
 - **归档**：`.tao/archive/M16/`（`README.md` 五节 / `m16-retrospective.md` / `issues-closed.md` 56 条；**95 册已迁入**，`check-archive` PASS）；`milestones-m16.md` 已合并进归档并删除。
+
+### M17（2026-11-27）IDL 可执行参考模型 + 四方差分
+
+- **定位**：把 M15 结构化的 `.idl` 跑起来，作为 IDL/QEMU/gem5/RTL 四方差分的**参考模型（golden = IDL）**；执行器用 Python，不依赖 Ruby/`idlc`；底座 `tests/inst` **274** 镜像（Kaiwu-Tiny），判据 = 签名槽 + 退出码四方一致。
+- **阶段交付**：语法子集/宽度规则 + Python 解析器 + 执行器核心 + 逐指令 trace（`001`–`004`）；非 FP 222 镜像四方零红 + `pending` 清零（`005`–`012`）；FP 50 镜像纳入、全四方进 `night-run`（`013`–`014`）；cfx 权限轴、RAS 环形缓冲、trace 全 64 槽/入口态计数、`DIV-18` 逐槽例外（`020`–`026`）。
+- **关键裁定**：权限异常编码扁平位图（`ADR-0062`，删 `[39]`/`[57]`）；`opcodes.yaml` 单一写者（`ADR-0063`）；四平台统一 RegRAS 环形缓冲 `phys(i)=1+((base+i)%63)`；trace 计数严格相等；Tiny `DIV-18` 不造假常量、不跳过，按槽声明；多 hart 不在范围（2026-11-27）。
+- **终局证据**：`make check-idl-full` **274/274 rc=0**（全四方）；trace **274/274**（249995 条）；`check-idl` 进 L2、`check-idl-full` 为 nightly 成员；`check-idl-parse`/`check-idl-exec-anchor`/`check-opcodes-repro` 进 L1，`check-inst-sig` 退役。
+- **基线红（非 M17 面）**：L1 `check-patch-tree` 52 problem（linux 51/musl 1，`ISS-left-004`）；L3 `unit:full`/`tset:m6` 的 `stack-protector*.ll` 未归类（`ISS-left-005`）。
+- **归档**：`.tao/archive/M17/`（`README.md` 五节 / `m17-retrospective.md` / `issues-closed.md` 21 条；**46 册已迁入**，`check-archive` PASS）；`milestones-m17.md` 已合并进归档并删除。

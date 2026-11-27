@@ -7,19 +7,20 @@
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
 - **2026-11-27 基线**：
-  - **已归档**：M14（76 册）、M15（66 册）、**M16（95 册，2026-11-27）** → `.tao/archive/M14/`、`M15/`、`M16/`；M17 台账已清零、未归档；M18（Linux 测试集/K6）多任务在跑；M19（2 件，需硬件在场）、M20 未开工。
+  - **已归档**：M14（76 册）、M15（66 册）、**M16（95 册，2026-11-27）**、**M17（46 册，2026-11-27）** → `.tao/archive/M14/`、`M15/`、`M16/`、`M17/`；M18（Linux 测试集/K6）多任务在跑；M19（2 件，需硬件在场）、M20 未开工。
   - **三方差分收口归 M20**（用户 2026-11-27）：现场红项（`arch-power-001/002`、`arch-umon-012/013` 回归挂死；`arch-cache-003/004` 既有红）与 `run_arch` 的 4 处工具链缺口（chipyard 腿缺 `LD_LIBRARY_PATH`、不识别 `expected-divergences`、单 case 缺承载中止整腿、power RTL 参数不通）见 `discussing.md` N40。
   - **环境（2026-11-27 重放对齐）**：qemu `e470dc56…`（源树 `a8d0796`）、gem5.opt `ebb19d0b…`（`7db7553`）、chipyard Vast `0ead2519…` / Tiny `71cbed98…`（`7b1d785`）、LLVM 11-26 07:23。组件补丁合入后必须「删源树→`make fetch`→`apply_series`→重建→`install-host`」，否则 L2/L3 的绿红都不算证据。
-  - **已知基线红**：`check-patch-tree` musl 2（M18 面；musl 源树 11-24 未重放）；`check-milestones-fresh` 红 1 处 = M18 台账 `m18-linux-027` 行（预估「—」、任务书无状态头，由 M18 会话修）；picolibc harness `.done` 无库指纹（`ISS-504`）。
-  - **队列**：M20 先 `m20-integ-001`（三方 cfx/cg/rc 覆盖矩阵）/`m20-integ-002`（实测与缺口关闭），再接 `spec-002`/`idl-001`/`llvm-004`/`infra-002`/`qemu-001`/`gem5-005`/`chipyard-002`/`linux-001`/`testcases-006`；M17 只剩 1 条 open；M18 在跑 linux/qemu 链。
-  - **open issue**：49（left 26 / m17 1 / m18 16 / m19 4 / m20 2）。
+  - **已知基线红**：`check-patch-tree` **52 problem**（linux 51 / musl 1，`ISS-left-004`）；`check-milestones-fresh` 红 1 处 = M18 台账 `m18-linux-027` 未列入三表（由 M18 会话修）；L3 `unit:full`/`tset:m6` 的 `stack-protector*.ll` 未归类（`ISS-left-005`）；picolibc harness `.done` 无库指纹（`ISS-504`）；`check-manifests-guard` 红 2 处 = M16 归档遗留的 `issues-m16.yaml`/`milestones-m16.md` 登记（M17 条目已随归档删除）。
+  - **队列**：M20 先 `m20-integ-001`（三方 cfx/cg/rc 覆盖矩阵）/`m20-integ-002`（实测与缺口关闭），再接 `spec-002`/`idl-001`/`llvm-004`/`infra-002`/`qemu-001`/`gem5-005`/`chipyard-002`/`linux-001`/`testcases-006`；M17 已收口归档（0 open）；M18 在跑 linux/qemu 链。
+  - **open issue**：53（left 28 / m18 19 / m19 4 / m20 2）。
 
 ## 入口指针
 
 | 主题 | 真源 |
 | --- | --- |
 | 项目总览 / 里程碑 / 版本号 | 根 `README.md` |
-| 当前进度 / 任务台账（待开始·进行中·已验证） / 裁定 | `.tao/knowledge/milestones-m17.md`–`milestones-m20.md`（活册）；M16 及以前已归档（`.tao/archive/M16/`…`M11/`） |
+| 当前进度 / 任务台账（待开始·进行中·已验证） / 裁定 | `.tao/knowledge/milestones-m18.md`–`milestones-m20.md`（活册）；M17 及以前已归档（`.tao/archive/M17/`…`M11/`） |
+| M17 归档 / 回顾 / 关闭 issue（IDL 可执行参考模型 + 四方差分，golden = IDL） | `.tao/archive/M17/`（`README.md` / `m17-retrospective.md` / `issues-closed.md`） |
 | M16 归档 / 回顾 / 关闭 issue（gem5 Timing + chipyard wuming + `tests/arch` 三方载体） | `.tao/archive/M16/`（`README.md` / `m16-retrospective.md` / `issues-closed.md`） |
 | M15 归档 / 回顾 / 关闭 issue（ISA 语义结构化：IDL v0 + 12 册 operation + 渲染/门控） | `.tao/archive/M15/`（`README.md` / `m15-retrospective.md` / `issues-closed.md`） |
 | M14 归档 / 回顾 / 关闭 issue（Linux bring-up K0–K5） | `.tao/archive/M14/`（`README.md` / `m14-retrospective.md` / `issues-closed.md`） |
@@ -38,9 +39,9 @@
 | 构建 / 测试节点（机型 / 组网 / 软件包 / 就绪判据） | `.tao/knowledge/nodes.md` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
 | 已关闭 issue 的教训 | `.tao/knowledge/lessons.md` |
-| issue / 待裁定口径 | `.tao/knowledge/issues-{left,m17…m20}.yaml`（按里程碑分册，各自会话独占写）/ `discussing.md` |
+| issue / 待裁定口径 | `.tao/knowledge/issues-{left,m18…m20}.yaml`（按里程碑分册，各自会话独占写）/ `discussing.md` |
 | M14 内核与主流 ISA 差异盘点（八份 / 195 条 / 七根因） | `components/linux/kernel-diff-vs-mainstream-isa.md`（索引）→ 各任务书「盘点结论」段 |
-| 历史归档 | `.tao/archive/M*/`（M1–M15） |
+| 历史归档 | `.tao/archive/M*/`（M1–M17） |
 | 临时 / 一次性产物 | `/tmp/opencode/<任务ID>/` |
 
 ### 机型 × 平台承载方式（tiny / vast / user）
@@ -117,7 +118,7 @@
 
 ## 历史与归档
 
-- 任务台账：`.tao/knowledge/milestones-m17.md`–`milestones-m20.md`（活册；三分表：待开始 / 进行中 / 已验证；按任务书 `**项目里程碑**` 分派）；**M12–M16 台账已合并进 `.tao/archive/M12/`、`M13/`、`M14/`、`M15/`（2026-11-22，`m15-integ-001`）、`M16/`（2026-11-27，`m16-integ-001`）并删除**，M11 及以前同。
+- 任务台账：`.tao/knowledge/milestones-m18.md`–`milestones-m20.md`（活册；三分表：待开始 / 进行中 / 已验证；按任务书 `**项目里程碑**` 分派）；**M12–M17 台账已合并进 `.tao/archive/M12/`、`M13/`、`M14/`、`M15/`（2026-11-22，`m15-integ-001`）、`M16/`（2026-11-27，`m16-integ-001`）、`M17/`（2026-11-27，`m17-integ-001`）并删除**，M11 及以前同。
 - M10 完成任务书与 issue 快照：`.tao/archive/M10/`。
 - 已归档 issue：`.tao/archive/M*/issues-closed.md`（按 `closed_in` 取集）；**收尾后活台账不再保留已归档的 `closed` 项**（用户 2026-11-25）：`--check` 在删除前一次性核对、`--verify` 在删除后自检快照；`issues-left` 只放未解决项。
 - 一次性过程与长日志：运行期日志目录（可删、未归档）；临时产物：`/tmp/opencode/<任务ID>/`。

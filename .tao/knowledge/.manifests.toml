@@ -18,9 +18,6 @@ owner = "main-session"
 [files."issues-m16.yaml"]
 owner = "m16-session"
 
-[files."issues-m17.yaml"]
-owner = "m17-session"
-
 [files."issues-m18.yaml"]
 owner = "m18-session"
 
@@ -34,9 +31,6 @@ owner = "m20-session"
 owner = "m20-session"
 
 [files."milestones-m16.md"]
-owner = "main-session"
-
-[files."milestones-m17.md"]
 owner = "main-session"
 
 [files."milestones-m18.md"]
