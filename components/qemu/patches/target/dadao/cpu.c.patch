@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..7bb08f3
+index 0000000..dfa1d4a
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,700 @@
+@@ -0,0 +1,704 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -51,8 +51,12 @@ index 0000000..7bb08f3
 + * It backs `-machine kaiwu-tiny`.
 + * =================================================================== */
 +
-+/* Implemented cfx masks (spec/Kaiwu §3).  Bit N => cfxN exists. */
-+#define DADAO_CFX_IMPL_VAST  ((1ULL << 0) | (1ULL << 1) | (1ULL << 2) | \
++/* Implemented cfx masks (spec/Kaiwu §3).  Bit N => cfxN exists.
++ * cfx1 (jmon) is allocated by DADAO-12 §1 but deliberately not implemented:
++ * it has no cg/rc face, no jail-mode semantics and no SBI entry in the
++ * design, and the RTL has no cfx1 (user ruling 2026-11-25).  Leaving the bit
++ * clear gives the regular rule: trap/register access to cfx1 => CFXREG. */
++#define DADAO_CFX_IMPL_VAST  ((1ULL << 0) | (1ULL << 2) | \
 +                              (1ULL << 3) | (1ULL << 4) | (1ULL << 15) | \
 +                              (1ULL << 32) | (1ULL << 34) | (1ULL << 63))
 +#define DADAO_CFX_IMPL_TINY  ((1ULL << 3) | (1ULL << 63))

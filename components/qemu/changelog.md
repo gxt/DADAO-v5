@@ -479,3 +479,8 @@
 - **2026-11-26 `m18-qemu-010`**
   - 摘要：**异步进入的运行模式上限（`DADAO-12` §5.4(一)，`cg15 rc14`）**。`target/dadao/helper.c`：`dadao_async_allowed()` 在逐源 pending/mask 判定之外增加 `inner_run_mode <= cfx_hart cg15 rc14`（`async_switch_run_mode`，复位 2）；当前模式高于上限时返回 0（不进入），源 `cg16 rc17` pending 与 `cg15 rc5` 汇总保留、不报错、不丢事件，条件满足后在后续指令边界重判。默认 `rc14 = 2` ⇒ `hypv` 不被异步打断；配成 3 时可从 `hypv` 进入，入口 `cg15 rc0` 记录 `hypv`，`escape cfx_hart` 返回同级、不触发升权。探针 `tools/testcases/arch/min_rom_probe_m18qemu009.py` 增 2 例（`async_mode_cap_hypv_block_supv_enter`：hypv 下 pending 保留、回到 supv 后正常进入且 `rc0=supv`；`async_mode_cap_hypv_open`：rc14=3 时 hypv 进入并 escape 返回 hypv），共 19 例 / 157 断言；`tests/arch/vast-arch-inventory.md` 与 `tools/testcases/arch/README.md` 同步。补丁 1 份改（`target/dadao/helper.c`）。
   - 执行者：engineer
+
+- **2026-11-27 `m18-qemu-007`**
+  - 摘要：**移除 `cfx_jmon`（cfx1）实现（用户 2026-11-25 裁定；与 RTL 口径一致，RTL 无 cfx1）**。`target/dadao/cpu.c`：`DADAO_CFX_IMPL_VAST` 去掉 `1ULL << 1`（`jmon` 无 cg/rc 面、无 jail 模式语义、无 SBI 入口，设计未定义）。`target/dadao/{cpu.h,helper.c}`：`DADAO_NUM_CFX` 10→9、`dadao_cfxha_map` 去掉 cfx1（`{0,2,3,4,5,15,32,34,63}`）；`trap cfx1` 与 cfx1 寄存器访问按「allocated-but-unimplemented」既有规则 ⇒ `CFXREG`（进入当前运行模式 monitor；不静默、不落别的 monitor）；`trap cfx0/2/3` 行为不变。清理 `umon/jmon/smon/hmon`、`umon/jmon/ptw: 16 blocks` 等「jmon 已实现」表述；`jail→jmon` 的 escape 注释改为「jail 无 monitor（cfx1 未实现）⇒ `CFXESC`」。`target/dadao/insn_trans/trans_ctrl.c.inc`：linux-user `trap cfx1` 注释改为「spec 分配但本机/测试机均未实现」。测试：`tools/testcases/arch/min_rom_probe_m18qemu009.py` 的 hmon 掩码复位用例改为断言 `cfx_jmon cg15 rc3` 读 ⇒ `CFXREG`（保留 `cg9` 保留 rc 的 `CFXREG` 断言）；`tests/arch/README.md` 与 `pmem*.S` 注释登记 cfx1 未实现。补丁 4 份改（`target/dadao/{cpu.c,cpu.h,helper.c,insn_trans/trans_ctrl.c.inc}`）。
+  - 执行者：engineer
+

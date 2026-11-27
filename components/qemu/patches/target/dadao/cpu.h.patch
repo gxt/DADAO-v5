@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..822194a
+index 0000000..918cb23
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,837 @@
+@@ -0,0 +1,843 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -293,17 +293,23 @@ index 0000000..822194a
 +    DADAO_MODE_HYPV = 3,
 +};
 +
-+/* Test-machine implemented cfx set: umon/jmon/smon/hmon/power (ADR-0020 D9,
++/* Test-machine implemented cfx set: umon/smon/hmon/power (ADR-0020 D9,
 + * Machine-01 §3) plus cfx4/ptw's PTW/TLB register subset (ADR-0039 §8.5,
-+ * ADR-0041), cfx32/pmem's 64 KiB SRAM + cg15 DMA (ADR-0042 Step 4), and
-+ * cfx15/cfx34 (single-hart timer + global time, INTEG-050t).  Every other
-+ * cfxha either is reserved (6-14, 16-31, 35-61 => ILLI) or
-+ * allocated-but-unimplemented here (=> CFXREG). */
++ * ADR-0041), cfx32/pmem's 64 KiB SRAM + cg15 DMA (ADR-0042 Step 4),
++ * cfx15/cfx34 (single-hart timer + global time, INTEG-050t), and
++ * cfx5/cache (contract-cache CACHE-27; m16-qemu-001/003).
++ * cfx1 (jmon) is allocated by DADAO-12 §1 but deliberately not implemented:
++ * no cg/rc face, no jail-mode semantics, no SBI entry, and no cfx1 in the
++ * RTL (user ruling 2026-11-25).  Its trap and register accesses therefore
++ * follow the ordinary "allocated-but-unimplemented" rule (=> CFXREG); it
++ * must never fall through to another monitor.  Every other cfxha either is
++ * reserved (6-14, 16-31, 35-61 => ILLI) or allocated-but-unimplemented here
++ * (=> CFXREG). */
 +/* cfx_cache (cfx5) has a row for both cache models on a cache-capable core
 + * and answers with `cache_exist` = 0 while `cache-model=off` (user ruling
 + * 2026-11-22: the model decides whether the cache has *effects*, never
 + * whether cfx5 exists; contract-cache CACHE-27; m16-qemu-001/003). */
-+#define DADAO_NUM_CFX 10
++#define DADAO_NUM_CFX 9
 +extern const int dadao_cfxha_map[DADAO_NUM_CFX]; /* defined in helper.c */
 +
 +#define DADAO_CFX_IS_RESERVED(h)  (((h) >= 6 && (h) <= 14) || \
@@ -639,7 +645,7 @@ index 0000000..822194a
 +    /* ── SEE/HEE state (QEMU-044t) ── */
 +    uint8_t  inner_run_mode;             /* 0..3 (DADAO-12 §1) */
 +    uint8_t  inner_cfx_code;             /* current cfxha 0..63 */
-+    DADAOCfxRegs cfx[DADAO_NUM_CFX];     /* implemented cfx {0,1,2,3,4,15,17,18,63} */
++    DADAOCfxRegs cfx[DADAO_NUM_CFX];     /* implemented cfx {0,2,3,4,5,15,32,34,63} */
 +
 +    /* Runtime machine profile (QEMU-079t; spec/Kaiwu §1).  Set by the
 +     * machine before qdev_realize() so reset can derive PC/geometry from it;

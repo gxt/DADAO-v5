@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..3cc26c4
+index 0000000..6ac4e0c
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,4160 @@
+@@ -0,0 +1,4164 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -2142,14 +2142,17 @@ index 0000000..3cc26c4
 + *     ILLI; non-existent register combination => CFXREG).
 + *   .tao/contracts/contract-see.md §1/§3/§4; spec/Machine-01-测试机运行环境.md.
 + *
-+ * Test-machine scope (ADR-0020 D9, Machine-01 §3): only cfx0/1/2/3/63 are
-+ * fully implemented, plus cfx4/ptw's Step 1 register subset (PTBR +
-+ * ptw_enable, ADR-0039 §8.5), cfx32/pmem's SRAM+DMA (ADR-0042) and
-+ * cfx15/cfx34 (single-hart timer + global time, INTEG-050t).  Access to any
-+ * other allocated-but-unimplemented cfx => CFXREG.
++ * Test-machine scope (ADR-0020 D9, Machine-01 §3): cfx0/2/3/63 are fully
++ * implemented, plus cfx4/ptw's Step 1 register subset (PTBR + ptw_enable,
++ * ADR-0039 §8.5), cfx32/pmem's SRAM+DMA (ADR-0042), cfx15/cfx34
++ * (single-hart timer + global time, INTEG-050t) and cfx5/cache
++ * (contract-cache).  cfx1 (jmon) is allocated by DADAO-12 §1 but is not
++ * implemented here (no design face, no RTL cfx1; user ruling 2026-11-25):
++ * its trap and register accesses are CFXREG like any other
++ * allocated-but-unimplemented cfx.
 + * =================================================================== */
 +
-+const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 4, 5, 15, 32, 34, 63 };
++const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 2, 3, 4, 5, 15, 32, 34, 63 };
 +
 +/* cfxha -> compact index into env->cfx[], or -1 if the active profile does not
 + * implement that cfx (spec/Kaiwu §3 per-profile list).  A profile that
@@ -2257,7 +2260,8 @@ index 0000000..3cc26c4
 +        blk = power;
 +        break;
 +    default:
-+        return 0;               /* umon/jmon/ptw: 16 blocks all empty */
++        return 0;               /* umon/ptw: 16 blocks all empty (cfx1 jmon
++                                 * is not implemented) */
 +    }
 +    return blk[rc % 4];
 +}
@@ -3685,9 +3689,9 @@ index 0000000..3cc26c4
 +        cfx_raise(env, DADAO_CAUSE_CFXESC, env->inner_cfx_code, pc, info);
 +        return;
 +    }
-+    mci = cfx_idx(env, target_mode);    /* user->umon, jail->jmon, ... */
++    mci = cfx_idx(env, target_mode);    /* user->umon, supv->smon, hypv->hmon */
 +    if (mci < 0) {
-+        /* Target mode has no monitor row (e.g. no jmon). */
++        /* Target mode has no monitor row (jail: cfx1 jmon is not implemented). */
 +        cfx_raise(env, DADAO_CAUSE_CFXESC, env->inner_cfx_code, pc, info);
 +        return;
 +    }

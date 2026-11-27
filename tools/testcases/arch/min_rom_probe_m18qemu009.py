@@ -309,7 +309,10 @@ def _dma_error(s):
 def case_hart_layout():
     s = P.Seq()
     body_setup(s, None)                      # leave every monitor mask at reset
-    # Reset value is sampled before any write: all four monitors read all-1.
+    # Reset value is sampled before any write: the implemented monitors read
+    # all-1.  cfx1 (jmon) is allocated by DADAO-12 §1 but not implemented by
+    # this machine (user ruling 2026-11-25; RTL has no cfx1), so its cg15 rc3
+    # read is CFXREG in the current monitor (hmon) -- the first fault.
     rd(s, HA_UMON, CG15, 3, 38)
     rd(s, HA_JMON, CG15, 3, 39)
     rd(s, HA_SMON, CG15, 3, 40)
@@ -322,13 +325,34 @@ def case_hart_layout():
     rd(s, HA_HART, CG9, 0, 47)
     s.e(*P.exit_seq(0))
     return P.build_rom(s.resolve(), {OFF_FH_HMON: fault_handler(HA_HMON)}), {
-        "rd25": 1,
+        "rd25": 2,
         "rd30": 0, "rd31": 0, "rd32": 0, "rd33": 0, "rd34": 0, "rd35": 0,
         "rd36": MODE_SUPV, "rd37": 0,
-        "rd38": ALL1, "rd39": ALL1, "rd40": ALL1, "rd41": ALL1,
+        "rd38": ALL1, "rd40": ALL1, "rd41": ALL1,
         "rd42": MASK_PATTERN,
         "rd20": CFXREG,
-        "rd21": (0x7A << 24) | (HA_HART << 18) | (CG9 << 12) | 47,
+        "rd21": (0x7A << 24) | (HA_JMON << 18) | (CG15 << 12) | (3 << 6) | 39,
+        "rd26": CFXREG,
+        "rd27": (0x7A << 24) | (HA_HART << 18) | (CG9 << 12) | 47,
+        "mymode": MODE_HYPV,
+    }
+
+
+def case_cfx1_unimplemented():
+    """cfx1 (jmon) is allocated but not implemented: trap and register access
+    are CFXREG in the current monitor; they never enter another monitor."""
+    s = P.Seq()
+    body_setup(s)
+    s.e(P.trap(HA_JMON, 0x1234))              # 1st fault: trap cfx1
+    rd(s, HA_JMON, 0, 0, 11)                  # 2nd: cfx2rd cfx1, cg0, rc0
+    wr(s, HA_JMON, CG5, 8, 0, tmp=12)         # 3rd: cfx2rc cfx1, cg5, rc8
+    s.e(*P.exit_seq(0))
+    return P.build_rom(s.resolve(), {OFF_FH_HMON: fault_handler(HA_HMON)}), {
+        "rd25": 3,
+        "rd20": CFXREG,
+        "rd21": (0x7F << 24) | (HA_JMON << 18) | 0x1234,
+        "rd26": CFXREG,
+        "rd27": (0x7B << 24) | (HA_JMON << 18) | (CG5 << 12) | (8 << 6) | 12,
         "mymode": MODE_HYPV,
     }
 
@@ -791,6 +815,7 @@ def case_async_mode_cap_hypv_open():
 
 CASES = {
     "hart_layout": case_hart_layout,
+    "cfx1_unimplemented": case_cfx1_unimplemented,
     "hart_layout_reserved": case_hart_layout_reserved,
     "source_layout": case_source_layout,
     "other_cfx_cg16": case_other_cfx_cg16,

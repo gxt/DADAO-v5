@@ -112,7 +112,8 @@ python3 tests/arch/run_arch.py --list
   已顺序执行」的 no-op 语义，DMA 不等待（`spec/SimRISC-11 §5`），无 Guest 侧
   可观测差异；只在「不产生异常」层面覆盖。
 - cfx1（jmon）在 arch 范围外（`tests/arch/README.md` 顶部 cfx 范围），只按其
-  编码合法性间接落在允许集里（未单列 probe）。
+  编码合法性间接落在允许集里（未单列 probe）。本机**未实现** cfx1（`m18-qemu-007`；
+  RTL 亦无 cfx1）：`trap cfx1` 与 cfx1 寄存器访问一律 ⇒ `CFXREG`，不得落到别的 monitor。
 - 保留集只采样 6/14/16/17/18/31/35/61（含边界），其余保留编号不逐个跑。
 
 ## cfx4 RTL 承载（`m16-chipyard-018`，cfx4）

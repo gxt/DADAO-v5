@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_ctrl.c.inc b/target/dadao/insn_trans/trans_ctrl.c.inc
 new file mode 100644
-index 0000000..607036a
+index 0000000..07af472
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_ctrl.c.inc
-@@ -0,0 +1,560 @@
+@@ -0,0 +1,561 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* ── Helper: RegRAS/MemRAS push/pop (ADR-0012 D7) ──────────────────── */
@@ -449,8 +449,9 @@ index 0000000..607036a
 +     * build, so the trap is handed to cpu_loop as a dedicated exception that
 +     * forwards the call to the host and resumes at pc+4.
 +     *
-+     * Everything else is an explicit guest illegal instruction: jmon (cfx1)
-+     * is the restricted-context peer entry and is not implemented here, the
++     * Everything else is an explicit guest illegal instruction: cfx1 (jmon)
++     * is allocated by the spec but implemented by neither this build nor the
++     * test machine (it is not a cfx register model either), the
 +     * semihosting tag (immu18[17:8] == 0x3FF, i.e. 0x3FF00-0x3FFFF) is a
 +     * system-mode protocol that must not be mixed with the syscall path
 +     * (contract-syscall.md §6), and

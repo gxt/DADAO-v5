@@ -241,7 +241,7 @@ _start:
 	@@ cfx_pmem：U/S 行的源位清 0（0 = 允许），deleg 放开 cg8/cg12..15；
 	@@ supv 行还须清 bit15（supv handler 以 cfx_hart 身份访问 cfx_pmem）
 	WCFX_IMM cfx_pmem, cg0, rc2, 0xFFFFFFFFFFFFFFFE	@@ U: 允许 cfx_umon
-	WCFX_IMM cfx_pmem, cg1, rc2, 0xFFFFFFFFFFFFFFFA	@@ J: 允许 cfx_jmon
+	WCFX_IMM cfx_pmem, cg1, rc2, 0xFFFFFFFFFFFFFFFA	@@ J: 保留位（cfx1/jmon 未实现，不纳入本机）
 	WCFX_IMM cfx_pmem, cg2, rc2, 0xFFFFFFFFFFFF7FFA	@@ S: 允许 cfx_smon / cfx_hart
 	WCFX_IMM cfx_pmem, cg3, rc12, 0xFFFFFFFFFFFE0EF7	@@ deleg: cg8/cg12-16
 	@@ cfx_hart：U/S 行允许 umon/smon/hart 源；deleg 放开 cg4/5/8/9
