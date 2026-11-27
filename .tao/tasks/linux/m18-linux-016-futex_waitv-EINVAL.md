@@ -9,6 +9,8 @@
 **状态**：待开始
 **执行环境**：本地（QEMU system `-M kaiwu-vast`）
 
+> **重派基线（2026-11-27）**：在 **0.8.1-rc 内核**与**本 worktree 自建 QEMU**（记 md5，不覆盖共享安装根）上做。`tests/unit/linux/suite/triage.yaml` 里 `futex-wait-timeout` 的 `futex_waitv` 条目仍在（`KERNEL_BUG`），落地后按该条目的 `rerun` 指示复跑并更新分类；LTP 侧的 `ltp-*` 台账当前为空（`m18-linux-006`），本任务若影响 LTP 用例须补跑 `run_suite.py --suite ltp` 两次。低频红纪律：`ISS-m18-005/006/007` 命中单独计数（`ISS-m18-007` = 无 syscall 重启，可能影响 `futex_waitv` 的 EINTR 语义，须明确该接口是否返回 `-EINTR` 而非重启），每轮 ≤3 次重跑，按跑次留日志。
+
 ## 背景
 
 `m18-linux-005` 分诊的 `futex-wait-timeout`（`KERNEL_BUG`）：四组里三组通过（相对 `futex_wait`、`FUTEX_WAIT_BITSET` 的 REALTIME/MONOTONIC、`FUTEX_WAIT_REQUEUE_PI`、`FUTEX_LOCK_PI`），但 `futex_waitv` 对普通相对等待返回 **EINVAL(22)** ⇒ 该多等待接口在本移植上未实现。证据行见 `tests/unit/linux/suite/triage.yaml`。
