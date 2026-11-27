@@ -33,11 +33,16 @@
 | m20-integ-002 | 4–8 h | 三方 cfx/cg/rc 一致性实测与缺口关闭（W3 后，006 前） |
 | m20-linux-001 | 4–8 h | Linux/SEE cfx 访问、cause、PTW、UART/time（W4） |
 | m20-testcases-006 | 4–8 h | cfx 测试向量/签名/四方迁移（W5） |
+| m20-testcases-009 | 5–8 h | A8 单精浮点边界补齐（007 指令批） |
+| m20-testcases-010 | 5–8 h | A9 双精浮点边界补齐（007 指令批） |
+| m20-testcases-011 | 5–8 h | A4 乘除余 + A5 存取边界补齐（007 指令批） |
+| m20-testcases-012 | 6–8 h | A1–A3 + A10 边界补齐（007 指令批） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m20-testcases-008 | 2026-11-27 16:41 | 4–6 h | A6 位操作边界补齐（clmul 高半/clmulr、ctlz/cttz/ctpop、rev/rol） |
 
 ## 已验证
 
