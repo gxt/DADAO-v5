@@ -1,7 +1,7 @@
-# m18-testcases-006: `escape_ciii_cfx` 按平台能力条件化（Tiny 跳过 `cg4`/`cg15 rc3`）
+# m17-testcases-008: `escape_ciii_cfx` 按平台能力条件化（Tiny 跳过 `cg4`/`cg15 rc3`）
 
 **模块**：testcases
-**项目里程碑**：M18
+**项目里程碑**：M17
 **依赖**：`m17-chipyard-002`（根因定位，已验证）、`m18-testcases-004/005`（本用例迁移）
 **可并行分片**：否
 **预估**：2–4 h
