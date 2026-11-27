@@ -41,12 +41,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-linux-028 | 2026-11-27 19:10 | 3–5 h | 用户态异步返回丢任务：主因（user 异步交接 smon 后未 escape ⇒ `CFXESC`）已修；残余 ~10/20 另立 `ISS-m18-011`；补跑 LTP 两轮/amb/soak |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+
+| m18-linux-028 | 2026-11-27 21:40 | 异步返回主因修（user 异步交接 smon 后不 escape ⇒ `CFXESC`）；`CFXESC` 0/100、LTP 3 clean、soak 0/1000；残余 `ISS-m18-011`、`ISS-m18-012` |
 
 | m18-linux-007 | 2026-11-27 19:52 | pthread create/join 闭环（`create×4`/join 双路径/TLS/detach/负向 `EAGAIN`）；5/5 连过、`run.sh` 40/0；忙等复现器 8/8 归 `ISS-m18-009` |
 | m18-linux-018 | 2026-11-27 18:05 | 套件环境补齐（TMPFS/MEMFD、iomem、非 root、`PATH`/`passwd`）；LTP 14/14 |
