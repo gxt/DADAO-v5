@@ -1344,6 +1344,11 @@ tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	16	value	0x00e038d8688850b0	0x0
 tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	17	value	0x0000000000000001	0x0000000000000001	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S:83
 tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	18	value	0x40a0789828c810f0	0x40A0789828C810F0	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S:86
 tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	19	value	0x40a0789828c810f0	0x40A0789828C810F0	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S:89
+tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	20	value	0x01c071b0d110a160	0x01C071B0D110A160	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S:101
+tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	21	value	0x8000000000000000	0x8000000000000000	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S:112
+tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	22	value	0xaaaaaaaaaaaaaaaa	0xAAAAAAAAAAAAAAAA	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S:123
+tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	23	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S:126
+tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	24	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S:129
 tests/inst/04-arith-logic-octa/cmp.si_rrii_rd.S	1	value	0x0000000000000001	0x0000000000000001	tests/inst/04-arith-logic-octa/cmp.si_rrii_rd.S:25
 tests/inst/04-arith-logic-octa/cmp.si_rrii_rd.S	2	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/cmp.si_rrii_rd.S:31
 tests/inst/04-arith-logic-octa/cmp.si_rrii_rd.S	3	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/04-arith-logic-octa/cmp.si_rrii_rd.S:34
@@ -1587,6 +1592,8 @@ tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	10	value	0xffffffffffffffff	0xFFF
 tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	11	value	0xf7b3d591e6a2c480	0xF7B3D591E6A2C480	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S:60
 tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	12	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S:63
 tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	13	value	0x0807060504030201	0x0807060504030201	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S:66
+tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	14	value	0x0010000000000000	0x0010000000000000	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S:69
+tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	15	value	0x0001000000000000	0x0001000000000000	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S:72
 tests/inst/04-arith-logic-octa/rol.o_orri_rd.S	1	value	0xb872de3bd5b7ddf4	0xB872DE3BD5B7DDF4	tests/inst/04-arith-logic-octa/rol.o_orri_rd.S:25
 tests/inst/04-arith-logic-octa/rol.o_orri_rd.S	2	value	0xd2e1cb78ef56df77	0xD2E1CB78EF56DF77	tests/inst/04-arith-logic-octa/rol.o_orri_rd.S:32
 tests/inst/04-arith-logic-octa/rol.o_orri_rd.S	3	value	0xa5c396f1deadbeef	0xA5C396F1DEADBEEF	tests/inst/04-arith-logic-octa/rol.o_orri_rd.S:35
@@ -1613,6 +1620,8 @@ tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	11	value	0x0000000000000001	0x000
 tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	12	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S:65
 tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	13	value	0x23456789abcdef01	0x23456789ABCDEF01	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S:68
 tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	14	value	0x3579bde02468acf1	0x3579BDE02468ACF1	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S:71
+tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	15	value	0x4b872de3bd5b7ddf	0x4B872DE3BD5B7DDF	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S:74
+tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	16	value	0x01efcdab89674523	0x01EFCDAB89674523	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S:83
 tests/inst/04-arith-logic-octa/shl.o_orri_rd.S	1	value	0x3c3c3c3c3c3c3c3c	0x3C3C3C3C3C3C3C3C	tests/inst/04-arith-logic-octa/shl.o_orri_rd.S:25
 tests/inst/04-arith-logic-octa/shl.o_orri_rd.S	2	value	0x8000000000000000	0x8000000000000000	tests/inst/04-arith-logic-octa/shl.o_orri_rd.S:32
 tests/inst/04-arith-logic-octa/shl.o_orri_rd.S	3	value	0x3c3c3c3c3c3c3c3c	0x3C3C3C3C3C3C3C3C	tests/inst/04-arith-logic-octa/shl.o_orri_rd.S:35
@@ -4121,6 +4130,8 @@ tests/inst/12-misc/ctlz_orri_rd.S	15	value	0x0000000000000001	0x0000000000000001
 tests/inst/12-misc/ctlz_orri_rd.S	16	value	0x000000000000001c	0x000000000000001C	tests/inst/12-misc/ctlz_orri_rd.S:78
 tests/inst/12-misc/ctlz_orri_rd.S	17	value	0x0000000000000020	0x0000000000000020	tests/inst/12-misc/ctlz_orri_rd.S:81
 tests/inst/12-misc/ctlz_orri_rd.S	18	value	0x0000000000000001	0x0000000000000001	tests/inst/12-misc/ctlz_orri_rd.S:86
+tests/inst/12-misc/ctlz_orri_rd.S	19	value	0x000000000000003f	0x000000000000003F	tests/inst/12-misc/ctlz_orri_rd.S:89
+tests/inst/12-misc/ctlz_orri_rd.S	20	value	0x0000000000000001	0x0000000000000001	tests/inst/12-misc/ctlz_orri_rd.S:92
 tests/inst/12-misc/ctpop_orri_rd.S	1	value	0x0000000000000004	0x0000000000000004	tests/inst/12-misc/ctpop_orri_rd.S:29
 tests/inst/12-misc/ctpop_orri_rd.S	2	value	0x0000000000000001	0x0000000000000001	tests/inst/12-misc/ctpop_orri_rd.S:36
 tests/inst/12-misc/ctpop_orri_rd.S	3	value	0x0000000000000040	0x0000000000000040	tests/inst/12-misc/ctpop_orri_rd.S:39
@@ -4139,6 +4150,7 @@ tests/inst/12-misc/ctpop_orri_rd.S	15	value	0x0000000000000020	0x000000000000002
 tests/inst/12-misc/ctpop_orri_rd.S	16	value	0x0000000000000008	0x0000000000000008	tests/inst/12-misc/ctpop_orri_rd.S:78
 tests/inst/12-misc/ctpop_orri_rd.S	17	value	0x0000000000000000	0x0000000000000000	tests/inst/12-misc/ctpop_orri_rd.S:81
 tests/inst/12-misc/ctpop_orri_rd.S	18	value	0x0000000000000040	0x0000000000000040	tests/inst/12-misc/ctpop_orri_rd.S:84
+tests/inst/12-misc/ctpop_orri_rd.S	19	value	0x0000000000000001	0x0000000000000001	tests/inst/12-misc/ctpop_orri_rd.S:87
 tests/inst/12-misc/cttz_orri_rd.S	1	value	0x0000000000000004	0x0000000000000004	tests/inst/12-misc/cttz_orri_rd.S:29
 tests/inst/12-misc/cttz_orri_rd.S	2	value	0x0000000000000000	0x0000000000000000	tests/inst/12-misc/cttz_orri_rd.S:36
 tests/inst/12-misc/cttz_orri_rd.S	3	value	0x000000000000003f	0x000000000000003F	tests/inst/12-misc/cttz_orri_rd.S:39
@@ -4157,6 +4169,8 @@ tests/inst/12-misc/cttz_orri_rd.S	15	value	0x000000000000003e	0x000000000000003E
 tests/inst/12-misc/cttz_orri_rd.S	16	value	0x0000000000000005	0x0000000000000005	tests/inst/12-misc/cttz_orri_rd.S:78
 tests/inst/12-misc/cttz_orri_rd.S	17	value	0x0000000000000008	0x0000000000000008	tests/inst/12-misc/cttz_orri_rd.S:81
 tests/inst/12-misc/cttz_orri_rd.S	18	value	0x0000000000000008	0x0000000000000008	tests/inst/12-misc/cttz_orri_rd.S:84
+tests/inst/12-misc/cttz_orri_rd.S	19	value	0x0000000000000001	0x0000000000000001	tests/inst/12-misc/cttz_orri_rd.S:87
+tests/inst/12-misc/cttz_orri_rd.S	20	value	0x0000000000000020	0x0000000000000020	tests/inst/12-misc/cttz_orri_rd.S:90
 tests/inst/12-misc/lr.b.an_orrr_rd.S	1	value	0x0000000000000001	0x0000000000000001	tests/inst/12-misc/lr.b.an_orrr_rd.S:34
 tests/inst/12-misc/lr.b.an_orrr_rd.S	2	value	0x0000000000000001	0x0000000000000001	tests/inst/12-misc/lr.b.an_orrr_rd.S:41
 tests/inst/12-misc/lr.b.an_orrr_rd.S	3	value	0x00000000000000dc	0x00000000000000DC	tests/inst/12-misc/lr.b.an_orrr_rd.S:48

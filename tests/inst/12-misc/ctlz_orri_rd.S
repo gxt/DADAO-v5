@@ -9,7 +9,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orri = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | immu6[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 6 / boundary 8 / legality 1（链例）/ overlap 1（链例 18）+ 故障例 1（dst_rd0）
+@@ 用例：encoding 2 / semantic 6 / boundary 10 / legality 1（链例）/ overlap 1（链例 18）+ 故障例 1（dst_rd0）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联；
@@ -85,10 +85,16 @@
 	@@ ---- overlap：目的 = 源（原地运算，允许）----
 	TEST_AR_ORRI	18, ctlz, rd9, 0x00000000000007FF, rd9, 0x00000000000007FF, 11, 0x0000000000000001
 
+	@@ ---- boundary：one-hot 2^0（最低位）+ hd=63 ⇒ 63（定值公式 63−k）----
+	TEST_AR_ORRI	19, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000001, 63, 0x000000000000003F
+
+	@@ ---- boundary：one-hot 2^62 + hd=63 ⇒ 1 ----
+	TEST_AR_ORRI	20, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x4000000000000000, 63, 0x0000000000000001
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链）----
-	@@ fault 19：目的 rdhb = rd0 ⇒ ILLI（dst_rd0）
-	TEST_FAULT_ALU_ORRI	19, ctlz, ILLI, rd0, rd6, 7
+	@@ fault 21：目的 rdhb = rd0 ⇒ ILLI（dst_rd0）
+	TEST_FAULT_ALU_ORRI	21, ctlz, ILLI, rd0, rd6, 7
 
 	__TEST_SECTIONS

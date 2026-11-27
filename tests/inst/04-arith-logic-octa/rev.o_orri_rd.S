@@ -8,7 +8,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orri = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | immu6[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 6 / boundary 4 / overlap 1（链例 13 + 故障例 4）
+@@ 用例：encoding 2 / semantic 6 / boundary 6 / overlap 1（链例 15 + 故障例 5）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联
@@ -65,20 +65,29 @@
 	@@ 原地 bswap64：0x0102030405060708 → 0x0807060504030201（端序敏感）
 	TEST_AR_ORRI        13, rev.o, rd9, 0x0102030405060708, rd9, 0x0102030405060708, 8, 0x0807060504030201
 
+	@@ one-hot 源 2^8 + k=4：16 个 nibble 倒序（nibble 2 → 13），单元内位序不变 ⇒ bit8 → bit52
+	TEST_AR_ORRI        14, rev.o, rd5, 0x0000000000000000, rd6, 0x0000000000000100, 4, 0x0010000000000000
+
+	@@ one-hot 源 2^8 + k=8：字节 1 → 字节 6（单元内位序不变 ⇒ 0x01 不变成 0x80）
+	TEST_AR_ORRI        15, rev.o, rd5, 0x0000000000000000, rd6, 0x0000000000000100, 8, 0x0001000000000000
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ encode_onehot：k=0 非 one-hot ⇒ ILLI
-	TEST_FAULT_ALU_ORRI 14, rev.o, ILLI, rd5, rd6, 0
+	TEST_FAULT_ALU_ORRI 16, rev.o, ILLI, rd5, rd6, 0
 
 	@@ encode_onehot：k=3 非 one-hot ⇒ ILLI
-	TEST_FAULT_ALU_ORRI 15, rev.o, ILLI, rd5, rd6, 3
+	TEST_FAULT_ALU_ORRI 17, rev.o, ILLI, rd5, rd6, 3
 
 	@@ encode_onehot：k=5 非 one-hot ⇒ ILLI
-	TEST_FAULT_ALU_ORRI 16, rev.o, ILLI, rd5, rd6, 5
+	TEST_FAULT_ALU_ORRI 18, rev.o, ILLI, rd5, rd6, 5
 
 	@@ dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU_ORRI 17, rev.o, ILLI, rd0, rd6, 8
+	TEST_FAULT_ALU_ORRI 19, rev.o, ILLI, rd0, rd6, 8
+
+	@@ encode_onehot：k=63（immu6 全 1，非 one-hot）⇒ ILLI（k 上界）
+	TEST_FAULT_ALU_ORRI 20, rev.o, ILLI, rd5, rd6, 63
 
 	__TEST_SECTIONS

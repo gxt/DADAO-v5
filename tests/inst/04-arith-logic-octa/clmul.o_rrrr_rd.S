@@ -8,7 +8,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：rrrr = opc | ha[23:18] | hb[17:12] | hc[11:6] | hd[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 6 / boundary 9 / overlap 2（链例 19 + 故障例 2）
+@@ 用例：encoding 2 / semantic 6 / boundary 9 / legality 2 / combo 3 / overlap 2（链例 24 + 故障例 2）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联；
@@ -88,14 +88,54 @@
 	@@ 低半=源 D（原地）：源先读后写 ⇒ 结果按原 rd2 值参与
 	TEST_AR_DUAL        19, clmul.o, rd1, rd2, 0xAAAAAAAAAAAAAAAA, 0xFEDCBA9876543210, rd3, 0x0123456789ABCDEF, rd2, 0xFEDCBA9876543210, 0x00E038D8688850B0, 0x40A0789828C810F0
 
+	@@ ---- combo：clmulr(a,b) ≡ rev64(clmull(rev64 a, rev64 b))（`SimRISC-04 §1.5`
+	@@   「clmulr = rev(clmul(rev a, rev b))」按位序展开；高低半各自独立断言）----
+	set.rd	rd5, 0x0123456789ABCDEF
+	set.rd	rd6, 0xFEDCBA9876543210
+	rev.o	rd7, rd5, 1
+	rev.o	rd8, rd6, 1
+	clmul.o	{rd9, rd10}, rd7, rd8
+	__VERIFY_RD 20, rd9, 0x0784098A0C8F0281	@@ 高半 = clmulh(rev a, rev b)（独立推导）
+	__VERIFY_RD 20, rd10, 0x0685088B0D8E0380	@@ 低半 = clmull(rev a, rev b)（独立推导）
+	rev.o	rd11, rd10, 1
+	__CHECK_RD  20, rd11, 0x01C071B0D110A160	@@ clmulr = 积的 p[126:63]
+
+	@@ ---- combo：clmulr 最高位边界（2^63 ⊗ 2^63 = x^126 ⇒ p126 = 1 ⇒ clmulr = 2^63）----
+	set.rd	rd5, 0x8000000000000000
+	set.rd	rd6, 0x8000000000000000
+	rev.o	rd7, rd5, 1
+	rev.o	rd8, rd6, 1
+	clmul.o	{rd9, rd10}, rd7, rd8
+	__VERIFY_RD 21, rd9, 0x0000000000000000
+	__VERIFY_RD 21, rd10, 0x0000000000000001
+	rev.o	rd11, rd10, 1
+	__CHECK_RD  21, rd11, 0x8000000000000000
+
+	@@ ---- combo：全 1 ⊗ 全 1（rev 不变）⇒ 低半 0x5555…、反转后 clmulr 0xAAAA… ----
+	set.rd	rd5, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd6, 0xFFFFFFFFFFFFFFFF
+	rev.o	rd7, rd5, 1
+	rev.o	rd8, rd6, 1
+	clmul.o	{rd9, rd10}, rd7, rd8
+	__VERIFY_RD 22, rd9, 0x5555555555555555
+	__VERIFY_RD 22, rd10, 0x5555555555555555
+	rev.o	rd11, rd10, 1
+	__CHECK_RD  22, rd11, 0xAAAAAAAAAAAAAAAA
+
+	@@ 源 C = rd0（读出 0）⇒ 高/低半都 0
+	TEST_AR_DUAL        23, clmul.o, rd5, rd6, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, rd0, 0x0000000000000000, rd8, 0x0123456789ABCDEF, 0x0000000000000000, 0x0000000000000000
+
+	@@ 源 D = rd0（读出 0）⇒ 高/低半都 0
+	TEST_AR_DUAL        24, clmul.o, rd5, rd6, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, rd7, 0x0123456789ABCDEF, rd0, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_dual_same：两个目的同为 rd0（汇编器拒绝该助记符形式 ⇒ 用原始编码字）
-	TEST_FAULT_ENC      20, ILLI, 0x560000C4, rb3, TEST_DATA, rd7, 0x000
+	TEST_FAULT_ENC      25, ILLI, 0x560000C4, rb3, TEST_DATA, rd7, 0x000
 
 	@@ dst_dual_same：两个目的为同一非 rd0 寄存器（同上，原始编码字）
-	TEST_FAULT_ENC      21, ILLI, 0x561450C4, rb3, TEST_DATA, rd7, 0x000
+	TEST_FAULT_ENC      26, ILLI, 0x561450C4, rb3, TEST_DATA, rd7, 0x000
 
 	__TEST_SECTIONS

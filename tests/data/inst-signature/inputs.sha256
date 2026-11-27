@@ -79,7 +79,7 @@ f9123e055290d2e30e553d10d9df40be05c07114afb02fad33fe30938072b12f  tests/inst/04-
 49d982bd6cf85ef5e94253785a8aca21f31027e94b8fd90ea990f94908205332  tests/inst/04-arith-logic-octa/add.so_rrrr_rd.S
 aa68b37ff072b4872adc84f4184ada039096d728901e25410bbc9976573bf42a  tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S
 62f4ec5b8a62c22c5fa4380ced542f12046fdab780e9f42180577a79cbabd5ea  tests/inst/04-arith-logic-octa/and.o_orrr_rd.S
-a65780452a6409ac00a3120bf541f8732ef5e09fdc2d7aea6e99da7274fcd7e0  tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S
+9a1108cadf636c63a03d575cc5af25294f2d0a8f763efb84f4dbea399448e097  tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S
 45689c55ee9eea4e7e1c37df5a154b102f74b7350eb496a6f00ed634915508f0  tests/inst/04-arith-logic-octa/cmp.si_rrii_rd.S
 fd0a3023a5ead2acc6afda8b03b73b067345707da0e4479983337703a88a42fc  tests/inst/04-arith-logic-octa/cmp.so_orrr_rd.S
 6a79b628250aa8807386961c75de60a6b130966f2d8e7e861d9b10a0cfb7b09e  tests/inst/04-arith-logic-octa/cmp.ui_rrii_rd.S
@@ -95,9 +95,9 @@ f6db97f4714031d0890412879bac10e2e66974a0615d55681887acdb3cc360a9  tests/inst/04-
 91a6dc94c622723665dcdeee4679c54cdcde0db522cf81ce550035dded1c1d32  tests/inst/04-arith-logic-octa/or.o_orrr_rd.S
 496f66b323d39a80fed624292f185b27811d1fbd652d52dcf3037a56630c899c  tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S
 9a3162bfe3b8528d96002c094d8f1fda74562ff5aea1f399bb0cbdf6101bc452  tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S
-2c41c057ed23131cf932d311603284259388347636b225081943e01f6bd69c5b  tests/inst/04-arith-logic-octa/rev.o_orri_rd.S
+106b4bd5c16ae549dcb135c6259319daaab562cfef01ea64a21df18e3ceb3e9f  tests/inst/04-arith-logic-octa/rev.o_orri_rd.S
 842fc8b0c8ce3a06b5efca0a7d06fdb110b17db8d4731f6a7f622ed6e90123d1  tests/inst/04-arith-logic-octa/rol.o_orri_rd.S
-01432f3f590884f1b13ddb25ab2663fc20b67f7f05887e46dc190257df9aaa68  tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S
+ecaadbb2ce244d6e494ea9a3c148deed4843367da259d91f20b2559ffaca222e  tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S
 540b2f3da5722a54c7bf860add3668637d1310e7d3a2759534b71128997f0802  tests/inst/04-arith-logic-octa/shl.o_orri_rd.S
 197785a88a6d9191486c7f771e069e93478dd87ceb1de6af3886f5fd3ed32758  tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S
 7be24c55b37478faef2de57b33437f5cfa24cefa71d41b3061e9d4c0721ea7aa  tests/inst/04-arith-logic-octa/shr.so_orri_rd.S
@@ -253,9 +253,9 @@ c52b40d0e400d032225a42d327f2d08625f93ae796ba569d6e9a5910ab05a3f1  tests/inst/11-
 f91db23b937c0842ac23d83ca94ebd2acb5395757bd32402b71c58cfe129e7a6  tests/inst/11-cfx/fence_ciii_cfx.S
 2a8a19d9f5988414905ac8e74a6b7717469738e6fe8c252e2ec2c8a304df6195  tests/inst/11-cfx/trap_ciii_cfx.S
 a54a014603f323d63b687c7c7a7873ecffd8c069a7d3f65fa3262dd2d508df94  tests/inst/12-misc/12-misc.inc
-a172a5dc242bf72738f93df3209c85d489e429b26c3f028c86b72f2f4d9f35fb  tests/inst/12-misc/ctlz_orri_rd.S
-e13f6cbc428228fd3e106737fdb54cf7a6a5836770ddf0fda47562133dd5c9e1  tests/inst/12-misc/ctpop_orri_rd.S
-7a2ba0d5a22ef3b7324616fd86aca1ac8cf5a022e414cd3917f5028900ba1308  tests/inst/12-misc/cttz_orri_rd.S
+24f5766ac6e98ec6b1914548232bd22e2fe31e6f5895e8fe89414bde50a014ac  tests/inst/12-misc/ctlz_orri_rd.S
+303e720d7b2138f2cb9ae283589273facc97ab03eebe65924253b7bf99a146f5  tests/inst/12-misc/ctpop_orri_rd.S
+c5b363d2608badc89eaa3f9305b48dc1e253a0137a311e528eedadb8de1a11dc  tests/inst/12-misc/cttz_orri_rd.S
 9e51d69d3197203b56456e61cbd3e3f7cea0e85ad85a5ef8126e2849037f2f88  tests/inst/12-misc/lr.b.an_orrr_rd.S
 cd58c44905f95f9cca88f174a50b37232ecbb9449562dc1a4f74c127019a9338  tests/inst/12-misc/lr.b.ar_orrr_rd.S
 c6274fb9dac188a9b1c968b8ada3bf2d1f3d857c8dca5867ef25a50c354b7829  tests/inst/12-misc/lr.b.nn_orrr_rd.S

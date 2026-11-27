@@ -8,7 +8,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | rdhd[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 6 / boundary 4 / overlap 2（链例 14 + 故障例 1）
+@@ 用例：encoding 2 / semantic 6 / boundary 5 / overlap 2 / combo 1（链例 16 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联
@@ -70,11 +70,23 @@
 	@@ 目的=旋转量源 D（先读源后写目的）：rd9=37 为旋转量，结果按 37 旋转
 	TEST_AR_ORRR        14, rol.o, rd9, 0x0000000000000025, rd10, 0x0123456789ABCDEF, rd9, 0x0000000000000025, 0x3579BDE02468ACF1
 
+	@@ 旋转量高 58 位全 1、低 6 位 = 1 ⇒ 只取 rdHD[5:0]，等价旋转 1（取模不受高位影响）
+	TEST_AR_ORRR        15, rol.o, rd5, 0x0000000000000000, rd6, 0xA5C396F1DEADBEEF, rd7, 0xFFFFFFFFFFFFFFC1, 0x4B872DE3BD5B7DDF
+
+	@@ rev/rol 组合：rev8(rol8(x)) ≡ rol56(rev8(x))（§2.2.1 单元序 + §2.2.2 旋转位序推导）
+	set.rd	rd5, 0x0123456789ABCDEF
+	rol.o	rd6, rd5, 8
+	rev.o	rd7, rd6, 8
+	rev.o	rd8, rd5, 8
+	rol.o	rd9, rd8, 56
+	__VERIFY_RD 16, rd7, 0x01EFCDAB89674523
+	__CHECK_RD  16, rd9, 0x01EFCDAB89674523
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU3     15, rol.o, ILLI, rd0, rd6, rd7
+	TEST_FAULT_ALU3     17, rol.o, ILLI, rd0, rd6, rd7
 
 	__TEST_SECTIONS

@@ -1602,10 +1602,15 @@ asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	TEST_AR_DUAL        16, clm
 asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	TEST_AR_DUAL        17, clmul.o, rd9, rd0, 0x0000000000000000, 0x0000000000000000, rd7, 0x8000000000000000, rd8, 0x0000000000000003, 0x0000000000000001, 0x8000000000000000	1
 asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	TEST_AR_DUAL        18, clmul.o, rd1, rd2, 0x0123456789ABCDEF, 0xAAAAAAAAAAAAAAAA, rd1, 0x0123456789ABCDEF, rd4, 0xFEDCBA9876543210, 0x00E038D8688850B0, 0x40A0789828C810F0	1
 asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	TEST_AR_DUAL        19, clmul.o, rd1, rd2, 0xAAAAAAAAAAAAAAAA, 0xFEDCBA9876543210, rd3, 0x0123456789ABCDEF, rd2, 0xFEDCBA9876543210, 0x00E038D8688850B0, 0x40A0789828C810F0	1
-asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	TEST_FAULT_ENC      20, ILLI, 0x560000C4, rb3, TEST_DATA, rd7, 0x000	1
-asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	TEST_FAULT_ENC      21, ILLI, 0x561450C4, rb3, TEST_DATA, rd7, 0x000	1
+asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	TEST_AR_DUAL        23, clmul.o, rd5, rd6, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, rd0, 0x0000000000000000, rd8, 0x0123456789ABCDEF, 0x0000000000000000, 0x0000000000000000	1
+asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	TEST_AR_DUAL        24, clmul.o, rd5, rd6, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, rd7, 0x0123456789ABCDEF, rd0, 0x0000000000000000, 0x0000000000000000, 0x0000000000000000	1
+asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	TEST_FAULT_ENC      25, ILLI, 0x560000C4, rb3, TEST_DATA, rd7, 0x000	1
+asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	TEST_FAULT_ENC      26, ILLI, 0x561450C4, rb3, TEST_DATA, rd7, 0x000	1
 asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	__CHECK_RD   1, rd2, 0x4041444550515455	1
 asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	__CHECK_RD   2, rd63, 0x00E13CDD789944A5	1
+asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	__CHECK_RD  20, rd11, 0x01C071B0D110A160	@@ clmulr = 积的 p[126:63]	1
+asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	__CHECK_RD  21, rd11, 0x8000000000000000	1
+asm	tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S	__CHECK_RD  22, rd11, 0xAAAAAAAAAAAAAAAA	1
 asm	tests/inst/04-arith-logic-octa/cmp.si_rrii_rd.S	TEST_AR_CMPI         3, cmp.si, rd5, 0x0000000000000000, rd6, 0xFFFFFFFFFFFFFFFF, 0, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/04-arith-logic-octa/cmp.si_rrii_rd.S	TEST_AR_CMPI         4, cmp.si, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000000, 0, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/cmp.si_rrii_rd.S	TEST_AR_CMPI         5, cmp.si, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000001, 0, 0x0000000000000001	1
@@ -1864,10 +1869,13 @@ asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_AR_ORRI        10, rev.o
 asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_AR_ORRI        11, rev.o, rd9, 0x0123456789ABCDEF, rd9, 0x0123456789ABCDEF, 1, 0xF7B3D591E6A2C480	1
 asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_AR_ORRI        12, rev.o, rd5, 0xFFFFFFFFFFFFFFFF, rd0, 0x0000000000000000, 1, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_AR_ORRI        13, rev.o, rd9, 0x0102030405060708, rd9, 0x0102030405060708, 8, 0x0807060504030201	1
-asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_FAULT_ALU_ORRI 14, rev.o, ILLI, rd5, rd6, 0	1
-asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_FAULT_ALU_ORRI 15, rev.o, ILLI, rd5, rd6, 3	1
-asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_FAULT_ALU_ORRI 16, rev.o, ILLI, rd5, rd6, 5	1
-asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_FAULT_ALU_ORRI 17, rev.o, ILLI, rd0, rd6, 8	1
+asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_AR_ORRI        14, rev.o, rd5, 0x0000000000000000, rd6, 0x0000000000000100, 4, 0x0010000000000000	1
+asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_AR_ORRI        15, rev.o, rd5, 0x0000000000000000, rd6, 0x0000000000000100, 8, 0x0001000000000000	1
+asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_FAULT_ALU_ORRI 16, rev.o, ILLI, rd5, rd6, 0	1
+asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_FAULT_ALU_ORRI 17, rev.o, ILLI, rd5, rd6, 3	1
+asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_FAULT_ALU_ORRI 18, rev.o, ILLI, rd5, rd6, 5	1
+asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_FAULT_ALU_ORRI 19, rev.o, ILLI, rd0, rd6, 8	1
+asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_FAULT_ALU_ORRI 20, rev.o, ILLI, rd5, rd6, 63	1
 asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	__CHECK_RD   1, rd5, 0xEFCDAB8967452301	1
 asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	__CHECK_RD   2, rd63, 0x89ABCDEF01234567	1
 asm	tests/inst/04-arith-logic-octa/rol.o_orri_rd.S	TEST_AR_ORRI         3, rol.o, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xA5C396F1DEADBEEF, 0, 0xA5C396F1DEADBEEF	1
@@ -1895,9 +1903,11 @@ asm	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	TEST_AR_ORRR        11, rol.o
 asm	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	TEST_AR_ORRR        12, rol.o, rd5, 0xFFFFFFFFFFFFFFFF, rd0, 0x0000000000000000, rd7, 0x0000000000000005, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	TEST_AR_ORRR        13, rol.o, rd9, 0x0123456789ABCDEF, rd9, 0x0123456789ABCDEF, rd10, 0x0000000000000008, 0x23456789ABCDEF01	1
 asm	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	TEST_AR_ORRR        14, rol.o, rd9, 0x0000000000000025, rd10, 0x0123456789ABCDEF, rd9, 0x0000000000000025, 0x3579BDE02468ACF1	1
-asm	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	TEST_FAULT_ALU3     15, rol.o, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	TEST_AR_ORRR        15, rol.o, rd5, 0x0000000000000000, rd6, 0xA5C396F1DEADBEEF, rd7, 0xFFFFFFFFFFFFFFC1, 0x4B872DE3BD5B7DDF	1
+asm	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	TEST_FAULT_ALU3     17, rol.o, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	__CHECK_RD   1, rd5, 0xB872DE3BD5B7DDF4	1
 asm	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	__CHECK_RD   2, rd63, 0xDEADBEEFA5C396F1	1
+asm	tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S	__CHECK_RD  16, rd9, 0x01EFCDAB89674523	1
 asm	tests/inst/04-arith-logic-octa/shl.o_orri_rd.S	TEST_AR_ORRI         3, shl.o, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0F0F0F0F0F0F0F0F, 2, 0x3C3C3C3C3C3C3C3C	1
 asm	tests/inst/04-arith-logic-octa/shl.o_orri_rd.S	TEST_AR_ORRI         4, shl.o, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0F0F0F0F0F0F0F0F, 0, 0x0F0F0F0F0F0F0F0F	1
 asm	tests/inst/04-arith-logic-octa/shl.o_orri_rd.S	TEST_AR_ORRI         5, shl.o, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x8000000000000000, 1, 0x0000000000000000	1
@@ -4629,32 +4639,32 @@ asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  36, ILLI, 0x7E180000, rb
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  37, ILLI, 0x7EF40000, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM   1, SSCR, 0x00, 3	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM   2, SSCR, 0x08, 0x000000000000003F	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM   4, SSCR, 0x18, P0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM   5, SSCR, 0x20, 0x0000000000000001	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM   6, SSCR, 0x28, 0x7F0C0000	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM   7, SSCR, 0x30, 3	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM   8, SSCR, 0x38, 0x000000000000003F	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  10, SSCR, 0x48, P0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  20, PSCR, 0x20, 0x0000000000000008	@@ CFXESC	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  21, PSCR, 0x28, 0x7E0C0000		@@ 指令编码	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  24, PSCR, 0x38, 0x000000000000003F	@@ CFXESC 进入 power 帧：prev cfx = power	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  25, PSCR, 0x20, 0x0000000000000008	@@ CFXESC	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  26, PSCR, 0x28, 0x7EFC0000		@@ 指令编码（cfx63、imms18=0）	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM_RD 10, SSCR, 0x48, rd20	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM_RD 4, SSCR, 0x18, rd20	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   3, rd6, 1	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   9, rd6, 1	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  11, rd5, P1	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  12, rd6, 1	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  13, rd5, 0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  14, rd5, 0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  15, rd5, 0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  16, rd5, 0	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  17, rd5, P2	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  18, rd5, 1	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  19, rd5, 3	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  22, rd6, 1	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  23, rd5, P2				@@ 切换任何状态前报错 ⇒ mask 不变	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  27, rd6, 1	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  28, rd5, P2				@@ 目标非法 ⇒ rc11 不落地	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD_OR_CAUSE 11, cfx_hmon, cg15, rc3, rd5, P1	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD_OR_CAUSE 17, cfx_hmon, cg15, rc3, rd5, P2	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD_OR_CAUSE 18, cfx_power, cg4, rc5, rd5, 1	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD_OR_CAUSE 23, cfx_hmon, cg15, rc3, rd5, P2	@@ 切换任何状态前报错 ⇒ mask 不变	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD_OR_CAUSE 28, cfx_hmon, cg15, rc3, rd5, P2	@@ 目标非法 ⇒ rc11 不落地	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD_OR_CAUSE_BASE 12, cfx_hmon, cg4, rc5, rd5, 0x58, 1	1
 asm	tests/inst/11-cfx/fence_ciii_cfx.S	TEST_FAULT_ENC  15, ILLI, 0x79001000, rb12, TEST_DATA, rd11, 0   @@ hb = 1	1
 asm	tests/inst/11-cfx/fence_ciii_cfx.S	TEST_FAULT_ENC  16, ILLI, 0x7903F000, rb12, TEST_DATA, rd11, 0   @@ hb = 63（上界）	1
 asm	tests/inst/11-cfx/fence_ciii_cfx.S	TEST_FAULT_ENC  17, ILLI, 0x79180000, rb12, TEST_DATA, rd11, 0	1
@@ -4700,6 +4710,8 @@ asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	15, ctlz, rd5, 0xFFFFFFFFFFFF
 asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	16, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000F00000000, 63, 0x000000000000001C	1
 asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	17, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd0, 0x0000000000000000, 31, 0x0000000000000020	1
 asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	18, ctlz, rd9, 0x00000000000007FF, rd9, 0x00000000000007FF, 11, 0x0000000000000001	1
+asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	19, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000001, 63, 0x000000000000003F	1
+asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	20, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x4000000000000000, 63, 0x0000000000000001	1
 asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	3, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x8000000000000000, 63, 0x0000000000000000	1
 asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	4, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000080000000, 31, 0x0000000000000000	1
 asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	5, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x1F00000000000000, 63, 0x0000000000000003	1
@@ -4707,7 +4719,7 @@ asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	6, ctlz, rd5, 0xFFFFFFFFFFFFF
 asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	7, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x00000000000000FF, 15, 0x0000000000000008	1
 asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	8, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000080, 7, 0x0000000000000000	1
 asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	9, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000100000000, 31, 0x0000000000000020	1
-asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_FAULT_ALU_ORRI	19, ctlz, ILLI, rd0, rd6, 7	1
+asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_FAULT_ALU_ORRI	21, ctlz, ILLI, rd0, rd6, 7	1
 asm	tests/inst/12-misc/ctlz_orri_rd.S	__CHECK_RD	1, rd5, 0x0000000000000001	1
 asm	tests/inst/12-misc/ctlz_orri_rd.S	__CHECK_RD	2, rd63, 0x000000000000003F	1
 asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	10, ctpop, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000000, 63, 0x0000000000000000	1
@@ -4719,6 +4731,7 @@ asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	15, ctpop, rd5, 0xFFFFFFFFFF
 asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	16, ctpop, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x00000000000000FF, 7, 0x0000000000000008	1
 asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	17, ctpop, rd5, 0xFFFFFFFFFFFFFFFF, rd0, 0x0000000000000000, 63, 0x0000000000000000	1
 asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	18, ctpop, rd9, 0xFFFFFFFFFFFFFFFF, rd9, 0xFFFFFFFFFFFFFFFF, 63, 0x0000000000000040	1
+asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	19, ctpop, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000100000000, 63, 0x0000000000000001	1
 asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	3, ctpop, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFFFFFFFFFFFFFFFF, 63, 0x0000000000000040	1
 asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	4, ctpop, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFFFFFFFF00000000, 31, 0x0000000000000000	1
 asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	5, ctpop, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0123456789ABCDEF, 63, 0x0000000000000020	1
@@ -4726,7 +4739,7 @@ asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	6, ctpop, rd5, 0xFFFFFFFFFFF
 asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	7, ctpop, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000F0F, 15, 0x0000000000000008	1
 asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	8, ctpop, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x00000000000000F0, 7, 0x0000000000000004	1
 asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_AR_ORRI	9, ctpop, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x000000000000FF00, 7, 0x0000000000000000	1
-asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_FAULT_ALU_ORRI	19, ctpop, ILLI, rd0, rd6, 7	1
+asm	tests/inst/12-misc/ctpop_orri_rd.S	TEST_FAULT_ALU_ORRI	20, ctpop, ILLI, rd0, rd6, 7	1
 asm	tests/inst/12-misc/ctpop_orri_rd.S	__CHECK_RD	1, rd5, 0x0000000000000004	1
 asm	tests/inst/12-misc/ctpop_orri_rd.S	__CHECK_RD	2, rd63, 0x0000000000000001	1
 asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	10, cttz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000000, 63, 0x0000000000000040	1
@@ -4738,6 +4751,8 @@ asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	15, cttz, rd5, 0xFFFFFFFFFFFF
 asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	16, cttz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000020, 63, 0x0000000000000005	1
 asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	17, cttz, rd5, 0xFFFFFFFFFFFFFFFF, rd0, 0x0000000000000000, 7, 0x0000000000000008	1
 asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	18, cttz, rd9, 0x0000000000000F00, rd9, 0x0000000000000F00, 11, 0x0000000000000008	1
+asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	19, cttz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000002, 63, 0x0000000000000001	1
+asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	20, cttz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000100000000, 63, 0x0000000000000020	1
 asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	3, cttz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x8000000000000000, 63, 0x000000000000003F	1
 asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	4, cttz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000010000000000, 31, 0x0000000000000020	1
 asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	5, cttz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000F00, 63, 0x0000000000000008	1
@@ -4745,7 +4760,7 @@ asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	6, cttz, rd5, 0xFFFFFFFFFFFFF
 asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	7, cttz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x000000000000FF00, 15, 0x0000000000000008	1
 asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	8, cttz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x00000000000000F0, 7, 0x0000000000000004	1
 asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_AR_ORRI	9, cttz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000001000, 7, 0x0000000000000008	1
-asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_FAULT_ALU_ORRI	19, cttz, ILLI, rd0, rd6, 63	1
+asm	tests/inst/12-misc/cttz_orri_rd.S	TEST_FAULT_ALU_ORRI	21, cttz, ILLI, rd0, rd6, 63	1
 asm	tests/inst/12-misc/cttz_orri_rd.S	__CHECK_RD	1, rd5, 0x0000000000000004	1
 asm	tests/inst/12-misc/cttz_orri_rd.S	__CHECK_RD	2, rd63, 0x0000000000000000	1
 asm	tests/inst/12-misc/lr.b.an_orrr_rd.S	TEST_FAULT_CF1 19, rb3, A0, ILLI, 0x471C5083	1
