@@ -56,9 +56,29 @@
 	@@ 两源同名（rf9 = rf6 + rf6）
 	TEST_FP3	18, fo, foadd, rf9, rf6, 0x3FF8000000000000, rf6, 0x3FF8000000000000, 0, 0x4008000000000000, 0x00
 
+	@@ ---- 边界补齐（m20-testcases-010；次正规 / NaN canonical 化 / 溢出剩余象限，`SimRISC-07 §1.3/§2.1`）----
+	@@ 负号 qNaN（含 payload）+ 1.0 ⇒ canonical 正 qNaN，不置标志（payload/符号归零）
+	TEST_FP3	19, fo, foadd, rf5, rf6, 0xFFF8000000000123, rf7, 0x3FF0000000000000, 0, 0x7FF8000000000000, 0x00
+	@@ 最小次正规 + 最小次正规 = 2^-1073（精确次正规输出）⇒ 不置 UF/NX
+	TEST_FP3	20, fo, foadd, rf5, rf6, 0x0000000000000001, rf7, 0x0000000000000001, 0, 0x0000000000000002, 0x00
+	@@ 最大次正规 + 最小次正规 = 最小正规（精确进位）⇒ 不置 UF/NX
+	TEST_FP3	21, fo, foadd, rf5, rf6, 0x000FFFFFFFFFFFFF, rf7, 0x0000000000000001, 0, 0x0010000000000000, 0x00
+	@@ 最大次正规 + 最大次正规 = 0x001FFFFFFFFFFFFE（精确，和进入正规区）⇒ 不置 UF/NX
+	TEST_FP3	22, fo, foadd, rf5, rf6, 0x000FFFFFFFFFFFFF, rf7, 0x000FFFFFFFFFFFFF, 0, 0x001FFFFFFFFFFFFE, 0x00
+	@@ 正溢出 RUP ⇒ +Inf + OF|NX
+	TEST_FP3	23, fo, foadd, rf5, rf6, 0x7FEFFFFFFFFFFFFF, rf7, 0x7FEFFFFFFFFFFFFF, 3, 0x7FF0000000000000, 0x14
+	@@ 正溢出 RDN ⇒ +fo_max + OF|NX（溢出 ≠ Inf）
+	TEST_FP3	24, fo, foadd, rf5, rf6, 0x7FEFFFFFFFFFFFFF, rf7, 0x7FEFFFFFFFFFFFFF, 2, 0x7FEFFFFFFFFFFFFF, 0x14
+	@@ 负溢出 RDN ⇒ −Inf + OF|NX
+	TEST_FP3	25, fo, foadd, rf5, rf6, 0xFFEFFFFFFFFFFFFF, rf7, 0xFFEFFFFFFFFFFFFF, 2, 0xFFF0000000000000, 0x14
+	@@ 负溢出 RUP ⇒ −fo_max + OF|NX（溢出 ≠ Inf）
+	TEST_FP3	26, fo, foadd, rf5, rf6, 0xFFEFFFFFFFFFFFFF, rf7, 0xFFEFFFFFFFFFFFFF, 3, 0xFFEFFFFFFFFFFFFF, 0x14
+	@@ 次正规输入参与 RUP 舍入：1.0 + 2^-1074 ⇒ 1+2^-52 + NX（不置 UF；证明低位粘位未被丢弃）
+	TEST_FP3	27, fo, foadd, rf5, rf6, 0x3FF0000000000000, rf7, 0x0000000000000001, 3, 0x3FF0000000000001, 0x10
+
 	@@ ---- legality ----
 	@@ 目的 rf0 ⇒ ILLI（dst_rf0）
-	TEST_FAULT_FP	19, ILLI, 0x44600083
+	TEST_FAULT_FP	28, ILLI, 0x44600083
 
 	__TEST_END
 

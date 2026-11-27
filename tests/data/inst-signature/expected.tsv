@@ -2173,6 +2173,15 @@ tests/inst/07-floating-point/foadd_orrr_rf.S	15	value	0x3ff0000000000000	0x3FF00
 tests/inst/07-floating-point/foadd_orrr_rf.S	16	value	0x3ff0000000000001	0x3FF0000000000001	tests/inst/07-floating-point/foadd_orrr_rf.S:51
 tests/inst/07-floating-point/foadd_orrr_rf.S	17	value	0x400e000000000000	0x400E000000000000	tests/inst/07-floating-point/foadd_orrr_rf.S:55
 tests/inst/07-floating-point/foadd_orrr_rf.S	18	value	0x4008000000000000	0x4008000000000000	tests/inst/07-floating-point/foadd_orrr_rf.S:57
+tests/inst/07-floating-point/foadd_orrr_rf.S	19	value	0x7ff8000000000000	0x7FF8000000000000	tests/inst/07-floating-point/foadd_orrr_rf.S:61
+tests/inst/07-floating-point/foadd_orrr_rf.S	20	value	0x0000000000000002	0x0000000000000002	tests/inst/07-floating-point/foadd_orrr_rf.S:63
+tests/inst/07-floating-point/foadd_orrr_rf.S	21	value	0x0010000000000000	0x0010000000000000	tests/inst/07-floating-point/foadd_orrr_rf.S:65
+tests/inst/07-floating-point/foadd_orrr_rf.S	22	value	0x001ffffffffffffe	0x001FFFFFFFFFFFFE	tests/inst/07-floating-point/foadd_orrr_rf.S:67
+tests/inst/07-floating-point/foadd_orrr_rf.S	23	value	0x7ff0000000000000	0x7FF0000000000000	tests/inst/07-floating-point/foadd_orrr_rf.S:69
+tests/inst/07-floating-point/foadd_orrr_rf.S	24	value	0x7fefffffffffffff	0x7FEFFFFFFFFFFFFF	tests/inst/07-floating-point/foadd_orrr_rf.S:71
+tests/inst/07-floating-point/foadd_orrr_rf.S	25	value	0xfff0000000000000	0xFFF0000000000000	tests/inst/07-floating-point/foadd_orrr_rf.S:73
+tests/inst/07-floating-point/foadd_orrr_rf.S	26	value	0xffefffffffffffff	0xFFEFFFFFFFFFFFFF	tests/inst/07-floating-point/foadd_orrr_rf.S:75
+tests/inst/07-floating-point/foadd_orrr_rf.S	27	value	0x3ff0000000000001	0x3FF0000000000001	tests/inst/07-floating-point/foadd_orrr_rf.S:77
 tests/inst/07-floating-point/focls_orri_rf.S	1	value	0x0000000000000100	0x0000000000000100	tests/inst/07-floating-point/focls_orri_rf.S:15
 tests/inst/07-floating-point/focls_orri_rf.S	2	value	0x0000000000000040	0x0000000000000040	tests/inst/07-floating-point/focls_orri_rf.S:17
 tests/inst/07-floating-point/focls_orri_rf.S	3	value	0x0000000000000100	0x0000000000000100	tests/inst/07-floating-point/focls_orri_rf.S:19
@@ -2236,6 +2245,15 @@ tests/inst/07-floating-point/fofma_rrrr_rf.S	21	value	0x7ff0000000000000	0x7FF00
 tests/inst/07-floating-point/fofma_rrrr_rf.S	22	value	0x0000000000000001	0x0000000000000001	tests/inst/07-floating-point/fofma_rrrr_rf.S:68
 tests/inst/07-floating-point/fofma_rrrr_rf.S	23	value	0x0000000000000002	0x0000000000000002	tests/inst/07-floating-point/fofma_rrrr_rf.S:70
 tests/inst/07-floating-point/fofma_rrrr_rf.S	24	value	0xfff0000000000000	0xFFF0000000000000	tests/inst/07-floating-point/fofma_rrrr_rf.S:72
+tests/inst/07-floating-point/fofma_rrrr_rf.S	25	value	0x7ff8000000000000	0x7FF8000000000000	tests/inst/07-floating-point/fofma_rrrr_rf.S:76
+tests/inst/07-floating-point/fofma_rrrr_rf.S	26	value	0x7ff8000000000000	0x7FF8000000000000	tests/inst/07-floating-point/fofma_rrrr_rf.S:78
+tests/inst/07-floating-point/fofma_rrrr_rf.S	27	value	0x7ff8000000000000	0x7FF8000000000000	tests/inst/07-floating-point/fofma_rrrr_rf.S:80
+tests/inst/07-floating-point/fofma_rrrr_rf.S	28	value	0x0000000000000002	0x0000000000000002	tests/inst/07-floating-point/fofma_rrrr_rf.S:82
+tests/inst/07-floating-point/fofma_rrrr_rf.S	29	value	0x0010000000000000	0x0010000000000000	tests/inst/07-floating-point/fofma_rrrr_rf.S:84
+tests/inst/07-floating-point/fofma_rrrr_rf.S	30	value	0xfff0000000000000	0xFFF0000000000000	tests/inst/07-floating-point/fofma_rrrr_rf.S:86
+tests/inst/07-floating-point/fofma_rrrr_rf.S	31	value	0xffefffffffffffff	0xFFEFFFFFFFFFFFFF	tests/inst/07-floating-point/fofma_rrrr_rf.S:88
+tests/inst/07-floating-point/fofma_rrrr_rf.S	32	value	0xffefffffffffffff	0xFFEFFFFFFFFFFFFF	tests/inst/07-floating-point/fofma_rrrr_rf.S:90
+tests/inst/07-floating-point/fofma_rrrr_rf.S	33	value	0x7fefffffffffffff	0x7FEFFFFFFFFFFFFF	tests/inst/07-floating-point/fofma_rrrr_rf.S:92
 tests/inst/07-floating-point/fomax_orrr_rf.S	1	value	0x4004000000000000	0x4004000000000000	tests/inst/07-floating-point/fomax_orrr_rf.S:17
 tests/inst/07-floating-point/fomax_orrr_rf.S	2	value	0x7fefffffffffffff	0x7FEFFFFFFFFFFFFF	tests/inst/07-floating-point/fomax_orrr_rf.S:19
 tests/inst/07-floating-point/fomax_orrr_rf.S	3	value	0x4004000000000000	0x4004000000000000	tests/inst/07-floating-point/fomax_orrr_rf.S:23
@@ -2256,6 +2274,7 @@ tests/inst/07-floating-point/fomax_orrr_rf.S	17	value	0x3ff0000000000000	0x3FF00
 tests/inst/07-floating-point/fomax_orrr_rf.S	18	value	0x000fffffffffffff	0x000FFFFFFFFFFFFF	tests/inst/07-floating-point/fomax_orrr_rf.S:59
 tests/inst/07-floating-point/fomax_orrr_rf.S	19	value	0x0000000000000001	0x0000000000000001	tests/inst/07-floating-point/fomax_orrr_rf.S:61
 tests/inst/07-floating-point/fomax_orrr_rf.S	20	value	0x7ff0000000000000	0x7FF0000000000000	tests/inst/07-floating-point/fomax_orrr_rf.S:63
+tests/inst/07-floating-point/fomax_orrr_rf.S	21	value	0x3ff0000000000000	0x3FF0000000000000	tests/inst/07-floating-point/fomax_orrr_rf.S:65
 tests/inst/07-floating-point/fomin_orrr_rf.S	1	value	0x3ff8000000000000	0x3FF8000000000000	tests/inst/07-floating-point/fomin_orrr_rf.S:17
 tests/inst/07-floating-point/fomin_orrr_rf.S	2	value	0xffefffffffffffff	0xFFEFFFFFFFFFFFFF	tests/inst/07-floating-point/fomin_orrr_rf.S:19
 tests/inst/07-floating-point/fomin_orrr_rf.S	3	value	0x3ff8000000000000	0x3FF8000000000000	tests/inst/07-floating-point/fomin_orrr_rf.S:23
@@ -2276,6 +2295,7 @@ tests/inst/07-floating-point/fomin_orrr_rf.S	17	value	0x3ff0000000000000	0x3FF00
 tests/inst/07-floating-point/fomin_orrr_rf.S	18	value	0x0000000000000001	0x0000000000000001	tests/inst/07-floating-point/fomin_orrr_rf.S:59
 tests/inst/07-floating-point/fomin_orrr_rf.S	19	value	0x0000000000000000	0x0000000000000000	tests/inst/07-floating-point/fomin_orrr_rf.S:61
 tests/inst/07-floating-point/fomin_orrr_rf.S	20	value	0xfff0000000000000	0xFFF0000000000000	tests/inst/07-floating-point/fomin_orrr_rf.S:63
+tests/inst/07-floating-point/fomin_orrr_rf.S	21	value	0x3ff0000000000000	0x3FF0000000000000	tests/inst/07-floating-point/fomin_orrr_rf.S:65
 tests/inst/07-floating-point/fomul_orrr_rf.S	1	value	0x400b000000000000	0x400B000000000000	tests/inst/07-floating-point/fomul_orrr_rf.S:17
 tests/inst/07-floating-point/fomul_orrr_rf.S	2	value	0xbff0000000000000	0xBFF0000000000000	tests/inst/07-floating-point/fomul_orrr_rf.S:19
 tests/inst/07-floating-point/fomul_orrr_rf.S	3	value	0x4008000000000000	0x4008000000000000	tests/inst/07-floating-point/fomul_orrr_rf.S:23
@@ -2357,6 +2377,9 @@ tests/inst/07-floating-point/fornd_orri_rf.S	25	value	0xc008000000000000	0xC0080
 tests/inst/07-floating-point/fornd_orri_rf.S	26	value	0xc000000000000000	0xC000000000000000	tests/inst/07-floating-point/fornd_orri_rf.S:78
 tests/inst/07-floating-point/fornd_orri_rf.S	27	value	0x4000000000000000	0x4000000000000000	tests/inst/07-floating-point/fornd_orri_rf.S:80
 tests/inst/07-floating-point/fornd_orri_rf.S	28	value	0xc000000000000000	0xC000000000000000	tests/inst/07-floating-point/fornd_orri_rf.S:82
+tests/inst/07-floating-point/fornd_orri_rf.S	29	value	0x7ff8000000000000	0x7FF8000000000000	tests/inst/07-floating-point/fornd_orri_rf.S:84
+tests/inst/07-floating-point/fornd_orri_rf.S	30	value	0x7ff8000000000000	0x7FF8000000000000	tests/inst/07-floating-point/fornd_orri_rf.S:86
+tests/inst/07-floating-point/fornd_orri_rf.S	31	value	0x8000000000000000	0x8000000000000000	tests/inst/07-floating-point/fornd_orri_rf.S:88
 tests/inst/07-floating-point/foroot_orri_rf.S	1	value	0x4000000000000000	0x4000000000000000	tests/inst/07-floating-point/foroot_orri_rf.S:17
 tests/inst/07-floating-point/foroot_orri_rf.S	2	value	0x4008000000000000	0x4008000000000000	tests/inst/07-floating-point/foroot_orri_rf.S:19
 tests/inst/07-floating-point/foroot_orri_rf.S	3	value	0x4000000000000000	0x4000000000000000	tests/inst/07-floating-point/foroot_orri_rf.S:23

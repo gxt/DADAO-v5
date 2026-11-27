@@ -80,16 +80,22 @@
 	TEST_FPRND	27, fornd, rf5, rf6, 0x4004000000000000, 0x20, 2, 0x4000000000000000, 0x10
 	@@ −2.5 动态 0x20 读 rf0=RUP（11）⇒ −2.0 + NX
 	TEST_FPRND	28, fornd, rf5, rf6, 0xC004000000000000, 0x20, 3, 0xC000000000000000, 0x10
+	@@ 动态档 0x20 输入 qNaN ⇒ canonical qNaN；NaN 只做 canonical 化 ⇒ 不置 NX（§2.3）
+	TEST_FPRND	29, fornd, rf5, rf6, 0x7FF8000000000123, 0x20, 0, 0x7FF8000000000000, 0x00
+	@@ 动态档 0x20 输入 sNaN ⇒ canonical qNaN + NV（canonical 化仍不置 NX）
+	TEST_FPRND	30, fornd, rf5, rf6, 0x7FF0000000000001, 0x20, 0, 0x7FF8000000000000, 0x01
+	@@ RUP 档取整结果为 0 时沿用输入符号：−0.5 ⇒ −0（不是 +0）
+	TEST_FPRND	31, fornd, rf5, rf6, 0xBFE0000000000000, 0x08, 0, 0x8000000000000000, 0x00
 
 	@@ ---- legality ----
 	@@ 目的 rf0 ⇒ ILLI（dst_rf0）
-	TEST_FAULT_FP	29, ILLI, 0x442C0181
+	TEST_FAULT_FP	32, ILLI, 0x442C0181
 	@@ immu6=0x00 非 one-hot ⇒ ILLI（encode_onehot）
-	TEST_FAULT_FP	30, ILLI, 0x442C5180
+	TEST_FAULT_FP	33, ILLI, 0x442C5180
 	@@ immu6=0x03 非 one-hot ⇒ ILLI
-	TEST_FAULT_FP	31, ILLI, 0x442C5183
+	TEST_FAULT_FP	34, ILLI, 0x442C5183
 	@@ immu6=0x30 多位同置 ⇒ ILLI
-	TEST_FAULT_FP	32, ILLI, 0x442C51B0
+	TEST_FAULT_FP	35, ILLI, 0x442C51B0
 
 	__TEST_END
 

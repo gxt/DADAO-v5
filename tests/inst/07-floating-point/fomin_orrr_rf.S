@@ -61,10 +61,12 @@
 	TEST_FP3	19, fo, fomin, rf5, rf6, 0x0000000000000001, rf7, 0x0000000000000000, 0, 0x0000000000000000, 0x00
 	@@ min(+Inf, −Inf) = −Inf（第 6 条：Inf 按数值序参与比较）
 	TEST_FP3	20, fo, fomin, rf5, rf6, 0x7FF0000000000000, rf7, 0xFFF0000000000000, 0, 0xFFF0000000000000, 0x00
+	@@ 单 NaN 的第二源分支（sNaN 在后）：min(1.0, sNaN) = 1.0 + NV（结果为数也置 NV）
+	TEST_FP3	21, fo, fomin, rf5, rf6, 0x3FF0000000000000, rf7, 0x7FF0000000000001, 0, 0x3FF0000000000000, 0x01
 
 	@@ ---- legality ----
 	@@ 目的 rf0 ⇒ ILLI（dst_rf0）
-	TEST_FAULT_FP	21, ILLI, 0x44B80083
+	TEST_FAULT_FP	22, ILLI, 0x44B80083
 
 	__TEST_END
 

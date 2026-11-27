@@ -71,9 +71,29 @@
 	@@ Inf 作加数：1 × 2 + (−Inf) ⇒ −Inf，不置标志（`§2.5`「特例」第 3 条）
 	TEST_FP4	24, fo, fofma, rf5, rf6, 0x3FF0000000000000, rf7, 0x4000000000000000, rf8, 0xFFF0000000000000, 0, 0xFFF0000000000000, 0x00
 
+	@@ ---- 边界补齐（m20-testcases-010；0×±Inf / 加数 NaN / 次正规精确 / 负溢出，`SimRISC-07 §2.5/§1.3`）----
+	@@ 0 × (−Inf) + qNaN ⇒ canonical qNaN + NV（零乘无穷无效运算优先于 NaN 传播，符号无关）
+	TEST_FP4	25, fo, fofma, rf5, rf6, 0x0000000000000000, rf7, 0xFFF0000000000000, rf8, 0x7FF8000000000000, 0, 0x7FF8000000000000, 0x01
+	@@ 加数为 sNaN：1 × 1 + sNaN ⇒ canonical qNaN + NV
+	TEST_FP4	26, fo, fofma, rf5, rf6, 0x3FF0000000000000, rf7, 0x3FF0000000000000, rf8, 0x7FF0000000000001, 0, 0x7FF8000000000000, 0x01
+	@@ 加数为负号 qNaN（含 payload）⇒ canonical 正 qNaN，不置标志
+	TEST_FP4	27, fo, fofma, rf5, rf6, 0x3FF0000000000000, rf7, 0x3FF0000000000000, rf8, 0xFFF8000000000123, 0, 0x7FF8000000000000, 0x00
+	@@ 最小次正规 × 1 + 最小次正规 = 2^-1073（精确次正规输出）⇒ 不置 UF/NX
+	TEST_FP4	28, fo, fofma, rf5, rf6, 0x0000000000000001, rf7, 0x3FF0000000000000, rf8, 0x0000000000000001, 0, 0x0000000000000002, 0x00
+	@@ 最大次正规 × 1 + 最小次正规 = 最小正规（精确进位）⇒ 不置 UF/NX
+	TEST_FP4	29, fo, fofma, rf5, rf6, 0x000FFFFFFFFFFFFF, rf7, 0x3FF0000000000000, rf8, 0x0000000000000001, 0, 0x0010000000000000, 0x00
+	@@ −fo_max × 2 + 0 在 RDN 下 ⇒ −Inf + OF|NX
+	TEST_FP4	30, fo, fofma, rf5, rf6, 0xFFEFFFFFFFFFFFFF, rf7, 0x4000000000000000, rf8, 0x0000000000000000, 2, 0xFFF0000000000000, 0x14
+	@@ 同一输入在 RTZ 下 ⇒ −fo_max + OF|NX（溢出 ≠ Inf）
+	TEST_FP4	31, fo, fofma, rf5, rf6, 0xFFEFFFFFFFFFFFFF, rf7, 0x4000000000000000, rf8, 0x0000000000000000, 1, 0xFFEFFFFFFFFFFFFF, 0x14
+	@@ 同一输入在 RUP 下 ⇒ −fo_max + OF|NX
+	TEST_FP4	32, fo, fofma, rf5, rf6, 0xFFEFFFFFFFFFFFFF, rf7, 0x4000000000000000, rf8, 0x0000000000000000, 3, 0xFFEFFFFFFFFFFFFF, 0x14
+	@@ +fo_max × 2 + 0 在 RDN 下 ⇒ +fo_max + OF|NX（溢出 ≠ Inf）
+	TEST_FP4	33, fo, fofma, rf5, rf6, 0x7FEFFFFFFFFFFFFF, rf7, 0x4000000000000000, rf8, 0x0000000000000000, 2, 0x7FEFFFFFFFFFFFFF, 0x14
+
 	@@ ---- legality ----
 	@@ 目的 rf0 ⇒ ILLI（dst_rf0）
-	TEST_FAULT_FP	25, ILLI, 0x5F0020C4
+	TEST_FAULT_FP	34, ILLI, 0x5F0020C4
 
 	__TEST_END
 
