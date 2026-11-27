@@ -46,21 +46,16 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
-
-
-
-
 | m18-linux-028 | 2026-11-27 21:40 | 异步返回主因修（user 异步交接 smon 后不 escape ⇒ `CFXESC`）；`CFXESC` 0/100、LTP 3 clean、soak 0/1000；残余 `ISS-m18-011`、`ISS-m18-012` |
-
 | m18-linux-007 | 2026-11-27 19:52 | pthread create/join 闭环（`create×4`/join 双路径/TLS/detach/负向 `EAGAIN`）；5/5 连过、`run.sh` 40/0；忙等复现器 8/8 归 `ISS-m18-009` |
 | m18-linux-018 | 2026-11-27 18:05 | 套件环境补齐（TMPFS/MEMFD、iomem、非 root、`PATH`/`passwd`）；LTP 14/14 |
 | m18-linux-006 | 2026-11-27 15:48 | LTP 子集接入 + 两轮逐例一致（`PASS=12/TBROK=2`，flake 8/13 归 `ISS-m18-005`）；`run.sh` 47/47；新增 `ISS-m18-007` |
 | m18-linux-025 | 2026-11-27 12:58 | umon 返回路径 restore 用户 SP 前关 supv 异步门（`ISS-m18-001` 闭合）；修前 30/200 → 修后 0/1000、0/2000 窗口、6600 启绿；K2 170/K5 285/K6 82 |
-| m18-qemu-007 | 2026-11-27 10:05 | 移除 QEMU system `cfx_jmon`（`NUM_CFX` 9、map 去 1；trap/访问 ⇒ `CFXREG`）；探针 20/164、证据 26/26 |
-| m18-linux-027 | 2026-11-27 10:05 | **作废（并入 026）**：出口帧与源接口一起在重启的 026 内完成，不再单独派 |
 | m18-linux-026 | 2026-11-27 10:05 | 内核迁 0.8.1-rc（cg15/cg16 + ack + 模式上限 + 出口帧；027 并入；jmon 清理）；run.sh 26/26、K2 170/K5 285/K6 82、soak 0/2000、kselftest 两轮一致 |
-| m18-chipyard-003 | 2026-11-27 04:44 | RTL 源接口 cg15/cg16 + asyncKick；38/38、14/14、hart 124/38×2、pmem 48/10×2 |
+| m18-linux-027 | 2026-11-27 10:05 | **作废（并入 026）**：出口帧与源接口一起在重启的 026 内完成，不再单独派 |
+| m18-qemu-007 | 2026-11-27 10:05 | 移除 QEMU system `cfx_jmon`（`NUM_CFX` 9、map 去 1；trap/访问 ⇒ `CFXREG`）；探针 20/164、证据 26/26 |
 | m18-chipyard-002 | 2026-11-27 04:44 | RTL R3 出口帧 + 模式上限（cg5 rc8–rc11、cg9、escape cfxHA）；32/32 + 向量 |
+| m18-chipyard-003 | 2026-11-27 04:44 | RTL 源接口 cg15/cg16 + asyncKick；38/38、14/14、hart 124/38×2、pmem 48/10×2 |
 | m18-idl-004 | 2026-11-26 22:06 | IDL 源接口 cg15/cg16 + 模式上限；self-test 190/190、check-idl 274/274；证据 27/27 |
 | m18-gem5-005 | 2026-11-26 20:31 | gem5 源接口 cg15/cg16 + 模式上限；QEMU 同 ELF 六例签名一致；42/42；DIV-16 关闭 |
 | m18-qemu-010 | 2026-11-26 18:44 | QEMU 异步进入模式上限（`当前模式 ≤ cg15 rc14`）；探针 19/157、证据 20/20 |
@@ -98,17 +93,17 @@
 | m18-spec-005 | 2026-11-23 22:36 | ADR-0061 R2 规格/活文档（cg9 捕获缓冲、smon handoff、escape 不异步返回；14 文件；63+20 证据） |
 | m18-qemu-005 | 2026-11-23 20:12 | QEMU 异步模型修订（ADR-0061：mask 归 monitor、src 位 cfxha、cg9 七槽、一帧多源；13+33 证据） |
 | m18-spec-004 | 2026-11-23 18:33 | 异步模型修订（掩码归 monitor、源索引 cfxha、`cg9` 七槽只读、§5.4 专节；ADR-0061；版本仍 0.8.0-rc） |
-| m18-testcases-002 | 2026-11-23 17:57 | **作废**（ADR-0061）：`escape` cg9 向量，口径并入 `m18-testcases-003` |
-| m18-testcases-001 | 2026-11-23 17:57 | **作废**（ADR-0061）：旧异步探针迁 hart-first 口径，未完工；替代 `m18-testcases-003` |
 | m18-linux-021 | 2026-11-23 17:57 | **作废**（ADR-0061）：内核 hart-first 掩码/cause 口径，未完工；替代 `m18-linux-022` |
+| m18-testcases-001 | 2026-11-23 17:57 | **作废**（ADR-0061）：旧异步探针迁 hart-first 口径，未完工；替代 `m18-testcases-003` |
+| m18-testcases-002 | 2026-11-23 17:57 | **作废**（ADR-0061）：`escape` cg9 向量，口径并入 `m18-testcases-003` |
 | m18-qemu-004 | 2026-11-23 17:26 | QEMU hart-first 异步仲裁（`cfx_hart cg9`、mask 15/32、pending 17/18、escape bit1；16+12 证据） |
 | m18-llvm-001 | 2026-11-23 16:05 | `escape` 汇编/反汇编支持 0/4/8（imms18 bit1；lit 182/182；`case-ledger` 生成物） |
 | m18-idl-001 | 2026-11-23 15:53 | `escape` 帧选择位 IDL/语义库/向量（cg9 自检 14 条；11-cfx case13/14/19/20；cg9 向量延至 testcases-002） |
 | m18-spec-003 | 2026-11-23 15:01 | `escape` frame selector 编码真源（SimRISC-11/IDL/Toolchain-01/contract-asm/Kaiwu/opcodes/legality；19 路径） |
-| m18-spec-002 | 2026-11-23 13:45 | hart-first/cg9 规格与契约同步（`§5.2`/cg9/`§4.7`/`§4.9`/`escape` frame selector；DADAO-23 同步；版本仍 0.8.0-rc） |
-| m18-qemu-003 | 2026-11-23 13:45 | **作废**（ADR-0060）：旧探针迁 monitor-first，未开工 |
-| m18-qemu-002 | 2026-11-23 13:45 | **作废**（ADR-0060）：monitor-first QEMU，reviewer Accepted 但未合入，分支留参考 |
 | m18-linux-013 | 2026-11-23 13:45 | **作废**（ADR-0060）：monitor-first 内核异步方案，未开工 |
+| m18-qemu-002 | 2026-11-23 13:45 | **作废**（ADR-0060）：monitor-first QEMU，reviewer Accepted 但未合入，分支留参考 |
+| m18-qemu-003 | 2026-11-23 13:45 | **作废**（ADR-0060）：旧探针迁 monitor-first，未开工 |
+| m18-spec-002 | 2026-11-23 13:45 | hart-first/cg9 规格与契约同步（`§5.2`/cg9/`§4.7`/`§4.9`/`escape` frame selector；DADAO-23 同步；版本仍 0.8.0-rc） |
 | m18-infra-002 | 2026-11-23 02:40 | musl ldso 动态链接运行闭环（P3；system/qemu-user rc=42、pthread/dlopen/TLS/errno 实测；libc.a 不变；零内核/musl 补丁） |
 | m18-linux-014 | 2026-11-23 01:23 | COW 共享文件页 `VM_FAULT_COMPLETED` 双重解锁修复（`fault.c`；5/5 PASS，无 rwsem 警告/停摆；53+14/15 证据项） |
 | m18-linux-005 | 2026-11-22 19:37 | 测试集运行骨架 + kselftest 试点（8 例：PASS1/FAIL2/SKIP2/SIGNAL1/TIMEOUT2；套件校验 23/23；补丁 manifest 双向+逐补丁增量校验） |
@@ -117,4 +112,3 @@
 | m18-linux-004 | 2026-11-22 08:33 | K6 用户入口异步投递修复（ISS-498）+ 控制台行缓冲；200/200 启动、长脚本 27 条 |
 | m18-linux-002 | 2026-11-22 05:31 | K6 基础命令回归（sh 内 5 条 + mkdir/ls/rm 组合；50/50；长脚本崩溃登记 ISS-497） |
 | m18-linux-001 | 2026-11-22 04:32 | K6 shell 启动（busybox sh + semihosting 控制台 + 前台执行，无作业控制；28/28） |
-
