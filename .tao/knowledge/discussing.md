@@ -528,12 +528,13 @@
   - BootROM 布局重调；所有测试向量的入口与布局重调；
   - **M16/M17 收尾后**统一调整 Tiny 配置与测试布局；
   - 未明确的事项不默认同意。
-- **已定（用户 2026-11-27，FPGA Tiny 硬件几何）**：
-  - **Boot 存储 = TL ROM 8 KiB**（`0xFFFF_FFFF_0000`）；不是 ITCM 取指口；hmon 源在 ROM，按 §6.2 复制到 hmon SRAM 执行；
-  - **hmon SRAM 8 KiB**（`0x0FFF_0000_0000`）；
-  - **主 SRAM 256 KiB**（`0xFFFF_FF00_0000`）；
-  - **入口 `0xFFFF_FF00_0100`**（`base + 0x100`）；
+- **已定（用户 2026-11-27，FPGA Tiny 硬件与软件布局）**：
+  - **Boot 存储 = TL ROM 8 KiB**（`0xFFFF_FFFF_0000`）；power 0x0000–0x07FF、hmon 源 0x0800–0x13FF、table 0x1F00；不是 ITCM 取指口；
+  - **hmon SRAM 8 KiB**（`0x0FFF_0000_0000`）：code 0x0000–0x0BFF、data 0x0C00–0x0CFF、stack 0x0D00–0x1FFF（SP=0x2000）；
+  - **主 SRAM 256 KiB**（`0xFFFF_FF00_0000`）：VERSION@0x00、MAILBOX@0x20、EXIT_BLOCK@0x30、DUMP@0x800（0x800，pt_regs）、SIGNATURE@0x1000（0x800）、**ENTRY/raw@0x2000**；
+  - guard_lo 0x38000–0x39000、**STACK 0x39000–0x3F000（24 KiB，SP=0x3F000）**、**MemRAS 0x3F000–0x40000（4 KiB，MRPTR=0x40000）**；MemRAS 与栈之间不设 guard_hi；
   - BRAM：主 SRAM 64 + ROM 2 + hmon 2 = **68 / 445（15.3%）**，余 **377** 留作后续使用（本册不展开）。
+- **批次授权 M19-A（2026-11-27 22:52）**：swym 4 件 + 新几何 7 件；今晚连续派发，不停；停止点按 `AGENTS.md §1`（push/硬件/版本号/破坏性 git 等才停）。
 - **初步方向 / 建议（未裁，见 `N44`–`N48`）**：
   - TSI ↔ power 优先 **SRAM mailbox**（不新增 cfx 桥）；
   - `tohost/fromhost` 放 SRAM 固定字，配 `signature + done/exit`；

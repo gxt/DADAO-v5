@@ -21,11 +21,9 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m19-spec-001 | 2–4 h | `swym N` 语义/契约：N=12 位、高位 SBZ/ILLI、总时延 1+N、原子中断 |
 | m19-gem5-001 | 4–8 h | gem5 实现 `swym N`（12 位、1+N、原子）并补周期/ILLI 用例 |
 | m19-chipyard-003 | 4–8 h | chipyard RTL 实现 `swym N`（12 位、1+N、原子）并补 Verilator 用例 |
 | m19-testcases-001 | 2–4 h | `swym N` 测试程序：1/2/4096 拍、高位 ILLI、原子中断 |
-| m19-spec-002 | 4–8 h | Tiny 新几何/启动 ABI：8K ROM、8K hmon、256K SRAM、entry 0x2000 |
 | m19-qemu-001 | 4–8 h | QEMU `kaiwu-tiny` 迁移到新 ROM/RAM/hmon/entry/DUMP |
 | m19-gem5-002 | 4–8 h | gem5 Tiny profile 迁移到新 ROM/RAM/hmon/entry/DUMP |
 | m19-chipyard-004 | 4–8 h | chipyard Tiny 配置迁移到新几何与 8K BootROM |
@@ -37,6 +35,8 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m19-spec-001 | 2026-11-27 22:52 | 2–4 h | `swym N` 语义/契约：N=12 位、高位 SBZ/ILLI、总时延 1+N、原子中断 |
+| m19-spec-002 | 2026-11-27 22:52 | 4–8 h | Tiny 新几何/启动 ABI：8K ROM、8K hmon、256K SRAM、entry 0x2000 |
 
 ## 已验证
 
