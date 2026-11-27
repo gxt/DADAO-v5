@@ -32,12 +32,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m17-testcases-008 | 2026-11-27 15:01 | 2–4 h | `escape_ciii_cfx`：Tiny 验证访问⇒CFXREG + `DIV-18` 逐槽声明（裁 1） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m17-testcases-008 | 2026-11-27 16:03 | `escape_ciii_cfx` Tiny 验证 CFXREG + `DIV-18` 逐槽声明（四方 274/274） |
 | m17-idl-026 | 2026-11-27 14:54 | `idl_four_way` 支持 `expected-divergences` 逐槽例外（未生效必红） |
 | m17-idl-025 | 2026-11-27 14:39 | trace 入口态 seed cfx 计数/掩码（计数严格相等；trace 274/274） |
 | m17-chipyard-002 | 2026-11-27 12:34 | `escape_ciii_cfx` 空签名根因：Tiny 缺 `cg4`/`cg15 rc3` ⇒ CFXREG 未武装即入 pad |
