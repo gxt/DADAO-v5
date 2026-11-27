@@ -13,3 +13,7 @@
 - `ISS-442`（`sweep_expect.bin` 的 md5 已非任何门控判据）→ 退役门控的产物 md5 不应再出现在判据/文档里；清理时连引用一起删。
 - `ISS-446`（引用已关闭的 `ISS-193`）→ 关闭 issue 时全仓 grep 其 id，把仍引用它的文档/报告一并改指。
 - `ISS-411`（`st.o rb0` 未造例）→ 属**已知限制**（期望值随链接布局变化），不是缺口；写进载体的限制段即可，不必造例。
+- `ISS-m16-013`（组件补丁合入后源树/安装根未重放，arch 门控假红）→ 补丁合入必须「删源树→`make fetch`→`apply_series`→重建→`install-host`」；判据用 `check_patch_tree` **全量**（能抓「源树 ≠ 补丁集」），`--source-state` 只查 HEAD/clean、抓不出。
+- `ISS-m16-011`（`cfx15`「偶发挂死」实为 `+max-cycles` 截断）→ 判「挂死」先看日志有无 `FAILED (timeout)`；`+max-cycles` 按 harness 时钟计数（= 2× core + 786 经验截距），`200000` 的截断点可能落在签名 dump 内，看起来像卡死。
+- M16 收口（9 册任务书停在「待验收」而台账已「已验证」）→ 收尾提交必须**同时**把任务书 `**状态**` 改为终态；`check-milestones-fresh` 的 A1（表位置 == 任务书状态映射）会抓，别只改台账。
+- M16 收口（`run_arch --platforms chipyard` 全腿 rc=127/0 槽）→ 跨平台跑批先确认仿真器运行时库可达（chipyard 需 `LD_LIBRARY_PATH` 指向 `.conda-env/riscv-tools/lib`）；「0 槽 + rc=127」是实现红之外的**环境红**，不要按实现缺陷归因。

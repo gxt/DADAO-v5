@@ -6,13 +6,13 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
-- **2026-11-22 基线**：
-  - **已归档**：M14（76 册）、M15（66 册，达成 2026-11-22）→ `.tao/archive/M14/`、`M15/`。**M16 已归档（95 册，2026-11-27，`.tao/archive/M16/`）**；M17 台账已清零、未归档；**M18 重新开工（M18-A）**。
-  - **时间口径（ADR-0058 Accepted）**：guest 性能/超时只用 `cfx_time`（或 gem5 cycles）；semihosting elapsed/`gettimeofday` 只作宿主 liveness。picolibc `times()` 已按 `SYS_TICKFREQ` 缩放（`ISS-502` 闭合）；`sysconf(_SC_CLK_TCK)` 未同步（`ISS-506`）。
-  - **picolibc 安装根**：17 patches（含 `times()` 缩放 + lds `.text.start` 段首）。合入组件补丁后增量 `build-<c>` 不重放补丁：删源树 → `make fetch` → `apply_series.py --component picolibc` → rebuild。
-  - **已知基线红**：`check-patch-tree` musl 2（M18 面既有；gem5 的 5 条已随 `m18-gem5-004/005` 重放清零）；`check-milestones-fresh` 台账「预估：中」（`ISS-508`）；picolibc harness `.done` 无库指纹（`ISS-504`，跑前删 `picolibc-tests-run`）。
-  - **chipyard sim md5 `25c1d3f4…`**（构建必须用 `.conda-env` 的 `PATH`+`RISCV`，`ISS-474`）；qemu md5 `50752f5f…`（同环境同时段才可比，`ISS-451`/`453`）。
-  - **队列**：M18 `005`/`014`/`002` 已验证；`006`（LTP）reviewer 在跑；`ADR-0059 Accepted` + SEE/SBI `0.8.0-rc`、cause 17/18 已落 master；`m18-qemu-002` 待 006 reviewer 释放 QEMU 运行时后派（`m16-qemu-003` 已加依赖）；`m18-linux-020`（信号帧 ABI）等 006；其余待开始：`007`–`013`、`015`–`019`、`qemu-001`；M19（2 件，需硬件在场）、M20（2 件，未开工）；`open` issue 94。
+- **2026-11-27 基线**：
+  - **已归档**：M14（76 册）、M15（66 册）、**M16（95 册，2026-11-27）** → `.tao/archive/M14/`、`M15/`、`M16/`；M17 台账已清零、未归档；M18（Linux 测试集/K6）多任务在跑；M19（2 件，需硬件在场）、M20 未开工。
+  - **三方差分收口归 M20**（用户 2026-11-27）：现场红项（`arch-power-001/002`、`arch-umon-012/013` 回归挂死；`arch-cache-003/004` 既有红）与 `run_arch` 的 4 处工具链缺口（chipyard 腿缺 `LD_LIBRARY_PATH`、不识别 `expected-divergences`、单 case 缺承载中止整腿、power RTL 参数不通）见 `discussing.md` N40。
+  - **环境（2026-11-27 重放对齐）**：qemu `e470dc56…`（源树 `a8d0796`）、gem5.opt `ebb19d0b…`（`7db7553`）、chipyard Vast `0ead2519…` / Tiny `71cbed98…`（`7b1d785`）、LLVM 11-26 07:23。组件补丁合入后必须「删源树→`make fetch`→`apply_series`→重建→`install-host`」，否则 L2/L3 的绿红都不算证据。
+  - **已知基线红**：`check-patch-tree` musl 2（M18 面；musl 源树 11-24 未重放）；`check-milestones-fresh` 红 1 处 = M18 台账 `m18-linux-027` 行（预估「—」、任务书无状态头，由 M18 会话修）；picolibc harness `.done` 无库指纹（`ISS-504`）。
+  - **队列**：M20 先 `m20-integ-001`（三方 cfx/cg/rc 覆盖矩阵）/`m20-integ-002`（实测与缺口关闭），再接 `spec-002`/`idl-001`/`llvm-004`/`infra-002`/`qemu-001`/`gem5-005`/`chipyard-002`/`linux-001`/`testcases-006`；M17 只剩 1 条 open；M18 在跑 linux/qemu 链。
+  - **open issue**：49（left 26 / m17 1 / m18 16 / m19 4 / m20 2）。
 
 ## 入口指针
 
