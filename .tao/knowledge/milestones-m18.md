@@ -39,13 +39,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-linux-018 | 2026-11-27 15:16 | 2–3 h | 套件环境补齐（TMPFS/MEMFD、`/proc/iomem`、非 root uid + 006 新增 `PATH`/`/etc/passwd`）；先确认 `mlockall02 die-no-vma` 非内核缺陷 |
 | m18-linux-007 | 2026-11-27 17:52 | 2–3 h | pthread create/join 端到端闭环（K6 缺口；`pthread_create`×N/join 返回值/TLS/detach/exit + 负向用例）；0.8.1-rc + 自建 QEMU |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-linux-018 | 2026-11-27 18:05 | 套件环境补齐（TMPFS/MEMFD、`/proc/iomem`、非 root uid、`PATH`/`/etc/passwd`）；LTP 14/14、`mm-pfnmap` 仍 SKIP（`/dev/mem` 缺口）；`run.sh` rc=0 |
 | m18-linux-006 | 2026-11-27 15:48 | LTP 子集接入 + 两轮逐例一致（`PASS=12/TBROK=2`，flake 8/13 归 `ISS-m18-005`）；`run.sh` 47/47；新增 `ISS-m18-007` |
 | m18-linux-025 | 2026-11-27 12:58 | umon 返回路径 restore 用户 SP 前关 supv 异步门（`ISS-m18-001` 闭合）；修前 30/200 → 修后 0/1000、0/2000 窗口、6600 启绿；K2 170/K5 285/K6 82 |
 | m18-linux-026 | 2026-11-27 10:05 | 内核迁 0.8.1-rc（cg15/cg16 + ack + 模式上限 + 出口帧；027 并入；jmon 清理）；run.sh 26/26、K2 170/K5 285/K6 82、soak 0/2000、kselftest 两轮一致 |
