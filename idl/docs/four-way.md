@@ -93,3 +93,30 @@ make check-idl                                                         # L2 门�
 指令编码而非触发地址曾在 QEMU/gem5 上成立（`ISS-469`），两平台据 ADR-0062 修后
 `make check-idl` 与 gem5 全绿；**chipyard 仍红**，归 `tests/arch/expected-divergences.yaml`
 的 `DIV-07`（hypv 下不强制 cfx 来源掩码判权，等 `m17-chipyard-001` 关闭）。
+
+## 7. `expected-divergences.yaml` 的逐槽例外
+
+`tests/arch/expected-divergences.yaml` 的条目可选 `slots`（0 基 `slot` + 平台期望
+值）。`idl_four_way.py` **只采用与本用例镜像匹配**的条目；匹配口径比 `tests/arch`
+的 `load_divergence_slots`（仅按用例 id 精确匹配）更宽：`case` 写 `.S` 相对路径、
+文件名或用例 id（如 `escape_ciii_cfx`）均可；
+条目 `scope` 必须含被声明平台，且必须有 `close_when`（例外须可关闭）。文件缺失、
+YAML 解析失败、`slots` 结构错、同一（`case`, 平台, 槽）重复登记 ⇒ **rc=2**，
+不静默忽略。
+
+对每个「用例 × 声明平台」的槽：
+
+- **生效**：声明值 = 该平台实测值，且实测值 ≠ 其它方一致值（确有差异）⇒ 该槽
+  **不参与**四方逐槽全等，改判「实测 = 声明值」；应用项在输出
+  `DIV <id> 槽 N（0 基）...` 与 JSON `records[].divergences`（`id`/`slot`/
+  `platform`/`declared`/`spec`）中标注。
+- **未生效（无差异）**：实测值 = 其它方一致值 ⇒ 判红「条目应删除」。差异已修好
+  还留着例外，会让后续回归失去判据。
+- **未生效（声明值不符）**：实测值 ≠ 声明值 ⇒ 判红「条目值需更新」，**不**按
+  声明值放过。
+- `case` 写错/未匹配同理不生效，该例按原判据红，失败行提示「该槽无生效的 DIV
+  逐槽例外」。
+
+例外只作用于声明平台的那一个槽：其它平台（含 `expected.tsv` 逐槽 oracle）与
+其余槽位判据完全不变，不得因例外放宽。例外关闭后必须删除条目（`tests/arch` 与
+四方共用同一份登记）。

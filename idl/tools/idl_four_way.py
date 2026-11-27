@@ -14,6 +14,11 @@
      内联常量派生）比对（`kind=value/table` 逐槽；`relation` 无数值；
      `unwritten` ⇒ 红）——四方一致但全错时仍红，**不从实测反填期望**。
 
+逐槽例外（`m17-idl-026`）：`tests/arch/expected-divergences.yaml` 中含 `slots` 的
+条目，若 `case` 与本用例镜像匹配且 `scope` 含某平台，则该平台在 `slot`（0 基）上
+改按**声明值**判、不参与四方逐槽全等；其它平台/槽位判据不变。例外未生效（该槽
+实际无差异，或声明值 ≠ 实测）⇒ 判红，提示删除/更新条目，防静默逃逸。
+
 用例清单机制（`idl/data/idl_exec_cases.toml`）：
 
   * `[[case]]`（主清单）= `image` + `category`；
@@ -61,6 +66,7 @@ RUN_INST = _R / "tests" / "ee-tiny" / "run_inst_tiny.py"
 IDL_EXEC = _R / "idl" / "tools" / "idl_exec.py"
 EXPECTED = _R / "tests" / "data" / "inst-signature" / "expected.tsv"
 MANIFEST = _R / "idl" / "data" / "idl_exec_cases.toml"
+DIVERGENCES = _R / "tests" / "arch" / "expected-divergences.yaml"
 BOOKS = _R / "tests" / "inst"
 PLATFORMS = ("qemu", "gem5", "chipyard")
 VALUE_KINDS = ("value", "table")
@@ -177,10 +183,128 @@ def load_expected(path=EXPECTED) -> dict:
     return out
 
 
-def expected_problems(slots, party, got):
-    """一方槽值 vs expected.tsv（`value`/`table` 逐槽；`unwritten` ⇒ 红）。"""
+# ---------------------------------------------------------------------------
+# 逐槽例外：expected-divergences.yaml 的 `slots`
+# ---------------------------------------------------------------------------
+def load_divergences(path=DIVERGENCES):
+    """读 `expected-divergences.yaml` 中含 `slots` 的条目（fail-closed）。
+
+    返回 `[{id, case, slot, values: {platform: int}}]`；`case` 只在比较时与
+    用例镜像匹配（`.S` 相对路径 / 文件名 / 用例 id）。缺件、解析失败、结构错、
+    同一（case, 平台, 槽）重复登记 ⇒ `ManifestError`（rc=2），不静默忽略。
+    """
+    path = Path(path)
+    if not path.is_file():
+        raise ManifestError("缺件 %s（expected-divergences.yaml）" % path)
+    try:
+        import yaml  # 与 tests/arch 同一份依赖
+    except ImportError:
+        raise ManifestError("读 %s 需要 PyYAML" % path)
+    try:
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ManifestError("%s 读取失败：%s" % (path, exc))
+    except yaml.YAMLError as exc:
+        raise ManifestError("%s 解析失败：%s" % (path, exc))
+    entries = (doc or {}).get("divergences")
+    if not isinstance(entries, list):
+        raise ManifestError("%s: 缺 divergences 列表" % path)
+    out, seen = [], {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ManifestError("%s: divergences 条目不是映射：%r"
+                                % (path, entry))
+        slots = entry.get("slots")
+        if slots is None:
+            continue
+        div_id = entry.get("id")
+        if not isinstance(slots, list) or not slots:
+            raise ManifestError("%s: %s 的 slots 必须是非空列表" % (path, div_id))
+        scope = entry.get("scope") or []
+        if not div_id or not isinstance(scope, list) or not scope:
+            raise ManifestError("%s: slots 条目缺 id/scope：%r" % (path, entry))
+        if not entry.get("close_when"):
+            raise ManifestError("%s: %s 含逐槽例外但缺 close_when（必须可关闭）"
+                                % (path, div_id))
+        for item in slots:
+            if not isinstance(item, dict):
+                raise ManifestError("%s: %s 的 slots 项不是映射：%r"
+                                    % (path, div_id, item))
+            case = item.get("case")
+            if not isinstance(case, str) or not case.strip():
+                raise ManifestError("%s: %s 的 slots 项缺 case：%r"
+                                    % (path, div_id, item))
+            try:
+                idx = int(item["slot"])
+            except (KeyError, TypeError, ValueError):
+                raise ManifestError("%s: %s 的 slots 项缺整数 slot：%r"
+                                    % (path, div_id, item))
+            if idx < 0:
+                raise ManifestError("%s: %s 的 slot 必须 >= 0：%r"
+                                    % (path, div_id, item))
+            values = {}
+            for plat in scope:
+                if plat not in PLATFORMS:
+                    raise ManifestError("%s: %s 的 scope 含未知平台 %r"
+                                        % (path, div_id, plat))
+                if plat not in item:
+                    raise ManifestError(
+                        "%s: %s 的 scope 有 %s 但 slots 项无该平台值：%r"
+                        % (path, div_id, plat, item))
+                try:
+                    values[plat] = int(item[plat])
+                except (TypeError, ValueError):
+                    raise ManifestError(
+                        "%s: %s 的 %s 槽值不是整数：%r"
+                        % (path, div_id, plat, item[plat]))
+            for plat in values:
+                key = (case.strip(), plat, idx)
+                if key in seen:
+                    raise ManifestError("%s: 槽例外重复登记 case=%s 平台=%s 槽=%d"
+                                        % (path, key[0], plat, idx))
+                seen[key] = div_id
+            out.append({"id": div_id, "case": case.strip(), "slot": idx,
+                        "values": values})
+    return out
+
+
+def div_case_matches(declared, rel, cid):
+    """`slots.case` 与用例镜像匹配：`.S` 相对路径 / 文件名 / 用例 id。"""
+    if declared == rel or declared == cid:
+        return True
+    if Path(declared).name == Path(rel).name:
+        return True
+    return declared.endswith(".S") and Path(declared).stem == cid
+
+
+def case_divergences(divergences, rel, cid, platforms):
+    """本用例的逐槽例外：`{platform: {slot0: (div_id, declared)}}`。"""
+    out = {}
+    for entry in divergences:
+        if not div_case_matches(entry["case"], rel, cid):
+            continue
+        for plat, declared in entry["values"].items():
+            if plat not in platforms:
+                continue
+            per = out.setdefault(plat, {})
+            if entry["slot"] in per:
+                raise ManifestError(
+                    "DIV 例外重复：case=%s 平台=%s 槽=%d"
+                    % (rel, plat, entry["slot"]))
+            per[entry["slot"]] = (entry["id"], declared)
+    return out
+
+
+def expected_problems(slots, party, got, skip=()):
+    """一方槽值 vs expected.tsv（`value`/`table` 逐槽；`unwritten` ⇒ 红）。
+
+    `skip` 里的槽（0 基）是已生效的 DIV 逐槽例外：该平台在此槽与规范值本就不同，
+    不再按 expected.tsv 判（改由声明值比对承担）。
+    """
     problems = []
-    for want, value in zip(slots, got):
+    for i, (want, value) in enumerate(zip(slots, got)):
+        if i in skip:
+            continue
         if want["kind"] == "unwritten":
             problems.append("%s 槽 %d 未写入口（%s）"
                             % (party, want["slot"], want["source"]))
@@ -255,11 +379,12 @@ def run_idl(case, cfg):
 # ---------------------------------------------------------------------------
 # 比对
 # ---------------------------------------------------------------------------
-def compare_case(case, rec, idl, expected, platforms):
-    """四方槽流 + 退出码 + expected.tsv；返回记录。"""
+def compare_case(case, rec, idl, expected, platforms, divergences=()):
+    """四方槽流 + 退出码 + expected.tsv + DIV 逐槽例外；返回记录。"""
     rel = case["image"]
     cid = Path(rel).stem
     nslots = len(expected.get(rel, []))
+    exceptions = case_divergences(divergences, rel, cid, platforms)
     out = {"id": cid, "image": rel, "category": case["category"],
            "slots": nslots, "ok": False, "problems": []}
     if not idl.get("ok"):
@@ -303,19 +428,58 @@ def compare_case(case, rec, idl, expected, platforms):
         return out
 
     first = slots["idl"]
+    applied = []
+    skip_expected = {}
     for plat in platforms:
-        if slots[plat] != first:
-            i = next(i for i, (a, b) in enumerate(zip(first, slots[plat]))
-                     if a != b)
-            out["problems"].append("槽流不一致：槽 %d idl=0x%016x %s=0x%016x"
-                                   % (i + 1, first[i], plat, slots[plat][i]))
+        exc = exceptions.get(plat, {})
+        skip_expected[plat] = set()
+        for i, (div_id, declared) in sorted(exc.items()):
+            if i >= len(first):
+                out["problems"].append(
+                    "DIV 例外 %s 槽 %d 超出本用例 %d 槽（0 基）"
+                    % (div_id, i, len(first)))
+                continue
+            actual = slots[plat][i]
+            if actual == first[i]:
+                out["problems"].append(
+                    "DIV 例外 %s 槽 %d 声明 %s=0x%016x 实际 0x%016x 与其它方"
+                    "一致（无差异）——条目应删除"
+                    % (div_id, i, plat, declared, actual))
+            elif actual != declared:
+                out["problems"].append(
+                    "DIV 例外 %s 槽 %d 声明 %s=0x%016x 实际 0x%016x"
+                    "——声明值不符，条目值需更新"
+                    % (div_id, i, plat, declared, actual))
+            else:
+                applied.append({"id": div_id, "slot": i, "platform": plat,
+                                "declared": declared, "spec": first[i]})
+                skip_expected[plat].add(i)
+    # 跨平台逐槽：声明槽不参与该平台的四方全等（其它平台/槽位照旧）。
+    for plat in platforms:
+        skip = set(exceptions.get(plat, {}))
+        diff = next(((i, first[i], slots[plat][i])
+                     for i in range(len(first))
+                     if i not in skip and slots[plat][i] != first[i]), None)
+        if diff is not None:
+            hint = ""
+            if any(plat in e["values"] for e in divergences):
+                hint = ("（槽 %d（0 基）无生效的 DIV 逐槽例外；若已登记，检查 "
+                        "expected-divergences.yaml 的 case 是否匹配本用例）"
+                        % diff[0])
+            out["problems"].append(
+                "槽流不一致：槽 %d idl=0x%016x %s=0x%016x%s"
+                % (diff[0] + 1, diff[1], plat, diff[2], hint))
     for party, got in slots.items():
-        for problem in expected_problems(expected.get(rel, []), party, got):
+        for problem in expected_problems(
+                expected.get(rel, []), party, got,
+                skip=skip_expected.get(party, ())):
             out["problems"].append(problem)
             if len(out["problems"]) >= 8:
                 break
         if len(out["problems"]) >= 8:
             break
+    if applied:
+        out["divergences"] = applied
     out["ok"] = not out["problems"]
     return out
 
@@ -373,8 +537,12 @@ def main(argv=None):
         derived = derived_images()
         counts = check_manifest(cases, pending, derived)
         expected = load_expected()
+        divergences = load_divergences()
+        for case in cases:      # 同槽被别名 case 重复命中 ⇒ setup 错（不等到比较期）
+            case_divergences(divergences, case["image"],
+                             Path(case["image"]).stem, platforms)
     except (ManifestError, tomllib.TOMLDecodeError) as exc:
-        print("check_four_way: ERROR: 清单/派生不一致：%s" % exc,
+        print("check_four_way: ERROR: 清单/派生/例外不一致：%s" % exc,
               file=sys.stderr)
         return 2
 
@@ -448,13 +616,17 @@ def main(argv=None):
         if rec is not None:
             rec["__work"] = work / cid
         results.append(compare_case(case, rec, idl_by_id[cid], expected,
-                                    platforms))
+                                    platforms, divergences))
 
     for r in results:
         tag = "PASS" if r["ok"] else "FAIL"
         detail = "槽 %d / rc %s" % (r.get("slots"), _fmt(r.get("rcs", {})))
         print("  [%s] %-24s %-9s %s"
               % (tag, r["id"], r.get("category", ""), detail))
+        for d in r.get("divergences", []):
+            print("         DIV %s 槽 %d（0 基）%s=0x%016x 规范=0x%016x"
+                  % (d["id"], d["slot"], d["platform"], d["declared"],
+                     d["spec"]))
         for problem in r.get("problems", []):
             print("         %s" % problem)
     npass = sum(1 for r in results if r["ok"])
