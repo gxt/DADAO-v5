@@ -490,10 +490,12 @@
   - chipyard
   - testcases
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P2·flake】当期 Vast 构建上 `cfx15.S` 偶发挂死：`m16-chipyard-029` 复核两次 `+verbose` 实测各有 1/3 次在 99607 cycle 挂死（其余 104765 cycle 正常完成、80 槽）；与 verbose 无确定相关，原因未定位。需在多轮重复下量化频率并定位（启动链/中断边界/探针时序），排除与 028 的 rc6/异步路径交互。"
+  status: closed
+  closed_in: M16
+  resolved_by: m16-chipyard-030
+  title: "【已关闭·测量伪影】当期 Vast 构建上 `cfx15.S` 偶发挂死：`m16-chipyard-029` 复核两次 `+verbose` 实测各有 1/3 次在 99607 cycle 挂死（其余 104765 cycle 正常完成、80 槽）；与 verbose 无确定相关，原因未定位。需在多轮重复下量化频率并定位（启动链/中断边界/探针时序），排除与 028 的 rc6/异步路径交互。"
+  resolution: "`m16-chipyard-030` 现场归因：`+max-cycles` 按 harness 时钟计数（= 2× core + 786 经验截距），`200000` ⇒ core 99607、`WumingCore: exec` 14188 行，截断点落在 `__dump_129` 签名 dump 内（ip=0xffffff010b88），故表现为「挂死」。历史「1/3」= 三次复核中一次手跑用了 200000、另两次 8000000（会话库原始命令 + `*** FAILED *** (timeout) after 200001` 字面证据），是参数差异不是随机。当期构建 hmon/smon/umon 各 20 次共 0/60 挂死，cycle/签名 md5 唯一。注入 200000 ⇒ 9/124 槽存在、117 槽 FAIL，还原回 124 槽。不走 GAP/`expected-divergences`；复评条件：8000000 预算且无墙钟超时下仍在 `SYS_EXIT` 前停，或日志无 `FAILED (timeout)` 却缺槽。"
+
 - id: ISS-m16-012
   scope:
   - chipyard
