@@ -40,7 +40,7 @@
 
 1. NaN 传播：sNaN ⇒ NV + canonical qNaN；qNaN 安静传播（不置 NV）；`ftadd` 等 S2D1 的 NaN 优先。
 2. 次正规：次正规输入/输出；UF 按「舍入后 tiny 且 inexact」置位（§1.3，库 `ft_add` 内）。
-3. 舍入六档：`RNT/RDN/RUP/RTA/RZ/RNA`（§1.1 六档 one-hot immu6）+ 动态档读 `rf0[33:32]`；非六值之一 ⇒ ILLI。
+3. 舍入六档（`SimRISC-07 §1.1` 真实名）：静态 `0x01` RNE（就近取偶）、`0x02` RNA（就近、平局远离 0）、`0x04` RTZ、`0x08` RUP、`0x10` RDN；动态 `0x20` 读 `rf0[33:32]`（`00` RNE / `01` RTZ / `10` RDN / `11` RUP）。非六值之一（含 `0x00`）⇒ ILLI。
 4. NX/OF/UF：溢出四象限（§1.3 四象限表）；`tininess-after-rounding`；有限 inexact ⇒ NX、NV 时不置 NX。
 5. 转换饱和（§1.3）：`ft→int32/int64/uint32/uint64` 的 NaN/±Inf/正负溢出 ⇒ 饱和定值（有符号：NaN/±Inf/正溢出 ⇒ 上限、−Inf/负溢出 ⇒ 下限；无符号：NaN/+Inf/正溢出 ⇒ 0xFFFF…、−Inf/负溢出 ⇒ 0）；有限 inexact ⇒ NX；NV 时不置 NX。
 6. FMA 单次舍入（§2.5）：精确积 `rfHB×rfHC` 与加数 `rfHD` 相加后**只舍入一次**；`0×±Inf` 即使加数为 qNaN 也置 NV；`Inf+(−Inf)` ⇒ NV；精确和为零 RDN ⇒ −0；溢出四象限与 UF/NX 由库 `ft_muladd` 承担。
