@@ -14,6 +14,14 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`check_power_rtl.py` 的 argparse 不接受 `run_arch.py --platforms chipyard` 传入的 `--signature-out`/`--mode`，`arch-power-001`/`arch-power-002` 在 host 侧即 rc=2（未进 RTL）。2026-11-27 `m18-chipyard-002/003` 复核时实测；两任务均未改 `run_arch.py`/`check_power_rtl.py`，判基线既有。影响：power 两项无法通过 `run_arch` 聚合跑，只能单跑。处置：二选一——`check_power_rtl.py` 接受并忽略/使用两个参数，或 `run_arch.py` 对 power 探测能力后不传。"
+- id: ISS-m18-007
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】内核无系统调用重启语义：`dadao_user_syscall_post()` 把 `-ERESTARTSYS` 一律改写成 `-EINTR`（`contract-syscall` §9 允许返回 `-errno`），因此被信号打断的 `wait4`/`futex`/`read` 在 musl 侧看不到自动重启，需 libc/harness 自行重试。`m18-linux-006` 的 LTP 子集为此加了一条 harness 级 `TEST_ADAPT`（`safe_waitpid` EINTR 重试），但该缺口此前无 ISS 记录。影响：LTP/kselftest 中依赖 `SA_RESTART` 的用例会出现非内核错误的 EINTR；用户态需永久自行重试。复评条件：若后续引入内核侧重启（或 contract-syscall 明确要求重启），删除该 TEST_ADAPT 并回退其注释。`m18-linux-006` 已按「接受适配 + 登记缺口」处置。"
 - id: ISS-m18-002
   scope:
   - infra
