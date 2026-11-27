@@ -6,7 +6,7 @@
 **可并行分片**：否（`components/chipyard` / `tests/arch/power`）
 **预估**：1–2 h
 **档位**：小改（复核 ≤20 min）
-**状态**：待验收
+**状态**：已验证
 
 ## 背景（`ISS-525` 的 RTL 部分）
 

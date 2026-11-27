@@ -496,17 +496,12 @@
   title: "【已关闭·测量伪影】当期 Vast 构建上 `cfx15.S` 偶发挂死：`m16-chipyard-029` 复核两次 `+verbose` 实测各有 1/3 次在 99607 cycle 挂死（其余 104765 cycle 正常完成、80 槽）；与 verbose 无确定相关，原因未定位。需在多轮重复下量化频率并定位（启动链/中断边界/探针时序），排除与 028 的 rc6/异步路径交互。"
   resolution: "`m16-chipyard-030` 现场归因：`+max-cycles` 按 harness 时钟计数（= 2× core + 786 经验截距），`200000` ⇒ core 99607、`WumingCore: exec` 14188 行，截断点落在 `__dump_129` 签名 dump 内（ip=0xffffff010b88），故表现为「挂死」。历史「1/3」= 三次复核中一次手跑用了 200000、另两次 8000000（会话库原始命令 + `*** FAILED *** (timeout) after 200001` 字面证据），是参数差异不是随机。当期构建 hmon/smon/umon 各 20 次共 0/60 挂死，cycle/签名 md5 唯一。注入 200000 ⇒ 9/124 槽存在、117 槽 FAIL，还原回 124 槽。不走 GAP/`expected-divergences`；复评条件：8000000 预算且无墙钟超时下仍在 `SYS_EXIT` 前停，或日志无 `FAILED (timeout)` 却缺槽。"
 
-- id: ISS-m16-012
-  scope:
-  - chipyard
-  - qemu
-  - gem5
-  - testcases
-  milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: "m18-chipyard-002/003 + m18-qemu-008/009/010 + m18-gem5-004/005 + m16-chipyard-033；剩余差分与回归归 M20 收口（2026-11-27）"
   title: "【P1·跨里程碑】`m18-spec-007`（`24f3fdb2`，2026-11-26 01:09，`DADAO-12` 升 0.8.0）重排了异步层，M16 刚对齐的三实现与探针全部过时：① `cg9` 新布局（rc0–rc5 入口记录 HW/RO、rc6–13 reserved、rc14 switch、rc15 vector）；② `cg5` 重排（rc0–rc3 prev_*、rc4 cause id、rc5 cause info、rc8–rc11 出口意图）；③ `escape cfxHA` 的 `imms18` 必须为 0，旧 `+0/+4` 与 cg9 frame selector 作废、返回地址取 `cg5 rc10`。影响：RTL（028）、QEMU（qemu-007）、gem5（gem5-025）的 cg9/escape 实现与 `tests/arch/hart`、`tests/arch/pmem`（013/014）、`check_cfx15` oracle 均不符 ⇒ `run_arch --self-test` 在 master 已 rc=1（oracle 断言旧 `HW/RW`），`check-arch-vast` 无法跑。需按 spec-007 全链重对齐（方向=改实现/oracle，不回退 spec）。"
+  resolution: "实现链已对齐 spec-007：RTL（`m18-chipyard-002/003`，`cfx15.S`/`pmem` 探针随之重写）、QEMU（`m18-qemu-008/009/010`，源树重放 `a8d0796`、安装根 `e470dc56…`）、gem5（`m18-gem5-004/005`，源树 `7db7553`、`gem5.opt` `ebb19d0b…`）；`run_arch --self-test` 与 `check-arch-smoke` 复绿，`arch-hart-001` 三平台同为 124 槽。**三方差分收口归 M20**（用户 2026-11-27 裁定）：现场全量三方仍有 `arch-power-001/002`、`arch-umon-012/013` 回归挂死与 `arch-cache-003/004` 既有红，清单与证据见 `discussing.md` N40，由 M20 登记与收口。"
+
 - id: ISS-m16-013
   scope:
   - infra

@@ -710,3 +710,16 @@
 ## chipyard 写者交接（用户 2026-11-26）
 
 `m18-chipyard-003` 合入后，**chipyard 写者交还 M16**：`m16-chipyard-033`（RegRAS 环形缓冲，暂停条件=002/003 + spec-007）解除暂停；`m16-chipyard-030`（cfx15 flake）可继续；`028/029/031` 待验收由 M16 收口。M18 侧不再派 chipyard 任务，直到 M16 明确释放。
+
+## N40. M16 三方差分收口移交 M20（用户 2026-11-27 裁定）
+
+- **裁定**：M18/M20 对 spec 改动很多，**差分与收口统一归 M20**（`m20-integ-001`/`m20-integ-002`）；M16 不再单独跑 `check-arch-vast`、不出 `docs/TestReports/M16-三方差分.md`。
+- **2026-11-27 全量三方现场结果**（`run_arch --level full --platforms qemu,gem5,chipyard --cache-model on`，27 个 case）：qemu / gem5 各 **20 PASS / 7 FAIL**；chipyard 腿在首个 case `arch-umon-011` 处因无 RTL 承载直接中止（该腿 0 结果）。
+- **回归（此前有绿证据，非 M16 引入）**：
+  - `arch-power-001`/`arch-power-002`：qemu 与 gem5 均挂死（`-d cpu` 135 MB 超限终止）。11-26 03:34 `m16-chipyard-031` 的运行期证据显示 qemu/gem5 均 PASS。
+  - `arch-umon-012`/`arch-umon-013`（fence）：qemu 与 gem5 均挂死。11-23 `m16-testcases-012` 证据显示 qemu PASS。
+  - 对照实验：换成 11-22 的旧 BootROM 仍挂死 ⇒ 与 11-26 的 BootROM/LLVM 重建无关，指向 `m18-qemu-008/009/010`（gem5 侧对应 `m18-gem5-004/005`）。
+- **既有红（11-26 即红，非今日引入）**：`arch-cache-003`/`arch-cache-004` 在 qemu/gem5 上槽值不匹配——11-26 17:09 `m18-gem5-004` 复核在 0.8.0 历史树上同样红；`arch-cache-004` 的 RTL 侧无 cache-model 开关（`rtl-coverage.yaml` 已记 gap）。
+- **无承载（设计缺口）**：`arch-umon-011..013` 的 gem5 侧驱动明确「shim 尚未承载本用例」；cfx0/2/3 没有 `check_umon_rtl.py`（`DIV-05` 的 close_when 未满足）。
+- **收口工具链缺口（`run_arch`）**：① chipyard 腿不继承 conda 环境（缺 `libriscv.so` ⇒ 仿真器 rc=127、0 槽），需把 `LD_LIBRARY_PATH` 指向 chipyard 的 `riscv-tools/lib`；② 不识别 `expected-divergences.yaml`（`DIV-17` 的 2 槽会让 `arch-hart-001` 整案 FAIL，且失败时不落 signature）；③ 单个 case 缺承载会中止整条 chipyard 腿；④ `check_power_rtl.py` 不接受 `run_arch` 传入的 `--signature-out`/`--mode`（既有 M18 issue）。
+- **交接**：以上红项与工具链缺口由 M20 会话登记进 `issues-m20.yaml`，在 `m20-integ-001/002` 收口；M16 侧任务已全部完成，`ISS-m16-012` 按「实现链已对齐、剩余差分归 M20」关闭。
