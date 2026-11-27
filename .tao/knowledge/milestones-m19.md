@@ -25,8 +25,6 @@
 | m19-gem5-001 | 4–8 h | gem5 实现 `swym N`（12 位、1+N、原子）并补周期/ILLI 用例 |
 | m19-chipyard-003 | 4–8 h | chipyard RTL 实现 `swym N`（12 位、1+N、原子）并补 Verilator 用例 |
 | m19-testcases-001 | 2–4 h | `swym N` 测试程序：1/2/4096 拍、高位 ILLI、原子中断 |
-| m19-chipyard-001 | 3–5 天 | Genesys2 shell（时钟/复位/UART/引脚）+ Vivado 版本入锁；wuming-Tiny 综合上板跑最小镜像 |
-| m19-chipyard-002 | 2–3 天 | 板上签名流回传（UART）+ 测试回路（≥10 例与 QEMU 逐字节） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
