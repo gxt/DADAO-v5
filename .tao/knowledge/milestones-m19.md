@@ -29,7 +29,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m19-spec-001 | 2026-11-27 22:52 | 2–4 h | `swym N` 语义/契约：N=12 位、高位 SBZ/ILLI、总时延 1+N、原子中断 |
 | m19-spec-002 | 2026-11-27 22:52 | 4–8 h | Tiny 新几何/启动 ABI：8K ROM、8K hmon、256K SRAM、entry 0x2000 |
 | m19-qemu-001 | 2026-11-27 22:59 | 4–8 h | QEMU `kaiwu-tiny` 迁移到新 ROM/RAM/hmon/entry/DUMP |
 | m19-gem5-002 | 2026-11-27 22:59 | 4–8 h | gem5 Tiny profile 迁移到新 ROM/RAM/hmon/entry/DUMP |
@@ -42,4 +41,5 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m19-spec-001 | 2026-11-27 23:15 | swym N 语义：12 位、高位 SBZ/ILLI、1+N、原子；reviewer Accepted |
 | m19-infra-001 | 2026-11-23 08:54 | 207/208 装 Vivado 2025.1（逐字节对账一致）+ `XILINXD_LICENSE_FILE` 三路口径 + 两节点综合 rc=0；208 写 35 MB/s = 写通 RAID5 的 IOPS 上限（非坏盘） |
