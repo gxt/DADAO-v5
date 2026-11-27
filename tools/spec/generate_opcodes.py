@@ -622,8 +622,10 @@ def build_misc_amo(records):
     # hb = immu18[17:12] = 0（SBZ，非 0 ⇒ ILLI）；hc = pred；hd = succ。
     # 移出 OPC-MISC，位于 QFC 主表 0111-1001（SimRISC-11「核芯功能扩展」）。
     # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 OPC-MISC 100-010（ha=0x22）
+    # immu18[11:0] 为时延参数 N（`swym N` 总时延 1 + N）；immu18[17:12] 为 SBZ，
+    # 非 0 ⇒ ILLI（encode_sbz，SimRISC-12 §2）。
     records.append(rec("swym-oiii", "swym", "oiii", op, f_oiii("immu18"),
-                       [], S12_SWYM, ha=0x22))
+                       ["immu18[17:12] == 0"], S12_SWYM, ha=0x22))
     # ADR-0034 D3/D4/D5（方案 A）：命名 `<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`（宽度在前）；
     # lr 占 000/001 两行（nn/an/ar，`lr.*.nr` 删除）、sc 占 010/011 两行（nn/nr/ar，
     # `sc.*.an` 删除）；组内宽度顺序 .o → .t → .w → .b。scope：SPEC-164t 由 excluded 转 m9。

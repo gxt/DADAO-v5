@@ -9,7 +9,7 @@
 # scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b + ADR-0035 GF(2) 无进位乘 clmul.o + fence/lr/sc 原子），非 M1 身份
 # 保留槽位（显式登记）：OPC-RF 子表 000-xxx/xxx-010 与 001-xxx/xxx-010 空置 ⇒ 执行 UNDI；同组块复制为 rf2rf（OPC-octa 111-100）
 # 共 263 条：M1 156 条 + scope fp 65 条 + scope excluded 0 条 + scope m3 1 条 + scope m8 7 条 + scope m9 34 条
-# 有 rule_refs 的指令：246 条
+# 有 rule_refs 的指令：247 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -2450,10 +2450,12 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality:
+  - immu18[17:12] == 0
   spec_cite: 'SimRISC-12: swym'
   scope: m1
-  rule_refs: []
+  rule_refs:
+  - encode_sbz
 - id: lr.o.nn_orrr_rd
   mnemonic: lr.o.nn
   format: orrr

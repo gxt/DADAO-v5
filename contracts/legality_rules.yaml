@@ -202,13 +202,15 @@ rules:
   - id: encode_sbz
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-00: 指令域说明"
+    spec_cite: "SimRISC-00: 指令域说明; SimRISC-12: 空转指令"
     status: active
     description: >
       SBZ（Should Be Zero）字段非零时触发 ILLI 异常（静态）。
       ADR-0004 D5.3 冻结「SBZ 非零 → ILLI」（架构自定义；spec 未规定 fault 类型）。
       固定为 0 的位域非零均属此规则，包括但不限于：
       fence 的 hb = immu18[17:12]（ADR-0044 D3：其余位为 pred/succ 掩码）；
+      swym 的 immu18[17:12]：`swym` 的时延参数 N = immu18[11:0]（12 位，`swym N` 总时延
+      1 + N 拍），高 6 位为 SBZ，手工编码非 0 触发 ILLI（SimRISC-12 §2）；
       escape 的 imms18（必须为 0，非 0 ⇒ ILLI；汇编层 `escape cfxHA` 只写 cfxha）；
       移位量超过位宽限制（shl.b/rol.b/shr.sb/shr.ub: shamt > 7；shl.w/rol.w/shr.sw/shr.uw: shamt > 15；
       shl.t/rol.t/shr.st/shr.ut: shamt > 31）；

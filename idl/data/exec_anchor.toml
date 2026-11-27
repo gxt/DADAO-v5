@@ -1537,7 +1537,7 @@ sha256 = "cd6c70b7cc01af1309e852be1af337df773b4aa0f809de319fde56857b9b4cb2"
 id = "swym_oiii_imm"
 book = "SimRISC-12.idl"
 impl = "_op_swym"
-sha256 = "e32c4e3a5e34057a4e8b2eb51cceed9876d0f01563816fa60682d756a8a7d137"
+sha256 = "f34580e3b34eec5943ceed7a2ab8a90ddaa02cba12aac73df31369c5a9b37901"
 
 [[op]]
 id = "trap_ciii_cfx"

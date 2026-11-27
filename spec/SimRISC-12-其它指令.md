@@ -624,10 +624,13 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 swym    immu18
 ```
 
-- `swym 0` 除 IP 自增外无任何架构副作用，等价于其它指令系统中的「空操作」；需要空操作/对齐时**直接书写真实指令 `swym 0`**
-- `swym N` 可作为硬件时延指令，后18位立即数为时延参数：具体时延由硬件实现确定，其时延约为 `swym 0` 的 N+1 倍。
-  - 硬件可设时延上限，N 超过阈值后时延不再增加。
-  - 无论 N 取何值，指令仍为单条 32 位指令，不占用额外指令带宽。
+立即数 `immu18` 拆为两段：**`N = immu18[11:0]`（12 位时延参数）**，**`immu18[17:12]` 为 SBZ**（必须为 0，非 0 ⇒ **ILLI** 异常）。
+
+- `swym 0`（N = 0）除 IP 自增外无任何架构副作用，等价于其它指令系统中的「空操作」，**总时延 1 拍**；需要空操作/对齐时**直接书写真实指令 `swym 0`**
+- `swym N` 为硬件时延指令，**总时延 = 1 + N 拍**：N 是在 `swym 0` 那 1 拍之上的**额外拍数**（不是「执行 N 次 `swym 0`」）。N 取满 12 位、**无时延上限**，即 `0 ≤ N ≤ 4095`，最长 4096 拍。
+- **原子**：`swym` 从开始执行到完成后写回是不可分割的执行区间，**执行期间不取中断**；期间到达的中断保持 pending，在该 `swym` 完成后的**下一个指令边界**才被取用。因此中断响应延迟上界 = **1 + N 拍**。
+- 无论 N 取何值，指令仍为单条 32 位指令，不占用额外指令带宽。
+- 时延与中断原子性属**实现时序**，`idl/SimRISC-12.idl` 的 IDL v0 不建模；QEMU 不建模时延（按 NOP 执行），gem5 / chipyard 实现 1 + N 拍与原子语义。
 
 ### 2.1 形式化语义（IDL）
 
@@ -638,7 +641,9 @@ swym    immu18
 **`swym_oiii_imm`**
 ```idl
 # 空转指令（§2）：`swym 0` 除 IP 自增外**无任何架构副作用**（IP 自增属取指模型，本 operation 不描述）。
-# `immu18` 只是硬件时延参数（时延 ≈ `swym 0` 的 N+1 倍，实现可设上限），属实现时序，IDL v0 不建模；
+# `N = immu18[11:0]`（12 位）为时延参数：`swym N` 总时延 = 1 + N 拍（无上限，0 ≤ N ≤ 4095）；
+# `immu18[17:12]` 为 SBZ（非 0 ⇒ ILLI，合法性由 `encode_sbz` 规则承接）。时延与「执行期间不取中断、
+# 完成后在下一个指令边界取中断」的原子性同属实现时序，IDL v0 不建模；
 # 散文本节未赋予它访存序/屏障语义（与 `fence` 不同），故不写顺序约束。
 ```
 <!-- IDL:swym_oiii_imm END -->
@@ -808,5 +813,5 @@ rd[rdHB] = {57'd0, n};                        # 结果 0..64，写满 64 位（�
 ## 附录 B：合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `ctlz_orri_rd`, `ctpop_orri_rd`, `cttz_orri_rd`, `sc.b.ar_orrr_rd`, `sc.b.nn_orrr_rd`, `sc.b.nr_orrr_rd`, `sc.o.ar_orrr_rd`, `sc.o.nn_orrr_rd`, `sc.o.nr_orrr_rd`, `sc.t.ar_orrr_rd`, `sc.t.nn_orrr_rd`, `sc.t.nr_orrr_rd`, `sc.w.ar_orrr_rd`, `sc.w.nn_orrr_rd`, `sc.w.nr_orrr_rd`（15 条）
-* `encode_sbz`：SBZ 非零 → ILLI — `lr.b.an_orrr_rd`, `lr.b.ar_orrr_rd`, `lr.b.nn_orrr_rd`, `lr.o.an_orrr_rd`, `lr.o.ar_orrr_rd`, `lr.o.nn_orrr_rd`, `lr.t.an_orrr_rd`, `lr.t.ar_orrr_rd`, `lr.t.nn_orrr_rd`, `lr.w.an_orrr_rd`, `lr.w.ar_orrr_rd`, `lr.w.nn_orrr_rd`（12 条）
+* `encode_sbz`：SBZ 非零 → ILLI — `lr.b.an_orrr_rd`, `lr.b.ar_orrr_rd`, `lr.b.nn_orrr_rd`, `lr.o.an_orrr_rd`, `lr.o.ar_orrr_rd`, `lr.o.nn_orrr_rd`, `lr.t.an_orrr_rd`, `lr.t.ar_orrr_rd`, `lr.t.nn_orrr_rd`, `lr.w.an_orrr_rd`, `lr.w.ar_orrr_rd`, `lr.w.nn_orrr_rd`, `swym_oiii_imm`（13 条）
 <!-- LEGALITY_END -->

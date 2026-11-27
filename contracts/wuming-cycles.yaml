@@ -7,8 +7,8 @@ generated_by: tools/gem5/gen_wuming_cycles.py
 source_doc: docs/core-wuming-cycle-model.md
 source_doc_sha256: 'b877431f491eaef2860934a9003d859de1cb8df356f81bd4c58ae0ee45a5ddbf'
 instruction_count: 263
-static_rows: 207
-dynamic_rows: 56
+static_rows: 206
+dynamic_rows: 57
 class_set: ['A', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'B5', 'C', 'D', 'D′', 'E', 'F', 'G1', 'G2', 'G3', 'G4']
 by_class: {'A': 95, 'A2': 12, 'A3': 3, 'A4': 3, 'B1': 2, 'B2': 6, 'B3': 16, 'B4': 48, 'B5': 6, 'C': 19, 'D': 19, 'D′': 9, 'E': 24, 'F': 1, 'G1': 1, 'G2': 1, 'G3': 1, 'G4': 2}
 # block_model: 多元素传送的模型系数，由 §3 的 N=… 实测图解出（不是手抄）；
@@ -170,7 +170,7 @@ instructions:
 - {id: 'escape_ciii_cfx', mnemonic: 'escape', section: '11', klass: ['G3'], cycles: '3–4', value: null, range: [3, 4], dynamic: 'range', doc: 88, source: '§3 11', provenance: '实测（含重定向取指 8，见 §5）'}
 - {id: 'trap_ciii_cfx', mnemonic: 'trap', section: '11', klass: ['F', 'G1', 'G2'], cycles: '1 + 变长', value: null, range: null, dynamic: 'trap-target', doc: 85, source: '§3 11', provenance: '实测（本 harness 一次 `SYS_WRITEC` 12 拍，见 §5） / 实测（exec 成本 4，跨 beat 取指另计） / 实测（exec 成本 4）', host_cycles: 1, semihost_mask: 261888, semihost_value: 261888, variants: [{klass: 'F', cycles: '1 + 变长', value: null, dynamic: 'host-latency', when: 'trap（semihosting，immu18[17:8]==0x3FF）', doc: 85, provenance: '实测（本 harness 一次 `SYS_WRITEC` 12 拍，见 §5）'}, {klass: 'G2', cycles: '4–5', value: null, dynamic: 'range', when: 'trap cfx3（其它 immu18）', doc: 86, provenance: '实测（exec 成本 4，跨 beat 取指另计）'}, {klass: 'G1', cycles: '4–5', value: null, dynamic: 'range', when: 'trap 到保留/未实现 cfx ⇒ ILLI 进 hmon', doc: 87, provenance: '实测（exec 成本 4）'}]}
 - {id: 'fence_ciii_cfx', mnemonic: 'fence', section: '11', klass: ['A'], cycles: '1', value: 1, range: null, dynamic: null, doc: 90, source: '§3 11', provenance: '实测'}
-- {id: 'swym_oiii_imm', mnemonic: 'swym', section: '12', klass: ['A'], cycles: '1', value: 1, range: null, dynamic: null, doc: 93, source: '§3 12', provenance: '实测'}
+- {id: 'swym_oiii_imm', mnemonic: 'swym', section: '12', klass: ['A'], cycles: '1+N', value: null, range: null, dynamic: 'N', doc: 93, source: '§3 12', provenance: '实测'}
 - {id: 'lr.o.nn_orrr_rd', mnemonic: 'lr.o.nn', section: '12', klass: ['E'], cycles: '9', value: 9, range: null, dynamic: null, doc: 91, source: '§3 12', provenance: '实测'}
 - {id: 'lr.t.nn_orrr_rd', mnemonic: 'lr.t.nn', section: '12', klass: ['E'], cycles: '9', value: 9, range: null, dynamic: null, doc: 91, source: '§3 12', provenance: '实测'}
 - {id: 'lr.w.nn_orrr_rd', mnemonic: 'lr.w.nn', section: '12', klass: ['E'], cycles: '9', value: 9, range: null, dynamic: null, doc: 91, source: '§3 12', provenance: '实测'}
