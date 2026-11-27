@@ -39,12 +39,12 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m18-linux-030 | 2026-11-28 04:05 | 2–3 h | hart 全局 `trap_busy` 跨睡眠误报递归（`ISS-m18-012`，028 样本 1/20）；修后 20 启 0 + 真递归仍能判 |
-| m18-linux-009 | 2026-11-28 00:05 | 2–3 h | K4 探针稳定性（`ISS-493` F5 改 `task_pt_regs(current)`、`ISS-494` 事件+有界等待；各连跑 20 次） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-linux-009 | 2026-11-28 04:10 | K4 探针稳定性（`ISS-493` F5 入口帧/停靠帧/代码页、`ISS-494` 事件+有界等待）；两探针各 20/20 |
 | m18-linux-016 | 2026-11-28 04:30 | `futex_waitv` 参数路由：四载体 `argmask` 449=0x09；`--only futex-wait-timeout` 5/5、LTP 两轮 PASS=14、`check-syscall-abi` 86/86 |
 | m18-linux-028 | 2026-11-27 21:40 | 异步返回主因修（user 异步交接 smon 后不 escape ⇒ `CFXESC`）；`CFXESC` 0/100、LTP 3 clean、soak 0/1000；残余 `ISS-m18-011`、`ISS-m18-012` |
 | m18-linux-007 | 2026-11-27 19:52 | pthread create/join 闭环（`create×4`/join 双路径/TLS/detach/负向 `EAGAIN`）；5/5 连过、`run.sh` 40/0；忙等复现器 8/8 归 `ISS-m18-009` |
