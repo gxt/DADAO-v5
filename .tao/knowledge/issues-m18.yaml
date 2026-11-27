@@ -127,18 +127,18 @@
   scope:
   - linux
   milestone: M18
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: '【P1】`k4_fork_probe` 的 F5 用户段偶发挂死（既有缺陷，非 `m14-linux-029` 引入）：`arch/dadao/kernel/k4_selftest.c` 用**本地** `struct pt_regs` 调 `dadao_enter_user()`，第一次 umon `SKIP` 后 `escape` 的目标取自 `task_pt_regs(current)->ip`，取到垃圾地址（实测恒为 `0xbef0`）⇒ `IGPTRAP` 在 0xbef0 → `die-no-vma` → `panic: Attempted to kill init`；探针报 F1/F5/F3 `got=124`。A/B（各 5 跑，同签名）：**master `1792ebf9`（无 029）4/5 红**（72/76×3、69/74×1，1 绿 104/104）；**029 分支 4/5 红**（71/75×4，1 绿 103/103）⇒ 属既有偶发（复核者另测 7/7 红），与 029 删除 `current->mm == NULL` 窗口臂无因果。修法方向：F5 改用 `task_pt_regs(current)` 作为入口帧（与 `k5_syscall_selftest` 的同类调用一致），并补「F5 用户段必到 SYS_EXIT(0)」的稳定复现门控；`m14-linux-029` 的证据脚本按「已登记既有红」处置，替代判据 = `check-linux-k5` 的 C/G 组。'
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-009
+  title: '【P1】`k4_fork_probe` 的 F5 用户段偶发挂死（既有缺陷，非 `m14-linux-029` 引入）：`arch/dadao/kernel/k4_selftest.c` 用**本地** `struct pt_regs` 调 `dadao_enter_user()`，第一次 umon `SKIP` 后 `escape` 的目标取自 `task_pt_regs(current)->ip`，取到垃圾地址（实测恒为 `0xbef0`）⇒ `IGPTRAP` 在 0xbef0 → `die-no-vma` → `panic: Attempted to kill init`；探针报 F1/F5/F3 `got=124`。A/B（各 5 跑，同签名）：**master `1792ebf9`（无 029）4/5 红**（72/76×3、69/74×1，1 绿 104/104）；**029 分支 4/5 红**（71/75×4，1 绿 103/103）⇒ 属既有偶发（复核者另测 7/7 红），与 029 删除 `current->mm == NULL` 窗口臂无因果。修法方向：F5 改用 `task_pt_regs(current)` 作为入口帧（与 `k5_syscall_selftest` 的同类调用一致），并补「F5 用户段必到 SYS_EXIT(0)」的稳定复现门控；`m14-linux-029` 的证据脚本按「已登记既有红」处置，替代判据 = `check-linux-k5` 的 C/G 组。**已修（`m18-linux-009`）**：F5 入口帧改 `task_pt_regs(current)`；另实测出同签名的两个真实触发点并一并修掉——(a) F1 的子任务在 `vm_mmap()` 的调度点上被切到，直接以父帧 `ip=0xbeef` 进用户态（`+4` 后被硬件按 4 字节对齐报成 `0xbef0`），现克隆校验后立即把子帧改写成内核停靠帧（`dadao_ret_from_fork` + `k4_park_child`，`rb3=0`）；(b) F5 代码页原只映射在 `init_mm`，一次上下文切换后 PTBR 已指向任务的 mm，代码页消失（`IGPTRAP`→generic 填零页→`UNDI`），现映射进 `k4_mm` 并在入口前 `dadao_switch_mm()`。F2 的 VMA 改只读（K6 `dadao_fork_stack()` 只急切复制**可写**私有页；只读页仍由 generic COW 共享）；探针新增 F5「exit 行 + 无 die/panic」判据与源码级 S7（入口帧必须是 `task_pt_regs(current)`、禁本地帧）；同镜像连跑 20/20 全绿（113/113），修前对照 20/20 红（本地帧且未停靠子任务）。'
 - id: ISS-494
   scope:
   - linux
   milestone: M18
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: '【P2】K4 探针在 K5 已开 tick 的镜像上偶发时序红（既有，非 `m14-linux-029` 引入）：`k4_kthread_probe` 的 `k2-task-dead` 在 `kthread_stop()` 后立即读任务态，偶见 `state=0 on_rq=1 frozen=1`（探针 59/68、`K4 kthread FAIL: k2-task-dead=0x0 code=0x51`），同一镜像随后连跑 2 次均 112/112 ⇒ 探针轮询与调度交接的竞态；同类脆弱性也见于 `k4_fork_probe` 的 F5（ISS-493）。建议：K4 探针的完成判据改为「事件 + 有界等待」并补 `sched_yield`/`cond_resched` 让出点；`m14-linux-029` 的证据脚本对其余 K4 探针保持严格判据，出现该类红时按运行期日志披露并重采一次全量。'
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-009
+  title: '【P2】K4 探针在 K5 已开 tick 的镜像上偶发时序红（既有，非 `m14-linux-029` 引入）：`k4_kthread_probe` 的 `k2-task-dead` 在 `kthread_stop()` 后立即读任务态，偶见 `state=0 on_rq=1 frozen=1`（探针 59/68、`K4 kthread FAIL: k2-task-dead=0x0 code=0x51`），同一镜像随后连跑 2 次均 112/112 ⇒ 探针轮询与调度交接的竞态；同类脆弱性也见于 `k4_fork_probe` 的 F5（ISS-493）。建议：K4 探针的完成判据改为「事件 + 有界等待」并补 `sched_yield`/`cond_resched` 让出点；`m14-linux-029` 的证据脚本对其余 K4 探针保持严格判据，出现该类红时按运行期日志披露并重采一次全量。**已修（`m18-linux-009`）**：`k4kt_wait_dead()` 改等事件 `TASK_DEAD && !on_rq`（`kthread_stop()` 只在 `kthread_exit()` 的 `exited` 完成时返回，`do_exit()` 尚未跑完），上限 `K4KT_SPINS`，循环内 `cond_resched()` + `yield()` 让出（本端口无 `sched_clock()`，裸 `schedule()` 会重选当前）；超时按具名 FAIL 退出。修前同镜像 20 启 3 红（`state=0 on_rq=1`，rc=81），修后 20/20 全绿（116/116）；探针新增源码级 S7 与 `no-dead-wait` 注入（回退立即读 ⇒ S7 红，`cp`+md5 还原重建回绿）。'
 - id: ISS-496
   scope:
   - linux

@@ -127,10 +127,17 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K5_PAGESZ_SELFTEST": "n",
 }
 
-IMAGE = config_pins.config_lines(CONFIG_PINS)
+#: The K6 production boot's continuation symbol lives in arch/dadao/Kconfig (not
+#: Kconfig.debug), so the Kconfig.debug pin gate does not cover it: a build tree
+#: that last built the K6 image must not hand this probe image the `/init` path
+#: (`dadao_k4_boundary()` returns early under CONFIG_DADAO_K6_SHELL).  Same
+#: shape as check_k6's `K6_SHELL_LINE` — a named constant, not a literal slice.
+K6_SHELL_OFF = "CONFIG_DADAO_K6_SHELL=n"
+
+IMAGE = config_pins.config_lines(CONFIG_PINS) + [K6_SHELL_OFF]
 
 ALWAYS_OFF = ("CONFIG_DADAO_K1_EARLY_STOP", "CONFIG_DADAO_K2_EARLY_STOP",
-              "CONFIG_DADAO_K2_TIME_STOP")
+              "CONFIG_DADAO_K2_TIME_STOP", "CONFIG_DADAO_K6_SHELL")
 
 #: Wall-clock guards; `timeout` => rc 124, which is a FAIL (AGENTS.md「长任务」).
 TIMEOUT_BUILD = int(os.environ.get("K4F_BUILD_TIMEOUT", "1800"))
@@ -297,6 +304,37 @@ def exit_segments() -> dict:
     return {"guest_max": int(m.group(1), 16)}
 
 
+def cause_sub_masks() -> dict[str, int]:
+    """The PTW bitmap masks of asm/cause-sub.h (ADR-0062 D1).
+
+    A page-table fault is a *flat bitmap* bit (`[38:32]` permission, `[56:48]`
+    missing), with `[15:0]` zero (m18-linux-023).  The old `1 << CFXMEM` test
+    is the pre-ADR-0062 two-level shape and never matches a real walk fault.
+    """
+    src = kernel_text("arch/dadao/include/asm/cause-sub.h")
+    defs = dict(re.findall(r"^#define\s+(\w+)\s+(.+)$", src, re.M))
+
+    def resolve(token: str, depth: int = 0) -> int:
+        token = token.split("/*")[0].strip().split()[0] if token.strip() else ""
+        if depth > 8:
+            raise SystemExit("k4_fork_probe: cause-sub.h macro chain too deep")
+        if re.fullmatch(r"\d+", token):
+            return int(token)
+        ref = re.fullmatch(r"(\w+)", token)
+        if ref and ref.group(1) in defs:
+            return resolve(defs[ref.group(1)], depth + 1)
+        raise SystemExit(f"k4_fork_probe: cannot resolve {token!r} in cause-sub.h")
+
+    out = {}
+    for name in ("DADAO_SUB_PERM_MASK", "DADAO_SUB_MEM_MASK"):
+        m = re.search(rf"#define {name}\s+\((0x[0-9a-fA-F]+)UL\s*<<\s*(\w+)\)",
+                      src)
+        if not m:
+            raise SystemExit(f"k4_fork_probe: cause-sub.h has no {name}")
+        out[name] = int(m.group(1), 16) << resolve(m.group(2))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # console parsing
 # ---------------------------------------------------------------------------
@@ -343,27 +381,51 @@ def kernel_path() -> Path:
     return build_dir() / "vmlinux"
 
 
+def initramfs_source() -> str:
+    """The shared build tree's `CONFIG_INITRAMFS_SOURCE` ('' when unset)."""
+    config = build_dir() / ".config"
+    if not config.is_file():
+        return ""
+    m = re.search(r'^CONFIG_INITRAMFS_SOURCE="([^"]*)"', config.read_text(
+        encoding="utf-8"), re.MULTILINE)
+    return m.group(1) if m else ""
+
+
 def build_image(label: str) -> tuple[int, dict | None]:
-    rc = defconfig.apply_config_lines(IMAGE)
-    if rc != 0:
-        print(f"k4_fork_probe: FAIL: config slice for {label} rc={rc}", file=sys.stderr)
-        return rc, None
-    cmd = [sys.executable, str(_REPO / "tools" / "linux" / "make_vmlinux.py"),
-           f"--jobs={JOBS}", "--skip-code-range"]
-    print(f"[INFO] build the {label} image (JOBS={JOBS})", flush=True)
-    proc = subprocess.run(cmd, cwd=str(_REPO), capture_output=True, text=True,
-                          timeout=TIMEOUT_BUILD)
-    if proc.returncode != 0:
-        print((proc.stdout or "")[-2000:], file=sys.stderr)
-        print((proc.stderr or "")[-2000:], file=sys.stderr)
-        return proc.returncode, None
-    kernel = kernel_path()
-    return 0, {
-        "config": (build_dir() / ".config").read_text(encoding="utf-8"),
-        "syms": k1boot.symbols(kernel),
-        "kernel": kernel,
-        "kernel_size": k1boot.kernel_size_from_elf(kernel, 0x20000100000),
-    }
+    """
+    The K4 image runs before `rest_init()` and has no user init (F3): pin the
+    built-in initramfs empty and restore the shared tree's value afterwards, so
+    a build tree that carries a K5/K6 archive cannot hand this image `/init`
+    (`Run /init as init process` used to leave the K4 boundary and fail F1/F5).
+    The restore runs on every path; it only rewrites `.config`, never the image.
+    """
+    previous_initramfs = initramfs_source()
+    try:
+        rc = defconfig.apply_config_lines(
+            IMAGE + ['CONFIG_INITRAMFS_SOURCE=""'])
+        if rc != 0:
+            print(f"k4_fork_probe: FAIL: config slice for {label} rc={rc}",
+                  file=sys.stderr)
+            return rc, None
+        cmd = [sys.executable, str(_REPO / "tools" / "linux" / "make_vmlinux.py"),
+               f"--jobs={JOBS}", "--skip-code-range"]
+        print(f"[INFO] build the {label} image (JOBS={JOBS})", flush=True)
+        proc = subprocess.run(cmd, cwd=str(_REPO), capture_output=True, text=True,
+                              timeout=TIMEOUT_BUILD)
+        if proc.returncode != 0:
+            print((proc.stdout or "")[-2000:], file=sys.stderr)
+            print((proc.stderr or "")[-2000:], file=sys.stderr)
+            return proc.returncode, None
+        kernel = kernel_path()
+        return 0, {
+            "config": (build_dir() / ".config").read_text(encoding="utf-8"),
+            "syms": k1boot.symbols(kernel),
+            "kernel": kernel,
+            "kernel_size": k1boot.kernel_size_from_elf(kernel, 0x20000100000),
+        }
+    finally:
+        defconfig.apply_config_lines(
+            [f'CONFIG_INITRAMFS_SOURCE="{previous_initramfs}"'])
 
 
 def firmware() -> str:
@@ -473,6 +535,34 @@ def check_static(rep: Report, rc_build: int, snap: dict | None, d: dict) -> None
                  "handle_mm_fault", "dadao_pf_alloc_page",
                  "dadao_user_excp_handler"):
         rep.check("S6", f"镜像含符号 {name}", True, name in syms)
+
+    # S7 (m18-linux-009, ISS-493): the F5 entry frame is the task's own slot.
+    # A local `struct pt_regs` leaves `task_pt_regs(current)` stale, and the
+    # umon escape reads its resume address from there; the injection
+    # `local-f5-frame` makes exactly these checks red.
+    selftest = kernel_text("arch/dadao/kernel/k4_selftest.c")
+    check_f5_entry_frame(rep, selftest)
+
+
+def check_f5_entry_frame(rep: Report, selftest: str) -> None:
+    """S7: the F5 entry frame is the task's own saved-context slot.
+
+    Source-level (m18-linux-009, ISS-493): every check here has a reachable
+    FAIL path through the `local-f5-frame` injection.
+    """
+    rep.check("S7", "F5 入口帧 = task_pt_regs(current)", True,
+              re.search(r"struct pt_regs \*frame = task_pt_regs\(current\);",
+                        selftest) is not None)
+    rep.check("S7", "F5 不再用本地 struct pt_regs 帧", 0,
+              len(re.findall(r"\bstruct pt_regs\s+\w*frame\s*;", selftest)))
+    rep.check("S7", "dadao_enter_user() 不取本地帧地址", 0,
+              len(re.findall(r"dadao_enter_user\(\s*&", selftest)))
+    # F1's child must not run: with a real scheduler a reschedule used to start
+    # it in user mode at the pinned marker (0xbeef -> 0xbef0, die-no-vma).
+    rep.check("S7", "F1 子任务被改成内核停靠帧（不会以用户帧运行）", True,
+              "k4_park_child" in selftest and
+              re.search(r"cregs->ip = \(unsigned long\)dadao_ret_from_fork;",
+                        selftest) is not None)
 
 
 # ---------------------------------------------------------------------------
@@ -622,10 +712,16 @@ def check_f5(rep: Report, rc: int, text: str, d: dict) -> None:
     rep.check("F5", "U-mode 同步异常经 cfx_smon 的 supv 通道（vacuous ⇒ FAIL）",
               True, deleg is not None)
     if deleg:
+        cause = num(deleg.get("cause"))
+        bitmap = cause & (d["sub_masks"]["DADAO_SUB_PERM_MASK"] |
+                          d["sub_masks"]["DADAO_SUB_MEM_MASK"])
         rep.check("F5", "两个帧不共用（不串 umon 帧）", True,
                   num(deleg.get("frame_umon")) != num(deleg.get("frame_smon")))
-        rep.check("F5", "移交的 cause 是页表类（CFXMEM）", 1,
-                  1 if num(deleg.get("cause")) & (1 << d["cause_cfxmem"]) else 0)
+        # ADR-0062 D1/D2: a walk fault is exactly one bitmap bit with [15:0]
+        # zero; the pre-flat-bitmap `1 << CFXMEM` shape is gone.
+        rep.check("F5", "移交的 cause 是页表类位图（PTW，ADR-0062 D1）", True,
+                  (cause & d["cause_mask"]) == 0 and bitmap != 0
+                  and (bitmap & (bitmap - 1)) == 0)
         rep.check("F5", "移交的 ip 是用户的取数指令", base + 4, num(deleg.get("ip")))
         rep.check("F5", "移交的 info 是用户访问的地址",
                   num(enter.get("data_va")) if enter else -1, num(deleg.get("info")))
@@ -642,6 +738,18 @@ def check_f5(rep: Report, rc: int, text: str, d: dict) -> None:
     done = line_with(text, "K4 f5 done: ")
     rep.check("F5", "F5 收尾行存在且 syscall 数 == 2", 2,
               num(done.get("syscalls")) if done else -1)
+
+    # The user segment's own exit (ISS-493): a boot that dies on the way
+    # through F5 must not look like "no self-test failure code" (the monitor
+    # exit code is not the guest's).  Require the explicit exit line and no
+    # fault signature anywhere in the console.
+    exit_line = line_with(text, "K4 f5 exit: ")
+    rep.check("F5", "F5 用户段自己走到 SYS_EXIT(0)（exit 行存在）", True,
+              exit_line is not None)
+    rep.check("F5", "F5 退出码 = 0", 0,
+              num(exit_line.get("code")) if exit_line else -1)
+    for sig in ("die-no-vma", "die-perm", "panic", "K4 user excp"):
+        rep.check("F5", f"F5 无故障签名 {sig}", 0, text.count(sig))
 
 
 def check_f3_scope(rep: Report, text: str, rc: int) -> None:
@@ -753,6 +861,22 @@ def run_selfcheck(rc: int, text: str, d: dict) -> int:
 # ---------------------------------------------------------------------------
 
 INJECTIONS = {
+    "local-f5-frame": {
+        # m18-linux-009 (ISS-493): put the pre-fix local frame back.  The
+        # behavioural half is a scheduler race (measured 2/3 red), so the
+        # *source-level* assertion S7 is the deterministic verdict here; the
+        # boot run still happens after the restore for the green proof.
+        "file": "arch/dadao/kernel/k4_selftest.c",
+        "old": "\t\tstruct pt_regs *frame = task_pt_regs(current);\n"
+               "\n"
+               "\t\tmemset(frame, 0, sizeof(*frame));\n",
+        "new": "\t\tstruct pt_regs local_frame;\n"
+               "\t\tstruct pt_regs *frame = &local_frame;\n"
+               "\n"
+               "\t\tmemset(frame, 0, sizeof(*frame));\n",
+        "group": "S",
+        "why": "F5 退回本地 struct pt_regs 帧（task_pt_regs 不再被初始化）",
+    },
     "no-regs-copy": {
         "file": "arch/dadao/kernel/process.c",
         "old": "\t*childregs = *regs;\n",
@@ -841,23 +965,33 @@ def run_inject(name: str, d: dict) -> int:
             print(f"[INJECT] {name}: FAIL: the injected image does not build")
             return 1
         rom = firmware()
-        rc, run = boot(f"inject-{name}", rom)
-        with contextlib.redirect_stdout(io.StringIO()):
-            if spec["group"] == "F1":
-                check_f1(rep, rc, run, d)
-            elif spec["group"] == "F2":
-                check_f2(rep, run, d)
-            elif spec["group"] == "F5":
-                check_f5(rep, rc, run, d)
-            else:
-                check_f4(rep, run, d)
-        print(f"[INJECT] {name}: {spec['group']} red checks = {len(rep.failed)}"
-              f" (rc={rc})")
-        for item in rep.failed[:4]:
-            print(f"[INJECT]   {item}")
-        if not rep.failed:
-            print(f"[INJECT] {name}: FAIL: nothing went red")
-            return 1
+        if spec["group"] == "S":
+            with contextlib.redirect_stdout(io.StringIO()):
+                check_f5_entry_frame(rep, path.read_text(encoding="utf-8"))
+            print(f"[INJECT] {name}: S7 red checks = {len(rep.failed)}")
+            for item in rep.failed[:4]:
+                print(f"[INJECT]   {item}")
+            if not rep.failed:
+                print(f"[INJECT] {name}: FAIL: nothing went red")
+                return 1
+        else:
+            rc, run = boot(f"inject-{name}", rom)
+            with contextlib.redirect_stdout(io.StringIO()):
+                if spec["group"] == "F1":
+                    check_f1(rep, rc, run, d)
+                elif spec["group"] == "F2":
+                    check_f2(rep, run, d)
+                elif spec["group"] == "F5":
+                    check_f5(rep, rc, run, d)
+                else:
+                    check_f4(rep, run, d)
+            print(f"[INJECT] {name}: {spec['group']} red checks = {len(rep.failed)}"
+                  f" (rc={rc})")
+            for item in rep.failed[:4]:
+                print(f"[INJECT]   {item}")
+            if not rep.failed:
+                print(f"[INJECT] {name}: FAIL: nothing went red")
+                return 1
     finally:
         shutil.copy2(backup, path)
         # `copy2` restores the *original* mtime, which is older than the
@@ -927,6 +1061,9 @@ def derivations(snap: dict) -> dict:
                                        kernel_text("arch/dadao/include/asm/trap.h")).group(1), -1),
         "cause_cfxmem": num(re.search(r"#define DADAO_CAUSE_CFXMEM\s+\(1UL << (\d+)\)",
                                       kernel_text("arch/dadao/include/asm/trap.h")).group(1), -1),
+        "cause_mask": num(re.search(r"#define DADAO_CAUSE_MASK\s+(0x[0-9a-fA-F]+)UL",
+                                    kernel_text("arch/dadao/include/asm/trap.h")).group(1), -1),
+        "sub_masks": cause_sub_masks(),
         "f1_checks": len(re.findall(r'k4_expect\("child-', kernel_text(
             "arch/dadao/kernel/k4_selftest.c"))),
         "page_offset": num(config_value(config, "CONFIG_PAGE_OFFSET")),

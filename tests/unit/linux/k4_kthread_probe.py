@@ -137,10 +137,15 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K5_PAGESZ_SELFTEST": "n",
 }
 
-IMAGE = config_pins.config_lines(CONFIG_PINS)
+#: The K6 production boot's continuation symbol lives in arch/dadao/Kconfig (not
+#: Kconfig.debug), so the Kconfig.debug pin gate does not cover it; keep the K6
+#: shell out of this probe image (see k4_fork_probe.py).
+K6_SHELL_OFF = "CONFIG_DADAO_K6_SHELL=n"
+
+IMAGE = config_pins.config_lines(CONFIG_PINS) + [K6_SHELL_OFF]
 
 ALWAYS_OFF = ("CONFIG_DADAO_K1_EARLY_STOP", "CONFIG_DADAO_K2_EARLY_STOP",
-              "CONFIG_DADAO_K2_TIME_STOP")
+              "CONFIG_DADAO_K2_TIME_STOP", "CONFIG_DADAO_K6_SHELL")
 
 #: Wall-clock guards; `timeout` => rc 124, which is a FAIL (AGENTS.md「长任务」).
 TIMEOUT_BUILD = int(os.environ.get("K4KT_BUILD_TIMEOUT", "1800"))
@@ -553,6 +558,11 @@ def check_static(rep: Report, rc_build: int, snap: dict | None, d: dict) -> None
     rep.check("S6", "FAIL 码都在 spec/Kaiwu §7.1 的 guest 段内", [],
               [f"{name}={value:#x}" for name, value in codes.items()
                if not 1 <= value <= d["guest_max"]])
+
+    # S7 (m18-linux-009, ISS-494): the stop verdict waits for the *event*
+    # (do_exit() reaching TASK_DEAD), bounded, with a real hand-over point.
+    check_k2_dead_wait(rep)
+
     rep.check("S6", "mm_users 是 mm_struct 的引用计数（源内存在）", True,
               "atomic_t mm_users;" in kernel_text("include/linux/mm_types.h"))
     sched_h = kernel_text("include/linux/sched.h")
@@ -565,6 +575,21 @@ def check_static(rep: Report, rc_build: int, snap: dict | None, d: dict) -> None
                  "kthread_create_on_node", "kthread_stop", "kthread_should_stop",
                  "kernel_thread", "dadao_ret_from_fork"):
         rep.check("S7", f"镜像含符号 {name}", True, name in syms)
+
+
+def check_k2_dead_wait(rep: Report) -> None:
+    """S7: `k4kt_wait_dead()` — event + bounded wait + yield (ISS-494)."""
+    src = kernel_text(SELFTEST_C)
+    rep.check("S7", "K2 完成判据 = TASK_DEAD 事件 + 有界上限", True,
+              "static bool k4kt_wait_dead(" in src and
+              "READ_ONCE(t->__state) == TASK_DEAD" in src and
+              "K4KT_SPINS" in src)
+    rep.check("S7", "K2 等待循环有 cond_resched()/yield() 让出点", True,
+              re.search(r"cond_resched\(\);\s*\n\s*yield\(\);", src) is not None)
+    rep.check("S7", "K2 停止判据调用有界等待（不是立即读）", True,
+              "if (!k4kt_wait_dead(t))" in src)
+    rep.check("S7", "K2 不再用 16 次裸 schedule() 冒充等待", 0,
+              len(re.findall(r"spins < 16[^\n]*\n\s*schedule\(\);", src)))
 
 
 # ---------------------------------------------------------------------------
@@ -761,6 +786,20 @@ def run_selfcheck(rc: int, text: str, d: dict) -> int:
 # ---------------------------------------------------------------------------
 
 INJECTIONS = {
+    "no-dead-wait": {
+        # m18-linux-009 (ISS-494): drop the bounded event wait and read the
+        # task state immediately — the pre-fix race.  The behavioural red is
+        # timing-dependent, so the source-level S7 assertion is the
+        # deterministic verdict; the restored image is booted green below.
+        "file": SELFTEST_C,
+        "old": "\t/* Wait (bounded) for the *event*: do_exit() reaching TASK_DEAD. */\n"
+               "\tif (!k4kt_wait_dead(t))\n"
+               "\t\tk4kt_fail(K4KT_FAIL_K2, \"k2-task-dead-wait\",\n"
+               "\t\t\t  (unsigned long)READ_ONCE(t->__state));\n",
+        "new": "\t/* injected: read the task state without waiting for the event */\n",
+        "group": "S",
+        "why": "K2 退回 kthread_stop() 后立即读任务态（不等 TASK_DEAD 事件）",
+    },
     "no-kthreadd": {
         "file": INIT_MAIN_C,
         "old": "\tpid = kernel_thread(kthreadd, NULL, NULL, CLONE_FS | CLONE_FILES);\n",
@@ -809,21 +848,31 @@ def run_inject(name: str, d: dict) -> int:
         # changes the rule under test, not what the rule is derived from —
         # re-deriving from the corrupted source would move the reference the
         # red verdict is measured against.
-        rc, run = boot(f"inject-{name}", firmware())
-        with contextlib.redirect_stdout(io.StringIO()):
-            if spec["group"] == "K1":
-                check_k1(rep, rc, run, d)
-            elif spec["group"] == "K2":
-                check_k2(rep, run, d)
-            else:
-                check_case_k3(rep, run, d)
-        print(f"[INJECT] {name}: {spec['group']} red checks = {len(rep.failed)}"
-              f" (rc={rc})")
-        for item in rep.failed[:4]:
-            print(f"[INJECT]   {item}")
-        if not rep.failed:
-            print(f"[INJECT] {name}: FAIL: nothing went red")
-            return 1
+        if spec["group"] == "S":
+            with contextlib.redirect_stdout(io.StringIO()):
+                check_k2_dead_wait(rep)
+            print(f"[INJECT] {name}: S7 red checks = {len(rep.failed)}")
+            for item in rep.failed[:4]:
+                print(f"[INJECT]   {item}")
+            if not rep.failed:
+                print(f"[INJECT] {name}: FAIL: nothing went red")
+                return 1
+        else:
+            rc, run = boot(f"inject-{name}", firmware())
+            with contextlib.redirect_stdout(io.StringIO()):
+                if spec["group"] == "K1":
+                    check_k1(rep, rc, run, d)
+                elif spec["group"] == "K2":
+                    check_k2(rep, run, d)
+                else:
+                    check_case_k3(rep, run, d)
+            print(f"[INJECT] {name}: {spec['group']} red checks = {len(rep.failed)}"
+                  f" (rc={rc})")
+            for item in rep.failed[:4]:
+                print(f"[INJECT]   {item}")
+            if not rep.failed:
+                print(f"[INJECT] {name}: FAIL: nothing went red")
+                return 1
     finally:
         shutil.copy2(backup, path)
         # `copy2` restores the *original* mtime, which is older than the

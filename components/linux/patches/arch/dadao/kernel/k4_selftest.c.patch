@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k4_selftest.c b/arch/dadao/kernel/k4_selftest.c
 new file mode 100644
-index 000000000..06422a18d
+index 000000000..ad108e676
 --- /dev/null
 +++ b/arch/dadao/kernel/k4_selftest.c
-@@ -0,0 +1,580 @@
+@@ -0,0 +1,655 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K4 process-model self-test (CONFIG_DADAO_K4_SELFTEST, m14-linux-016).
@@ -63,6 +63,7 @@ index 000000000..06422a18d
 +#include <asm/pgtable.h>
 +#include <asm/processor.h>
 +#include <asm/ptrace.h>
++#include <asm/ptw.h>
 +#include <asm/setup.h>
 +
 +/* Guest FAIL segment (spec/Kaiwu §7.1): process.c owns 0x30-0x32. */
@@ -165,10 +166,18 @@ index 000000000..06422a18d
 +static int k4_f5_n;
 +static unsigned long k4_f5_pf_before;
 +
-+/* Map @pa at @va in the *active* table (the kernel's own), with @prot. */
-+static void k4_map_active(unsigned long va, unsigned long pa, unsigned long prot)
++/*
++ * Map @pa at @va in @mm's table with @prot.  F5 maps its code page into the
++ * *task's* table and activates that table before entering user mode
++ * (m18-linux-009): the K4 boundary used to assume the kernel's own table stayed
++ * active, but the port has a scheduler now — a reschedule inside the later
++ * `vm_mmap()` calls switches PTBR to the task's mm, and a code page mapped only
++ * in `init_mm` then disappears (`IGPTRAP`, fetch of the zero page, `UNDI`).
++ */
++static void k4_map_va(struct mm_struct *mm, unsigned long va, unsigned long pa,
++		      unsigned long prot)
 +{
-+	pmd_t *pmd = pmd_off_k(va);
++	pmd_t *pmd = pmd_off(mm, va);
 +	pte_t *pte;
 +
 +	if (pmd_none(*pmd)) {
@@ -176,7 +185,7 @@ index 000000000..06422a18d
 +
 +		if (!tbl)
 +			k4_fail(K4_FAIL_MM, "f5 pte_alloc", va);
-+		pmd_populate_kernel(&init_mm, pmd, tbl);
++		pmd_populate_kernel(mm, pmd, tbl);
 +	}
 +	pte = pte_offset_kernel(pmd, va);
 +	set_pte(pte, __pte((pa & _PAGE_PFN_MASK) | _PAGE_PRESENT |
@@ -286,14 +295,10 @@ index 000000000..06422a18d
 +			  dadao_pf_entry_count() - k4_f5_pf_before,
 +			  K4_FAIL_UMON_NO_ZERO);
 +
-+		/* The mapping the channel installed for the user page. */
++		/* The mapping the channel installed for the user page (the task's
++		 * table is active now, so the PTE lives in `k4_mm`). */
 +		{
-+			pmd_t *pmd = pmd_off_k(K4_F5_DATA_VA);
-+			unsigned long entry = 0;
-+
-+			if (!pmd_none(*pmd) &&
-+			    !(pmd_val(*pmd) & _PAGE_SUPER))
-+				entry = pte_val(*pte_offset_kernel(pmd, K4_F5_DATA_VA));
++			unsigned long entry = k4_pte(k4_mm, K4_F5_DATA_VA);
 +			dadao_early_printf("K4 f5 pte data=%#lx present=%lu u=%lu w=%lu "
 +					   "pfn=%#lx zero_pfn=%#lx\n", entry,
 +					   (entry & _PAGE_PRESENT) ? 1UL : 0UL,
@@ -310,12 +315,39 @@ index 000000000..06422a18d
 +		dadao_early_printf("K4 f5 done: syscalls=%d frames=%#lx/%#lx\n",
 +				   k4_f5_n + 1, (unsigned long)&k4_f5_frame[0],
 +				   (unsigned long)&k4_f5_frame[1]);
++		/* The user segment's own exit: the probe requires this line, so a
++		 * boot that ends through a fault/panic cannot be green (ISS-493). */
++		dadao_early_printf("K4 f5 exit: code=0 syscalls=%d\n",
++				   k4_f5_n + 1);
 +		dadao_early_exit(0);
 +	}
 +
 +	k4_f5_n++;
 +	*policy = DADAO_TRAP_RESUME_SKIP;
 +	return 1;
++}
++
++/*
++ * Where a child this probe creates must end up if the scheduler ever picks it
++ * (m18-linux-009, ISS-493).  K4's F1/F2 only *inspect* a forked child; the
++ * probe used to rely on `clear_tsk_need_resched()` alone, but the port has a
++ * real scheduler now and a `cond_resched()`/mutex wait inside the later
++ * `vm_mmap()` calls can hand the CPU to the child.  Its frame is the parent's
++ * with `ip = K4_PARENT_IP` (0xbeef), i.e. a user entry into an unmapped
++ * address — measured as `ip=0xbef0`, `IGPTRAP`, `die-no-vma`, panic.
++ *
++ * Rewriting the child's frame to the kernel-thread shape (`ip =
++ * dadao_ret_from_fork`, `rb3 = 0`, `rd16 = fn`) makes `dadao_ret_from_fork`
++ * call this body, which sleeps: an accidental schedule of the child parks it
++ * instead of entering a user frame nobody prepared, and the hart comes back to
++ * kernel_init.  It never wakes, and the boot ends long before it matters.
++ */
++static int k4_park_child(void *arg)
++{
++	for (;;) {
++		set_current_state(TASK_INTERRUPTIBLE);
++		schedule();
++	}
 +}
 +
 +void __init dadao_k4_selftest(void)
@@ -371,8 +403,19 @@ index 000000000..06422a18d
 +	current->mm = k4_mm;
 +	current->active_mm = k4_mm;
 +
++	/*
++	 * Read-only on purpose (m18-linux-009): the VMA must stay on the
++	 * generic COW path.  K6's `dadao_fork_stack()` eagerly copies every
++	 * present *private writable* user page (its reason: a user-fault
++	 * hand-over cannot sleep, so a post-fork COW fault must not happen);
++	 * a read-only private page can never take a write fault, so it is not
++	 * its business, while `is_cow_mapping()` still sees `VM_MAYWRITE` and
++	 * `copy_page_range()` still shares the page.  Without this, F2 measures
++	 * K6's eager copy (`pa_same=0`, `count=1`) rather than the COW sharing
++	 * it is about.
++	 */
 +	addr = vm_mmap(NULL, K4_VA_BASE, K4_VA_PAGES * PAGE_SIZE,
-+		       PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0);
++		       PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, 0);
 +	dadao_early_printf("K4 f2 mm=%#lx vma=%#lx asid=%lu\n",
 +			   (unsigned long)k4_mm, addr,
 +			   (unsigned long)k4_mm->context.asid);
@@ -396,14 +439,16 @@ index 000000000..06422a18d
 +	    !is_cow_mapping(k4_vma->vm_flags))
 +		k4_fail(K4_FAIL_MM, "vma", k4_vma ? k4_vma->vm_flags : 0);
 +
-+	/* Page 0: a private page with a marker in it.  Page 1: the shared zero
-+	 * page, mapped read-only.  Page 2 stays unmapped (nothing to copy). */
++	/* Page 0: a private page with a marker in it, mapped read-only so that
++	 * K6's eager writable copy does not split it (see the vm_mmap() above);
++	 * page 1 is the shared zero page, mapped read-only as well.  Page 2
++	 * stays unmapped (nothing to copy). */
 +	page = alloc_page(GFP_KERNEL | __GFP_ZERO);
 +	if (!page)
 +		k4_fail(K4_FAIL_ALLOC, "parent page", 0);
 +	magic_page = page_to_phys(page);
 +	*(unsigned long *)page_address(page) = K4_MAGIC;
-+	k4_map(k4_mm, k4_va(0), magic_page, true);
++	k4_map(k4_mm, k4_va(0), magic_page, false);
 +	k4_map(k4_mm, k4_va(1), zero_pa, false);
 +
 +	/* ---- F4c: the lookup goes through find_vma(current->mm) ----------- */
@@ -475,6 +520,21 @@ index 000000000..06422a18d
 +		k4_expect("child-rd8-zero", 0, cregs->rd[8], K4_FAIL_REGS);
 +		k4_expect("child-tp-inherited", K4_PARENT_TP, cregs->rb[3],
 +			  K4_FAIL_REGS);
++
++		/*
++		 * The copy is proven; from here the child must not run — park it
++		 * in a kernel function (see `k4_park_child()`).  The rewrite is
++		 * exactly the kernel-thread frame shape `dadao_ret_from_fork`
++		 * recognises, so a reschedule can never turn the pinned
++		 * `K4_PARENT_IP` into a user entry.
++		 */
++		cregs->ip = (unsigned long)dadao_ret_from_fork;
++		cregs->rb[1] = 0;
++		cregs->rb[3] = 0;
++		cregs->rd[16] = (unsigned long)k4_park_child;
++		cregs->rd[17] = 0;
++		dadao_early_printf("K4 f1 child parked: ip=%#lx fn=%#lx\n",
++				   cregs->ip, cregs->rd[16]);
 +	}
 +
 +	/*
@@ -540,11 +600,13 @@ index 000000000..06422a18d
 +		k4_fail(K4_FAIL_MM, "f5 data vma", addr);
 +
 +	/*
-+	 * The code page is mapped by hand in the *active* table: K4 has one
-+	 * PTBR and it is the kernel's (a task's own table is activated by
-+	 * m14-linux-017's switch_mm()), so the probe maps its user page where the
-+	 * hardware will look — the same table the page-fault channel fills.
-+	 * Nothing is cached for this VA yet, so no invalidation is needed.
++	 * Map the code page into the task's own table and activate that table
++	 * before entering user mode (m18-linux-009).  K4's original shape assumed
++	 * the kernel's table stayed in PTBR, but a `vm_mmap()`/`cond_resched()`
++	 * can schedule now: `__switch_to()` writes the next task's PTBR, and a
++	 * page mapped only in `init_mm` is then gone.  `pgd_alloc()` copies the
++	 * kernel's G = 1 slots, so the kernel keeps running on this table — the
++	 * same hand-off `k5_syscall_selftest` performs in its user task.
 +	 */
 +	page = alloc_page(GFP_KERNEL | __GFP_ZERO);
 +	if (!page)
@@ -554,33 +616,46 @@ index 000000000..06422a18d
 +						  dadao_k4_user_stub);
 +
 +		memcpy(page_address(page), dadao_k4_user_stub, n);
-+		k4_map_active(K4_F5_CODE_VA, page_to_phys(page),
-+			      _PAGE_READ | _PAGE_EXEC | _PAGE_U);
++		k4_map_va(k4_mm, K4_F5_CODE_VA, page_to_phys(page),
++			  _PAGE_READ | _PAGE_EXEC | _PAGE_U);
++		dadao_switch_mm(NULL, k4_mm, current);
 +		dadao_early_printf("K4 f5 enter: ip=%#lx sp=%#lx data_va=%#lx "
-+				   "data_pte=%#lx stub_bytes=%lu\n",
++				   "data_pte=%#lx ptbr=%#lx stub_bytes=%lu\n",
 +				   K4_F5_CODE_VA, K4_F5_DATA_VA + PAGE_SIZE,
 +				   K4_F5_DATA_VA,
-+				   k4_pte(&init_mm, K4_F5_DATA_VA), n);
++				   k4_pte(k4_mm, K4_F5_DATA_VA),
++				   dadao_ptbr_read(), n);
 +	}
 +
 +	k4_f5_pf_before = dadao_pf_entry_count();
 +	memset(&k4_f5_frame[0], 0, sizeof(k4_f5_frame));
 +	{
-+		struct pt_regs frame;
++		/*
++		 * The entry frame is the task's own saved-context slot, not a
++		 * local `struct pt_regs` on this function's stack (m18-linux-009,
++		 * ISS-493): `dadao_enter_user()` installs it and the umon entry
++		 * adopts the trapping file back into `task_pt_regs(current)`, so
++		 * the escape target (`dadao_umon_frame()->ip`) and this frame must
++		 * be the same object.  A local frame leaves the task slot holding
++		 * whatever the task last had there — measured: the F1 marker
++		 * `0xbeef`, i.e. a resume into an unmapped address.  This is the
++		 * same call shape `k5_syscall_selftest`'s final entry uses.
++		 */
++		struct pt_regs *frame = task_pt_regs(current);
 +
-+		memset(&frame, 0, sizeof(frame));
-+		frame.ip = K4_F5_CODE_VA;
++		memset(frame, 0, sizeof(*frame));
++		frame->ip = K4_F5_CODE_VA;
 +		/* SP: the program parks in place, so the stack is never touched;
 +		 * rb10 is the demand-paged page the second instruction reads. */
-+		frame.rb[1] = K4_F5_DATA_VA + PAGE_SIZE;
-+		frame.rb[3] = 0;		/* execve clears rbtp (§10) */
-+		frame.rb[10] = K4_F5_DATA_VA;
-+		frame.rd[15] = 0;		/* syscall number of trap #0 */
++		frame->rb[1] = K4_F5_DATA_VA + PAGE_SIZE;
++		frame->rb[3] = 0;		/* execve clears rbtp (§10) */
++		frame->rb[10] = K4_F5_DATA_VA;
++		frame->rd[15] = 0;		/* syscall number of trap #0 */
 +		for (unsigned long k4i = 0; k4i < 32; k4i++) {
-+			frame.rd[32 + k4i] = k4_f5_sentinel(K4_F5_SENTINEL_RD, k4i);
-+			frame.rb[32 + k4i] = k4_f5_sentinel(K4_F5_SENTINEL_RB, k4i);
-+			frame.rf[32 + k4i] = k4_f5_sentinel(K4_F5_SENTINEL_RF, k4i);
++			frame->rd[32 + k4i] = k4_f5_sentinel(K4_F5_SENTINEL_RD, k4i);
++			frame->rb[32 + k4i] = k4_f5_sentinel(K4_F5_SENTINEL_RB, k4i);
++			frame->rf[32 + k4i] = k4_f5_sentinel(K4_F5_SENTINEL_RF, k4i);
 +		}
-+		dadao_enter_user(&frame);
++		dadao_enter_user(frame);
 +	}
 +}

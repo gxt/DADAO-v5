@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k4_kthread_selftest.c b/arch/dadao/kernel/k4_kthread_selftest.c
 new file mode 100644
-index 000000000..5592f48d6
+index 000000000..318341af1
 --- /dev/null
 +++ b/arch/dadao/kernel/k4_kthread_selftest.c
-@@ -0,0 +1,470 @@
+@@ -0,0 +1,502 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K4 kernel-thread self-test (CONFIG_DADAO_K4_KTHREAD_SELFTEST, m14-linux-020).
@@ -208,6 +208,37 @@ index 000000000..5592f48d6
 + * ------------------------------------------------------------------------- */
 +
 +/*
++ * Wait for the task we just stopped to be *dead*, not merely for
++ * `kthread_stop()` to return (m18-linux-009, ISS-494).
++ *
++ * `kthread_stop()` waits on `kthread->exited`, which `kthread_exit()` completes
++ * *before* `do_exit()` finishes on the exiting task's own stack.  Reading
++ * `__state`/`on_rq` right after therefore races the scheduler: measured
++ * `state=0 on_rq=1 frozen=1` (TASK_RUNNING, still queued) on a task that dies
++ * microseconds later.
++ *
++ * The event is `TASK_DEAD && !on_rq`; the wait is bounded.  A plain
++ * `schedule()` is not a hand-over on this port — with no `sched_clock()` a
++ * runnable current re-picks itself — so `yield()` requeues it behind the
++ * exiting thread (the actual generator of the event), and `cond_resched()`
++ * covers the ordinary need-resched case.  Timing out is a verdict, printed by
++ * name, never an unbounded spin.
++ */
++static bool k4kt_wait_dead(struct task_struct *t)
++{
++	unsigned long spins;
++
++	for (spins = 0; spins < K4KT_SPINS; spins++) {
++		if (READ_ONCE(t->__state) == TASK_DEAD &&
++		    !READ_ONCE(t->on_rq))
++			return true;
++		cond_resched();
++		yield();
++	}
++	return false;
++}
++
++/*
 + * One create/start/stop round trip.  @from_run selects `kthread_run()`
 + * (create + wake in one call) over `kthread_create()` + `wake_up_process()`.
 + */
@@ -216,7 +247,7 @@ index 000000000..5592f48d6
 +	static struct k4kt_ctx ctx[2];
 +	struct k4kt_ctx *c = &ctx[id - 1];
 +	struct task_struct *t;
-+	unsigned long frozen, spins;
++	unsigned long frozen;
 +	int ret;
 +
 +	memset(c, 0, sizeof(*c));
@@ -272,9 +303,10 @@ index 000000000..5592f48d6
 +		    K4KT_FAIL_K2);
 +	k4kt_expect("k2-stop-seen", 1, c->saw_stop ? 1 : 0, K4KT_FAIL_K2);
 +
-+	/* Let do_exit() finish on the dead task's own stack. */
-+	for (spins = 0; spins < 16; spins++)
-+		schedule();
++	/* Wait (bounded) for the *event*: do_exit() reaching TASK_DEAD. */
++	if (!k4kt_wait_dead(t))
++		k4kt_fail(K4KT_FAIL_K2, "k2-task-dead-wait",
++			  (unsigned long)READ_ONCE(t->__state));
 +	dadao_early_printf("K4 kthread k2: id=%d state=%d on_rq=%d frozen=%d "
 +			   "ticks_now=%lu\n", id, (int)t->__state, (int)t->on_rq,
 +			   frozen == c->ticks, c->ticks);
