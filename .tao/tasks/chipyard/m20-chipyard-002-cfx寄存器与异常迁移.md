@@ -10,7 +10,7 @@
 
 ## 背景
 
-执行 `m20-spec-001` 已决口径：新 cg4/5/6/7、scratch 2..16、PTWFAULT/PTWFAIL、cfx 编号、UART32/33（cfxha61 异步源）、中断删除、每 cfx 五种原因。
+执行 `m20-spec-001` 已决口径：新 cg4/5/6/7、scratch 2..16、PTWFAULT/PTWACCERR、cfx 编号、UART32/33（cfxha61 异步源）、中断删除、每 cfx 五种原因。
 
 ## 范围
 
@@ -22,7 +22,7 @@
 
 1. RTL 与 spec/契约一致；旧 cg/旧编号/旧名称残留 0；资源/时序变化有记录。
 2. Verilator/`check-arch` RTL 代表集真 rc；`check-patch-tree` chipyard 段 0 problem。
-3. PTW 用例按既有 PTW 路径适配为 `PTWFAULT 1<<15` + `cfx_ptw cg8 rc4` ID；不新增专用 PTWFAULT/PTWFAIL 用例。
+3. PTW 用例按既有 PTW 路径适配为 `PTWFAULT 1<<15` + `cfx_ptw cg8 rc4` ID；不新增专用 PTWFAULT/PTWACCERR 用例。
 4. 至少一条可达 FAIL；证据落运行期证据目录内 `run.sh`；RTL 长构建按节点/本地已有流程。
 
 ## 约束

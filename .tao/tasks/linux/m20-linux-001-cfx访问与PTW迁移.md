@@ -10,7 +10,7 @@
 
 ## 背景
 
-执行 `m20-spec-001` 已决口径：cfx 寄存器/原因/PTWFAULT/PTWFAIL/UART32/33、中断删除、每 cfx 五种原因。Linux 需要能读 `cfx_ptw cg8 rc4`（仅 smon 通过 delegation；hmon hypv 直读），并适配新编号。
+执行 `m20-spec-001` 已决口径：cfx 寄存器/原因/PTWFAULT/PTWACCERR/UART32/33、中断删除、每 cfx 五种原因。Linux 需要能读 `cfx_ptw cg8 rc4`（仅 smon 通过 delegation；hmon hypv 直读），并适配新编号。
 
 ## 范围
 
@@ -21,7 +21,7 @@
 
 1. 内核使用新 cg/编号/原因；旧编号/旧名称残留 0；`cfx_ptw cg8 rc4` 只在允许的 monitor 路径读取。
 2. `check-linux-k0/k1/k2/k5/k6`（按范围）真 rc；`check-patch-tree` linux 段 0 problem；K6/LTP 代表例不回归。
-3. PTW 故障按 `PTWFAULT` + `cfx_ptw cg8 rc4` 解码；不新增专用 PTWFAULT/PTWFAIL 用例。
+3. PTW 故障按 `PTWFAULT` + `cfx_ptw cg8 rc4` 解码；不新增专用 PTWFAULT/PTWACCERR 用例。
 4. 至少一条可达 FAIL；证据落运行期证据目录内 `run.sh`。
 
 ## 约束

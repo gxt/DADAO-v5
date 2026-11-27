@@ -10,7 +10,7 @@
 
 ## 背景
 
-执行 `m20-spec-001` 已决口径：cg4–7、PTWFAULT/PTWFAIL、cfx 编号、UART32/33、中断删除、每 cfx 五种原因。需要刷新测试向量/签名/台账，并保持四方差分可解释。
+执行 `m20-spec-001` 已决口径：cg4–7、PTWFAULT/PTWACCERR、cfx 编号、UART32/33、中断删除、每 cfx 五种原因。需要刷新测试向量/签名/台账，并保持四方差分可解释。
 
 ## 范围
 
@@ -22,7 +22,7 @@
 
 1. 旧 cg/编号/原因/名称残留 0；生成器产出可复现，签名/台账一致。
 2. `check-inst-asm`、`check-idl`、`check-case-ledger`、`check-tests-index`、`check-arch-smoke` 真 rc；四方代表集可运行（缺引擎时按门控语义披露）。
-3. PTW 故障复用现有 PTW 用例，改期望为 `PTWFAULT 1<<15` + `cfx_ptw cg8 rc4` ID；**不新增专用 PTWFAULT/PTWFAIL 用例**。
+3. PTW 故障复用现有 PTW 用例，改期望为 `PTWFAULT 1<<15` + `cfx_ptw cg8 rc4` ID；**不新增专用 PTWFAULT/PTWACCERR 用例**。
 4. UART32/33 cg16、power 五种原因、hart 无 IPI 各有最小代表覆盖；不重造全量矩阵。
 5. 证据落运行期证据目录内 `run.sh`。
 

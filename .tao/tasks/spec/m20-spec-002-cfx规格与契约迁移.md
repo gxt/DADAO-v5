@@ -10,7 +10,7 @@
 
 ## 背景
 
-执行 `m20-spec-001` 的 2026-11-26 已决口径：cg4/5/6/7 重排、scratch 2..16、PTWFAULT/PTWFAIL、cfx 编号、UART、中断删除、每 cfx 五种原因、0.8.1 定版（不立 ADR）。本任务只做 **spec 正文 + contracts + cfx 别名/合法性 + 版本锁**，不改引擎/IDL/LLVM。
+执行 `m20-spec-001` 的 2026-11-26 已决口径：cg4/5/6/7 重排、scratch 2..16、PTWFAULT/PTWACCERR、cfx 编号、UART、中断删除、每 cfx 五种原因、0.8.1 定版（不立 ADR）。本任务只做 **spec 正文 + contracts + cfx 别名/合法性 + 版本锁**，不改引擎/IDL/LLVM。
 
 ## 范围
 

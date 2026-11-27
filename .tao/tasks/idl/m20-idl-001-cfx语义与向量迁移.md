@@ -10,7 +10,7 @@
 
 ## 背景
 
-执行 `m20-spec-001` 已决口径中的 IDL 投影：cg4/5/6/7、PTWFAULT/PTWFAIL、cfx 编号、UART32/33、每 cfx 五种原因、cause 名称迁移。
+执行 `m20-spec-001` 已决口径中的 IDL 投影：cg4/5/6/7、PTWFAULT/PTWACCERR、cfx 编号、UART32/33、每 cfx 五种原因、cause 名称迁移。
 
 ## 范围
 
