@@ -723,3 +723,27 @@
 - **无承载（设计缺口）**：`arch-umon-011..013` 的 gem5 侧驱动明确「shim 尚未承载本用例」；cfx0/2/3 没有 `check_umon_rtl.py`（`DIV-05` 的 close_when 未满足）。
 - **收口工具链缺口（`run_arch`）**：① chipyard 腿不继承 conda 环境（缺 `libriscv.so` ⇒ 仿真器 rc=127、0 槽），需把 `LD_LIBRARY_PATH` 指向 chipyard 的 `riscv-tools/lib`；② 不识别 `expected-divergences.yaml`（`DIV-17` 的 2 槽会让 `arch-hart-001` 整案 FAIL，且失败时不落 signature）；③ 单个 case 缺承载会中止整条 chipyard 腿；④ `check_power_rtl.py` 不接受 `run_arch` 传入的 `--signature-out`/`--mode`（既有 M18 issue）。
 - **交接**：以上红项与工具链缺口由 M20 会话登记进 `issues-m20.yaml`，在 `m20-integ-001/002` 收口；M16 侧任务已全部完成，`ISS-m16-012` 按「实现链已对齐、剩余差分归 M20」关闭。
+
+## N41. 交接：给 M18 / M20 的具体待办（2026-11-27 会话关闭）
+
+**背景**：M16 已归档（`.tao/archive/M16/`，95 册），差分收口按 N40 交给 M20；本会话不再有在跑任务。
+
+### 给 M18
+
+1. **chipyard 写者已完全交还**：M16 侧无任何在跑 chipyard/仿真任务，`m18-*` 可自由使用共享 chipyard 树。
+2. **共享环境已重放对齐（本会话做过，勿重复）**：qemu 源树 `a8d0796` + 安装根 `e470dc56…`（含 `m18-qemu-008/009/010`）、gem5 源树 `7db7553` + `gem5.opt` `ebb19d0b…`、chipyard `7b1d785` + Vast `0ead2519…` / Tiny `71cbed98…`、LLVM 11-26 07:23。若再合入组件补丁，按 `lessons.md` 的「重放+重建+`install-host`」执行。
+3. **musl 源树落后补丁集**：`.work/source/musl` 停在 11-24，`components/musl/patches/arch/dadao/bits/signal.h.patch` 已被 `m18-linux-010` 更新 ⇒ `check_patch_tree` 报 2 个 problem（`make check` 会红）。重放会让安装根 libc 变化，**必须在 LTP（`m18-linux-006`）等跑批的空窗做**，并与正在跑的任务串行。
+4. **M18 台账有 1 处机械违规**：`milestones-m18.md` 的 `m18-linux-027` 行预估写「—」，且 `.tao/tasks/linux/m18-linux-027-内核源接口ack迁移.md` 无头部 `**状态**` ⇒ `check-milestones-fresh` 红。该任务已「并入 026」，建议把该行改为说明性文本（移出「待开始」表）并补任务书状态。
+5. **疑似回归（需与 M20 协同 bisect）**：`arch-power-001/002`、`arch-umon-012/013` 在 qemu/gem5 上挂死，11-26/11-23 有绿证据；M16 探针未改，指向 `m18-qemu-008/009/010`（gem5 侧 `m18-gem5-004/005`）。`arch-umon-011` 的 qemu 槽 1 期望 `0xffff…` 实际 `0x0123…`，同批线索。
+
+### 给 M20
+
+1. **差分接手顺序**：`m20-integ-001`（三方 cfx/cg/rc 覆盖矩阵与口径）→ 先修下面 4 个 `run_arch` 缺口 → `m20-integ-002`（实测与缺口关闭）。现场数据与红项清单见 **N40**。
+2. **先修 `run_arch` 4 个缺口**（否则现场红不可信）：
+   - chipyard 腿不继承 conda 运行时库（缺 `libriscv.so` ⇒ rc=127 / 0 槽）⇒ 传 `LD_LIBRARY_PATH` 或让驱动自带环境；
+   - 不识别 `tests/arch/expected-divergences.yaml`（`DIV-17` 的 2 槽会让 `arch-hart-001` 整案 FAIL，失败时还不落 signature）；
+   - 单 case 缺承载（如 `arch-umon-011` 无 `check_umon_rtl.py`）会**中止整条 chipyard 腿**，应改为该 case 记 GAP/SKIP 并继续；
+   - `check_power_rtl.py` 不接受 `run_arch` 的 `--signature-out`/`--mode`（既有 M18 issue，power 三方必须先修）。
+3. **登记位置**：红项要进 `issues-m20.yaml`（该文件 M20 独占写，本会话未代写）；M16 的未解决 backlog 只有 `ISS-535`（已进 `issues-left.yaml`）。
+4. **既有红不是回归**：`arch-cache-003/004` 在 11-26 的 0.8.0 历史树上同样红（`m18-gem5-004` 复核证据），别按新回归处理；`arch-cache-004` 的 RTL 侧是登记 gap（无 cache-model 开关）。
+5. **可用基线**：qemu/gem5 各 20 PASS / 7 FAIL（27 case，`--cache-model on`）；`arch-hart-001` 三平台已同为 124 槽（RTL 仅 `DIV-17` 2 槽差异），说明 spec-007 对齐已进二进制，差的是 runner 识别与上述红项。
