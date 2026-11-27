@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..1246746e8
+index 000000000..012fb823b
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,753 @@
+@@ -0,0 +1,752 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -573,13 +573,13 @@ index 000000000..1246746e8
 +		}
 +		if (probe->redirect) {
 +			/*
-+			 * `escape` returns to the *hardware* `excp_cause_ip`, so a
-+			 * handler that wants to resume somewhere else writes the
-+			 * frame's `cg5 rc3` first and then returns RETRY
-+			 * (contract-see §6.2: the offset only offers +0/+4).
++			 * `escape` returns to the exit intent `cg5 rc10`, so a
++			 * handler that wants to resume somewhere else writes it
++			 * there first and then returns RETRY (the exit intent is
++			 * the only software-writable return address).
 +			 */
 +			DADAO_CFX_WRITE(cfx_smon, SMON_CG_FRAME,
-+					SMON_RC_FRAME_CAUSE_IP, probe->redirect);
++					SMON_RC_ESCAPE_IP, probe->redirect);
 +			regs->ip = probe->redirect;
 +			policy = DADAO_TRAP_RESUME_RETRY;
 +		}
@@ -628,14 +628,13 @@ index 000000000..1246746e8
 +		 */
 +		if (fixup_exception(regs)) {
 +			/*
-+			 * `escape ..., 0` resumes at the *hardware*
-+			 * excp_cause_ip (trap.S:6, spec/DADAO-12 §5.3); the
-+			 * frame's ip field is only a memory copy.  Publish the
-+			 * fixup address the same way the probe redirect does
-+			 * above, then re-enter with offset 0.
++			 * `escape cfx_smon` resumes at the exit intent
++			 * `cg5 rc10`; the frame's ip field is only a memory
++			 * copy.  Publish the fixup address the same way the
++			 * probe redirect does above, then return RETRY.
 +			 */
 +			DADAO_CFX_WRITE(cfx_smon, SMON_CG_FRAME,
-+					SMON_RC_FRAME_CAUSE_IP, regs->ip);
++					SMON_RC_ESCAPE_IP, regs->ip);
 +			dadao_trap_busy = 0;
 +			return DADAO_TRAP_RESUME_RETRY;
 +		}
@@ -697,7 +696,7 @@ index 000000000..1246746e8
 +				   dadao_cause_table[i].id);
 +	dadao_early_printf("\nK2 trap: entry=dadao_supv_excp frame=%#lx frame_bytes=%u "
 +			   "banks=rd,rb,ra,rf "
-+			   "escape={0,4} segments={self 0x01-0x7f,monitor 0xc0|mode<<4|bit}\n",
++			   "escape={cfxHA,ip=rc10} segments={self 0x01-0x7f,monitor 0xc0|mode<<4|bit}\n",
 +			   (unsigned long)dadao_excp_save,
 +			   (unsigned int)sizeof(struct pt_regs));
 +}

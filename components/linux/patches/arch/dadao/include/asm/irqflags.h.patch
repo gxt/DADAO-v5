@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/include/asm/irqflags.h b/arch/dadao/include/asm/irqflags.h
 new file mode 100644
-index 000000000..54b8b019b
+index 000000000..c7a29f236
 --- /dev/null
 +++ b/arch/dadao/include/asm/irqflags.h
 @@ -0,0 +1,110 @@
@@ -13,14 +13,14 @@ index 000000000..54b8b019b
 +#include <asm/cfx.h>
 +
 +/*
-+ * DADAO has no interrupt-enable state bit.  ADR-0061 R2 leaves exactly one
-+ * asynchronous gate: the **running mode monitor's** `cg8 rc1`
++ * DADAO has no interrupt-enable state bit.  ADR-0064 leaves the per-mode gate
++ * in the **running mode monitor's** `cg15 rc3`
 + * (`cfx_<monitor>_async_intr_mask`, DADAO-12 §4.1-§4.4/§5.4).  The bit index is
 + * the *source cfxha* (`TIMER` = 15, `PMEM_DMA` = 32), `0 = allow`, `1 = mask`,
 + * and the reset value is all ones.
 + *
 + * The kernel runs in `supv`, so its software IE knob is `cfx_smon`'s
-+ * `cg8 rc1`.  A user task runs against `cfx_umon`'s same row; whether a user
++ * `cg15 rc3`.  A user task runs against `cfx_umon`'s same row; whether a user
 + * context may be preempted is a scheduling policy, set at init and around the
 + * mode switch (kernel/process.c).  This header owns only the kernel row.
 + *
@@ -28,10 +28,10 @@ index 000000000..54b8b019b
 + * there is no separate IE bit to pack, and a whole-word save/restore is
 + * bit-identical.  Nesting is plain value passing.
 + */
-+#define DADAO_IRQ_CG_SUPV		8	/* cfx_smon_async_intr_mask */
-+#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK	1
-+#define DADAO_IRQ_CG_USER		8	/* cfx_umon_async_intr_mask */
-+#define DADAO_IRQ_RC_USER_CFX_INTR_MASK	1
++#define DADAO_IRQ_CG_SUPV		15	/* cfx_smon_async_intr_mask */
++#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK	3
++#define DADAO_IRQ_CG_USER		15	/* cfx_umon_async_intr_mask */
++#define DADAO_IRQ_RC_USER_CFX_INTR_MASK	3
 +
 +/*
 + * The sources this kernel owns: one mask bit per *source cfxha* (ADR-0061 D2).

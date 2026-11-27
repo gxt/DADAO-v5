@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/time.h b/arch/dadao/include/asm/time.h
 new file mode 100644
-index 000000000..db199ac56
+index 000000000..ecd4532cc
 --- /dev/null
 +++ b/arch/dadao/include/asm/time.h
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,108 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO time base and single-hart timer.
@@ -13,8 +13,8 @@ index 000000000..db199ac56
 + * gaps.  This header is the kernel's three-way split of that surface:
 + *
 + *   read     `dadao_time_freq()` / `dadao_read_time()`        (`cfx_time`)
-+ *   program  `dadao_timer_arm()` / `dadao_timer_stop()`       (`cfx_hart` cg8)
-+ *   confirm  `dadao_timer_status()`                           (`cfx_hart` cg8)
++ *   program  `dadao_timer_arm()` / `dadao_timer_stop()`       (`cfx_hart` cg16)
++ *   confirm  `dadao_timer_pending()`                          (`cfx_hart` cg16 rc17)
 + *
 + * K5 (m14-linux-026) puts the generic time subsystem on top of it: the
 + * `clocksource`/`clockevent` pair below is what `time_init()` registers, and
@@ -27,20 +27,26 @@ index 000000000..db199ac56
 +
 +#ifndef __ASSEMBLY__
 +
++#include <asm/cfx.h>
++
 +/* cfx_time (cfxha 34) — spec/DADAO-12 §4.10, contract-see §3. */
 +#define CFX_TIME_CG_FREQ		10
 +#define CFX_TIME_RC_FREQ		0
 +#define CFX_TIME_RC_VALUE		1
 +
 +/* cfx_hart (cfxha 15) — spec/DADAO-12 §4.7, contract-see §3. */
-+#define CFX_HART_CG_TIMER		8
-+#define CFX_HART_RC_TIMER_CMP		4
-+#define CFX_HART_RC_TIMER_CTRL		5
++#define CFX_HART_CG_TIMER		16	/* cg16: timer ctrl/cmp + source face */
++#define CFX_HART_RC_TIMER_CTRL		0	/* bit0 ENABLE only */
++#define CFX_HART_RC_TIMER_CMP		1
 +
-+/* timer_ctrl: bit0 ENABLE, bit1 IMASK, bit2 ISTATUS (read-only). */
++/* The per-source interrupt face every source implements (ADR-0064 D1). */
++#define DADAO_SRC_CG			16
++#define DADAO_SRC_RC_MASK		16	/* 1 = mask, reset all ones */
++#define DADAO_SRC_RC_PENDING		17	/* RO, event sets, ack clears */
++#define DADAO_SRC_RC_ACK		18	/* W1C */
++
 +#define DADAO_TIMER_ENABLE		(1UL << 0)
-+#define DADAO_TIMER_IMASK		(1UL << 1)
-+#define DADAO_TIMER_ISTATUS		(1UL << 2)
++#define DADAO_SRC_EVENT_BIT0		(1UL << 0)
 +
 +/* The asynchronous cause cfx_hart raises when the compare matches (§4.7). */
 +#define DADAO_CAUSE_TIMER		(1UL << 10)
@@ -51,10 +57,12 @@ index 000000000..db199ac56
 +
 +/* Program the one-shot deadline @delta_counts from now, IMASK open. */
 +void dadao_timer_arm(unsigned long delta_counts);
-+/* Cancel the deadline; no further ISTATUS/pending by construction. */
++/* Cancel the deadline and ack a stale pending event. */
 +void dadao_timer_stop(void);
-+/* `ctrl[1:0] | ISTATUS << 2` as the hardware reads it back. */
-+unsigned long dadao_timer_status(void);
++/* `cfx_hart cg16 rc17`: bit0 = the armed deadline expired. */
++unsigned long dadao_timer_pending(void);
++/* W1C the timer source's pending bits (ADR-0064: handler acks explicitly). */
++void dadao_timer_ack(unsigned long bits);
 +
 +/*
 + * One delivered `TIMER`: account the tick (jiffies) and re-arm.  Single point

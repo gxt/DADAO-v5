@@ -572,11 +572,11 @@ def static_recon(rep: Report, snap: dict | None) -> None:
     rep.check("C3", "用户子任务从 trap 的下一条进入（ret_from_fork）", True,
               "regs->ip += DADAO_INSN_BYTES;" in process)
 
-    # The umon return path restores *its own* cg5 field before escaping: a task
-    # that slept in the handler must not resume at another task's trap.
+    # The umon return path restores *its own* exit intent before escaping: a
+    # task that slept in the handler must not resume at another task's trap.
     trap = kernel_text(TRAP_S)
-    rep.check("C5", "umon 返回前把本任务 cg5.excp_cause_ip 写回（两份）", 2,
-              trap.count("cfx2rc\tcfx_umon, cg5, rc3, rd4"))
+    rep.check("C5", "umon 返回前把本任务 cg5 rc10 写回（两份）", 2,
+              trap.count("cfx2rc\tcfx_umon, cg5, rc10, rd4"))
     rep.check("C5", "入口栈顶取自已停放变量（不再读被抓取清掉的 cg6）", True,
               "dadao_user_stack_top" in trap and
               "cfx2rd\tcfx_umon, cg6, rc1, rd3" not in trap)

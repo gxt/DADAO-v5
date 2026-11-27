@@ -223,4 +223,4 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P2】`m18-linux-024` 收口后 4800 启中 3 次非窗口签名红（≈1/1600）：boot 78 静默停摆 `rc=124`（`/tmp` 满盘时段）；boot 1974 `handle_softirqs` `va=0x204002130f4` → `die 0xe4`/`PTWMEM`（盘满）；boot 181 `handle_softirqs` `va=0x10` → `die 0xe4`/`PTWMEM`（盘正常）。故障 ip 在通用内核 `handle_softirqs`、不在任何返程桩恢复点，与窗口 die 非同签名；台账与 console 在运行期证据目录。另立任务定位。reviewer 300 启（load≈7–8、多会话并发）2 次同族非窗口红（0.67%）；频率随负载变化，登记为区间而非单点。
+  title: 【P2】`m18-linux-024` 收口后 4800 启中 3 次非窗口签名红（≈1/1600）：boot 78 静默停摆 `rc=124`（`/tmp` 满盘时段）；boot 1974 `handle_softirqs` `va=0x204002130f4` → `die 0xe4`/`PTWMEM`（盘满）；boot 181 `handle_softirqs` `va=0x10` → `die 0xe4`/`PTWMEM`（盘正常）。故障 ip 在通用内核 `handle_softirqs`、不在任何返程桩恢复点，与窗口 die 非同签名；台账与 console 在运行期证据目录。另立任务定位。reviewer 300 启（load≈7–8、多会话并发）2 次同族非窗口红（0.67%）；频率随负载变化，登记为区间而非单点。`m18-linux-026`（0.8.1-rc 迁移）复测：soak 2000 启窗口签名 0，ISS-m18-001 自旋 344–359/2000（≈17–18%，load≈20 并发）；kselftest 两轮各 2 次 spin（共 4）、K6 2 次、K5 1 次；均按 ≤3 重试且不作用例失败，频率仍按负载区间登记；归 `m18-linux-025`。

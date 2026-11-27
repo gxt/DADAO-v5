@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/ptw.h b/arch/dadao/include/asm/ptw.h
 new file mode 100644
-index 000000000..9246446fc
+index 000000000..ee24730c0
 --- /dev/null
 +++ b/arch/dadao/include/asm/ptw.h
-@@ -0,0 +1,238 @@
+@@ -0,0 +1,236 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO page table walker interface (spec/DADAO-12 §2.2, §4.5).
@@ -64,13 +64,10 @@ index 000000000..9246446fc
 +
 +/* cfx_smon mode/frame registers the supv fault path reads (§3.3, §3.6). */
 +#define SMON_CG_SUPV		2
-+#define SMON_RC_SUPV_EXCP_VECTOR	10
++#define SMON_RC_SUPV_EXCP_VECTOR	15
 +#define SMON_CG_FRAME		5
 +#define SMON_RC_FRAME_PREV_MODE	0
-+#define SMON_RC_FRAME_PREV_CFX	1
-+#define SMON_RC_FRAME_CAUSE_ID	2
-+#define SMON_RC_FRAME_CAUSE_IP	3
-+#define SMON_RC_FRAME_CAUSE_INFO	4
++#define SMON_RC_ESCAPE_IP	10	/* the only writable return address */
 +
 +/* PTBR stores PPN[55:16] only: [15:0] is forced to 0 (64 KiB alignment) and
 + * [63:56] is reserved, so the write value is the table's physical address. */
@@ -233,7 +230,8 @@ index 000000000..9246446fc
 + * `cause_info` equals `dadao_k1_fault_expect` is a *deliberate* probe (does
 + * this VA resolve yet?), so the supv fault handler records
 + * `dadao_k1_fault_taken` and resumes after the faulting instruction (§5.3:
-+ * `escape cfx_smon, [excp_cause_ip, 4]`).  Any other exception is fatal and
++ * exit intent `cg5 rc10 = excp_cause_ip + 4`, then `escape cfx_smon`).  Any
++ * other exception is fatal and
 + * named.  0 means "no probe in flight" — address 0 is never a valid probe.
 + */
 +extern volatile unsigned long dadao_k1_fault_expect;

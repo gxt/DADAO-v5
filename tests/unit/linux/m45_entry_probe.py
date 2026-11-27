@@ -348,7 +348,7 @@ def static_recon(rep: Report, snap: dict | None) -> None:
         if rel == "arch/dadao/kernel/trap.S":
             wrote = "DADAO_SAVE_STATUS" in text
         else:
-            # ADR-0061 R2: the async stub writes status from cg9 rc0
+            # ADR-0064 D5: the async stub writes status from cg15 rc0
             # (async_prev_run_mode), not from a cg5 frame.
             wrote = ("PT_STATUS" in text and "dadao_async_prev_mode" in text)
         rep.check("E4", f"{tag}都写 status（不再写 0）", True, wrote)

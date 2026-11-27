@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/process.c b/arch/dadao/kernel/process.c
 new file mode 100644
-index 000000000..a087d9d54
+index 000000000..c02631695
 --- /dev/null
 +++ b/arch/dadao/kernel/process.c
-@@ -0,0 +1,834 @@
+@@ -0,0 +1,835 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO process model (K4, m14-linux-016).
@@ -170,10 +170,10 @@ index 000000000..a087d9d54
 +
 +
 +/*
-+ * One instruction, in bytes: the only step `escape` offers past a `trap`
-+ * (`[excp_cause_ip, +4]`, spec/DADAO-12 §5.3).  The constant itself lives in
-+ * asm/trap.h, next to the resume policies it belongs to (m14-linux-046, where
-+ * the umon entry turns "skip" into `ip += DADAO_INSN_BYTES`).
++ * One instruction, in bytes: the step a skip return takes past a `trap`.
++ * `escape cfxHA` returns exactly to the exit intent `cg5 rc10`, so the umon
++ * entry writes `ip + DADAO_INSN_BYTES` there for a skip (m14-linux-046).
++ * The constant itself lives in asm/trap.h, next to the resume policies.
 + */
 +
 +/*
@@ -368,7 +368,8 @@ index 000000000..a087d9d54
 +		 * syscall frame, whose `ip` is the trapping instruction (the umon
 +		 * entry wrote `excp_cause_ip` into it).  The child starts at the
 +		 * syscall's *return* address, one instruction on — the parent's
-+		 * own `escape` adds the same 4 (contract-syscall §10: 子线程从
++		 * own skip return writes the same `ip + 4` into `cg5 rc10`
++		 * (contract-syscall §10: 子线程从
 +		 * syscall 返回处开始执行；`copy_thread()` copies the frame, this
 +		 * is the one field whose value is "past" rather than "at").
 +		 *
@@ -412,8 +413,8 @@ index 000000000..a087d9d54
 +			DADAO_MODE_USER);
 +
 +	/*
-+	 * The user mode source mask (ADR-0061 R2): while a task runs in user
-+	 * mode the running mode monitor is `cfx_umon`, so its `cg8 rc1` word is
++	 * The user mode source mask (ADR-0064 D6): while a task runs in user
++	 * mode the running mode monitor is `cfx_umon`, so its `cg15 rc3` word is
 +	 * the preemption policy.  Open the sources this kernel owns; the mode
 +	 * switch below is covered by the supv row, which `arch_local_irq_disable`
 +	 * masks right before the trap.

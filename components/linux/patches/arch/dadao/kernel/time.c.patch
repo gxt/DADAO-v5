@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/time.c b/arch/dadao/kernel/time.c
 new file mode 100644
-index 000000000..992e63742
+index 000000000..a0573c08c
 --- /dev/null
 +++ b/arch/dadao/kernel/time.c
-@@ -0,0 +1,908 @@
+@@ -0,0 +1,921 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO time base and single-hart timer.
@@ -81,9 +81,10 @@ index 000000000..992e63742
 +
 +#define K2_TIME_SLOTS		8	/* samples kept for the report; >= ticks */
 +
-+/* cfx_hart's cg5 frame: only the entry mode is read here (§3.6). */
-+#define CFX_HART_CG_FRAME		5
-+#define CFX_HART_RC_FRAME_PREV_MODE	0
++/* cfx_hart cg15: the entrance record (prev mode / prev ip); §4.7. */
++#define CFX_HART_CG_ASYNC		15
++#define CFX_HART_RC_ASYNC_PREV_MODE	0
++#define CFX_HART_RC_ASYNC_CAUSE_IP	2
 +
 +#if CONFIG_DADAO_K2_IRQ_TEST
 +/*
@@ -130,6 +131,18 @@ index 000000000..992e63742
 +static unsigned int dadao_sample_n;
 +static unsigned long dadao_sample_time[K2_TIME_SLOTS];
 +static unsigned long dadao_sample_jiffies[K2_TIME_SLOTS];
++
++static void dadao_timer_mask_bit0(int masked)
++{
++	unsigned long mask = DADAO_CFX_READ(cfx_hart, DADAO_SRC_CG,
++					    DADAO_SRC_RC_MASK);
++
++	if (masked)
++		mask |= DADAO_SRC_EVENT_BIT0;
++	else
++		mask &= ~DADAO_SRC_EVENT_BIT0;
++	DADAO_CFX_WRITE(cfx_hart, DADAO_SRC_CG, DADAO_SRC_RC_MASK, mask);
++}
 +
 +/* -------------------------------------------------------------------------
 + * clocksource: cfx_time (contract-see §3: 1 GHz, 1 count = 1 ns, 64-bit)
@@ -178,25 +191,23 @@ index 000000000..992e63742
 +{
 +	unsigned long deadline = dadao_read_time() + delta;
 +
++	dadao_timer_ack(DADAO_SRC_EVENT_BIT0);
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
 +			deadline);
-+	/*
-+	 * ENABLE with IMASK open.  The order is the K2 one: the compare write
-+	 * already cancelled the old deadline, opening ENABLE last makes the new
-+	 * one deliverable.
-+	 */
++	dadao_timer_mask_bit0(0);
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
 +			DADAO_TIMER_ENABLE);
 +	return 0;
 +}
 +
-+/* Cancel the deadline: ENABLE off (ISTATUS is gated by it, §4.7), then the
-+ * "never" compare value, which also clears whatever pending bit is left. */
++/* Cancel the deadline: ENABLE off (no new event, §4.7), then the "never"
++ * compare value and an ack of whatever pending bit the last expiry left. */
 +static int dadao_clockevent_shutdown(struct clock_event_device *dev)
 +{
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL, 0);
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
 +			~0UL);
++	dadao_timer_ack(DADAO_SRC_EVENT_BIT0);
 +	return 0;
 +}
 +
@@ -204,17 +215,19 @@ index 000000000..992e63742
 + * sure the source is enabled with its interrupt mask open. */
 +static int dadao_clockevent_set_oneshot(struct clock_event_device *dev)
 +{
++	dadao_timer_mask_bit0(0);
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
 +			DADAO_TIMER_ENABLE);
 +	return 0;
 +}
 +
-+/* Parked: keep ENABLE but close IMASK, so an expiry stays pending in hardware
-+ * (contract-see §3) instead of being delivered while the tick is stopped. */
++/* Parked: keep ENABLE but mask the timer source (cg16 rc16 bit0), so an
++ * expiry stays pending in hardware until the handler acks it. */
 +static int dadao_clockevent_set_oneshot_stopped(struct clock_event_device *dev)
 +{
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
-+			DADAO_TIMER_ENABLE | DADAO_TIMER_IMASK);
++			DADAO_TIMER_ENABLE);
++	dadao_timer_mask_bit0(1);
 +	return 0;
 +}
 +
@@ -226,8 +239,10 @@ index 000000000..992e63742
 + */
 +static int dadao_clockevent_set_periodic(struct clock_event_device *dev)
 +{
++	dadao_timer_ack(DADAO_SRC_EVENT_BIT0);
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
 +			dadao_read_time() + dadao_period);
++	dadao_timer_mask_bit0(0);
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
 +			DADAO_TIMER_ENABLE);
 +	return 0;
@@ -323,7 +338,8 @@ index 000000000..992e63742
 +	 */
 +	dadao_flog_last[0] = 0xa5a5000000000000UL | (cause & 0xffff);
 +	dadao_flog_last[1] = info;
-+	dadao_flog_last[2] = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_FRAME, 3);
++	dadao_flog_last[2] = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_ASYNC,
++				       CFX_HART_RC_ASYNC_CAUSE_IP);
 +	dadao_flog_last[3] = mode;
 +	dadao_early_exit(code);
 +}
@@ -349,7 +365,7 @@ index 000000000..992e63742
 +}
 +
 +/* -------------------------------------------------------------------------
-+ * Program / confirm (cfx_hart cg8, cfxha 15)
++ * Program / confirm (cfx_hart cg16, cfxha 15)
 + * ------------------------------------------------------------------------- */
 +
 +void dadao_timer_arm(unsigned long delta_counts)
@@ -357,34 +373,36 @@ index 000000000..992e63742
 +	unsigned long deadline = dadao_read_time() + delta_counts;
 +
 +	/*
-+	 * Order matters: writing `cmp` cancels the old deadline and clears
-+	 * ISTATUS and the TIMER pending bit (contract-see §3), then opening
-+	 * ENABLE with IMASK = 0 makes the new deadline deliverable.  A pending
-+	 * event from a previous deadline is gone at that point, so this is a
-+	 * clean re-arm and not an accidental second tick.
++	 * Clear any pending bit from a previous deadline first (ADR-0064: only
++	 * an ack clears it), then program the new absolute deadline and enable
++	 * the counter.  Writing `cmp` only re-arms; it does not clear pending.
 +	 */
++	dadao_timer_ack(DADAO_SRC_EVENT_BIT0);
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
 +			deadline);
++	dadao_timer_mask_bit0(0);
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
 +			DADAO_TIMER_ENABLE);
 +}
 +
 +void dadao_timer_stop(void)
 +{
-+	/*
-+	 * Clear ENABLE first (ISTATUS is gated by ENABLE, §4.7) and then write
-+	 * the "off" compare value: all-ones cancels the old deadline and clears
-+	 * whatever pending bit the last expiry left.
-+	 */
++	/* Stop issuing events and drop the stale pending bit the last expiry
++	 * left; ENABLE=0 also makes the source fail the entry predicate. */
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL, 0);
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
 +			~0UL);
++	dadao_timer_ack(DADAO_SRC_EVENT_BIT0);
 +}
 +
-+unsigned long dadao_timer_status(void)
++unsigned long dadao_timer_pending(void)
 +{
-+	/* `ctrl[1:0] | ISTATUS << 2`, other bits read as 0 (§4.7). */
-+	return DADAO_CFX_READ(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL);
++	return DADAO_CFX_READ(cfx_hart, DADAO_SRC_CG, DADAO_SRC_RC_PENDING);
++}
++
++void dadao_timer_ack(unsigned long bits)
++{
++	DADAO_CFX_WRITE(cfx_hart, DADAO_SRC_CG, DADAO_SRC_RC_ACK, bits);
 +}
 +
 +/* -------------------------------------------------------------------------
@@ -412,10 +430,11 @@ index 000000000..992e63742
 +	 * "Read the counter -> update it -> write the compare/ctrl pair" is one
 +	 * unit (task m14-linux-008 §2): with the source masked, no tick can
 +	 * observe the bookkeeping half-done and no re-arm can race the previous
-+	 * one.  Inside an asynchronous frame the hardware's all-1
-+	 * `global_cfx_intr_mask` already blocks nesting (contract-see §6.3); the
-+	 * mask is what keeps the invariant when the same code runs outside a
-+	 * frame, and it is cheap enough to state unconditionally.
++	 * one.  Inside an asynchronous frame the stub has already closed the
++	 * running mode monitor's row (kernel/async_trap.S), so nesting is
++	 * blocked by the same gate; the save/restore here is what keeps the
++	 * invariant when the same code runs outside a frame, and it is cheap
++	 * enough to state unconditionally.
 +	 */
 +	local_irq_save(flags);
 +
@@ -475,10 +494,10 @@ index 000000000..992e63742
 +
 +#if CONFIG_DADAO_K2_IRQ_TEST
 +	/*
-+	 * Probe image only (kernel/k2_irq_test.c): the body has just restored the
-+	 * knob to "allow" while the frame is still live, so this is the place to
++	 * Probe image only (kernel/k2_irq_test.c): the handler restored the row
++	 * it inherited (the one the async stub closed), so this is the place to
 +	 * show that a source made pending here is *not* delivered until `escape`
-+	 * releases the frame's global mask.
++	 * restores the interrupted word.
 +	 */
 +	dadao_k2_irq_inframe();
 +#endif
@@ -490,12 +509,11 @@ index 000000000..992e63742
 +	 * The generic tick runs in hardirq context: `update_process_times()`
 +	 * calls `irq_work_tick()`, whose `irq_work_run_list()` asserts
 +	 * `irqs_disabled()`.  Other architectures get that from the exception
-+	 * entry; here the IE state is the source-mask row and the frame's all-1
-+	 * `global_cfx_intr_mask` is hardware bookkeeping software cannot
-+	 * express, so the handler closes the knob for its body and restores the
-+	 * interrupted state afterwards (what `irqentry_enter()`/`irq_exit()`
-+	 * do elsewhere).  Nested delivery stays impossible either way: the live
-+	 * frame's global mask blocks it (contract-see §6.3).
++	 * entry; here the IE state is the monitor row, so the handler closes the
++	 * knob for its body and restores the state it inherited afterwards (what
++	 * `irqentry_enter()`/`irq_exit()` do elsewhere).  That inherited state
++	 * is the row the async stub closed (kernel/async_trap.S), so nested
++	 * delivery stays impossible while the frame is live (contract-see §6.3).
 +	 */
 +	flags = arch_local_save_flags();
 +	arch_local_irq_disable();
@@ -526,7 +544,7 @@ index 000000000..992e63742
 +/*
 + * The C half of the asynchronous entry (kernel/async_trap.S, ADR-0061 R2).
 + *
-+ * The stub closed `cfx_smon cg8 rc1` before reading `cg9`; the capture fields
++ * The stub closed `cfx_smon cg15 rc3` before reading `cg15`; the capture fields
 + * are in the globals below, the register file is in @regs (the task frame for a
 + * user delivery, the static async frame for a kernel one).  One capture may
 + * carry several sources; the bit index is the source cfxha (TIMER 15,
@@ -547,20 +565,23 @@ index 000000000..992e63742
 +
 +static void dadao_dma_interrupt(void)
 +{
-+	unsigned long status = DADAO_CFX_READ(cfx_pmem, CFX_PMEM_CG_DMA,
-+					      CFX_PMEM_RC_DMA_STATUS);
-+
 +	/*
-+	 * DONE/ERROR are sticky and cleared by writing them back (W1C); the
-+	 * source then drops its pending bit by itself (DADAO-12 §4.9/§5.4).
-+	 * The event is acked even if no client is registered: the kernel has no
-+	 * DMA consumer yet and a permanently pending source would spin.
++	 * ADR-0064: `cg16 rc18` is the only interrupt ack; it clears the
++	 * source pending bit, not `dma_status` (which the kernel has no
++	 * consumer for yet).  DONE/ERROR stay for a later owner to W1C.
 +	 */
-+	if (status & ((1UL << 1) | (1UL << 2)))
-+		DADAO_CFX_WRITE(cfx_pmem, CFX_PMEM_CG_DMA,
-+				CFX_PMEM_RC_DMA_STATUS,
-+				status & ((1UL << 1) | (1UL << 2)));
++	DADAO_CFX_WRITE(cfx_pmem, DADAO_SRC_CG, DADAO_SRC_RC_ACK,
++			DADAO_SRC_EVENT_BIT0);
 +}
++
++/*
++ * The source pending bits seen when this frame's C half started, before the
++ * per-source ack.  ADR-0064 D3 makes them an invariant of the entry: the
++ * hardware sets pending when the event happens and the async entry does not
++ * clear it, so a source named in `cg15 rc4` must still read as pending here.
++ * The K2 IRQ probe reads this to prove the entry did not clear it.
++ */
++unsigned long dadao_async_seen_pending;
 +
 +/* Ack every source carried by the capture; called with IRQs disabled. */
 +void dadao_async_ack_sources(struct pt_regs *regs)
@@ -573,11 +594,10 @@ index 000000000..992e63742
 +		dadao_async_die(frame ? unknown : 0, dadao_async_cause_ip);
 +
 +	if (frame & DADAO_ASYNC_SRC_TIMER) {
-+		/* ISTATUS distinguishes the event at its source (§5.4(六)); the
-+		 * tick handler re-arms `timer_cmp`, which clears it. */
-+		if (!(dadao_timer_status() & DADAO_TIMER_ISTATUS))
-+			dadao_async_die(DADAO_ASYNC_SRC_TIMER,
-+					dadao_timer_status());
++		dadao_async_seen_pending = dadao_timer_pending();
++		/* ADR-0064: ack the source explicitly before the handler runs;
++		 * the handler only re-arms the next deadline. */
++		dadao_timer_ack(DADAO_SRC_EVENT_BIT0);
 +		dadao_timer_interrupt();
 +	}
 +	if (frame & DADAO_ASYNC_SRC_PMEM)
@@ -595,11 +615,10 @@ index 000000000..992e63742
 +	struct pt_regs *old_regs;
 +
 +	/*
-+	 * The stub masked the sources before reading cg9.  They stay masked
++	 * The stub masked the sources before reading cg15.  They stay masked
 +	 * through the ack and through the register restore; the asm tail
-+	 * re-opens the saved word immediately before it jumps back (a source
-+	 * that arrives in that window is a new capture, handled by the nested
-+	 * path).
++	 * `escape`s with the saved word, so a source that arrives in that
++	 * window cannot nest in this frame.
 +	 */
 +	arch_local_irq_disable();
 +	dadao_in_frame = 1;
@@ -731,37 +750,35 @@ index 000000000..992e63742
 +}
 +
 +/*
-+ * Case 1: IMASK = 1 must only park the event in the target cfx's pending bit
-+ * (`cfx_hart cg5 rc5` bit 10) — no delivery — and releasing IMASK must deliver
-+ * that same event exactly once (contract-see §3, §6.5 gap 2).
++ * Case 1: the source gate (`cfx_hart cg16 rc16` bit0) parked with the monitor
++ * row open.  The deadline expires (pending bit0 set) but no entry happens;
++ * opening the source gate must enter that same event exactly once, and the
++ * handler acks it before re-arming (ADR-0064).
 + */
 +static void __init __maybe_unused dadao_time_case_imask(void)
 +{
 +	unsigned long window = 2 * dadao_period;
 +	unsigned long ticks_before = dadao_ticks;
-+	unsigned long status;
++	unsigned long pending;
 +
-+	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
-+			dadao_read_time() + dadao_period);
-+	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
-+			DADAO_TIMER_ENABLE | DADAO_TIMER_IMASK);
++	dadao_timer_arm(dadao_period);
++	dadao_timer_mask_bit0(1);		/* source gate closed */
 +
 +	dadao_wait_counts(window);
-+	status = dadao_timer_status();
-+	dadao_early_printf("K2 imask: ctrl=%#lx ticks=%lu\n", status,
++	pending = dadao_timer_pending();
++	dadao_early_printf("K2 imask: pending=%#lx ticks=%lu\n", pending,
 +			   (unsigned long)(dadao_ticks - ticks_before));
 +
 +	/*
-+	 * Release: ENABLE stays, IMASK clears => the parked event is delivered.
-+	 * The window is half a period, so "exactly one" is a real assertion: the
-+	 * event that was parked arrives at once, and the deadline the handler
-+	 * re-arms from it is still half a period in the future.
++	 * Release: open the source gate; the parked pending event enters at the
++	 * next boundary.  The half-period window makes "exactly one" a real
++	 * assertion: the handler re-arms from the current time, so a second
++	 * deadline is still half a period away.
 +	 */
-+	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
-+			DADAO_TIMER_ENABLE);
++	dadao_timer_mask_bit0(0);
 +	dadao_wait_counts(dadao_period / 2);
-+	dadao_early_printf("K2 imask: released ctrl=%#lx ticks=%lu\n",
-+			   dadao_timer_status(),
++	dadao_early_printf("K2 imask: released pending=%#lx ticks=%lu\n",
++			   dadao_timer_pending(),
 +			   (unsigned long)(dadao_ticks - ticks_before));
 +
 +	dadao_timer_stop();
@@ -791,16 +808,12 @@ index 000000000..992e63742
 +	dadao_ticks = 0;
 +	dadao_sample_n = 0;
 +
-+	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
-+			dadao_read_time() + dadao_period);
-+	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
-+			DADAO_TIMER_ENABLE);
-+	dadao_early_printf("K2 time: arm period=%lu cmp=%#lx ctrl=%#lx\n",
++	dadao_timer_arm(dadao_period);
++	dadao_early_printf("K2 time: arm period=%lu cmp=%#lx pending=%#lx\n",
 +			   dadao_period,
 +			   DADAO_CFX_READ(cfx_hart, CFX_HART_CG_TIMER,
 +					  CFX_HART_RC_TIMER_CMP),
-+			   dadao_timer_status());
-+
++			   dadao_timer_pending());
 +	dadao_sample_on = 1;
 +	dadao_sample_n = 0;
 +	no_tick = dadao_wait_ticks(DADAO_K2_TIME_TICKS, window);
@@ -845,31 +858,31 @@ index 000000000..992e63742
 +}
 +
 +/*
-+ * Cases 2/3: with exactly one of the two mask axes closed, no tick may be
-+ * delivered — the axes are independent and both are required (contract-see
-+ * §3/§6.4).  init_IRQ() left the named axis closed.
++ * Cases 2/3: the source gate and the running-mode monitor gate are independent
++ * and both required.  One image closes exactly one of them; the other stays
++ * open, so no tick may be entered (ADR-0064 D4).
 + */
 +static void __init __noreturn __maybe_unused dadao_time_case_axis(const char *axis)
 +{
 +	unsigned long window = (DADAO_K2_TIME_TICKS + 2) * dadao_period;
 +
-+	/* Close the running-mode row at run time (init_IRQ opens both), so the
-+	 * image that exercises "masked" does not depend on a rebuild ordering. */
++	/*
++	 * Arm first, then close the axis under test.  `dadao_timer_arm()` opens
++	 * the timer source gate; the monitor rows are left as init_IRQ set them.
++	 */
++	dadao_timer_arm(dadao_period);
 +	if (strcmp(axis, "source") == 0)
++		dadao_timer_mask_bit0(1);
++	else
 +		DADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,
 +				DADAO_IRQ_RC_SUPV_CFX_INTR_MASK,
 +				dadao_irq_mask_row_smon() | DADAO_IRQ_SOURCE_BITS);
-+	else
-+		DADAO_CFX_WRITE(cfx_umon, DADAO_IRQ_CG_USER,
-+				DADAO_IRQ_RC_USER_CFX_INTR_MASK,
-+				dadao_irq_mask_row_umon() | DADAO_IRQ_SOURCE_BITS);
-+	dadao_early_printf("K2 axisclose: axis=%s smon=%#lx umon=%#lx\n", axis,
-+			   dadao_irq_mask_row_smon(), dadao_irq_mask_row_umon());
++	dadao_early_printf("K2 axisclose: axis=%s smon=%#lx umon=%#lx "
++			   "srcmask=%#lx\n", axis,
++			   dadao_irq_mask_row_smon(), dadao_irq_mask_row_umon(),
++			   DADAO_CFX_READ(cfx_hart, DADAO_SRC_CG,
++					  DADAO_SRC_RC_MASK));
 +
-+	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
-+			dadao_read_time() + dadao_period);
-+	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
-+			DADAO_TIMER_ENABLE);
 +	dadao_wait_counts(window);
 +	dadao_timer_stop();
 +	dadao_early_printf("K2 axistest: axis=%s ticks=%u window=%lu\n", axis,
@@ -899,8 +912,8 @@ index 000000000..992e63742
 +#elif CONFIG_DADAO_K2_TIME_CASE == 2
 +	dadao_time_case_axis("source");
 +#elif CONFIG_DADAO_K2_TIME_CASE == 3
-+	/* Only the (irrelevant) umon row is closed: the supv row still gates a
-+	 * kernel delivery, so the series must run normally. */
++	/* Only the (irrelevant) umon monitor row is closed: the supv monitor
++	 * row and the source gate still allow a kernel entry. */
 +	DADAO_CFX_WRITE(cfx_umon, DADAO_IRQ_CG_USER,
 +			DADAO_IRQ_RC_USER_CFX_INTR_MASK,
 +			dadao_irq_mask_row_umon() | DADAO_IRQ_SOURCE_BITS);

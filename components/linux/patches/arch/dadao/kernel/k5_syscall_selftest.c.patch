@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k5_syscall_selftest.c b/arch/dadao/kernel/k5_syscall_selftest.c
 new file mode 100644
-index 000000000..2e4eb824d
+index 000000000..412d07967
 --- /dev/null
 +++ b/arch/dadao/kernel/k5_syscall_selftest.c
-@@ -0,0 +1,809 @@
+@@ -0,0 +1,812 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K5 user-syscall probe (CONFIG_DADAO_K5_SYSCALL_SELFTEST, m14-linux-023).
@@ -94,6 +94,7 @@ index 000000000..2e4eb824d
 +#include <linux/wait.h>
 +#include <uapi/linux/wait.h>
 +
++#include <asm/cfx.h>
 +#include <asm/mmu_context.h>
 +#include <asm/page.h>
 +#include <asm/pgalloc.h>
@@ -414,8 +415,10 @@ index 000000000..2e4eb824d
 +		k5_seen_rb3[i] = regs->rb[3];
 +		k5_seen_rd1[i] = regs->rd[1];
 +		k5_seen_nr[i] = regs->rd[15];
-+		k5_seen_mode[i] = DADAO_CFX_READ(cfx_umon, 5, 0) & 0x3;
-+		k5_seen_cause[i] = DADAO_CFX_READ(cfx_umon, 5, 2);
++		k5_seen_mode[i] = DADAO_CFX_READ(cfx_umon, 5,
++						    CFX_RC_FRAME_PREV_RUN_MODE) & 0x3;
++		k5_seen_cause[i] = DADAO_CFX_READ(cfx_umon, 5,
++						     CFX_RC_FRAME_CAUSE_ID);
 +		dadao_early_printf("K5 trap %u: ip=%#lx immu18=%#lx nr=%#lx "
 +				   "cause=%#lx mode=%lu rb3=%#lx rd1=%#lx\n",
 +				   i, regs->ip, immu18, regs->rd[15],

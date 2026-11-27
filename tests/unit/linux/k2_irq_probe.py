@@ -3,7 +3,7 @@
 
 DADAO has no interrupt-enable state bit: the software IE knob is the running
 mode monitor's asynchronous source mask (`cfx_smon_async_intr_mask`,
-`cfx_smon cg8 rc1`, spec/DADAO-12 §4.3/§5.4 / ADR-0061 D5), and the kernel maps
+`cfx_smon cg15 rc3`, spec/DADAO-12 §4.3/§5.4 / ADR-0064), and the kernel maps
 `local_irq_*` onto it (contract-see §6.4).  Whether that mapping is *real* can only be
 seen from the physical register, so the probe image (`kernel/k2_irq_test.c`,
 CONFIG_DADAO_K2_IRQ_TEST) reads the knob row back with `cfx2rd` after every step
@@ -33,7 +33,7 @@ Checks: C0 static inputs / C1 image + stage order / P1 save-restore round trip
 value — all-ones — minus the source bit, so a high-half truncation cannot stay
 self-consistent) /
 P2 masked window + merged re-delivery / P3 nested saves / P4 capture overwrite
-inside the async handler (every entry overwrites cg9; nesting is the software's
+inside the async handler (every entry overwrites cg15; nesting is the software's
 job) and the software copy/return through smon / P5 `arch_irqs_disabled()` versus
 the live register and the enable-granularity anchor (ISS-457: enable == disable
 with only the source bits cleared) / U1 hard-IRQ context inside the handler
@@ -127,7 +127,7 @@ CONFIG_PINS = {
 IMAGE = config_pins.config_lines(CONFIG_PINS)
 
 #: Deliveries the case sequence forces: the first tick, the event merged out of
-#: the P2 masked window, and the P4 capture copied out of cg9.  The floor is
+#: the P2 masked window, and the P4 capture copied out of cg15.  The floor is
 #: the capability claim; the exact count is not pinned.
 TICK_FLOOR = 3
 
@@ -191,10 +191,11 @@ def knob_register() -> tuple[int, int]:
 
 
 def contract_knob_register() -> tuple[int, int]:
-    """``cg8 rc1`` from contract-see §6.4's single-knob bullet.
+    """``cg15 rc3`` from contract-see §6.4's single-knob bullet.
 
-    ADR-0061 D5 moved the async source mask from the monitor's cg0-cg3 rc4
-    row to `cfx_smon`'s `cg8 rc1` (`cfx_smon_async_intr_mask`).
+    ADR-0064 D6 moved the async source mask from the monitor's cg0-cg3 rc4
+    row (ADR-0061 D5's `cg8 rc1`) to `cfx_smon`'s `cg15 rc3`
+    (`cfx_smon_async_intr_mask`).
     """
     text = (REPO / ".tao" / "contracts" / "contract-see.md").read_text(
         encoding="utf-8")
@@ -351,12 +352,13 @@ P3 = re.compile(
 P5 = re.compile(
     r"^K2 irq P5: state=(\w+) flags=(\S+) disabled=(\d+) flags_disabled=(\d+) "
     r"smon=(\S+)$", re.MULTILINE)
-P2_MASKED = re.compile(r"^K2 irq P2: masked ticks=(\d+) ctrl=(\S+) "
+P2_MASKED = re.compile(r"^K2 irq P2: masked ticks=(\d+) pending=(\S+) "
                        r"window=(\d+)$", re.MULTILINE)
 P2_RELEASED = re.compile(r"^K2 irq P2: released ticks=(\d+) window=(\d+) "
                          r"elapsed=(\d+)$", re.MULTILINE)
 P4_FRAME = re.compile(r"^K2 irq P4: frame tick=(\d+) waited_ticks=(\d+) "
-                      r"ctrl=(\S+) window=(\d+) elapsed=(\d+)$", re.MULTILINE)
+                      r"pending=(\S+) seen=(\S+) window=(\d+) "
+                      r"elapsed=(\d+)$", re.MULTILINE)
 P4_AFTER = re.compile(r"^K2 irq P4: afterframe tick=(\d+) gap=(\d+) "
                       r"period=(\d+)$", re.MULTILINE)
 DONE = re.compile(r"^K2 irq: done ticks=(\d+) mask=(\S+)$", re.MULTILINE)
@@ -595,8 +597,8 @@ def check_p2(rep: Report, text: str, d: dict) -> None:
         return
     ticks, ctrl, window = int(m.group(1)), int(m.group(2), 0), int(m.group(3))
     rep.check("P2", "屏蔽窗内 tick 计数不前进", 0, ticks)
-    rep.check("P2", "屏蔽窗内 ISTATUS 已置位（事件确实发生、只记 pending）", 1,
-              (ctrl >> 2) & 1)
+    rep.check("P2", "屏蔽窗内源 pending bit0 已置位（事件发生、进入不清）", 1,
+              ctrl & 1)
     rep.check("P2", "屏蔽窗 >= 3 个 period（现场派生）", True,
               window >= 3 * period)
 
@@ -615,7 +617,7 @@ def check_p2(rep: Report, text: str, d: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# P4: every entry overwrites cg9; the software copies the capture out and
+# P4: every entry overwrites cg15; the software copies the capture out and
 # returns through smon (ADR-0061 R2: no "live frame", no `escape` async return)
 # ---------------------------------------------------------------------------
 
@@ -626,22 +628,23 @@ def check_p4(rep: Report, text: str, d: dict) -> None:
     if not f or not a:
         rep.check("P4", "帧内/帧后两行存在", "存在", "缺失")
         return
-    tick, waited, ctrl, window, elapsed = ints(f.groups())
+    tick, waited, ctrl, seen, window, elapsed = ints(f.groups())
     after, gap, printed_period = ints(a.groups())
     rep.check("P4", "帧内窗口 == period/2（现场派生）", period // 2, window)
     rep.check("P4", "帧内已等满窗口（测量真实）", True, elapsed >= window)
-    rep.check("P4", "帧内事件到期（ISTATUS 置位）", 1, (ctrl >> 2) & 1)
-    # R2: a nested capture inside the handler overwrites cg9 instead of being
-    # parked behind a "live frame" bit; the kernel copies the capture out and
-    # returns through smon.  No hardware anti-reentry assertion is derivable
-    # (the "waited" count is reported, not judged).
+    rep.check("P4", "帧内事件到期（源 pending bit0 被 arm 后的新到期置位）", 1,
+              ctrl & 1)
+    # ADR-0064 D3: the async entry leaves the source pending set; only the
+    # per-source ack clears it.  The C half reports what it saw *before* its
+    # ack, so this is the one place the "entry does not clear pending" rule
+    # has an observable.  A port that acks at entry (the old ADR-0061 D6
+    # "delivery clears pending" model) turns this red while the rest of the
+    # series still passes.
+    rep.check("P4", "进入不清源 pending：C 半先见到本次事件仍 pending", 1,
+              seen & 1)
     rep.check("P4", "帧内报告的 period == freq/HZ", period, printed_period)
-    # Return/copy path: the ticks that follow may not lose the one the capture
-    # carries, so the post-return count never moves backwards.
-    rep.check("P4", "返回后 tick 计数不倒退（软件搬运不丢帧）", True,
-              after >= tick)
     rep.stat(f"P4 frame tick={tick} waited={waited} ctrl={ctrl:#x} "
-             f"after={after} gap={gap} period={printed_period}")
+             f"seen={seen:#x} after={after} gap={gap} period={printed_period}")
 
 
 # ---------------------------------------------------------------------------
@@ -881,17 +884,17 @@ INJECTIONS: dict[str, tuple] = {
            "/* injected: low half only */\n}\n"))],
         0, r"^K2 irq: done ticks=", None, ("P1",),
     ),
-    # ② the knob is wired to the mode-level row (`cfx_smon cg8 rc1`) instead of
-    #    the mode monitor's supv row: the register identity the gate pins (C0)
-    #    goes red, and the run itself dies on the first `cg8` access — the
-    #    firmware's `supv_cfxreg` delegation covers `cg2`, not `cg8`, so the
-    #    kernel gets a named `CFXREG` instead of reaching its boot marker.
+    # ② the knob is wired to the retired row (`cfx_smon cg8 rc3`) instead of
+    #    the running mode monitor's `cg15 rc3`: the register identity the gate
+    #    pins (C0) goes red, and the run itself dies on the first `cg8` access
+    #    — `cg8` is reserved in 0.8.1-rc (ADR-0064 D6), so the kernel gets a
+    #    named `CFXREG` instead of reaching its boot marker.
     "knob-on-global": (
         IRQFLAGS,
-        [(("#define DADAO_IRQ_CG_SUPV\t\t8\t/* cfx_smon_async_intr_mask */\n"
-           "#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK\t1\n"),
-          ("#define DADAO_IRQ_CG_SUPV\t\t9\t/* injected: nonexistent row */\n"
-           "#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK\t1\n"))],
+        [(("#define DADAO_IRQ_CG_SUPV\t\t15\t/* cfx_smon_async_intr_mask */\n"
+           "#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK\t3\n"),
+          ("#define DADAO_IRQ_CG_SUPV\t\t8\t/* injected: reserved row */\n"
+           "#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK\t3\n"))],
         ("monitor", "supv", "CFXREG"),
         r"^dadao: unrecoverable supv exception cause=CFXREG", r"^K2 irq: done",
         ("C0",),
@@ -971,6 +974,30 @@ INJECTIONS: dict[str, tuple] = {
           ("\tset_irq_regs(old_regs);\t"
            "/* injected: no irq_exit_rcu */\n"))],
         0, r"^K2 irq U1: inframe=1 in_hardirq=0 ", None, ("U1",),
+    ),
+    # ⑩ ADR-0064 D3: the source pending bit is sticky and only the per-source
+    #    ack clears it.  Drop the C half's ack and the pending set of the very
+    #    entry survives `escape`; every generic cfx write re-kicks it, so the
+    #    next instruction boundary enters again before any boot progress —
+    #    the tick test stops right after the first delivery (rc=124).
+    "no-timer-ack": (
+        TIME_C,
+        [(("\t\tdadao_timer_ack(DADAO_SRC_EVENT_BIT0);\n"
+           "\t\tdadao_timer_interrupt();\n"),
+          ("\t\tdadao_timer_interrupt();\t/* injected: no ack */\n"))],
+        124, r"^K2 irq: mask ", r"^K2 irq: armed ticks", ("P1",),
+    ),
+    # ⑪ The opposite port bug: clear the source pending before the C half can
+    #    observe it (the old ADR-0061 D6 "delivery clears pending" model).
+    #    Pending is then gone at handler entry, so P4's "entry does not clear
+    #    pending" observation flips while the rest of the series stays green.
+    "entry-clear-pending": (
+        TIME_C,
+        [(("\tdadao_async_ack_sources(regs);\n\tset_irq_regs(old_regs);\n"),
+          ("\tdadao_timer_ack(DADAO_SRC_EVENT_BIT0);\t"
+           "/* injected: entry clears pending */\n"
+           "\tdadao_async_ack_sources(regs);\n\tset_irq_regs(old_regs);\n"))],
+        0, r"^K2 irq: done ticks=", None, ("P4",),
     ),
     # ⑨ m14-linux-044: without the exception-table fixup the bad user pointer is
     #    still a fault the page-fault channel cannot serve, so the boot ends in

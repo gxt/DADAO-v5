@@ -1,27 +1,41 @@
 diff --git a/arch/dadao/kernel/async_trap.S b/arch/dadao/kernel/async_trap.S
 new file mode 100644
-index 000000000..71775c358
+index 000000000..5d3e76df8
 --- /dev/null
 +++ b/arch/dadao/kernel/async_trap.S
-@@ -0,0 +1,292 @@
+@@ -0,0 +1,253 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
-+ * DADAO cfx_hart supv asynchronous-interrupt vector (ADR-0061 R2).
++ * DADAO cfx_hart supv asynchronous-interrupt vector (ADR-0061 R3).
 + *
 + * The hardware delivers every asynchronous source to `cfx_hart` (cfxha 15) and
-+ * overwrites the seven-slot capture buffer `cg9`: `rc0` prev run mode, `rc1`
-+ * prev cfx, `rc2` cause ip (already the next instruction), `rc3` src_frame
-+ * (bit = source cfxha) and `rc4` src_pending.  The vector itself is `cg9 rc5`
-+ * and the entry mode `cg9 rc6` (fixed supv); `init_IRQ()` installs both before
++ * overwrites the capture buffer `cg15`: `rc0` prev run mode, `rc1` prev cfx,
++ * `rc2` prev ip (the address of the next instruction; the interrupted one is
++ * already committed), `rc3` prev intr mask, `rc4` the captured source set
++ * (bit = source cfxha) and `rc5` the pending set.  The vector itself is
++ * `cg15 rc15` and the entry mode `cg15 rc14`; `init_IRQ()` installs both before
 + * any source mask is opened.
 + *
-+ * The capture window: `cg9` is overwritten by the *next* asynchronous entry, so
-+ * the first thing this stub does is close the running mode monitor's async
-+ * mask (`cfx_smon cg8 rc1`, because the entry switched the run mode to supv)
-+ * after staging `rd2`/`rd3`/`rb3` in `cfx_hart`'s cg6 scratch.  Only then does
-+ * it read `cg9`, install the source mask back into frame memory and capture the
-+ * rest of the register file.  The old mask word is restored by the C half, so
-+ * nested entries are ordinary new captures (ADR-0061 R2 D3/D4).
++ * A second, independent copy of the return intent is written by the hardware
++ * into the hart's own `cg5 rc8`-`rc11` (escape run mode / cfx code / ip /
++ * intr mask).  Those are the only fields `escape cfx_hart` consumes, and they
++ * are software-writable, so they are the async frame's exit intent.
++ *
++ * The capture window: `cg15` and the hart `cg5` exit intent are overwritten by
++ * the *next* asynchronous entry, so the first thing this stub does is close the
++ * running mode monitor's async mask (`cfx_smon cg15 rc3`, because the entry
++ * switched the run mode to supv).  It cannot stage `rd2`/`rd3`/`rb3` in
++ * `cfx_hart`'s cg6 scratch first: any `cfx2rc` write re-kicks a deliverable
++ * source (ADR-0064 D4), and the pending set of the capture being entered is
++ * still there, so that write would immediately re-enter and overwrite the
++ * capture.  `rd2`/`rd3` are parked in a PC-relative `.text` slot for the mask
++ * write (the interrupted SP may be a user stack this supv-mode stub must not
++ * touch) and then staged in cg6 once the mask is closed; only then does the
++ * stub read `cg15` and the exit intent, and capture the register file.  The closed mask is
++ * never re-opened by software: the final `escape cfx_hart` restores the saved
++ * word from `rc11` atomically with the mode/cfx switch and the jump.  That is
++ * why the `restore -> escape` window of the old R2/jmon design no longer
++ * exists.
 + *
 + * User context: switch to the task's kernel stack and copy the captured frame
 + * into `task_pt_regs(current)` (the umon entry's own slot), then hand the
@@ -29,35 +43,15 @@ index 000000000..71775c358
 + * half acks the source(s), runs the return-to-user work loop and enters user
 + * mode through `dadao_enter_user()`; it never returns here.
 + *
-+ * Kernel context: handle the capture on the current kernel stack, then resume
-+ * the interrupted instruction through `cfx_jmon`.
++ * Kernel context: handle the capture on the current kernel stack, then write
++ * the saved exit intent back into the hart's `cg5 rc8`-`rc11`, restore the
++ * whole register file and `escape cfx_hart`.  `escape` uses no register at all
++ * and returns exactly to `rc10` (the committed instruction's successor), so
++ * there is no replay, no "+4", and no register left behind in the resumed
++ * context (the m18-linux-024 `va=0x208` failure mode).
 + *
-+ * Why a second monitor: the asynchronous entry left the hardware's current cfx
-+ * at `cfx_hart` (DADAO-12 §5.4) and there is no asynchronous `escape`, so the
-+ * return has to be a synchronous `escape` — which restores `prev_run_mode` and
-+ * `prev_cfx_code` from a `cg5` frame the software owns.  `cfx_smon`'s frame
-+ * cannot be that frame: a delivery normally lands inside an active supv
-+ * exception whose own `escape` still needs it.  `cfx_jmon` is not used by this
-+ * kernel (jail mode is not implemented), so its supv row is programmed by
-+ * `init_IRQ()` as a private resume frame: `trap cfx_jmon, 0` enters
-+ * `dadao_async_kernel_resume` with a valid `cg5` (cause id = CFXTRAP), the
-+ * trampoline writes the interrupted triple into `cg5 rc0/rc1/rc3`, restores the
-+ * register file, re-opens the source mask and `escape`s — a jump that occupies
-+ * **no register at all** (`async_cause_ip` is the *next* instruction, so no
-+ * replay and no +4).
-+ *
-+ * The delivery window is why the mask is re-opened only *after* the register
-+ * restore, and why the tail's last two loads read a copy outside the capture
-+ * frame: a delivery in that window is a nested capture, and the tail has to be
-+ * idempotent under it (the entry keeps the copy when the interrupted cfx is
-+ * `cfx_jmon`, so the nested pass resolves the *outer* resume).  The earlier
-+ * software return ended with `set.rb rb3, 0; jump [rb3, rd3, 0]`, which left
-+ * `rb3` = 0 in the resumed context; the umon/smon stubs use `rb3` as their
-+ * frame pointer, so a delivery inside their `reopen -> escape` window made the
-+ * interrupted `ldm.o` load from address 0 (`va=0x208` -> die; m18-linux-024).
-+ *
-+ * `escape` is deliberately never used with `cg9`: it is a capture buffer, not
-+ * a return frame (ADR-0061 R2 D9 / DADAO-12 §5.1).
++ * `cg15` is an entrance record, not a return frame (ADR-0061 R3 / DADAO-12
++ * §4.7): `escape` is deliberately never used with it.
 + *
 + * All GPR capture/restore is asm/entry.h's, the same sequence the synchronous
 + * stubs use (four banks rd/rb/ra/rf; spec/SimRISC-00 §2.3/§2.4).
@@ -67,62 +61,83 @@ index 000000000..71775c358
 +#include <asm/entry.h>
 +#include <asm/trap.h>
 +
-+/*
-+ * The kernel-context resume region: the environment the register-free `escape`
-+ * must restore.  It sits immediately *before* the capture frame, inside the
-+ * signed 12-bit `ld.o`/`st.o` offset range, so the trampoline reaches it
-+ * through the frame base (`rb3`) alone.  The entry writes it only when the
-+ * interrupted context is *not* the trampoline — a nested capture inside the
-+ * trampoline must resolve the outer resume.
-+ */
-+#define DADAO_ASYNC_RESUME_SIZE		48
-+#define DADAO_ASYNC_RESUME_OFF		(-DADAO_ASYNC_RESUME_SIZE)
-+#define DADAO_ASYNC_RESUME_MODE		(DADAO_ASYNC_RESUME_OFF + 0 * 8)
-+#define DADAO_ASYNC_RESUME_CFX		(DADAO_ASYNC_RESUME_OFF + 1 * 8)
-+#define DADAO_ASYNC_RESUME_IP		(DADAO_ASYNC_RESUME_OFF + 2 * 8)
-+#define DADAO_ASYNC_RESUME_MASK		(DADAO_ASYNC_RESUME_OFF + 3 * 8)
-+#define DADAO_ASYNC_RESUME_RD2		(DADAO_ASYNC_RESUME_OFF + 4 * 8)
-+#define DADAO_ASYNC_RESUME_RB3		(DADAO_ASYNC_RESUME_OFF + 5 * 8)
-+
 +	.section .text,"ax"
 +	.globl	dadao_async_excp
 +	.p2align 2
 +dadao_async_excp:
 +	/*
-+	 * 1. Stage the three registers the mask write needs, then close the
-+	 *    supv async mask.  `cg9` cannot change between the entry and this
-+	 *    write, and it cannot change again until the C half restores the
-+	 *    saved word.
++	 * 0. Freeze the capture: `cg15` and the hart `cg5` exit intent are
++	 *    overwritten by the next entry, so the first generic cfx write in
++	 *    this stub must be the one that closes the running mode monitor's
++	 *    async mask (`cfx_smon cg15 rc3`, because the entry switched the
++	 *    run mode to supv).  A cfx2rc write re-kicks a deliverable source
++	 *    (ADR-0064 D4), so staging rd2/rd3 in the cfx scratch *before*
++	 *    this write would re-enter and overwrite the capture.  They are
++	 *    parked in a PC-relative `.text` slot instead: the interrupted SP
++	 *    may be a *user* stack, and this stub still runs on it (the stack
++	 *    switch happens only in the user arm), which a supv-mode store
++	 *    cannot touch.  The whole sequence is one translation block, and
++	 *    the first `cfx2rc` closes the mask, so no entry can interleave.
++	 *    Source pending is deliberately left set: only the C half's
++	 *    per-source ack clears it (D3).
++	 */
++	st.o	rd2, [rb0, .Lasync_spill]
++	st.o	rd3, [rb0, .Lasync_spill + 8]
++	cfx2rd	cfx_smon, cg15, rc3, rd2	/* the inherited supv mask word */
++	st.o	rd2, [rb0, .Lasync_spill + 16]	/* keep it for the frame/return */
++	set.rd	rd3, (1 << 15) | (1 << 32)	/* TIMER | PMEM_DMA */
++	or.o	rd2, rd2, rd3
++	cfx2rc	cfx_smon, cg15, rc3, rd2	/* masked: capture is stable */
++	ld.o	rd2, [rb0, .Lasync_spill]
++	ld.o	rd3, [rb0, .Lasync_spill + 8]
++
++	/*
++	 * 1. Stage the three registers the generic save borrows in cfx_hart's
++	 *    cg6 scratch.  The mask is closed, so these writes cannot be
++	 *    interleaved by another entry.  `cg15` and the hart `cg5` exit
++	 *    intent cannot change again until the escape at the end restores
++	 *    the saved word.
 +	 */
 +	cfx2rc	cfx_hart, cg6, rc0, rd2		/* scratch[0] = interrupted rd2 */
 +	cfx2rc	cfx_hart, cg6, rc1, rd3		/* scratch[1] = interrupted rd3 */
 +	rb2rd	rd2, rb3, 1			/* rd2 = interrupted rbtp */
 +	cfx2rc	cfx_hart, cg6, rc2, rd2		/* scratch[2] = interrupted rb3 */
-+
-+	cfx2rd	cfx_smon, cg8, rc1, rd2		/* the current supv mask word */
++	ld.o	rd2, [rb0, .Lasync_spill + 16]	/* the word read before masking */
 +	cfx2rc	cfx_hart, cg6, rc3, rd2		/* scratch[3] = saved mask */
-+	set.rd	rd3, (1 << 15) | (1 << 32)	/* TIMER | PMEM_DMA */
-+	or.o	rd2, rd2, rd3
-+	cfx2rc	cfx_smon, cg8, rc1, rd2		/* masked: capture is stable */
 +
 +	/*
-+	 * 2. Read the capture (rc0-rc4) into globals the C half consumes, and
-+	 *    leave a copy of `cause_ip`/`src_frame` in the frame later.
++	 * 2. Read the entrance record (`cg15 rc0`-`rc4`) into globals the C half
++	 *    consumes, and the exit intent (`cg5 rc8`-`rc11`) into its own
++	 *    globals; a nested entry cannot interleave before the escape below.
 +	 */
 +	set.rb	rb3, dadao_async_prev_mode
-+	cfx2rd	cfx_hart, cg9, rc0, rd2
++	cfx2rd	cfx_hart, cg15, rc0, rd2
 +	st.o	rd2, [rb3, 0]
 +	set.rb	rb3, dadao_async_prev_cfx
-+	cfx2rd	cfx_hart, cg9, rc1, rd2
++	cfx2rd	cfx_hart, cg15, rc1, rd2
 +	st.o	rd2, [rb3, 0]
 +	set.rb	rb3, dadao_async_cause_ip
-+	cfx2rd	cfx_hart, cg9, rc2, rd2
++	cfx2rd	cfx_hart, cg15, rc2, rd2
 +	st.o	rd2, [rb3, 0]
 +	set.rb	rb3, dadao_async_src_frame
-+	cfx2rd	cfx_hart, cg9, rc3, rd2
++	cfx2rd	cfx_hart, cg15, rc4, rd2		/* rc3 is prev mask, rc4 src set */
 +	st.o	rd2, [rb3, 0]
-+	cfx2rd	cfx_hart, cg6, rc3, rd2		/* saved mask -> global */
++
++	set.rb	rb3, dadao_async_esc_mode
++	cfx2rd	cfx_hart, cg5, rc8, rd2
++	st.o	rd2, [rb3, 0]
++	set.rb	rb3, dadao_async_esc_cfx
++	cfx2rd	cfx_hart, cg5, rc9, rd2
++	st.o	rd2, [rb3, 0]
++	set.rb	rb3, dadao_async_esc_ip
++	cfx2rd	cfx_hart, cg5, rc10, rd2
++	st.o	rd2, [rb3, 0]
++	/* rc11 is both the exit intent's mask and this entry's saved word. */
++	set.rb	rb3, dadao_async_esc_mask
++	cfx2rd	cfx_hart, cg5, rc11, rd2
++	st.o	rd2, [rb3, 0]
 +	set.rb	rb3, dadao_async_saved_mask
++	cfx2rd	cfx_hart, cg6, rc3, rd2
 +	st.o	rd2, [rb3, 0]
 +
 +	/* 3. Capture the complete register file (rd2/rd3/rb3 already staged). */
@@ -143,109 +158,38 @@ index 000000000..71775c358
 +	br.z	{rd2}?, [rb0, .Lasync_from_user]
 +
 +	/*
-+	 * 4. Kernel context: handle here, then resume through `cfx_jmon`.
-+	 *
-+	 *    The asynchronous entry switched the hardware's current cfx to
-+	 *    `cfx_hart` (DADAO-12 §5.4) and there is no asynchronous `escape`
-+	 *    to restore it: jumping straight back leaves it at `cfx_hart`, so
-+	 *    the next `escape cfx_<interrupted>` (the umon/smon stubs both end
-+	 *    that way) fails its "cfxha == inner_cfx_code" check and raises
-+	 *    `CFXESC` (§5.3 step 0) — a fetch at `cfx_hart`'s vector, which is
-+	 *    0.  `trap cfx_jmon` below is a synchronous trap into a monitor this
-+	 *    kernel does not otherwise use, so its `cg5` frame (software-
-+	 *    writable `rc0`/`rc1`/`rc3`, §3.6) can be turned into the return
-+	 *    frame and `escape` puts the interrupted mode/cfx back.
-+	 *
-+	 *    The resume region is written first (the environment that escape
-+	 *    must restore).  A delivery *inside* `dadao_async_kernel_resume`
-+	 *    reports `prev_cfx == cfx_jmon`; it keeps the outer values, so the
-+	 *    nested pass resolves the *interrupted* resume instead of the nested
-+	 *    one (the trampoline is idempotent by construction).
++	 * 4. Kernel context: handle here, then return through the hart's own
++	 *    exit intent.  The async entry left the hardware's current cfx at
++	 *    `cfx_hart` (DADAO-12 §5.4), which is exactly the cfx `escape
++	 *    cfx_hart` requires; no second monitor is involved.
 +	 */
-+	set.rb	rb4, dadao_async_prev_cfx
-+	ld.o	rd2, [rb4, 0]
-+	set.rd	rd3, DADAO_CFX_JMON
-+	br.eq	{rd2, rd3}?, [rb0, .Lasync_region_done]
-+
-+	set.rb	rb3, dadao_async_save
-+	ld.o	rd2, [rb3, PT_RB_BASE + 3 * 8]
-+	st.o	rd2, [rb3, DADAO_ASYNC_RESUME_RB3]
-+	ld.o	rd2, [rb3, PT_RD_BASE + 2 * 8]
-+	st.o	rd2, [rb3, DADAO_ASYNC_RESUME_RD2]
-+	set.rb	rb4, dadao_async_prev_mode
-+	ld.o	rd2, [rb4, 0]
-+	st.o	rd2, [rb3, DADAO_ASYNC_RESUME_MODE]
-+	set.rb	rb4, dadao_async_prev_cfx
-+	ld.o	rd2, [rb4, 0]
-+	st.o	rd2, [rb3, DADAO_ASYNC_RESUME_CFX]
-+	set.rb	rb4, dadao_async_cause_ip
-+	ld.o	rd2, [rb4, 0]
-+	st.o	rd2, [rb3, DADAO_ASYNC_RESUME_IP]
-+	set.rb	rb4, dadao_async_saved_mask
-+	ld.o	rd2, [rb4, 0]
-+	st.o	rd2, [rb3, DADAO_ASYNC_RESUME_MASK]
-+
-+.Lasync_region_done:
-+	/* The ack runs in place, on the interrupted kernel stack. */
 +	set.rb	rb16, dadao_async_save
 +	set.rb	rb5, dadao_async_kernel_handler
 +	call	[rb5, rd0, 0]
 +
-+	/* Hand the resume to the trampoline: `trap cfx_jmon` makes cfx_jmon
-+	 * current (so the `escape` there is legal) and leaves a valid `cg5`
-+	 * frame; `init_IRQ()` wrote the row's vector and supv mode.  No frame
-+	 * pointer is passed: the trampoline is assembly and reloads everything
-+	 * from `dadao_async_save` itself. */
-+	trap	cfx_jmon, 0
-+	jump	[rb0, .Lstuck]			/* the trampoline never returns */
++	/* 5. Write the saved exit intent back (`rc10` = the committed ip). */
++	set.rb	rb4, dadao_async_esc_mode
++	ld.o	rd2, [rb4, 0]
++	cfx2rc	cfx_hart, cg5, rc8, rd2
++	set.rb	rb4, dadao_async_esc_cfx
++	ld.o	rd2, [rb4, 0]
++	cfx2rc	cfx_hart, cg5, rc9, rd2
++	set.rb	rb4, dadao_async_esc_ip
++	ld.o	rd2, [rb4, 0]
++	cfx2rc	cfx_hart, cg5, rc10, rd2
++	set.rb	rb4, dadao_async_esc_mask
++	ld.o	rd2, [rb4, 0]
++	cfx2rc	cfx_hart, cg5, rc11, rd2
 +
-+	/*
-+	 * The cfx_jmon supv vector: resume the interrupted context.
-+	 *
-+	 * `escape` is the whole return — it restores `excp_prev_run_mode` /
-+	 * `excp_prev_cfx_code` and jumps to `excp_cause_ip` (the *next*
-+	 * instruction, so no replay and no +4) and it occupies **no register**,
-+	 * so the resumed context sees the capture bit for bit.  That is what
-+	 * makes the delivery window safe: the earlier software return ended
-+	 * with `set.rb rb3, 0; jump [rb3, rd3, 0]`, which left `rb3` = 0 in
-+	 * the resumed context — and the umon/smon stubs use `rb3` as their
-+	 * frame pointer, so a delivery inside their `reopen -> escape` window
-+	 * made the interrupted `ldm.o` load from address 0 (`va=0x208`, die).
-+	 *
-+	 * The order below is the other half: the source mask is re-opened only
-+	 * after the register restore, and the last two loads take `rd2`/`rb3`
-+	 * from the resume region rather than from the capture frame — a nested
-+	 * capture rewrites the frame, the region it leaves alone.
-+	 */
-+	.globl	dadao_async_kernel_resume
-+	.p2align 2
-+dadao_async_kernel_resume:
-+	/* 1. cg5 = the interrupted triple (RW fields, DADAO-12 §3.6). */
-+	set.rb	rb3, dadao_async_save
-+	ld.o	rd2, [rb3, DADAO_ASYNC_RESUME_MODE]
-+	cfx2rc	cfx_jmon, cg5, rc0, rd2
-+	ld.o	rd2, [rb3, DADAO_ASYNC_RESUME_CFX]
-+	cfx2rc	cfx_jmon, cg5, rc1, rd2
-+	ld.o	rd2, [rb3, DADAO_ASYNC_RESUME_IP]
-+	cfx2rc	cfx_jmon, cg5, rc3, rd2
-+
-+	/* 2. The whole register file, `rd2`/`rb3` excepted (see asm/entry.h). */
-+	DADAO_GPR_RESTORE_AT_KEEP_RD2_RB3
-+
-+	/* 3. Re-open the source word the entry masked. */
-+	ld.o	rd2, [rb3, DADAO_ASYNC_RESUME_MASK]
-+	cfx2rc	cfx_smon, cg8, rc1, rd2
-+
-+	/* 4. The two scratch registers, from the region. */
-+	ld.o	rd2, [rb3, DADAO_ASYNC_RESUME_RD2]
-+	ld.o	rb3, [rb3, DADAO_ASYNC_RESUME_RB3]
-+
-+	/* 5. Register-free resume. */
-+	escape	cfx_jmon, [excp_cause_ip, 0]
++	/* 6. Restore the whole register file and return to the exact ip.
++	 *    The escape also whole-word restores the saved async mask, with
++	 *    the switch and the jump, so no software re-open window exists. */
++	DADAO_GPR_RESTORE dadao_async_save
++	escape	cfx_hart
 +	jump	[rb0, .Lstuck]			/* escape never returns */
 +
 +	/*
-+	 * 5. User context: move to the task's kernel stack, adopt the capture
++	 * 7. User context: move to the task's kernel stack, adopt the capture
 +	 *    into task_pt_regs(current) and hand it to cfx_smon.
 +	 */
 +.Lasync_from_user:
@@ -267,6 +211,17 @@ index 000000000..71775c358
 +.Lstuck:
 +	jump	[rb0, .Lstuck]			/* the smon half never returns */
 +
++	/*
++	 * PC-relative parking for the two staging registers and the inherited
++	 * mask word (step 0).  It lives in the same section as this stub so the
++	 * `[rb0, disp]` displacement is short; it is never executed.  One hart
++	 * and the closed mask make a single slot sound (the whole step runs in
++	 * one translation block).
++	 */
++	.p2align 3
++.Lasync_spill:
++	.zero	24
++
 +	/* Capture metadata shared with kernel/time.c (no struct offsets needed). */
 +	.section .bss,"aw",%nobits
 +	.p2align 3
@@ -285,13 +240,19 @@ index 000000000..71775c358
 +	.globl	dadao_async_saved_mask
 +dadao_async_saved_mask:
 +	.zero	8
++	.globl	dadao_async_esc_mode
++dadao_async_esc_mode:
++	.zero	8
++	.globl	dadao_async_esc_cfx
++dadao_async_esc_cfx:
++	.zero	8
++	.globl	dadao_async_esc_ip
++dadao_async_esc_ip:
++	.zero	8
++	.globl	dadao_async_esc_mask
++dadao_async_esc_mask:
++	.zero	8
 +
-+	/* The kernel-context resume region, then the capture frame; the two are
-+	 * one object so the trampoline needs only the frame base (offsets above
-+	 * are relative to the frame). */
-+	.p2align 3
-+dadao_async_resume:
-+	.zero	DADAO_ASYNC_RESUME_SIZE
 +	.p2align 3
 +	.globl	dadao_async_save
 +dadao_async_save:

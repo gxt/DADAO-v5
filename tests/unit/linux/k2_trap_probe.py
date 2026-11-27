@@ -17,8 +17,8 @@ restated here):
   * the exit-code segmentation -> parsed live out of
     ``spec/Kaiwu §7.1``: the segment ranges, the run-mode encoding
     (``supv = 10b``) and the 11 monitor bit indices;
-  * the escape offsets -> ``escape cfx_smon, [excp_cause_ip, {0,4}]`` in
-    ``.tao/contracts/contract-see.md`` §4;
+  * the return address -> the exit intent `cg5 rc10` of ``escape cfxHA``
+    (``DADAO-12`` §3.6/§5.3); the stub writes it before restoring;
   * the boot/PTW evidence the K1 chain already produced -> the kernel's own
     log lines (the K1 gate owns their field-by-field checks);
   * ``current`` is valid (printk runs) -> the plain image boots past
@@ -40,7 +40,7 @@ Checks:
       boundary is the last line; no clock/timer/IRQ bring-up before it
   C3  cause table == spec/DADAO-12 §4.1 (ids, names, order) and the dispatcher
       reports the same count
-  C4  the entry the kernel installed is its own vector, and the escape offsets
+  C4  the entry the kernel installed is its own vector, and the escape form
       it may use are the contract's two
   C5  probe image P1: a registered page-table fault (the DGPTRAP bitmap bit of
       ADR-0062) is classified and *skipped*, so the code after the faulting
@@ -305,18 +305,22 @@ def bitmap_monitor_code(specs: dict, mode: str, bit: int) -> int:
             (bit & 0xF))
 
 
-def contract_escape_offsets() -> list[int]:
-    """The legal synchronous ``escape`` byte offsets (``contract-see`` §4).
+def escape_exit_intent_sources() -> tuple[str, str]:
+    """The two entry stubs and the exit-intent field they write.
 
-    m17-spec-002 reworded §4 around the frame-select bit (`imms18[1]`, `cg9` is
-    *not* a return frame), so the old "`imms20` 合法值只有 0 或 4" sentence is
-    gone; the offsets are still the `cg5` ones stated in the same sentence.
+    `escape cfxHA` (DADAO-12 §5.1/§5.3, ADR-0061 R3) has no offset operand:
+    it returns exactly to the exit intent `cg5 rc10`, which the stub writes
+    before restoring the register file.  The check is static because the
+    field is per-frame data, not a printed value.
     """
-    text = CONTRACT_SEE.read_text(encoding="utf-8")
-    m = re.search(r"`cg5` 偏移\s*0/\+(\d+)", text)
-    if not m:
-        raise SystemExit("k2_trap_probe: contract-see §4 escape offsets not found")
-    return [0, int(m.group(1))]
+    trap = (SOURCE / "arch/dadao/kernel/trap.S").read_text(encoding="utf-8")
+    async_ = (SOURCE / "arch/dadao/kernel/async_trap.S").read_text(
+        encoding="utf-8")
+    if "CFX_RC_ESCAPE_IP" not in trap:
+        raise SystemExit("k2_trap_probe: trap.S never writes cg5 rc10")
+    if "CFX_RC_ESCAPE_IP" not in async_:
+        raise SystemExit("k2_trap_probe: async_trap.S never saves cg5 rc10")
+    return trap, async_
 
 
 def kernel_marks() -> list[tuple[int, int, int]]:
@@ -504,8 +508,8 @@ def check_plain(rc: int, text: str, rep: Report, specs: dict, table,
               [(name, hex(cid)) for cid, name in table],
               [(name, cid) for name, cid in printed])
 
-    # C4: the vector the kernel installed is its own entry, and the offsets it
-    # may escape with are the contract's two.
+    # C4: the vector the kernel installed is its own entry, and its escape is
+    # the offset-free `escape cfxHA` form returning through cg5 rc10.
     m = re.search(r"^K1 ptw vec  supv_excp_vector=(\S+) handler=(\S+)$", text,
                   re.MULTILINE)
     syms = snap["syms"]
@@ -515,10 +519,19 @@ def check_plain(rc: int, text: str, rep: Report, specs: dict, table,
         rep.check("C4", "supv_excp_vector == dadao_supv_excp 符号",
                   hex(syms["dadao_supv_excp"]), m.group(1))
         rep.check("C4", "读回值 == 写入值", m.group(1), m.group(2))
-    offsets = contract_escape_offsets()
     m = re.search(r"escape=\{([^}]*)\}", text)
-    rep.check("C4", "stub 声明的 escape 偏移 == 契约的两个", offsets,
-              [int(v) for v in m.group(1).split(",")] if m else "<missing>")
+    rep.check("C4", "stub 声明返回地址 = 出口意图 rc10（escape cfxHA）",
+              "cfxHA,ip=rc10", m.group(1) if m else "<missing>")
+    trap_text, async_text = escape_exit_intent_sources()
+    rep.check("C4", "同步桩 escape 是无偏移的 cfxHA 形式", [],
+              re.findall(r"escape\s+cfx_\w+\s*,", trap_text))
+    rep.check("C4", "异步桩 escape 是无偏移的 cfxHA 形式", [],
+              re.findall(r"escape\s+cfx_\w+\s*,", async_text))
+    rep.check("C4", "同步桩在 escape 前写 rc10", True,
+              "cfx2rc\tcfx_smon, cg5, CFX_RC_ESCAPE_IP" in trap_text)
+    rep.check("C4", "异步桩写回 rc8-rc11 后 escape cfx_hart", True,
+              "cfx2rc\tcfx_hart, cg5, CFX_RC_ESCAPE_INTR_MASK" in async_text
+              and "escape\tcfx_hart" in async_text)
     rep.check("C4", "静态帧是 .bss 里的 pt_regs（帧符号存在）", True,
               "dadao_excp_save" in syms)
 
@@ -652,9 +665,9 @@ def check_probe(rc: int, text: str, rep: Report, specs: dict) -> None:
     rep.check("C11", "ILLI 走 monitor 段 supv+bit8",
               hex(_monitor_code(specs, "supv", "ILLI")), codes.get("illi", "?"))
 
-    # P8: the handler's cg5 rc3 write decides where `escape …, 0` lands.
+    # P8: the handler's cg5 rc10 exit-intent write decides where `escape` lands.
     p8 = pl.get("P8", "")
-    rep.check("C12", "P8 handler 改写 cg5 rc3 后落在新 ip", "landed=yes",
+    rep.check("C12", "P8 handler 改写 cg5 rc10 后落在新 ip", "landed=yes",
               next((tok for tok in p8.split() if tok.startswith("landed=")), "?"))
     rep.check("C12", "P8 新 ip 上留下的标记", "marker=0x600d",
               next((tok for tok in p8.split() if tok.startswith("marker=")), "?"))
@@ -1000,25 +1013,25 @@ INJECTIONS = {
         r"^dadao: unrecoverable supv exception",
         ("C8",),
     ),
-    # ③ escape +4 becomes +0: the skip path re-executes the faulting load, so
+    # ③ the skip path forgets the +4: rc10 re-executes the faulting load, so
     #    P1 never gets past it (the probe's hit budget reports it by name).
     "escape-offset-zero": (
         "probe", TRAP_S,
-        ".Lresume_skip:\n\tDADAO_TRAP_RESTORE_AND_ESCAPE 4\n",
+        ".Lresume_skip:\n\tDADAO_TRAP_RESTORE_AND_ESCAPE 1\n",
         ".Lresume_skip:\n\tDADAO_TRAP_RESTORE_AND_ESCAPE 0\n",
         0x0f,                     # probe hit budget exhausted -> self-check
         r"^dadao: fault probe hit too often cause=PTWMEM",
         r"^K2 probe P1: hits=1 resumed=yes",
         ("C5",),
     ),
-    # ⑤ The handler stops writing cg5 rc3: `escape …, 0` then returns to the
-    #    faulting instruction, so P8 never lands on the redirected ip (the probe
-    #    budget ends the boot instead).
-    "drop-rc3-write": (
+    # ⑤ The handler stops writing the exit intent rc10: `escape` then returns
+    #    to the faulting instruction, so P8 never lands on the redirected ip
+    #    (the probe budget ends the boot instead).
+    "drop-rc10-write": (
         "probe", TRAPS_C,
         "\t\t\tDADAO_CFX_WRITE(cfx_smon, SMON_CG_FRAME,\n"
-        "\t\t\t\t\tSMON_RC_FRAME_CAUSE_IP, probe->redirect);\n",
-        "\t\t\t/* injected: no cg5 rc3 write */\n",
+        "\t\t\t\t\tSMON_RC_ESCAPE_IP, probe->redirect);\n",
+        "\t\t\t/* injected: no cg5 rc10 write */\n",
         0x0f,                     # probe budget -> self-check point 0x0f
         r"^dadao: fault probe hit too often cause=PTWMEM",
         r"^K2 probe P8: landed=yes",

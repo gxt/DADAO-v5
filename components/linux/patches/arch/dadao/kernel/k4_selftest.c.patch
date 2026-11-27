@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k4_selftest.c b/arch/dadao/kernel/k4_selftest.c
 new file mode 100644
-index 000000000..7fdebe1e7
+index 000000000..06422a18d
 --- /dev/null
 +++ b/arch/dadao/kernel/k4_selftest.c
-@@ -0,0 +1,579 @@
+@@ -0,0 +1,580 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K4 process-model self-test (CONFIG_DADAO_K4_SELFTEST, m14-linux-016).
@@ -56,6 +56,7 @@ index 000000000..7fdebe1e7
 +#include <linux/string.h>
 +#include <linux/types.h>
 +
++#include <asm/cfx.h>
 +#include <asm/mmu_context.h>
 +#include <asm/page.h>
 +#include <asm/pgalloc.h>
@@ -201,10 +202,10 @@ index 000000000..7fdebe1e7
 +	*f = *regs;
 +
 +	/* cg5, straight from the cfx (self access bypasses the cfx axis). */
-+	mode = DADAO_CFX_READ(cfx_umon, 5, 0);	/* excp_prev_run_mode */
-+	cause = DADAO_CFX_READ(cfx_umon, 5, 2);	/* excp_cause_id */
-+	ip = DADAO_CFX_READ(cfx_umon, 5, 3);	/* excp_cause_ip */
-+	info = DADAO_CFX_READ(cfx_umon, 5, 4);	/* excp_cause_info */
++	mode = DADAO_CFX_READ(cfx_umon, 5, CFX_RC_FRAME_PREV_RUN_MODE);
++	cause = DADAO_CFX_READ(cfx_umon, 5, CFX_RC_FRAME_CAUSE_ID);
++	ip = DADAO_CFX_READ(cfx_umon, 5, CFX_RC_FRAME_PREV_IP);
++	info = DADAO_CFX_READ(cfx_umon, 5, CFX_RC_FRAME_CAUSE_INFO);
 +	vec = DADAO_CFX_READ(cfx_umon, UMON_CG_USER, UMON_RC_EXCP_VECTOR);
 +
 +	dadao_early_printf("K4 f5 sys%lu: nr=%lu prev_mode=%lu cause=%#lx ip=%#lx "

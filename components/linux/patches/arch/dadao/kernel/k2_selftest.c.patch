@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/kernel/k2_selftest.c b/arch/dadao/kernel/k2_selftest.c
 new file mode 100644
-index 000000000..02575196d
+index 000000000..a1552f02f
 --- /dev/null
 +++ b/arch/dadao/kernel/k2_selftest.c
 @@ -0,0 +1,821 @@
@@ -19,11 +19,11 @@ index 000000000..02575196d
 + *
 + *   P1  a registered page-fault probe (the DGPTRAP bitmap bit of ADR-0062) is
 + *       classified (cause name + ip/info), resumed
-+ *       with `escape …, 4` (skip) and execution continues after the faulting
-+ *       load;
++ *       with the exit intent `cg5 rc10 = ip + 4` (skip) and execution
++ *       continues after the faulting load;
 + *   P2  the same probe with one retry resumes the faulting instruction itself
-+ *       (`escape …, 0`), so the *same instruction* faults twice — the offset is
-+ *       proven by the second hit, not assumed;
++ *       (`cg5 rc10 = ip`), so the *same instruction* faults twice — the return
++ *       address is proven by the second hit, not assumed;
 + *   P5  two consecutive loads of the same unmapped VA: the entry saves and
 + *       restores the whole register file between them, so the two captured
 + *       frames must be identical in every GPR except `ip` (the second load is
@@ -246,7 +246,7 @@ index 000000000..02575196d
 +			   marker);
 +}
 +
-+/* P2: one retry (`escape …, 0`) then skip (`…, 4`): the same insn twice. */
++/* P2: one retry (rc10 = fault ip) then skip (rc10 = ip + 4): same insn twice. */
 +static void __init k2_case_p2(void)
 +{
 +	k2_probe_start(1);
@@ -681,9 +681,9 @@ index 000000000..02575196d
 +}
 +
 +/*
-+ * P8: the handler rewrites `cg5 rc3` (= frame IP) and returns RETRY, so
-+ * `escape …, 0` must land on the *new* IP rather than on the instruction after
-+ * the faulting load.
++ * P8: the handler rewrites the exit intent `cg5 rc10` and returns RETRY, so
++ * `escape cfx_smon` must land on the *new* IP rather than on the instruction
++ * after the faulting load.
 + *
 + * The target is a function, not a label: `&&label` (the only C-level way to
 + * take a code address inside a function) is not implemented on this target —
@@ -714,7 +714,7 @@ index 000000000..02575196d
 +	k2_probe.retry = 0;
 +	k2_probe.hits = 0;
 +	k2_probe.max_hits = 4;
-+	/* Non-zero: the dispatcher writes it into cg5 rc3 and returns RETRY. */
++	/* Non-zero: the dispatcher writes it into cg5 rc10 and returns RETRY. */
 +	k2_probe.redirect = (unsigned long)k2_redirect_landing;
 +	k2_probe.report = k2_probe_report;
 +	if (dadao_trap_probe_register(&k2_probe)) {
@@ -724,7 +724,7 @@ index 000000000..02575196d
 +	/*
 +	 * If the redirect happens, this load is never resumed at ip+4: the handler
 +	 * sends execution to k2_redirect_landing() instead, so the report below is
-+	 * only reached when the cg5 rc3 write did not take effect.
++	 * only reached when the cg5 rc10 write did not take effect.
 +	 */
 +	(void)k2_one_load(k2_probe_va);
 +	k2_probe_stop();
@@ -775,7 +775,7 @@ index 000000000..02575196d
 +{
 +	dadao_early_printf("K2 probe P11: escape to cfx_umon (target error)\n");
 +	barrier();
-+	__asm__ __volatile__("escape cfx_umon, [excp_cause_ip, 4]" : : : "memory");
++	__asm__ __volatile__("escape cfx_umon" : : : "memory");
 +	dadao_early_printf("K2 probe P11: FAIL the CFXESC was resumed\n");
 +	dadao_early_exit(0x7f);
 +}

@@ -1,26 +1,28 @@
 diff --git a/arch/dadao/kernel/irq.c b/arch/dadao/kernel/irq.c
 new file mode 100644
-index 000000000..673ffb0e2
+index 000000000..1bae4300f
 --- /dev/null
 +++ b/arch/dadao/kernel/irq.c
-@@ -0,0 +1,155 @@
+@@ -0,0 +1,167 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO async vector installation and the per-mode source masks
-+ * (ADR-0061 R2; DADAO-12 §4.7/§5.4).
++ * (ADR-0064; DADAO-12 §4.7/§5.4).
 + *
-+ * Exactly one asynchronous gate exists: the running mode monitor's `cg8 rc1`
++ * Two independent gates exist: the running mode monitor's `cg15 rc3`
 + * (`cfx_<monitor>_async_intr_mask`, bit = source cfxha, 0 = allow, reset all
-+ * ones).  The delivery target is always `cfx_hart`; its supv vector lives in
-+ * `cg9 rc5` and the entry mode in `cg9 rc6` (fixed supv).  The vector is
++ * ones) and each source's own `cg16 rc16` mask.  The async entry target is
++ * always `cfx_hart`; its supv vector lives in
++ * `cg15 rc15` and the entry mode in `cg15 rc14` (fixed supv).  The vector is
 + * written and read back before any source is opened: a delivery that landed on
 + * the reset value 0 would execute at address 0 (DADAO-12 §5.4).
 + *
-+ * The kernel runs in supv, so `cfx_smon cg8 rc1` is its own gate.  A user task
-+ * runs against `cfx_umon cg8 rc1`; the kernel opens the same source bits there
++ * The kernel runs in supv, so `cfx_smon cg15 rc3` is its own gate.  A user task
++ * runs against `cfx_umon cg15 rc3`; the kernel opens the same source bits there
 + * so that a user-only spin loop is preemptible (the mode switch itself is
 + * covered by the supv row, kernel/process.c).  Nothing else is written:
-+ * `cfx_hart` has no async mask any more (ADR-0061 D5).
++ * source masks (`cg16 rc16`) are opened once for TIMER and PMEM_DMA, then
++ * source events drive the per-source pending/ack face (ADR-0064).
 + */
 +#include <linux/init.h>
 +#include <linux/kernel.h>
@@ -34,23 +36,17 @@ index 000000000..673ffb0e2
 +
 +#define DADAO_MODE_SUPV		2
 +
-+#define CFX_HART_CG_ASYNC		9
-+#define CFX_HART_RC_ASYNC_VECTOR	5
-+#define CFX_HART_RC_ASYNC_SWITCH_MODE	6
++#define CFX_HART_CG_ASYNC		15
++#define CFX_HART_RC_ASYNC_VECTOR	15
++#define CFX_HART_RC_ASYNC_SWITCH_MODE	14
 +
-+#define CFX_MON_CG_ASYNC_MASK		8
-+#define CFX_MON_RC_ASYNC_MASK		1
++#define CFX_MON_CG_ASYNC_MASK		15
++#define CFX_MON_RC_ASYNC_MASK		3
 +
 +/*
-+ * The supv row (`cg2`) of a monitor (spec/DADAO-12 §3.3): the four source
-+ * masks and the trap target it supplies.  `cfx_jmon`'s row carries the kernel's
-+ * asynchronous kernel-context return (kernel/async_trap.S).
++ * The supv row (`cg2`) of a monitor is no longer touched by this file: the
++ * kernel-context return uses the hart's own exit intent (ADR-0061 R3).
 + */
-+#define CFX_MON_CG_SUPV			2
-+#define CFX_MON_RC_TRAP_MASK		0
-+#define CFX_MON_RC_REG_MASK		2
-+#define CFX_MON_RC_SWITCH_MODE		8
-+#define CFX_MON_RC_EXCP_VECTOR		10
 +
 +/* Boot verdicts, guest segment of spec/Kaiwu §7.1 (time.c continues). */
 +#define K2_FAIL_ASYNC_VECTOR		0x11
@@ -95,60 +91,76 @@ index 000000000..673ffb0e2
 +			      "cfx_hart async switch_run_mode");
 +
 +	/*
-+	 * ---- 1b. the kernel-context return, before anything is deliverable --
++	 * ---- 1b. the async exit intent, before anything is deliverable ----
 +	 *
-+	 * A delivery taken in kernel mode resumes through `cfx_jmon`
-+	 * (kernel/async_trap.S): the asynchronous entry leaves the hardware's
-+	 * current cfx at `cfx_hart` and only a synchronous `escape` can put the
-+	 * interrupted one back, so the stub needs a `cg5` frame of its own.  The
-+	 * kernel does not implement jail mode, so `cfx_jmon`'s supv row is free
-+	 * for that use — but it must be installed *before* the source masks
-+	 * below are opened, or a delivery would jump to vector 0.
++	 * `escape cfx_hart` (kernel/async_trap.S) returns through the hart's own
++	 * `cg5 rc8`-`rc11`, which the hardware copies from the entrance record
++	 * on every async entry.  There is no second monitor any more
++	 * (ADR-0061 R3), but the vector/mode pair and the writability of the
++	 * four exit-intent fields are still checked before a mask opens: a
++	 * delivery that landed on vector 0 would execute at address 0.
++	 *
++	 * 0x16 covers `cg15 rc15` (vector) and a write/read-back of
++	 * `cg5 rc8`-`rc11`; 0x17 covers `cg15 rc14` (entry run mode).
 +	 */
-+	vec = (unsigned long)dadao_async_kernel_resume;
-+	DADAO_CFX_WRITE(cfx_jmon, CFX_MON_CG_SUPV, CFX_MON_RC_SWITCH_MODE,
-+			DADAO_MODE_SUPV);
-+	DADAO_CFX_WRITE(cfx_jmon, CFX_MON_CG_SUPV, CFX_MON_RC_EXCP_VECTOR, vec);
-+	vread = DADAO_CFX_READ(cfx_jmon, CFX_MON_CG_SUPV, CFX_MON_RC_EXCP_VECTOR);
-+	mode = DADAO_CFX_READ(cfx_jmon, CFX_MON_CG_SUPV,
-+			      CFX_MON_RC_SWITCH_MODE) & 0x3;
-+	dadao_early_printf("K2 irq: resume cfx_jmon_supv_excp_vector=%#lx "
-+			   "want=%#lx mode=%lu\n", vread, vec, mode);
++	vread = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_ASYNC,
++			       CFX_HART_RC_ASYNC_VECTOR);
++	mode = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_ASYNC,
++			      CFX_HART_RC_ASYNC_SWITCH_MODE) & 0x3;
 +	if (vread != vec)
 +		dadao_k2_fail(K2_FAIL_RESUME_VECTOR,
-+			      "cfx_jmon supv vector read-back");
++			      "cfx_hart async vector read-back");
 +	if (mode != DADAO_MODE_SUPV)
 +		dadao_k2_fail(K2_FAIL_RESUME_MODE,
-+			      "cfx_jmon supv switch_run_mode");
++			      "cfx_hart async switch_run_mode");
++	{
++		unsigned long v;
++
++#define DADAO_ESC_PROBE(rc, val)					\
++	do {								\
++		DADAO_CFX_WRITE(cfx_hart, CFX_CG_FRAME, rc, (val));	\
++		v = DADAO_CFX_READ(cfx_hart, CFX_CG_FRAME, rc);	\
++		if (v != (val))						\
++			dadao_k2_fail(K2_FAIL_RESUME_VECTOR,		\
++				      "cfx_hart cg5 " #rc " not writable"); \
++	} while (0)
++
++		DADAO_ESC_PROBE(CFX_RC_ESCAPE_RUN_MODE, 3);
++		DADAO_ESC_PROBE(CFX_RC_ESCAPE_CFX_CODE, 15);
++		DADAO_ESC_PROBE(CFX_RC_ESCAPE_IP, 0x1234);
++		DADAO_ESC_PROBE(CFX_RC_ESCAPE_INTR_MASK, ~0UL);
++#undef DADAO_ESC_PROBE
++		/* No frame is live at init: leave the reset fail-safe values. */
++		DADAO_CFX_WRITE(cfx_hart, CFX_CG_FRAME,
++				CFX_RC_ESCAPE_RUN_MODE, 0);
++		DADAO_CFX_WRITE(cfx_hart, CFX_CG_FRAME,
++				CFX_RC_ESCAPE_CFX_CODE, 0);
++		DADAO_CFX_WRITE(cfx_hart, CFX_CG_FRAME,
++				CFX_RC_ESCAPE_IP, 0);
++		DADAO_CFX_WRITE(cfx_hart, CFX_CG_FRAME,
++				CFX_RC_ESCAPE_INTR_MASK, ~0UL);
++	}
 +
 +	/*
-+	 * The two source bits that path needs, still before the masks open:
-+	 * `trap cfx_jmon` is a control transfer from the asynchronous entry
-+	 * (source cfxha 15), and the trampoline re-opens `cfx_smon cg8 rc1`
-+	 * while `cfx_jmon` is current, so that row must allow source 1.
-+	 */
-+	DADAO_CFX_WRITE(cfx_jmon, CFX_MON_CG_SUPV, CFX_MON_RC_TRAP_MASK,
-+			DADAO_CFX_READ(cfx_jmon, CFX_MON_CG_SUPV,
-+				       CFX_MON_RC_TRAP_MASK) & ~(1UL << 15));
-+	DADAO_CFX_WRITE(cfx_smon, CFX_MON_CG_SUPV, CFX_MON_RC_REG_MASK,
-+			DADAO_CFX_READ(cfx_smon, CFX_MON_CG_SUPV,
-+				       CFX_MON_RC_REG_MASK) & ~(1UL << DADAO_CFX_JMON));
-+
-+	/*
-+	 * ---- 2. the two source masks ---------------------------------------
-+	 * The bit index is the *source cfxha* (TIMER 15, PMEM_DMA 32).  The
-+	 * supv row is the kernel's own gate; the user row is the scheduling
-+	 * policy for a task in user mode.  Both reset to all ones, so a boot
-+	 * that forgets a write delivers nothing.
++	 * ---- 2. the gates -------------------------------------------------
++	 * The bit index is the *source cfxha* (TIMER 15, PMEM_DMA 32).  First
++	 * ack any event left over from the firmware/boot staging, then open
++	 * the two per-source masks (`cg16 rc16`, 1 = mask, reset all ones;
++	 * only bit0 exists, reserved write bits are ignored).  The monitor
++	 * rows (`cg15 rc3`) are opened last: until then no async entry can
++	 * happen while init_IRQ is still writing its own gates.
 +	 */
 +	cfxha = DADAO_CFX_READ(cfx_hart, CFX_CG_ID, CFX_RC_ID) & 0x3f;
 +	bits = DADAO_IRQ_SOURCE_BITS;
-+	/*
-+	 * Open both monitor rows: the supv row is the kernel's own gate, the user
-+	 * row the scheduling policy for a task in user mode.  Probe images that
-+	 * need a closed row close it again at run time (kernel/time.c), so this
-+	 * file has one unconditional shape.
-+	 */
++	DADAO_CFX_WRITE(cfx_hart, DADAO_SRC_CG, DADAO_SRC_RC_ACK,
++			DADAO_SRC_EVENT_BIT0);
++	DADAO_CFX_WRITE(cfx_pmem, DADAO_SRC_CG, DADAO_SRC_RC_ACK,
++			DADAO_SRC_EVENT_BIT0);
++	DADAO_CFX_WRITE(cfx_hart, DADAO_SRC_CG, DADAO_SRC_RC_MASK, 0);
++	DADAO_CFX_WRITE(cfx_pmem, DADAO_SRC_CG, DADAO_SRC_RC_MASK, 0);
++
++	/* Open both monitor rows last (supv = kernel gate, umon = user
++	 * preemption policy); probes close one again at run time. */
 +	DADAO_CFX_WRITE(cfx_smon, CFX_MON_CG_ASYNC_MASK,
 +			CFX_MON_RC_ASYNC_MASK, smon_mask() & ~bits);
 +	DADAO_CFX_WRITE(cfx_umon, CFX_MON_CG_ASYNC_MASK,

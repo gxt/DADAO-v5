@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k2_irq_test.c b/arch/dadao/kernel/k2_irq_test.c
 new file mode 100644
-index 000000000..4736a75e4
+index 000000000..35e7766fd
 --- /dev/null
 +++ b/arch/dadao/kernel/k2_irq_test.c
-@@ -0,0 +1,610 @@
+@@ -0,0 +1,618 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K2 interrupt-enable knob self-test (CONFIG_DADAO_K2_IRQ_TEST, m14-linux-008).
@@ -23,14 +23,16 @@ index 000000000..4736a75e4
 + *       restores the original word.
 + *   P5  arch_irqs_disabled() / arch_irqs_disabled_flags() agree with the
 + *       physical register in three mask states.
-+ *   P2  a masked window of ≥3 periods freezes the tick count while ISTATUS is
-+ *       set; releasing delivers that one parked event (+1: merged by the
-+ *       hardware, neither lost nor doubled).
-+ *   P4  inside a live frame: the handler has already restored the knob to
-+ *       "allow", so this file arms a deadline that expires *within* the frame.
-+ *       No second tick may be delivered that frame (the hardware's all-1
-+ *       `global_cfx_intr_mask` blocks it, contract-see §6.3) and exactly that
-+ *       event must arrive immediately after `escape` restores it.
++ *   P2  a masked window of ≥3 periods freezes the tick count while the
++ *       source `pending` bit is set; releasing delivers that one parked event
++ *       (+1: merged by the hardware, neither lost nor doubled).
++ *   P4  inside a live frame: the stub closed the monitor row before the C
++ *       half ran, so this file arms a deadline that expires *within* the
++ *       frame.  No second tick may be delivered that frame (the row is still
++ *       closed, contract-see §6.3) and exactly that event must arrive
++ *       immediately after `escape` restores it.  The line also reports the
++ *       source pending seen at handler entry, which must still carry the
++ *       delivered event (ADR-0064 D3: the entry does not clear it).
 + *
 + * Why the P4 cases run from inside the tick (dadao_timer_interrupt() calls
 + * dadao_k2_irq_inframe() after its own restore): the "no nesting inside a
@@ -59,6 +61,9 @@ index 000000000..4736a75e4
 + */
 +void dadao_k2_irq_inframe(void);
 +void __noreturn dadao_k2_irq_test(void);
++
++/* kernel/time.c: source pending seen at the C half of the capture. */
++extern unsigned long dadao_async_seen_pending;
 +
 +/* Boot verdicts, guest segment of spec/Kaiwu §7.1 (time.c continues). */
 +#define K2_FAIL_IRQ_NO_TICK	0x14	/* the first tick never arrived */
@@ -204,7 +209,7 @@ index 000000000..4736a75e4
 +	local_irq_save(flags);
 +	k2_irq_wait_counts(window);
 +	t_masked = READ_ONCE(jiffies_64);
-+	ctrl = dadao_timer_status();
++	ctrl = dadao_timer_pending();
 +
 +	/*
 +	 * Release: the mask write re-kicks the pending event, so the delivery is
@@ -219,7 +224,7 @@ index 000000000..4736a75e4
 +	t_released = READ_ONCE(jiffies_64);
 +	elapsed = dadao_read_time() - released_at;
 +
-+	dadao_early_printf("K2 irq P2: masked ticks=%lu ctrl=%#lx window=%lu\n",
++	dadao_early_printf("K2 irq P2: masked ticks=%lu pending=%#lx window=%lu\n",
 +			   t_masked - t0, ctrl, window);
 +	dadao_early_printf("K2 irq P2: released ticks=%lu window=%lu "
 +			   "elapsed=%lu\n", t_released - t0, release, elapsed);
@@ -476,19 +481,22 @@ index 000000000..4736a75e4
 +
 +		/*
 +		 * A deadline one count ahead (the arm adds it to the current
-+		 * value): it expires while this frame is still live, so the event
-+		 * is pending with the knob wide open and the frame's global mask
-+		 * as the only gate.
++		 * value): it expires while this frame is still live.  The stub
++		 * closed the monitor row, so the event stays pending and that
++		 * row is the only gate.
 +		 */
 +		dadao_timer_arm(1);
 +		k2_irq_wait_counts(period / 2);
 +		waited = READ_ONCE(jiffies_64);
-+		ctrl = dadao_timer_status();
++		ctrl = dadao_timer_pending();
 +		elapsed = dadao_read_time() - armed;
 +
 +		dadao_early_printf("K2 irq P4: frame tick=%lu waited_ticks=%lu "
-+				   "ctrl=%#lx window=%lu elapsed=%lu\n",
-+				   tick, waited - tick, ctrl, period / 2, elapsed);
++				   "pending=%#lx seen=%#lx window=%lu "
++				   "elapsed=%lu\n",
++				   tick, waited - tick, ctrl,
++				   READ_ONCE(dadao_async_seen_pending),
++				   period / 2, elapsed);
 +		/* Last thing before `escape`: where "right after the frame" starts. */
 +		k2_p4_left_frame = dadao_read_time();
 +		k2_p4_stage = 2;

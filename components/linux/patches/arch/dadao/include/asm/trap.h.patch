@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/trap.h b/arch/dadao/include/asm/trap.h
 new file mode 100644
-index 000000000..51e227298
+index 000000000..a0570d41e
 --- /dev/null
 +++ b/arch/dadao/include/asm/trap.h
-@@ -0,0 +1,157 @@
+@@ -0,0 +1,155 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception entry: the contract between the assembly
@@ -16,12 +16,13 @@ index 000000000..51e227298
 +#define __ASM_DADAO_TRAP_H
 +
 +/*
-+ * Resume policy returned by dadao_trap_handler().  `escape` accepts exactly
-+ * two offsets (spec/DADAO-12 §5.3), so the policy is a two-value enum and the
-+ * stub fails by name on anything else instead of guessing an offset.
++ * Resume policy returned by dadao_trap_handler().  The stub turns it into the
++ * only software-writable return address, `cg5 rc10` (`escape ip`): RETRY keeps
++ * the faulting instruction's address, SKIP writes ip + DADAO_INSN_BYTES.
++ * Anything else is a named kernel bug.
 + */
-+#define DADAO_TRAP_RESUME_RETRY	0	/* escape +0: re-execute the faulting insn */
-+#define DADAO_TRAP_RESUME_SKIP	1	/* escape +4: continue after it */
++#define DADAO_TRAP_RESUME_RETRY	0	/* rescue rc10 = faulting instruction */
++#define DADAO_TRAP_RESUME_SKIP	1	/* rc10 = faulting instruction + 4 */
 +
 +/* Every instruction is four bytes (spec/SimRISC-00 §3). */
 +#define DADAO_INSN_BYTES	4
@@ -52,10 +53,9 @@ index 000000000..51e227298
 + * `async_src_frame`, run the return-to-user loop and leave through
 + * `dadao_enter_user()`.
 + *
-+ * The kernel-context return does not use smon: the entry hands it to
-+ * `cfx_jmon`, whose supv vector (`dadao_async_kernel_resume`) rewrites that
-+ * cfx's own `cg5` and `escape`s (kernel/async_trap.S) — `cfx_smon`'s frame
-+ * belongs to the interrupted supv exception.
++ * The kernel-context return does not use smon: kernel/async_trap.S writes the
++ * saved `cfx_hart cg5 rc8`-`rc11` exit intent back and executes
++ * `escape cfx_hart` (ADR-0061 R3), so no second monitor is involved.
 + */
 +#define DADAO_SMON_FROM_ASYNC	0x2f6
 +
@@ -110,9 +110,8 @@ index 000000000..51e227298
 + *              offset really re-executes the faulting instruction
 + *   max_hits   0 = unlimited; exceeding it is a kernel self-check failure
 + *   redirect   non-zero: resume at this address instead of at the fault.  The
-+ *              handler writes it into `cfx_smon.excp_cause_ip` (cg5 rc3) and
-+ *              returns RETRY, because `escape` only offers +0/+4 relative to
-+ *              the hardware frame IP (contract-see §6.2).
++ *              handler writes it into `cfx_smon`'s exit intent (`cg5 rc10`)
++ *              and returns RETRY; `escape cfx_smon` returns exactly there.
 + *   report     optional; the probe owns its own diagnostic line
 + */
 +struct dadao_fault_probe {
@@ -142,7 +141,6 @@ index 000000000..51e227298
 + * cfx_smon.
 + */
 +extern char dadao_async_excp[];		/* the entry (installed by init_IRQ) */
-+extern char dadao_async_kernel_resume[];	/* its kernel-context return (cfx_jmon) */
 +extern char dadao_async_save[];		/* its static frame */
 +/* Kernel-context handle; the asm trampoline resumes `async_cause_ip` afterwards. */
 +void dadao_async_kernel_handler(struct pt_regs *regs);

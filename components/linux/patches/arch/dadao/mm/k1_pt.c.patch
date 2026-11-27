@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/k1_pt.c b/arch/dadao/mm/k1_pt.c
 new file mode 100644
-index 000000000..8926ef1f3
+index 000000000..eb11c95a5
 --- /dev/null
 +++ b/arch/dadao/mm/k1_pt.c
-@@ -0,0 +1,339 @@
+@@ -0,0 +1,340 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO K1: build the first-level page table and install it in cfx_ptw_ptbr
@@ -194,7 +194,8 @@ index 000000000..8926ef1f3
 +
 +/*
 + * Read *@word from @va with the probe registered: if the access faults, the
-+ * supv vector records it and resumes after the load (escape +4), so this
++ * supv vector records it and resumes after the load (exit intent rc10 =
++ * ip + 4), so this
 + * returns false and *word keeps its previous value.
 + */
 +static bool __init k1_pt_peek(unsigned long va, unsigned long *word)

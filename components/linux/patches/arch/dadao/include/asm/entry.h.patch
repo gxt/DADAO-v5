@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/entry.h b/arch/dadao/include/asm/entry.h
 new file mode 100644
-index 000000000..9aacd5360
+index 000000000..10ab0d94d
 --- /dev/null
 +++ b/arch/dadao/include/asm/entry.h
-@@ -0,0 +1,297 @@
+@@ -0,0 +1,238 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO exception-entry register-file save/restore (assembly only).
@@ -240,64 +240,5 @@ index 000000000..9aacd5360
 +	ld.o	rb3, [rb3, PT_RB_BASE + 3 * 8]
 +	.endm
 +
-+/*
-+ * Restore everything but the umon return tail's own scratch pair: `rd2`,
-+ * `rd3`, `rb3`, `rb4`, `rb5` are left to the caller (`kernel/trap.S` re-opens
-+ * the source mask, then loads the five from the frame and escapes).  The base
-+ * `rb3` is *not* restored here — the caller reloads it last, from itself.
-+ */
-+
-+	.macro	DADAO_GPR_RESTORE_AT_KEEP_RD23_RB345
-+	set.rd	rd1, PT_RB_BASE + 1 * 8
-+	ldm.o	{rb1:rb2}, [rb3, rd1]
-+	set.rd	rd1, PT_RB_BASE + 6 * 8
-+	ldm.o	{rb6:rb63}, [rb3, rd1]
-+	set.rd	rd1, PT_RF_BASE
-+	ldm.o	{rf0:rf62}, [rb3, rd1]
-+	set.rd	rd1, PT_RF_LAST
-+	ldm.o	{rf63:rf63}, [rb3, rd1]
-+	set.rd	rd1, PT_RA_BASE
-+	ldm.o	{ra0:ra62}, [rb3, rd1]
-+	set.rd	rd1, PT_RA_LAST
-+	ldm.o	{ra63:ra63}, [rb3, rd1]
-+	set.rd	rd1, PT_RD_BASE + 4 * 8
-+	ldm.o	{rd4:rd63}, [rb3, rd1]
-+	ld.o	rd1, [rb3, PT_RD_BASE + 1 * 8]
-+	/* rd2/rd3/rb3/rb4/rb5 are left to the caller. */
-+	.endm
-+
-+/*
-+ * The asynchronous kernel-context resume tail (kernel/async_trap.S): restore
-+ * everything except the two registers the tail still needs as scratch, then
-+ * finish the resume with `escape` and put those two back from a copy that does
-+ * not live in this frame.
-+ *
-+ * Why a copy: the tail re-opens the source mask *after* the restore (the
-+ * delivery window must not cover the restore), so it needs one register for
-+ * the mask word and one for the frame base — and `rb3` is *not* free in the
-+ * interrupted context: the umon/smon stubs use it as their frame pointer, and
-+ * a resume that leaves it zero is exactly the `va=0x208` die this macro exists
-+ * to prevent (m18-linux-024).  The two final loads therefore read a copy the
-+ * entry made outside this frame, which a nested capture cannot overwrite.
-+ */
-+	.macro	DADAO_GPR_RESTORE_AT_KEEP_RD2_RB3
-+	set.rd	rd1, PT_RB_BASE + 1 * 8
-+	ldm.o	{rb1:rb2}, [rb3, rd1]
-+	set.rd	rd1, PT_RB_BASE + 4 * 8
-+	ldm.o	{rb4:rb63}, [rb3, rd1]
-+	set.rd	rd1, PT_RF_BASE
-+	ldm.o	{rf0:rf62}, [rb3, rd1]
-+	set.rd	rd1, PT_RF_LAST
-+	ldm.o	{rf63:rf63}, [rb3, rd1]
-+	set.rd	rd1, PT_RA_BASE
-+	ldm.o	{ra0:ra62}, [rb3, rd1]
-+	set.rd	rd1, PT_RA_LAST
-+	ldm.o	{ra63:ra63}, [rb3, rd1]
-+	set.rd	rd1, PT_RD_BASE + 4 * 8
-+	ldm.o	{rd4:rd63}, [rb3, rd1]
-+	ld.o	rd1, [rb3, PT_RD_BASE + 1 * 8]
-+	ld.o	rd3, [rb3, PT_RD_BASE + 3 * 8]
-+	/* rd2/rb3 are left to the caller. */
-+	.endm
 +
 +#endif /* __ASM_DADAO_ENTRY_H */

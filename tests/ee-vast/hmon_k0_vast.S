@@ -129,14 +129,15 @@ _start:
 	@@ (`spec/DADAO-12 §4.7`/`§4.10`).  cfx33 (llc) and cfx62 (uart) sit in
 	@@ the same `cfx32`–`cfx63` per-system range (`spec/DADAO-12 §1`) but are
 	@@ not implemented here, so cfx5/33/62 have no supv rows to open.
-	@@ cfx_hmon (3) is excluded on purpose (see above); a platform that
-	@@ implements more must extend this list.
+	@@ cfx_hmon (3) is excluded on purpose (see above), and so is the jail
+	@@ monitor (cfx1): m18-qemu-007 removed that monitor, so opening its row
+	@@ would only hand the kernel a source that can never be entered.  A
+	@@ platform that implements more must extend this list.
 	.ifndef	OPEN_SUPV_ALL
 	.equ	OPEN_SUPV_ALL, 1
 	.endif
 	.if OPEN_SUPV_ALL
 	OPEN_SUPV_REGS cfx_umon
-	OPEN_SUPV_REGS cfx_jmon
 	@@ K2 (m14-linux-007): the kernel reads cfx_time (freq/value) and programs
 	@@ the cfx_hart timer (cmp/ctrl).  K2_TIME_PERM=0 closes exactly these two
 	@@ so the K2 gate can show the same firmware-sourced permission.

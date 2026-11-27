@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/signal.c b/arch/dadao/kernel/signal.c
 new file mode 100644
-index 000000000..b2bb335d4
+index 000000000..21fbed4bf
 --- /dev/null
 +++ b/arch/dadao/kernel/signal.c
-@@ -0,0 +1,364 @@
+@@ -0,0 +1,365 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO signal delivery: the `rt_sigframe`, its handler entry and
@@ -79,7 +79,8 @@ index 000000000..b2bb335d4
 + * frame's `ip` is always the address the task resumes at.  The signal frame
 + * therefore saves it verbatim (no +4 here), and `sys_rt_sigreturn()` answers
 + * `DADAO_TRAP_RESUME_RETRY`: the restored `ip` *is* the resume address, and the
-+ * stub's `escape ..., 0` returns to it.  A frame that cannot be restored has no
++ * stub's `escape cfxHA` returns to `cg5 rc10` = this ip.  A frame that cannot
++ * be restored has no
 + * address to return to, so it answers `RESUME_SKIP` ("after this trap") and the
 + * `SIGSEGV` raised on the way out decides what happens next.
 + *

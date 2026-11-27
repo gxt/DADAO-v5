@@ -762,8 +762,7 @@ def check_mask(rep: Report, text: str, d: dict) -> None:
     else:
         ticks, ctrl, window = int(m.group(1)), int(m.group(2), 0), int(m.group(3))
         rep.check("M1", "屏蔽窗内 tick 计数不前进（冻结）", 0, ticks)
-        rep.check("M2", "屏蔽窗内 ISTATUS 置位（事件发生、只记 pending）", 1,
-                  (ctrl >> 2) & 1)
+        rep.check("M2", "屏蔽窗内源 pending bit0 置位", 1, ctrl & 1)
         rep.check("M3", "屏蔽窗 >= 3 个 period（现场派生）", True,
                   window >= 3 * period)
 
@@ -785,11 +784,11 @@ def check_mask(rep: Report, text: str, d: dict) -> None:
     if not frame or not after:
         rep.check("M7", "帧内/帧后两行存在", "存在", "缺失")
         return
-    tick, waited, ctrl, _window, _elapsed = ints(frame.groups())
+    tick, waited, ctrl, _seen, _window, _elapsed = ints(frame.groups())
     delivered, gap, printed_period = ints(after.groups())
     rep.check("M7", "帧内软件窗口屏蔽，不投递第二次 tick", 0, waited)
-    rep.check("M8", "帧内事件已到期（ISTATUS 置位）", 1, (ctrl >> 2) & 1)
-    rep.check("M9", "软件窗口释放后补投恰 +1（每次进入覆盖 cg9）", tick + 1, delivered)
+    rep.check("M8", "帧内事件已到期（源 pending bit0 置位）", 1, ctrl & 1)
+    rep.check("M9", "软件窗口释放后补投恰 +1（每次进入覆盖 cg15）", tick + 1, delivered)
     rep.check("M10", "补投紧跟帧结束（gap < period/2，不是周期重挂）", True,
               gap < period // 2)
     rep.check("M11", "帧内报告的 period == freq/HZ（现场派生）", period,

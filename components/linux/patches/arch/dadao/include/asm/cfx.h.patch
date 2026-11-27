@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/cfx.h b/arch/dadao/include/asm/cfx.h
 new file mode 100644
-index 000000000..ce1cafde3
+index 000000000..cff83e6da
 --- /dev/null
 +++ b/arch/dadao/include/asm/cfx.h
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,123 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO cfx register access (spec/DADAO-12 §3, §4): `cfx2rd` / `cfx2rc`.
@@ -42,8 +42,10 @@ index 000000000..ce1cafde3
 + *   supv row (cg2):  where a *kernel* `trap cfx_umon` lands and the mode it
 + *                    lands in — how a task is started in user mode.
 + *
-+ * `rc8` is "switch run mode", `rc10` is "exception vector"; both rows have the
-+ * same shape, which is why the two macros below differ only in `cg`.
++ * `rc14` is "switch run mode", `rc15` is "exception vector" (they moved from
++ * `rc8`/`rc10` in m18-spec-007; the old slots are reserved and trap CFXREG);
++ * both rows have the same shape, which is why the two macros below differ only
++ * in `cg`.
 + */
 +#define UMON_CG_USER			0
 +#define UMON_CG_SUPV			2
@@ -51,10 +53,12 @@ index 000000000..ce1cafde3
 +#define UMON_RC_REG_MASK		2	/* supv cfxreg source mask */
 +/*
 + * cg5 = the exception frame fields (spec/DADAO-12 §3.6), same layout in every
-+ * cfx.  `rc3` (`excp_cause_ip`) is the one the umon return path owns: `escape`
-+ * adds its 0/+4 offset to it, and a task that slept inside the handler must put
-+ * its *own* value back before escaping — a cfx's cg5 holds only the last entry,
-+ * which may have been another task's (m14-linux-024, kernel/trap.S).
++ * cfx: `rc0`-`rc3` are the hardware-written entry record (software reads only),
++ * `rc4`/`rc5` are cause id/info and `rc8`-`rc11` are the escape exit intent.
++ * The umon return path owns `rc10` (`escape ip`): a task that slept inside the
++ * handler must put its *own* return address back before escaping — a cfx's cg5
++ * holds only the last entry, which may have been another task's (m14-linux-024,
++ * kernel/trap.S).
 + */
 +/*
 + * cg6 = the per-cfx scratch registers (spec/DADAO-12 §3.7).  Its rc0/rc1 are
@@ -72,15 +76,32 @@ index 000000000..ce1cafde3
 +#define DADAO_CFX_SOURCES_OPEN						\
 +	((1UL << DADAO_CFX_UMON) | (1UL << DADAO_CFX_SMON) |		\
 +	 (1UL << 15 /* cfx_hart */))
-+#define UMON_RC_SWITCH_RUN_MODE		8
-+#define UMON_RC_EXCP_VECTOR		10
++#define UMON_RC_SWITCH_RUN_MODE		14
++#define UMON_RC_EXCP_VECTOR		15
++
++/*
++ * cg5 exit intent (spec/DADAO-12 §3.6): hardware copies the entry record here
++ * on every entry; software may rewrite any of the four before `escape`, which
++ * returns exactly to `rc10` and whole-word restores `rc11` into the target
++ * mode monitor's `cg15 rc3` (ADR-0064 D6/D7).
++ */
++#define CFX_CG_FRAME			5
++#define CFX_RC_FRAME_PREV_RUN_MODE	0
++#define CFX_RC_FRAME_PREV_CFX_CODE	1
++#define CFX_RC_FRAME_PREV_IP		2
++#define CFX_RC_FRAME_PREV_INTR_MASK	3
++#define CFX_RC_FRAME_CAUSE_ID		4
++#define CFX_RC_FRAME_CAUSE_INFO		5
++#define CFX_RC_ESCAPE_RUN_MODE		8
++#define CFX_RC_ESCAPE_CFX_CODE		9
++#define CFX_RC_ESCAPE_IP		10
++#define CFX_RC_ESCAPE_INTR_MASK		11
 +
 +/*
 + * cfxha of the user / jail / supv / hypv monitors (spec/DADAO-12 §2.1 table):
 + * the value a source mask's bit index counts from.
 + */
 +#define DADAO_CFX_UMON			0
-+#define DADAO_CFX_JMON			1
 +#define DADAO_CFX_SMON			2
 +#define DADAO_CFX_HMON			3
 +

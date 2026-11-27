@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..041f325c0
+index 000000000..db415d445
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,441 @@
+@@ -0,0 +1,442 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -98,8 +98,9 @@ index 000000000..041f325c0
 +	depends on DADAO_K2_EARLY_STOP
 +	help
 +	  Exercise the exception channel from inside the kernel (see
-+	  kernel/k2_selftest.c): a registered CFXMEM probe that is resumed with
-+	  both escape offsets, the frame's register-file integrity, and the
++	  kernel/k2_selftest.c): a registered CFXMEM probe that is resumed both by
++	  re-execution and by skipping (exit intent `cg5 rc10`), the frame's
++	  register-file integrity, and the
 +	  named termination of an unregistered fault.
 +
 +	  This is test scaffolding (the K2 gate builds a probe image with it);

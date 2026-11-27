@@ -31,9 +31,9 @@ Everything expected here is derived live (nothing is restated):
 Images (each pins every symbol it depends on — the build tree is shared):
 
   time    CONFIG_DADAO_K2_TIME_CASE=0  both axes open -> N ticks -> exit 0
-  imask   case 1                       + IMASK parks one event, release delivers
-  source  case 2                       source axis closed -> no tick
-  global  case 3                       global axis closed -> no tick
+  imask   case 1                       + source gate parks one event, release delivers
+  source  case 2                       source `cg16 rc16` bit0 closed -> no tick
+  global  case 3                       only the (irrelevant) umon row closed -> ticks
 
 The permission-negative run (P6) is not an image but a **firmware variant**:
 the same kernel boots against a BootROM whose hmon leaves `cfx_hart`/`cfx_time`
@@ -42,7 +42,7 @@ must be CFXPERM — proving the permission comes from the firmware and is not
 default.
 
 Checks: C0 static inputs / C1 image + stage order / C2 time base / C3 tick
-series / C4 interval + margin / C5 stopped timer / C6 IMASK / C7 the two axes /
+series / C4 interval + margin / C5 stopped timer / C6 source gate / C7 the axes /
 C8 permission negative / C9 live counts / C10 single-row source axis (the
 running mode monitor's row; a standing assertion on the shipped image).
 
@@ -135,7 +135,8 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K5_PAGESZ_SELFTEST": "n",
 }
 
-#: The exercised case per image: 0 production, 1 IMASK, 2 source axis, 3 global.
+#: The exercised case per image: 0 production, 1 source gate, 2 source axis,
+#: 3 monitor-row axis.
 IMAGE_PINS = {
     "imask": {"CONFIG_DADAO_K2_TIME_CASE": "1"},
     "source": {"CONFIG_DADAO_K2_TIME_CASE": "2"},
@@ -368,13 +369,14 @@ AFTER_STOP = re.compile(r"^K2 time: after stop ticks=(\d+) window=(\d+)$",
                         re.MULTILINE)
 DONE = re.compile(r"^K2 time: done ticks=(\d+) mask=(\S+)$",
                   re.MULTILINE)
-IMASK = re.compile(r"^K2 imask: ctrl=(\S+) ticks=(\d+)$", re.MULTILINE)
-IMASK_RELEASED = re.compile(r"^K2 imask: released ctrl=(\S+) ticks=(\d+)$",
+IMASK = re.compile(r"^K2 imask: pending=(\S+) ticks=(\d+)$", re.MULTILINE)
+IMASK_RELEASED = re.compile(r"^K2 imask: released pending=(\S+) ticks=(\d+)$",
                             re.MULTILINE)
 AXIS = re.compile(r"^K2 axistest: axis=(\w+) ticks=(\d+) window=(\d+)$",
                   re.MULTILINE)
 AXIS_CLOSE = re.compile(
-    r"^K2 axisclose: axis=(\w+) smon=(\S+) umon=(\S+)$", re.MULTILINE)
+    r"^K2 axisclose: axis=(\w+) smon=(\S+) umon=(\S+) srcmask=(\S+)$",
+    re.MULTILINE)
 
 STAGE_ANCHORS = (
     ("bootinfo", r"^K1 bootinfo magic="),
@@ -466,7 +468,7 @@ def check_vector_and_masks(rep: Report, text: str, syms: dict,
         rep.check("C1", "异步向量安装行存在", "存在", "缺失")
     else:
         readback, want, mode = m.group(1), m.group(2), int(m.group(3))
-        rep.check("C1", "cfx_hart cg9 向量读回 == 写入（含 4 字节对齐）", want,
+        rep.check("C1", "cfx_hart cg15 向量读回 == 写入（含 4 字节对齐）", want,
                   readback)
         rep.check("C1", "写入值 == dadao_async_excp 符号",
                   hex(syms["dadao_async_excp"]), want)
@@ -608,21 +610,21 @@ def check_image(name: str, rc: int, text: str, cmd: list[str], rep: Report,
 
 
 def check_imask(rep: Report, text: str) -> None:
-    """C6: IMASK parks the event, releasing IMASK delivers that one event."""
+    """C6: the source gate parks the event; releasing it delivers exactly one."""
     m = IMASK.search(text)
     if not m:
-        rep.check("C6", "IMASK 行存在", "存在", "缺失")
+        rep.check("C6", "源 mask 行存在", "存在", "缺失")
         return
-    ctrl, ticks = int(m.group(1), 0), int(m.group(2))
-    rep.check("C6", "IMASK=1 时 ctrl 读回 = ENABLE|IMASK|ISTATUS", 0b111, ctrl)
-    rep.check("C6", "IMASK=1 时未投递（tick 计数不变）", 0, ticks)
+    pending, ticks = int(m.group(1), 0), int(m.group(2))
+    rep.check("C6", "源 mask 关闭时 pending bit0 已置位", 1, pending & 1)
+    rep.check("C6", "源 mask 关闭时未进入（tick 计数不变）", 0, ticks)
     m = IMASK_RELEASED.search(text)
     if not m:
-        rep.check("C6", "IMASK 释放行存在", "存在", "缺失")
+        rep.check("C6", "源 mask 释放行存在", "存在", "缺失")
         return
-    ctrl2, ticks2 = int(m.group(1), 0), int(m.group(2))
-    rep.check("C6", "释放后 ctrl 读回只剩 ENABLE（ISTATUS 已清）", 0b1, ctrl2)
-    rep.check("C6", "释放投递被挂起的那一次事件（恰好 1）", 1, ticks2)
+    pending2, ticks2 = int(m.group(1), 0), int(m.group(2))
+    rep.check("C6", "释放后 pending 已被 handler ack 清 0", 0, pending2 & 1)
+    rep.check("C6", "释放后进入被挂起的那一次事件（恰好 1）", 1, ticks2)
 
 
 def check_axis(rep: Report, name: str, text: str, case: int) -> None:
@@ -635,7 +637,7 @@ def check_axis(rep: Report, name: str, text: str, case: int) -> None:
     base = TIME_INIT.search(text)
     period = (int(base.group(1)) // int(base.group(2))) if base else 0
     rep.check("C7", f"{name} 镜像报告的轴 == case 选择", name, axis)
-    rep.check("C7", f"{name} 镜像：supv 行仍屏蔽 ⇒ 无 tick", 0, ticks)
+    rep.check("C7", f"{name} 镜像：被选中的门仍屏蔽 ⇒ 无 tick", 0, ticks)
     rep.check("C7", f"{name} 镜像：等待窗 >= 2 个 period（现场派生）", True,
               bool(period) and window >= 2 * period)
 
@@ -643,11 +645,12 @@ def check_axis(rep: Report, name: str, text: str, case: int) -> None:
     if not cm:
         rep.check("C7", f"{name} 镜像 axisclose 行存在", "存在", "缺失")
         return
-    smon, umon = ints(cm.group(2, 3))
+    smon, umon, srcmask = (int(cm.group(2), 0), int(cm.group(3), 0),
+                           int(cm.group(4), 0))
     bit = 1 << cfxha("cfx_hart")
-    rep.check("C7", "source 镜像：supv 行仍屏蔽", bit, smon & bit)
-    rep.check("C7", "source 镜像：用户行已放开（不是它门控内核投递）", 0,
-              umon & bit)
+    rep.check("C7", "source 镜像：源 mask bit0 已屏蔽", 1, srcmask & 1)
+    rep.check("C7", "source 镜像：monitor supv 行仍放开", 0, smon & bit)
+    rep.check("C7", "source 镜像：monitor 用户行仍放开", 0, umon & bit)
 
 
 def knob_rows_written() -> tuple[bool, bool]:
@@ -685,7 +688,7 @@ def check_single_row(rep: Report, rc: int, text: str, hart: int) -> None:
     spec/DADAO-12 §5.2 step 3 filters asynchronous sources on the mode monitor's
     `<mode>_cfx_intr_mask`, so the whole tick series must still complete.  A
     filter that reads the *current cfx's* row would stop matching the running
-    mode's policy (cg9 is only the capture buffer of one entry, ADR-0061 R2),
+    mode's policy (cg15 is only the capture buffer of one entry, ADR-0064),
     and the `two-row` injection below puts the second write back to show the
     gate still notices it.
     """
@@ -885,8 +888,8 @@ def run_selfcheck(result: dict) -> int:
          "第二个 tick 的时间戳偏移 3 ms"),
         ("time", "C5", lambda t: re.sub(r"(after stop ticks=)\d+", r"\g<1>1", t),
          "stop 后仍有 tick"),
-        ("imask", "C6", lambda t: re.sub(r"(K2 imask: ctrl=\S+ ticks=)\d+",
-                                         r"\g<1>1", t), "IMASK 期间投递了 tick"),
+        ("imask", "C6", lambda t: re.sub(r"(K2 imask: pending=\S+ ticks=)\d+",
+                                         r"\g<1>1", t), "源门关闭期间投递了 tick"),
         ("source", "C7", lambda t: re.sub(r"(K2 axistest: axis=source ticks=)\d+",
                                           r"\g<1>2", t), "关源轴仍有 tick"),
         ("global", "C7", lambda t: re.sub(

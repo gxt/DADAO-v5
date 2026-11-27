@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/kernel/entry_common.c b/arch/dadao/kernel/entry_common.c
 new file mode 100644
-index 000000000..8f272fe3a
+index 000000000..8035f50e8
 --- /dev/null
 +++ b/arch/dadao/kernel/entry_common.c
 @@ -0,0 +1,355 @@
@@ -277,7 +277,7 @@ index 000000000..8f272fe3a
 +{
 +	unsigned long flags;
 +
-+	/* The async stub masked sources before reading cg9; restore the word the
++	/* The async stub masked sources before reading cg15; restore the word the
 +	 * entry inherited so the user-mode mask row (already open) governs. */
 +	arch_local_irq_restore(dadao_async_saved_mask);
 +	local_irq_enable();
