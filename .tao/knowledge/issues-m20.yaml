@@ -165,3 +165,12 @@
   closed_in: null
   resolved_by: null
   title: '【P2】chipyard 腿在 62 并发全量 `check-idl-full` 下偶发对单个镜像输出 **0 字节签名流**且进程 rc=0（`m20-testcases-009`：首次 273/274，失败项 `ftadd_orrr_rf`；原样重试 1 次 274/274 四方一致，槽值无差异）。影响：并发下会产生假红，且 0 字节签名不会触发位移/槽数校验，可能反向掩盖真红（若 runner 只看 rc）。处置：runner/驱动对 <预期槽数或空签名做显式报错（非 rc=0 静默跳过），并查 RTL 侧签名 dump 的 flush/竞争窗口；定位前 `check-idl-full` 结论一律按「失败即重试 1 次 + 保留两次日志」记录。'
+- id: ISS-m20-006
+  scope:
+  - testcases
+  - infra
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P2】`run_inst_tiny.scan_source` 的 `faults` 正则不识别自定义副作用故障宏（`TEST_FAULT_*_MALIGN_KEEP*` 等 `TEST_FAULT_{LD,ST}_*` 变体）⇒ 这类故障例不进 `case-ledger` 身份清单、不进 `check-inst-asm` 的「635 例」计数，删除整例时 `inst-signature-data --write` + `check_case_ledger.py --write` 后 `case-ledger.tsv`/`expected.tsv` 逐字节不变、全部门控仍绿（`m20-testcases-011` 实测）。影响：故障例可被静默删除；执行期本身仍可达 FAIL（改错对齐地址 ⇒ `__EXIT 点号` 判红，已实测），故不是假绿而是哨兵盲区。处置：`scan_source` 增加 `TEST_FAULT_(LD|ST)_[A-Z0-9_]+` 族识别并纳入 faults/ledger；在此之前新增此类宏须在任务书登记并人工核对点号。'
