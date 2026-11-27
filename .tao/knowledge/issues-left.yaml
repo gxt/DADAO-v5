@@ -238,7 +238,7 @@
   scope:
   - idl
   milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M17
+  resolved_by: m17-idl-025（入口态 seed cg4/cg15 计数与掩码，计数严格相等）
   title: 【P3】逐指令 trace 的入口态只含 `{ip, mode, cfx, rd/rb/rf/ra}`（`idl/tools/idl_qemu_state.py`），**不含各 cfx 的 `cg4` 计数**；trace 从应用入口 seed，IDL 侧 `escape_num` 等计数从 0 起、QEMU 侧保留启动链结果（`hmon cg4 rc5 = 1`）⇒ 任何在入口读 `cg4` 的用例必然假红。实测 `escape_ciii_cfx` 第 26 条（pc `0xffffff010164`，`cfx2rd cfx_hmon,cg4,rc5`）exec `0` vs QEMU `1`。处置（三选一）：① 入口态扩展含 `cg4`/`cg5`/`cg15`；② trace 从复位跑（两侧都走启动链）；③ 文档化为等价并跳过。trace 不在 M17 收口判据（签名槽+退出码）内。
