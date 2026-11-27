@@ -240,7 +240,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P3】`m18-linux-025` 2000 启样本中 1 次极早停摆（`--soak-strict` 计数 1/2000，窗口签名仍 0/2000）：console 停在 `workingset（timestamp_bits）…` 之后、`M45 selftest begin` 之前，`rc=124`，与用户态异步返回窗口（`ISS-m18-001` 已修）签名不同；同一镜像追加 2048 启 0 复现（64 并发、8 s 判活），故按 ≤1/2000 区间登记。复现条件未知（load≈5–8、`/tmp` 85% 时段）；下次复现须抓 QEMU monitor `info registers` 与 `cfx_smon/hart` 快照，归后续任务。
+  title: 【P3】`m18-linux-025` 2000 启样本中 1 次极早停摆（`--soak-strict` 计数 1/2000，窗口签名仍 0/2000）：console 停在 `workingset（timestamp_bits）…` 之后、`M45 selftest begin` 之前，`rc=124`，与用户态异步返回窗口（`ISS-m18-001` 已修）签名不同；同一镜像复跑未复现（025 验收累计样本 ≥6000 启 0 红；原「2048 启」无存档，按累计口径登记），故按 ≤1/2000 区间登记。复现条件未知（load≈5–8、`/tmp` 85% 时段）；下次复现须抓 QEMU monitor `info registers` 与 `cfx_smon/hart` 快照，归后续任务。
 - id: ISS-m18-005
   scope:
   - linux

@@ -6,14 +6,19 @@
 **可并行分片**：否
 **预估**：3–5 h（标定：同档最近 5 件派单→合入实测 31/62/86/124/182 min，中位 86 min；本任务新增组件与构建链，取 2–4× 中位）
 **档位**：大改（新组件 + 交叉构建 + 首轮分诊）
-**状态**：待返工
+**状态**：待开始
 
-## 阻塞（2026-11-25，第 2 轮返工结论）
+## 重派基线（2026-11-27，第三轮）
 
-- 返工三项（`TEST_ADAPT`、根因口径、判据改逐行 diff）**已落地**；`mmap01`/`munmap03` 在干净内核上 PASS，**64K 无需专用补丁**（理由已写进套件 README）。
-- 验收 5/6 被内核侧阻塞：① 安装根 QEMU 已是扁平位图模型、内核解码归 `m18-linux-023`（在跑）；② 用户态信号投递死在异步异常入口（`MALIGN ip=dadao_async_excp+0x1fc` → `die 0xec`，约 1/10），归 `ISS-539`/`m18-linux-024` 族。**两者修好前无法建立「连跑 2 次一致」与注入回绿基线。**
-- 并发教训：共享 `.work/source/linux` 被 `023` 就地重放时，本轮前几跑产生假红；已改私人重放树 + `DADAO_LINUX_SOURCE`/`DADAO_LINUX_BUILD` 覆盖（`ISS-538`）。
-- 恢复条件：`m18-linux-023` + `ISS-539` 修复后，复跑 `run_suite.py --suite ltp` 两次 + `run.sh`，再走验收 5/6。
+原阻塞已全部消除：`m18-linux-023`（内核解码扁平位图）、`m18-linux-024`（异步返程）、`m18-linux-026`（内核迁 0.8.1-rc：`cg15`/`cg16` + ack + 模式上限 + 出口帧）、`m18-qemu-007`（移除 jmon）、**`m18-linux-025`（`ISS-m18-001` 自旋根因闭合：umon 返回路径 restore 用户 SP 前关 supv 异步门）** 均已合入。
+
+本轮要求：
+
+- **配对**：用本 worktree 构建的 0.8.1 QEMU（记 md5）；内核用 master 的 0.8.1-rc 补丁集。**不得**覆盖共享安装根。
+- **两轮一致是硬判据**：`run_suite.py --suite ltp` 连跑 2 次，逐例 verdict 必须一致（时间戳/序号除外）；不一致即红，不得挑一轮当结论。
+- **低频红单列**：命中 `ISS-m18-005`（随机 case `HOST_TIMEOUT`，已见 `mm-pfnmap`/`mm-map-populate`/`futex-wait-timeout`）或 `ISS-m18-006`（`handle_softirqs die=0xe4`/`pf-va=0x10`）时，**单独计数并记签名**，不算该 case 的判定；每轮 ≤3 次重跑，超了如实记红。
+- **证据留存**：每次跑次单独目录，日志不得被后续跑覆盖（025 第 3 跑已被覆盖，教训）。
+- 历史返工成果（`TEST_ADAPT` 三项、64 KiB 判据、`suite.yaml` 期望、`mlockall02` 改 TBROK）保留，不重做。
 
 **执行环境**：本地（QEMU system `-M kaiwu-vast`）
 
