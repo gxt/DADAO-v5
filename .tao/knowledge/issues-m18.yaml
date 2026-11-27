@@ -22,6 +22,15 @@
   closed_in: null
   resolved_by: null
   title: "【P2】内核无系统调用重启语义：`dadao_user_syscall_post()` 把 `-ERESTARTSYS` 一律改写成 `-EINTR`（`contract-syscall` §9 允许返回 `-errno`），因此被信号打断的 `wait4`/`futex`/`read` 在 musl 侧看不到自动重启，需 libc/harness 自行重试。`m18-linux-006` 的 LTP 子集为此加了一条 harness 级 `TEST_ADAPT`（`safe_waitpid` EINTR 重试），但该缺口此前无 ISS 记录。影响：LTP/kselftest 中依赖 `SA_RESTART` 的用例会出现非内核错误的 EINTR；用户态需永久自行重试。复评条件：若后续引入内核侧重启（或 contract-syscall 明确要求重启），删除该 TEST_ADAPT 并回退其注释。`m18-linux-006` 已按「接受适配 + 登记缺口」处置。"
+- id: ISS-m18-008
+  scope:
+  - tests
+  - infra
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2·跨册】master 的 `check-case-ledger` 已红：`348cb004`（`m17-testcases-008`「`escape` 按平台条件化」）改了 `tests/inst/11-cfx/escape_ciii_cfx.S` 但没有重生成 `tests/case-ledger.tsv`，出现 8 行 `__CHECK_*` 多余。`m18-linux-018` 提交前逐字节确认 `case-ledger.tsv` 与 `escape_ciii_cfx.S` 在 master 与其分支完全相同 ⇒ 非 018 引入；`m18-linux-018` 的 `run.sh` 基线比对因此报「new red gate」，属陈旧 `baseline-gates.txt` 误报。处置：由 `tests/inst` 归属方在 master 上按生成器 `--write` 重生成 `case-ledger.tsv`（或立 repair 任务），并更新 `baseline-gates.txt`。跨册，M18 不代改。"
 - id: ISS-m18-002
   scope:
   - infra
