@@ -22,6 +22,8 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m19-testcases-001 | 2–4 h | `swym N` 测试程序：1/2/4096 拍、高位 ILLI、原子中断 |
+| m19-testcases-004 | 4–8 h | tests/arch Tiny 探针迁移到 entry 0x2000/SP/EXIT/DUMP |
+| m19-infra-002 | 4–8 h | picolibc Tiny 地址图迁移（组件补丁，版本号待确认） |
 | m19-integ-001 | 4–8 h | 新几何下 QEMU/gem5/chipyard 三平台签名/退出一致性 |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
