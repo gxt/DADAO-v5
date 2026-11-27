@@ -5,6 +5,15 @@
 # `ISS-m18-NNN`（NNN 从 001 起，取本文件内未用最小号）。跨文件修改须用户同意；
 # 里程碑收尾时本文件应清空，未解决条目汇总到 `issues-left.yaml`。
 #
+- id: ISS-m18-003
+  scope:
+  - arch
+  - infra
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`check_power_rtl.py` 的 argparse 不接受 `run_arch.py --platforms chipyard` 传入的 `--signature-out`/`--mode`，`arch-power-001`/`arch-power-002` 在 host 侧即 rc=2（未进 RTL）。2026-11-27 `m18-chipyard-002/003` 复核时实测；两任务均未改 `run_arch.py`/`check_power_rtl.py`，判基线既有。影响：power 两项无法通过 `run_arch` 聚合跑，只能单跑。处置：二选一——`check_power_rtl.py` 接受并忽略/使用两个参数，或 `run_arch.py` 对 power 探测能力后不传。"
 - id: ISS-m18-002
   scope:
   - infra
