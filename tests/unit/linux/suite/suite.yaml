@@ -52,7 +52,10 @@ cases:
     dir: futex/functional
     prog: futex_wait_timeout
     timeout: 90
-    expect: FAIL
+    # m18-linux-016: futex_waitv landed once syscall 449 was added to the
+    # argument-routing table (both carriers); the case also carries the
+    # boundary/return-value subtests of adaptation patch 0003.
+    expect: PASS
   # Kept in its own boot as a safety net: the absolute-time
   # `clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, now+10ns)` used to wedge the
   # machine.  It now completes (4/4 runs PASS after the m18-linux-022/024 async

@@ -1,9 +1,9 @@
 diff --git a/linux-user/dadao/cpu_loop.c b/linux-user/dadao/cpu_loop.c
 new file mode 100644
-index 0000000..ec8c3d1
+index 0000000..ccb388b
 --- /dev/null
 +++ b/linux-user/dadao/cpu_loop.c
-@@ -0,0 +1,527 @@
+@@ -0,0 +1,528 @@
 +/*
 + * QEMU user-mode CPU loop for DADAO (P3, ADR-0025 D2/D6).
 + *
@@ -296,7 +296,8 @@ index 0000000..ec8c3d1
 +    case TARGET_NR_socketpair: /*  int,  family,  int,  type,  int,  protocol,  int __user *,  usockvec */
 +        return 0x08;
 +
-+    /* mask 0x09 (1): address arguments in slots 0, 3 */
++    /* mask 0x09 (2): address arguments in slots 0, 3 */
++    case TARGET_NR_futex_waitv: /*  struct futex_waitv __user *,  waiters,  unsigned int,  nr_futexes,  unsigned int,  flags,  struct __kernel_timespec __user *,  timeout,  clockid_t,  clockid */
 +    case TARGET_NR_mq_open: /*  const char __user *,  u_name,  int,  oflag,  umode_t,  mode,  struct mq_attr __user *,  u_attr */
 +        return 0x09;
 +

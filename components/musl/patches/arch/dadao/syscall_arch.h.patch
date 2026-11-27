@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/syscall_arch.h b/arch/dadao/syscall_arch.h
 new file mode 100644
-index 0000000..d7d78b6
+index 0000000..f2fef75
 --- /dev/null
 +++ b/arch/dadao/syscall_arch.h
-@@ -0,0 +1,523 @@
+@@ -0,0 +1,524 @@
 +/*
 + * DADAO syscall entry/driver for musl.
 + *
@@ -349,7 +349,8 @@ index 0000000..d7d78b6
 +	case SYS_socketpair:	/*  int,  family,  int,  type,  int,  protocol,  int __user *,  usockvec */
 +		return 0x08;
 +
-+	/* mask 0x09 (1): address arguments in slots 0, 3 */
++	/* mask 0x09 (2): address arguments in slots 0, 3 */
++	case SYS_futex_waitv:	/*  struct futex_waitv __user *,  waiters,  unsigned int,  nr_futexes,  unsigned int,  flags,  struct __kernel_timespec __user *,  timeout,  clockid_t,  clockid */
 +	case SYS_mq_open:	/*  const char __user *,  u_name,  int,  oflag,  umode_t,  mode,  struct mq_attr __user *,  u_attr */
 +		return 0x09;
 +

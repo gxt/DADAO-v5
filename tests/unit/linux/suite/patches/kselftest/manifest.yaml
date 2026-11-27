@@ -49,3 +49,17 @@ patches:
       - path: mm/map_populate.c
         upstream_sha256: 1e9a60b3cc0c497e01b28a71cab11d8937150cf3cc1611b116ef4904621d8977
         patched_sha256: 88887957ce7cf65dcddf303126920470220cc1c7ebf67254ae4985ec46b46e54
+  - file: 0003-futex-wait-timeout-waitv-abi.patch
+    sha256: 6a3fcd2be72e3937cd9d310d9797fcf613a07515fbfb33d4d5a015ec812e920f
+    class: TEST_ADAPT
+    why: >-
+      Adds the futex_waitv(2) boundary/return-value coverage the triaged case
+      lacked (zero and oversized nr_futexes, non-zero system flags, an
+      unreadable uaddr, the woken index, and the ABI's acceptance of duplicate
+      keys).  The expectations come from the Linux futex_waitv(2) ABI -- a
+      duplicate key is *not* an error upstream -- and no existing assertion is
+      changed.
+    files:
+      - path: futex/functional/futex_wait_timeout.c
+        upstream_sha256: 5331de59e4765098e1ea3917f8506c06f0dc235154684631fef6cbfd19795ba2
+        patched_sha256: 84b7dca31c6183e03385546ac421d72439eec938e1e43972ba70c0165b5b14cd

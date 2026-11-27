@@ -313,6 +313,10 @@
   - 摘要：**每源 pending/mask/ack（`cg15`/`cg16`，0.8.1-rc）**。`cfx_hart` 异步捕获组由 `cg9` 迁到 `cg15`（`rc0`–`rc5` 入口记录/实时 pending 汇总、`rc14` switch/上限、`rc15` vector；`cg9` 归 reserved ⇒ `CFXREG`）；monitor 的异步来源掩码由 `cg8 rc1` 迁到 `cg15 rc3`（64 位、位 = 源 cfxha、1 = 屏蔽、复位全 1；`cg8 rc1` ⇒ `CFXREG`）；`escape` 的 `rc11` 整字写目标模式 monitor 的 `cg15 rc3`，`cg5 rc3` 快照同源。`cfx_hart cg16`：`rc0` timer ctrl（仅 bit0 ENABLE）、`rc1` timer cmp、`rc16` mask / `rc17` pending（RO）/ `rc18` ack（W1C），删 `cg8 rc4/rc5` timer（⇒ `CFXREG`）；`cfx_pmem cg16`：同一中断面，bit0 = `DONE|ERROR` 合并；`dma_ctrl` bit2（旧 `IRQ_EN`）按保留位（读 0/写忽略）。语义：事件置位、**ack 才清**、异步进入不清、ack 幂等、保留位忽略；逐源判定 `(pending & ~源mask)`、当前模式 monitor `cg15 rc3`、timer `ENABLE=1`，并加运行模式上限 `当前模式 <= cg15 rc14`；多源合并成一次进入、`cg15 rc4` = 源集合、`rc5` = 原始 pending 汇总；timer 使能即检、写 cmp 只 re-arm；DMA ack 只清 pending、`dma_status` 仍由自身 W1C 清。新增 `asyncKick` 闩锁：只在源事件/放行写后的指令边界求值一次，避免 sticky pending 在 handler ack 前逐边界重入。Tiny 的 monitor 掩码同步迁到 `cg15 rc3`。`tools/gem5/check_b6.py` 的 `escape` legality 改 `("imms18 == 0", _CFX)`；关闭 `DIV-16`。
   - 执行者：engineer
 
+- **2026-11-28 `m18-linux-016`**
+  - 摘要：**SE `dadaoArgmask` 补 `case 449: /* futex_waitv */` = 0x09**（地址槽 0、3），与 musl C stub / QEMU host / 内核入口同一不变量（`check-syscall-abi` 86/86）。补丁 1 份改（`src/arch/dadao/se_workload.cc`）。
+  - 执行者：engineer
+
 ## M20
 
 - **2026-11-26 m20-gem5-002**

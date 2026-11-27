@@ -34,6 +34,12 @@ format: 1
 #   arch/riscv and arch/x86 spell it.  Re-run condition met: five consecutive
 #   `run_suite.py --only mm-map-populate` runs are PASS with SUITE CASE END and
 #   no rwsem warning; suite.yaml's baseline for this case is PASS again.
+#   futex-wait-timeout (m18-linux-016).  Was KERNEL_BUG / FAIL with
+#   "not ok 1 futex_waitv monotonic returned 22".  The syscall itself was
+#   present; syscall 449 was missing from the argument-routing table, so the
+#   integer arguments were read from the address bank and the kernel saw
+#   nr_futexes=0 (EINVAL).  Routing row 449=0x09 added to all carriers; the
+#   case (plus the boundary subtests of adaptation patch 0003) passes.
 rows:
   - id: mm-pfnmap
     class: SUITE_ENV
@@ -52,15 +58,3 @@ rows:
       Rerun when the port supports the /dev/mem mmap path (devmem_is_allowed /
       pfn remap on DADAO) and the image ships the node; the /proc/iomem half is
       already verified by `grep 'System RAM' /proc/iomem` in the suite console.
-  - id: futex-wait-timeout
-    class: KERNEL_BUG
-    verdict: FAIL
-    case_output: "not ok 1 futex_waitv monotonic returned 22"
-    evidence: >-
-      Three of the four groups pass (relative futex_wait, FUTEX_WAIT_BITSET on
-      CLOCK_REALTIME/MONOTONIC, FUTEX_WAIT_REQUEUE_PI, FUTEX_LOCK_PI); the
-      futex_waitv syscall returns EINVAL (22) for a plain relative wait, so the
-      multi-wait interface is not implemented by this port.
-    recheck: >-
-      Rerun `run_suite.py --only futex-wait-timeout` after futex_waitv lands; the
-      row disappears when the case passes.

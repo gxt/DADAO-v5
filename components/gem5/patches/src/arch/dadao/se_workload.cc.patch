@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..805368f
+index 0000000..fc7ca20
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,6446 @@
+@@ -0,0 +1,6447 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
@@ -641,7 +641,8 @@ index 0000000..805368f
 +      case 208: /* setsockopt */
 +      case 199: /* socketpair */
 +        return 0x08;
-+      /* mask 0x09 (1): address arguments in 0,3 */
++      /* mask 0x09 (2): address arguments in 0,3 */
++      case 449: /* futex_waitv */
 +      case 180: /* mq_open */
 +        return 0x09;
 +      /* mask 0x0a (9): address arguments in 1,3 */

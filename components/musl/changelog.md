@@ -110,3 +110,7 @@
 - **2026-11-23 `m18-infra-002`**
   - 摘要：**动态链接运行闭环打通（无补丁改动，`series` 26 不变）**。system Linux（QEMU `-M kaiwu-vast`）上 `PT_INTERP=/lib/ld-musl-dadao.so.1` → ldso 自举 → `libc.so` 重定位 → TLS/errno → 返回用户态全链跑通：动态 `/init` 的 `printf`/`malloc`/`free`/`write` 输出逐字匹配、退出码 42；`pthread_create/join`、`dlopen`（独立 DSO）、`__thread` 均实测通过；`qemu-dadao` 同一 ELF 输出/退出码一致。新增运行工具 `tools/linux/make_ldso_image.py`（镜像 + `CONFIG_DADAO_*` 全量钉子 + QEMU 启动判据；`--inject interp|symbol` 给两条真实失败路径）。静态 `lib/libc.a` md5 不变（`c9c3eb51…`）。
   - 执行者：engineer
+
+- **2026-11-28 `m18-linux-016`**
+  - 摘要：**`__dadao_argmask` 补 `SYS_futex_waitv`(449) = 0x09**。`syscall(SYS_futex_waitv, &waitv, 1, 0, &to, CLOCK_MONOTONIC)` 的两个指针实参在变参调用里落 RB；掩码 0 时 `syscall()` 全按 `syscall_arg_t` 取 RD，内核便看到 `nr_futexes=0` ⇒ EINVAL。行与内核 `syscall_argmask.c`、QEMU/gem5 表同步（`check-syscall-abi` 覆盖）。`series` 26 不变（同文件既有补丁）。
+  - 执行者：engineer

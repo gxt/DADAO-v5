@@ -1,0 +1,123 @@
+--- a/futex/functional/futex_wait_timeout.c
++++ b/futex/functional/futex_wait_timeout.c
+@@ -16,6 +16,8 @@
+  *****************************************************************************/
+ 
+ #include <pthread.h>
++#include <string.h>
++#include <unistd.h>
+ 
+ #include "futextest.h"
+ #include "futex2test.h"
+@@ -184,4 +186,111 @@
+ 	test_timeout(res, "futex_waitv realtime", ETIMEDOUT);
+ }
+ 
++/*
++ * Boundary and return-value coverage for futex_waitv (m18-linux-016).
++ *
++ * Every expectation below is the Linux ABI's, not a guess: futex_waitv(2)
++ * documents EINVAL for a zero/oversized nr_futexes, non-zero system flags and
++ * an unsupported clockid, EFAULT for an unreadable array or uaddr, ETIMEDOUT
++ * for the timeout arm, and the index of a woken waiter otherwise.  It has no
++ * duplicate-key rule -- each entry is queued on its key independently -- so a
++ * duplicate pair is asserted to be *accepted*, not rejected.
++ */
++struct waitv_waker {
++	futex_t *uaddr;
++	volatile int *done;
++};
++
++static void *waitv_wake_loop(void *arg)
++{
++	struct waitv_waker *w = arg;
++	int i;
++
++	for (i = 0; i < 1000 && !*w->done; i++) {
++		futex_wake(w->uaddr, 1, FUTEX_PRIVATE_FLAG);
++		usleep(1000);
++	}
++
++	return NULL;
++}
++
++static void waitv_boundary_wait(struct futex_waitv *w, int nr, void *uaddr_val,
++				int err, const char *name)
++{
++	struct timespec to;
++	int res;
++
++	if (futex_get_abs_timeout(CLOCK_MONOTONIC, &to, timeout_ns))
++		ksft_test_result_error("get_time error");
++	if (uaddr_val)
++		w[0].uaddr = (uintptr_t)uaddr_val;
++	res = futex_waitv(w, nr, 0, &to, CLOCK_MONOTONIC);
++	ksft_test_result(res == -1 && errno == err,
++			 "%s returns %d (got %d/%d)\n", name, err, res, errno);
++}
++
++TEST(waitv_abi)
++{
++	struct futex_waitv w[129];
++	struct timespec to;
++	futex_t f = FUTEX_INITIALIZER;
++	pthread_t waker;
++	struct waitv_waker wk;
++	volatile int done = 0;
++	int i, res;
++
++	memset(w, 0, sizeof(w));
++	for (i = 0; i < 129; i++) {
++		w[i].uaddr = (uintptr_t)&f;
++		w[i].val = 0;
++		w[i].flags = FUTEX_32 | FUTEX_PRIVATE_FLAG;
++	}
++
++	/* Empty array and one past FUTEX_WAITV_MAX are both EINVAL. */
++	waitv_boundary_wait(w, 0, NULL, EINVAL, "futex_waitv nr_futexes=0");
++	waitv_boundary_wait(w, 129, NULL, EINVAL, "futex_waitv nr_futexes=129");
++
++	/* The syscall-level flags argument is reserved (EINVAL when non-zero). */
++	if (futex_get_abs_timeout(CLOCK_MONOTONIC, &to, timeout_ns))
++		ksft_test_result_error("get_time error");
++	res = futex_waitv(w, 1, 1, &to, CLOCK_MONOTONIC);
++	ksft_test_result(res == -1 && errno == EINVAL,
++			 "futex_waitv system flags != 0 returns EINVAL (got %d/%d)\n",
++			 res, errno);
++
++	/* An unreadable uaddr is EFAULT (aligned but unmapped). */
++	waitv_boundary_wait(w, 1, (void *)0x10000000000UL, EFAULT,
++			    "futex_waitv unmapped uaddr");
++
++	/* A woken waiter returns its index, not 0 for "ok". */
++	if (futex_get_abs_timeout(CLOCK_MONOTONIC, &to, 1000000000L))
++		ksft_test_result_error("get_time error");
++	w[0].uaddr = (uintptr_t)&f;
++	wk.uaddr = &f;
++	wk.done = &done;
++	if (pthread_create(&waker, NULL, waitv_wake_loop, &wk))
++		ksft_exit_fail_msg("pthread_create failed\n");
++	res = futex_waitv(w, 1, 0, &to, CLOCK_MONOTONIC);
++	done = 1;
++	pthread_join(waker, NULL);
++	ksft_test_result(res == 0,
++			 "futex_waitv returns the woken index (got %d/%d)\n",
++			 res, errno);
++
++	/* Duplicate keys are accepted by the ABI: the woken index is returned. */
++	for (i = 0; i < 2; i++)
++		w[i].uaddr = (uintptr_t)&f;
++	if (futex_get_abs_timeout(CLOCK_MONOTONIC, &to, 1000000000L))
++		ksft_test_result_error("get_time error");
++	done = 0;
++	if (pthread_create(&waker, NULL, waitv_wake_loop, &wk))
++		ksft_exit_fail_msg("pthread_create failed\n");
++	res = futex_waitv(w, 2, 0, &to, CLOCK_MONOTONIC);
++	done = 1;
++	pthread_join(waker, NULL);
++	ksft_test_result(res == 0 || res == 1,
++			 "futex_waitv duplicate keys are accepted (got %d/%d)\n",
++			 res, errno);
++}
++
+ TEST_HARNESS_MAIN

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/syscall_argmask.c b/arch/dadao/kernel/syscall_argmask.c
 new file mode 100644
-index 000000000..b148620e5
+index 000000000..4008ce0ad
 --- /dev/null
 +++ b/arch/dadao/kernel/syscall_argmask.c
-@@ -0,0 +1,247 @@
+@@ -0,0 +1,248 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO syscall argument routing (m14-linux-023, user ruling C′).
@@ -224,6 +224,7 @@ index 000000000..b148620e5
 +	[287] = 0x02,	/* pwritev2 */
 +	[291] = 0x12,	/* statx */
 +	[439] = 0x02,	/* faccessat2 */
++	[449] = 0x09,	/* futex_waitv */
 +	[452] = 0x02,	/* fchmodat2 */
 +};
 +
