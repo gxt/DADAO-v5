@@ -1,50 +1,52 @@
-# m17-testcases-008: `escape_ciii_cfx` 按平台能力条件化（Tiny 跳过 `cg4`/`cg15 rc3`）
+# m17-testcases-008: `escape_ciii_cfx` 按平台能力条件化（Tiny 验证 CFXREG + DIV 逐槽声明）
 
 **模块**：testcases
 **项目里程碑**：M17
-**依赖**：`m17-chipyard-002`（根因定位，已验证）、`m18-testcases-004/005`（本用例迁移）
+**依赖**：`m17-chipyard-002`（根因，已验证）、`m17-idl-026`（four-way 认 DIV `slots`，已验证）
 **可并行分片**：否
 **预估**：2–4 h
 **档位**：中改（复核 ≤40 min）
 **状态**：待开始
 
-## 背景（用户 2026-11-27 裁定 A）
+## 背景（用户 2026-11-27 裁定 1）
 
-M17 四方唯一红 `escape_ciii_cfx` 的根因（`m17-chipyard-002`）：Tiny RTL 无 `cfx_hmon` 的 `cg4`（`commonRows` 缺项）与 `cg15 rc3`（被 `asyncModel = gp.hart.isDefined` 门控），测试却无条件：
+根因（`m17-chipyard-002`）：Tiny RTL 无 `cfx_hmon` 的 `cg4`（`commonRows` 缺项）与 `cg15 rc3`（`asyncModel` 门控），用例无条件访问 ⇒ **CFXREG**（pc `0xffffff010160` / `0xffffff010164`），未武装进 `.faultpad` 以点号 0 退出 ⇒ rc=0 + 空签名。
 
-- `.S:82` `cfx2rc cfx_hmon, cg15, rc3, rd5`（写 async mask）⇒ **CFXREG**（cause `0x4`，pc `0xffffff010160`）；
-- `.S:84` / `:125` / `:149` `cfx2rd cfx_hmon, cg4, rc5`（escape_num）⇒ 同样 **CFXREG**（pc `0xffffff010164`）。
+用户裁定：**不造假常量、不跳过**。Tiny 缺这两个寄存器是**被验证的行为**：
 
-首个异常发生在测试武装任何故障例之前 ⇒ `.faultpad` 的 `__pad_fail` 以点号 0 退出（**rc=0 + 空签名**）。
+- 受控触发访问，断言 `cause_id = 0x4`（CFXREG）、`cause_info = 该指令编码`；
+- Tiny 的期望值写进 `tests/arch/expected-divergences.yaml` 的 `DIV-18` **逐槽声明**（`slots`: `case` + 0 基 `slot` + `chipyard`）；`idl_four_way.py` 已支持（`m17-idl-026`）；
+- IDL/QEMU/gem5/Vast 路径保持现有真实检查逐条不变。
 
-用户裁定 **A**：Tiny 保持 M16 寄存器面不变（`DIV-18` 口径），由**测试载体按平台能力条件化**；Tiny 上这两项不校验、槽位填常量，其余检查照旧真实执行。
+已实测：Tiny 的 `escape` 指令本身可用（硬件写 `cg15 rc3` 在 Tiny 为空操作、不报错）。
 
 ## 要做
 
-1. **能力探测**：在用例开头（武装故障例前）用受控方式判断 `cfx_hmon` 是否有 `cg4` / `cg15 rc3`——例如以 hmon handler 捕获 CFXREG 的探针（沿用例既有 `__PREP_ESC` + 落点机制），或等价可靠的探测；**不得**把 CFXREG 当致命错误；
-2. **条件化**：
-   - 有能力（IDL/QEMU/gem5/Vast）：现有检查**逐条不变**；
-   - Tiny：跳过对 `cg4 rc5`、`cg15 rc3` 的直接访问；对应签名槽写入**与其它平台相同的常量**（由 `spec/DADAO-12 §3.5/§5.1/§5.3` 独立派生，不从 QEMU 抄），其余检查（落点、cause、rc8–rc11、帧记录）照旧真实执行；
-3. 订正 `.S` 头 GAP 注释（现称「escape_num 不计入链例」与代码矛盾）与 `tests/arch/expected-divergences.yaml` 的 `DIV-18` 文本（补 `cg4`，写明测试载体条件化方式）；
-4. 若探测发现 Tiny 连 `escape` 本身都因缺 `cg15 rc3` 而失败（硬件写路径），**停止并回报**（说明 A 不可行、需改判 B），不要硬凑常量。
+1. **能力探测**（用例开头、武装故障例之前）：受控判断 `cfx_hmon` 是否有 `cg4`/`cg15 rc3`（沿既有 hmon handler + `__PREP_ESC` 落点机制），CFXREG 不当致命错误；
+2. **有能力平台**（IDL/QEMU/gem5/Vast）：现有检查逐条不变；
+3. **Tiny**：对 `cg4 rc5`、`cg15 rc3` 的每处访问，在受控 handler 下真实触发并把实测 `cause_id`（`0x4`）与 `cause_info`（指令字）写入对应签名槽——期望值从 spec 独立派生（CFXREG = `1<<2`；`cause_info` = 编码），不抄其它平台输出；
+4. **`DIV-18`**：补 `cg4`；加 `slots` 逐槽声明（`case: escape_ciii_cfx` / 0 基槽号 / `chipyard` 期望值）；`close_when` 与 impact 文本同步（写明「Tiny 期望 CFXREG + 槽值由本条目声明」）；
+5. 订正 `.S` 头 GAP 注释（现与代码矛盾）；
+6. 其它检查（落点、`cg5` 帧、rc8–rc11、返回值）在 Tiny 仍真实执行。
 
 ## 不做
 
-- 不改 RTL/QEMU/gem5/IDL 语义；不改其它用例；不改 expected.tsv 的槽数；
-- 不放宽 IDL/QEMU/gem5 三方的真实检查。
+- 不改 RTL/QEMU/gem5/IDL 语义；不改 `idl_four_way.py`（`m17-idl-026` 已做）；
+- 不改 `expected.tsv` 槽数；不放宽 IDL/QEMU/gem5 的真实检查；
+- 不写常量槽（P0/P1/P2/1 之类）。
 
 ## 约束
 
-- 独立 `git worktree`；不提交 git；只动 `tests/inst/11-cfx/escape_ciii_cfx.S`、`tests/arch/expected-divergences.yaml`、必要时 `tests/data/inst-signature/expected.tsv`（不得改槽数）、`components/chipyard/README.md`（如 GAP 说明需同步）+ 本任务书；完成区 ≤30 行。
+- 独立 `git worktree`；不提交 git；只动 `tests/inst/11-cfx/escape_ciii_cfx.S`、`tests/arch/expected-divergences.yaml`（`DIV-18`）、必要的生成物（`tests/data/inst-signature/{expected.tsv,inputs.sha256}`，不得改槽数）、`components/chipyard/README.md`（如 GAP 说明需同步）+ 本任务书；完成区 ≤30 行；`**状态**` 改 `待验收`。
 
 ## 验证
 
-1. `make check-idl-full` **274/274**（chipyard 签名非空、四方逐字节一致）；
-2. Tiny 上仍真实执行其余检查：注入（如把 `case3` 落点改错）⇒ 必红；`cp`+md5 还原回绿；
-3. 有能力的平台未放宽：注入（如把 QEMU 侧 `cg15 rc3` 值改错）⇒ 必红——用 `run_inst_tiny --platforms qemu,gem5` 的差分或等效证据；
-4. 常量**独立派生**证据（spec 段落 + 推导过程），不得抄 QEMU/其它平台输出；
-5. `grep -c 'escape_num'` 注释与代码一致；`DIV-18` 文本含 `cg4`；
-6. `git status -uall` 仅允许文件 + 任务书。
+1. `make check-idl-full` **274/274**（chipyard 签名非空；其余三方逐字节一致；`DIV-18.slots` 生效并输出标注）；
+2. **可达 FAIL ①**：把 `DIV-18` 声明值改错 ⇒ 该例必红（`m17-idl-026` 的「值需更新」路径）；还原回绿；
+3. **可达 FAIL ②**：Tiny 侧改错探测落点/期望 ⇒ 红；还原回绿；
+4. **可达 FAIL ③**：有能力平台（QEMU/gem5）改错 `cg15 rc3` 值 ⇒ 必红（证明未放宽）；还原回绿；
+5. Tiny 槽值的 **spec 推导**写明（CFXREG 位号、`cause_info` = 指令字编码）；
+6. `make check-idl` 274/274；`check-knowledge-refs` rc=0；`git status -uall` 仅允许文件 + 任务书。
 
 ## 完成区
 
