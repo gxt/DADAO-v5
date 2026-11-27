@@ -749,3 +749,35 @@
 3. **登记位置**：红项要进 `issues-m20.yaml`（该文件 M20 独占写，本会话未代写）；M16 的未解决 backlog 只有 `ISS-535`（已进 `issues-left.yaml`）。
 4. **既有红不是回归**：`arch-cache-003/004` 在 11-26 的 0.8.0 历史树上同样红（`m18-gem5-004` 复核证据），别按新回归处理；`arch-cache-004` 的 RTL 侧是登记 gap（无 cache-model 开关）。
 5. **可用基线**：qemu/gem5 各 20 PASS / 7 FAIL（27 case，`--cache-model on`）；`arch-hart-001` 三平台已同为 124 槽（RTL 仅 `DIV-17` 2 槽差异），说明 spec-007 对齐已进二进制，差的是 runner 识别与上述红项。
+
+## N41. M18 会话交接（2026-11-27）
+
+**队列与状态**
+
+- `m18-linux-025`（`ISS-m18-001` 自旋根因）：实现完成、`待验收`；根因 = umon 返回路径 `DADAO_GPR_RESTORE_AT` 先恢复用户 SP、`escape cfx_umon` 尚未执行，supv 异步门仍开 ⇒ 异步 handler 在用户栈上跑，栈页未驻留时同一 `st.o` 无限重入。修法 = 两条返回路径 restore 前 `DADAO_CLOSE_SUPV_ASYNC`（置 `cfx_smon cg15 rc3` 源位 15/32）。修前 30/200（15%）、修后 0/1000 + 2048 启 0。
+- `m18-linux-006`（LTP 两轮）：`待返工`，**等 025 合入后**在新内核 + 新 QEMU 上复跑；LTP 入口本身在 025 期间仍不可用。
+- **统一跨实现测试尚未立册**（`m18-testcases-005` 向量 + QEMU/gem5/RTL/IDL/内核同 ELF 对拍）；按 discussing 既有条目在 025/006 之后做，之前跨实现红一律 KNOWN-RED。
+- `m20-spec-001` 已承接原 `m18-spec-001`（cg4 `scratch_regs_num` 缺省 2）；M18 侧不再派。
+- chipyard 写者已交还 M16（002/003 合入后），M18 不再派 chipyard，直到 M16 明确释放。
+
+**基线红（`make check` rc=2 时的既定红集，判据=与基线逐行相同）**
+
+- `check-arch-self-test`：任务 worktree 缺 Vast step5 BootROM 产物（主工作树有）⇒ 产物缺口，非代码红。
+- `check-interface`：LLVM lit 294≠309，既有偏差。
+- `check-milestones-fresh`：M16 台账 10 处（9 条 A1 状态不一致 + `m16-chipyard-033` worktree 与「待开始」不符），**M16 会话负责**。
+- `check-temp-dirs`：其它会话陈旧临时目录 + 磁盘占用。
+- `check-patch-tree`：全仓 rc=1 来自 qemu/gem5/musl 既有漂移（分段各自 0 problem）；判据用分段。
+- `check-musl-freshness`：只建静态 musl 时红，`make build-musl-shared` 后回绿。
+- `check-isa-coverage`：缺 `llvm-mc`（环境级）；`ISS-m18-003`（`check_power_rtl` 不收 `--signature-out/--mode`）另记。
+
+**低频残余（未闭合，勿当回归）**
+
+- `ISS-m18-004`：2000 启中 1 次极早停摆（`workingset` 后、`M45 begin` 前），2048 启未复现。
+- `ISS-m18-005`：suite 随机 case `HOST_TIMEOUT`（`futex-wait-timeout`/`mm-pfnmap`），独立 suite 两轮 + 64 次启动 0 复现。
+- 判据纪律：命中即计数重跑（每轮 ≤3 次），**不得**放宽 `window_reds == 0`、不得把 `HOST_TIMEOUT` 吞掉。
+
+**易失与残留**
+
+- 026/qemu-007 的 worktree 已删，其运行期证据随之消失；关键数字已落各自任务书「完成区/审阅记录」。后续任务证据要落非易失位置。
+- 仍有 3 个旧 worktree 带未跟踪改动（`m18-linux-024-2`、`m18-testcases-001/002`，后两者已作废），`git worktree remove` 需 `--force`，未处理、待用户确认。
+- 会话教训：① 并发写者误判（同一 worktree 曾同时存在两个 engineer，接管方及时停手未写）；② `run.sh`「恒真断言」在 024/026 两次出现（`soak` 的 `ok=True`），修复后必须有「注入→FAIL→还原→回绿」。
