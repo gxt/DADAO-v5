@@ -175,6 +175,54 @@ __smdone_\@:
 	@@ 走到这里 = 预期故障没有发生 ⇒ 仍按该例检查点号判 guest FAIL
 	__FAULT_BODY_END \pt
 .endm
+
+@@ ---------------------------------------------------------------------------
+@@ 未对齐访问的「无副作用」故障例（`spec/SimRISC-01 §1` 的 IDL：MALIGN 在写目的 /
+@@   写存储器**之前** raise ⇒ 单元素 ld 的目的、单元素 st 的目标数据单元均保持原值；
+@@   用户 2026-11-13 裁定「单元素 ld/st 仍须精确」）。
+@@ 机制：公共故障落点 `__pad` 只核 cause 后跳后继例，本类例需要「异常返回后」再核，
+@@   故把固件 hmon 的返回槽（hmon SRAM +0xF8，`spec/Kaiwu §6.2`「框架可覆盖」）改写成
+@@   用例自己的核对点；核对点用 `__VERIFY_*`（不占检查点）后再跳回 `__pad` ——
+@@   cause 槽/`TEST_FAULTV` 都没被改动，公共落点仍按点号查 `.faulttab` 走下一例。
+@@   装返回地址用 `set.rd`（标签只能进 64 位立即数）+ `rd2rb`（不经被测指令）。
+@@ ---------------------------------------------------------------------------
+.macro __SET_HMON_RETURN_TO lbl
+	set.rd	rd19, \lbl
+	rd2rb	{rb21:rb21}, {rd19:rd19}
+	set.rb	rb20, HMON_BASE
+	st.o	rb21, [rb20, 0xF8]
+.endm
+
+@@ ld.*：未对齐 ⇒ MALIGN，且目的寄存器不被写（保持调用前预置值）
+.macro TEST_FAULT_LD_MALIGN_KEEPDST pt, mnem, dst, dstval, base, baseval, off
+	__FAULT_BODY_BEGIN \pt
+	__FAULT_GUARD \pt, MALIGN
+	set.rd	\dst, \dstval
+	set.rb	\base, \baseval
+	__SET_HMON_RETURN_TO __mal_keepdst_\pt
+	\mnem	\dst, [\base, \off]
+	__FAULT_BODY_END \pt
+__mal_keepdst_\pt:
+	__VERIFY_RD \pt, \dst, \dstval
+	jump	[rb0, __pad]
+.endm
+
+@@ st.*：未对齐 ⇒ MALIGN，且目标 8 字节数据单元不被写（`cell` = 数据单元偏移，对齐；
+@@   `off` = 未对齐的 EA 偏移；预置用对齐 st.o，核对用 ld.o —— 两条独立通路）
+.macro TEST_FAULT_ST_MALIGN_KEEPMEM pt, mnem, src, srcval, base, baseval, off, cell, cellval
+	__FAULT_BODY_BEGIN \pt
+	__FAULT_GUARD \pt, MALIGN
+	set.rb	\base, \baseval
+	set.rd	rd19, \cellval
+	st.o	rd19, [\base, \cell]
+	set.rd	\src, \srcval
+	__SET_HMON_RETURN_TO __mal_keepmem_\pt
+	\mnem	\src, [\base, \off]
+	__FAULT_BODY_END \pt
+__mal_keepmem_\pt:
+	__VERIFY_MEM \pt, \baseval, \cell, \cellval
+	jump	[rb0, __pad]
+.endm
 @@ 多元素（rrri）故障例：只比异常码（多元素指令允许部分元素已生效，用户 2026-11-13 裁定）
 @@   TEST_FAULT_M(pt, 助记符, 组, 故障名, 基址, 基址值, 偏移寄存器, 偏移值)
 .macro TEST_FAULT_M pt, mnem, grp, fault, base, baseval, offreg, offval

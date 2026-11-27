@@ -6,7 +6,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[19:18] | hb[17:12] | hc[11:6] | hd[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 5 / boundary 5 / overlap 3（链例 15 + 故障例 1）
+@@ 用例：encoding 2 / semantic 5 / boundary 5 / overlap 3 / m20 追补 3（链例 18 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联；
@@ -72,11 +72,21 @@
 	@@ 两源同名 ⇒ 0
 	TEST_AR_ORRR        15, rem.so, rd9, 0xFFFFFFFFFFFFFFFF, rd11, 0xFFFFFFFFFFFFCFC7, rd11, 0xFFFFFFFFFFFFCFC7, 0x0000000000000000
 
+	@@ ==== m20-testcases-011 追补：定值表剩余分支 + 余数符号 ====
+	@@ 同一位型的 .so/.uo 对照：-7 rem 2 ⇒ -1（余数符号 = 被除数）；rem.uo 同操作数 ⇒ 1。
+	TEST_AR_ORRR        16, rem.so, rd5, 0x0000000000000000, rd6, 0xFFFFFFFFFFFFFFF9, rd7, 0x0000000000000002, 0xFFFFFFFFFFFFFFFF
+
+	@@ INT64_MIN rem 3 ⇒ -2（2^63 mod 3 = 2，符号随被除数）。
+	TEST_AR_ORRR        17, rem.so, rd5, 0x0000000000000000, rd6, 0x8000000000000000, rd7, 0x0000000000000003, 0xFFFFFFFFFFFFFFFE
+
+	@@ 除数为 0 且被除数为正（既有第 8 点用负被除数）⇒ 被除数原样（符号扩展）。
+	TEST_AR_ORRR        18, rem.so, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000064, rd7, 0x0000000000000000, 0x0000000000000064
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU3     16, rem.so, ILLI, rd0, rd6, rd7
+	TEST_FAULT_ALU3     19, rem.so, ILLI, rd0, rd6, rd7
 
 	__TEST_SECTIONS

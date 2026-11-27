@@ -201,6 +201,7 @@ tests/inst/01-load-store/ld.o_rrii_rd.S	18	value	0xffffffffffffffff	0xFFFFFFFFFF
 tests/inst/01-load-store/ld.o_rrii_rd.S	19	value	0x8000000000000000	0x8000000000000000	tests/inst/01-load-store/ld.o_rrii_rd.S:61
 tests/inst/01-load-store/ld.o_rrii_rd.S	20	relation	-	运行期关系断言（__REC）	tests/inst/01-load-store/ld.o_rrii_rd.S:67
 tests/inst/01-load-store/ld.o_rrii_rd.S	21	value	0x7fffffffffffffff	0x7FFFFFFFFFFFFFFF	tests/inst/01-load-store/ld.o_rrii_rd.S:78
+tests/inst/01-load-store/ld.o_rrii_rd.S	22	value	0x0102030405060708	0x0102030405060708	tests/inst/01-load-store/ld.o_rrii_rd.S:83
 tests/inst/01-load-store/ld.o_rrii_rf.S	1	value	0x0123456789abcdef	0x0123456789ABCDEF	tests/inst/01-load-store/ld.o_rrii_rf.S:31
 tests/inst/01-load-store/ld.o_rrii_rf.S	2	value	0x0011223344556677	0x0011223344556677	tests/inst/01-load-store/ld.o_rrii_rf.S:32
 tests/inst/01-load-store/ld.o_rrii_rf.S	3	value	0x0123456789abcdef	0x0123456789ABCDEF	tests/inst/01-load-store/ld.o_rrii_rf.S:35
@@ -243,6 +244,8 @@ tests/inst/01-load-store/ld.sb_rrii_rd.S	18	value	0xffffffffffffffff	0xFFFFFFFFF
 tests/inst/01-load-store/ld.sb_rrii_rd.S	19	value	0xffffffffffffff80	0xFFFFFFFFFFFFFF80	tests/inst/01-load-store/ld.sb_rrii_rd.S:61
 tests/inst/01-load-store/ld.sb_rrii_rd.S	20	relation	-	运行期关系断言（__REC）	tests/inst/01-load-store/ld.sb_rrii_rd.S:67
 tests/inst/01-load-store/ld.sb_rrii_rd.S	21	value	0x000000000000007f	0x000000000000007F	tests/inst/01-load-store/ld.sb_rrii_rd.S:78
+tests/inst/01-load-store/ld.sb_rrii_rd.S	22	value	0x0000000000000001	0x0000000000000001	tests/inst/01-load-store/ld.sb_rrii_rd.S:83
+tests/inst/01-load-store/ld.sb_rrii_rd.S	23	value	0xffffffffffffff88	0xFFFFFFFFFFFFFF88	tests/inst/01-load-store/ld.sb_rrii_rd.S:84
 tests/inst/01-load-store/ld.st_rrii_rd.S	1	value	0x0000000001234567	0x0000000001234567	tests/inst/01-load-store/ld.st_rrii_rd.S:18
 tests/inst/01-load-store/ld.st_rrii_rd.S	2	value	0x0000000000112233	0x0000000000112233	tests/inst/01-load-store/ld.st_rrii_rd.S:19
 tests/inst/01-load-store/ld.st_rrii_rd.S	3	value	0x0000000001234567	0x0000000001234567	tests/inst/01-load-store/ld.st_rrii_rd.S:22
@@ -264,6 +267,7 @@ tests/inst/01-load-store/ld.st_rrii_rd.S	18	value	0xffffffffffffffff	0xFFFFFFFFF
 tests/inst/01-load-store/ld.st_rrii_rd.S	19	value	0xffffffff80000000	0xFFFFFFFF80000000	tests/inst/01-load-store/ld.st_rrii_rd.S:61
 tests/inst/01-load-store/ld.st_rrii_rd.S	20	relation	-	运行期关系断言（__REC）	tests/inst/01-load-store/ld.st_rrii_rd.S:67
 tests/inst/01-load-store/ld.st_rrii_rd.S	21	value	0x000000007fffffff	0x000000007FFFFFFF	tests/inst/01-load-store/ld.st_rrii_rd.S:78
+tests/inst/01-load-store/ld.st_rrii_rd.S	22	value	0x0000000001020304	0x0000000001020304	tests/inst/01-load-store/ld.st_rrii_rd.S:82
 tests/inst/01-load-store/ld.sw_rrii_rd.S	1	value	0x0000000000000123	0x0000000000000123	tests/inst/01-load-store/ld.sw_rrii_rd.S:18
 tests/inst/01-load-store/ld.sw_rrii_rd.S	2	value	0x0000000000000011	0x0000000000000011	tests/inst/01-load-store/ld.sw_rrii_rd.S:19
 tests/inst/01-load-store/ld.sw_rrii_rd.S	3	value	0x0000000000000123	0x0000000000000123	tests/inst/01-load-store/ld.sw_rrii_rd.S:22
@@ -285,6 +289,8 @@ tests/inst/01-load-store/ld.sw_rrii_rd.S	18	value	0xffffffffffffffff	0xFFFFFFFFF
 tests/inst/01-load-store/ld.sw_rrii_rd.S	19	value	0xffffffffffff8000	0xFFFFFFFFFFFF8000	tests/inst/01-load-store/ld.sw_rrii_rd.S:61
 tests/inst/01-load-store/ld.sw_rrii_rd.S	20	relation	-	运行期关系断言（__REC）	tests/inst/01-load-store/ld.sw_rrii_rd.S:67
 tests/inst/01-load-store/ld.sw_rrii_rd.S	21	value	0x0000000000007fff	0x0000000000007FFF	tests/inst/01-load-store/ld.sw_rrii_rd.S:78
+tests/inst/01-load-store/ld.sw_rrii_rd.S	22	value	0x0000000000000102	0x0000000000000102	tests/inst/01-load-store/ld.sw_rrii_rd.S:82
+tests/inst/01-load-store/ld.sw_rrii_rd.S	23	value	0x0000000000000708	0x0000000000000708	tests/inst/01-load-store/ld.sw_rrii_rd.S:83
 tests/inst/01-load-store/ld.t_rrii_rf.S	1	value	0x0000000001234567	0x0000000001234567	tests/inst/01-load-store/ld.t_rrii_rf.S:49
 tests/inst/01-load-store/ld.t_rrii_rf.S	2	value	0x0000000000112233	0x0000000000112233	tests/inst/01-load-store/ld.t_rrii_rf.S:50
 tests/inst/01-load-store/ld.t_rrii_rf.S	3	value	0x0000000001234567	0x0000000001234567	tests/inst/01-load-store/ld.t_rrii_rf.S:53
@@ -329,6 +335,10 @@ tests/inst/01-load-store/ld.ub_rrii_rd.S	18	value	0x00000000000000ff	0x000000000
 tests/inst/01-load-store/ld.ub_rrii_rd.S	19	value	0x0000000000000080	0x0000000000000080	tests/inst/01-load-store/ld.ub_rrii_rd.S:61
 tests/inst/01-load-store/ld.ub_rrii_rd.S	20	relation	-	运行期关系断言（__REC）	tests/inst/01-load-store/ld.ub_rrii_rd.S:67
 tests/inst/01-load-store/ld.ub_rrii_rd.S	21	value	0x000000000000007f	0x000000000000007F	tests/inst/01-load-store/ld.ub_rrii_rd.S:78
+tests/inst/01-load-store/ld.ub_rrii_rd.S	22	value	0x0000000000000001	0x0000000000000001	tests/inst/01-load-store/ld.ub_rrii_rd.S:83
+tests/inst/01-load-store/ld.ub_rrii_rd.S	23	value	0x0000000000000002	0x0000000000000002	tests/inst/01-load-store/ld.ub_rrii_rd.S:84
+tests/inst/01-load-store/ld.ub_rrii_rd.S	24	value	0x0000000000000008	0x0000000000000008	tests/inst/01-load-store/ld.ub_rrii_rd.S:85
+tests/inst/01-load-store/ld.ub_rrii_rd.S	25	value	0x0000000000000088	0x0000000000000088	tests/inst/01-load-store/ld.ub_rrii_rd.S:86
 tests/inst/01-load-store/ld.ut_rrii_rd.S	1	value	0x0000000001234567	0x0000000001234567	tests/inst/01-load-store/ld.ut_rrii_rd.S:18
 tests/inst/01-load-store/ld.ut_rrii_rd.S	2	value	0x0000000000112233	0x0000000000112233	tests/inst/01-load-store/ld.ut_rrii_rd.S:19
 tests/inst/01-load-store/ld.ut_rrii_rd.S	3	value	0x0000000001234567	0x0000000001234567	tests/inst/01-load-store/ld.ut_rrii_rd.S:22
@@ -759,6 +769,10 @@ tests/inst/01-load-store/st.w_rrii_rd.S	18	value	0xc0de00000000ffff	0xC0DE000000
 tests/inst/01-load-store/st.w_rrii_rd.S	19	value	0x0000000000001111	0x0000000000001111	tests/inst/01-load-store/st.w_rrii_rd.S:63
 tests/inst/01-load-store/st.w_rrii_rd.S	20	value	0x0000000000001111	0x0000000000001111	tests/inst/01-load-store/st.w_rrii_rd.S:72
 tests/inst/01-load-store/st.w_rrii_rd.S	21	value	0x0000000000001111	0x0000000000001111	tests/inst/01-load-store/st.w_rrii_rd.S:84
+tests/inst/01-load-store/st.w_rrii_rd.S	22	value	0xbeef000000000000	0xBEEF000000000000	tests/inst/01-load-store/st.w_rrii_rd.S:89
+tests/inst/01-load-store/st.w_rrii_rd.S	23	value	0x00000000000000be	0x00000000000000BE	tests/inst/01-load-store/st.w_rrii_rd.S:90
+tests/inst/01-load-store/st.w_rrii_rd.S	24	value	0x00000000000000ef	0x00000000000000EF	tests/inst/01-load-store/st.w_rrii_rd.S:91
+tests/inst/01-load-store/st.w_rrii_rd.S	25	value	0xffffffffffffbeef	0xFFFFFFFFFFFFBEEF	tests/inst/01-load-store/st.w_rrii_rd.S:92
 tests/inst/01-load-store/stm.b_rrri_rd.S	1	value	0x80810000000000a0	0x80810000000000A0	tests/inst/01-load-store/stm.b_rrri_rd.S:17
 tests/inst/01-load-store/stm.b_rrri_rd.S	2	value	0x90919200000000a3	0x90919200000000A3	tests/inst/01-load-store/stm.b_rrri_rd.S:20
 tests/inst/01-load-store/stm.b_rrri_rd.S	3	value	0xa8a9aaabacadaeaf	0xA8A9AAABACADAEAF	tests/inst/01-load-store/stm.b_rrri_rd.S:23
@@ -1420,6 +1434,9 @@ tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	12	value	0x0000000000000000	0x00
 tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	13	value	0x000000000000000e	0x000000000000000E	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S:67
 tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	14	value	0x000000000000000e	0x000000000000000E	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S:70
 tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	15	value	0x0000000000000001	0x0000000000000001	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S:73
+tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	16	value	0xffffffffffffff9c	0xFFFFFFFFFFFFFF9C	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S:77
+tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	17	value	0xfffffffffffffffd	0xFFFFFFFFFFFFFFFD	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S:80
+tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	18	value	0xfffffffffffffffd	0xFFFFFFFFFFFFFFFD	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S:83
 tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	1	value	0x000000000000000e	0x000000000000000E	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S:26
 tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	2	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S:34
 tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	3	value	0x000000000000000e	0x000000000000000E	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S:37
@@ -1435,6 +1452,9 @@ tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	12	value	0x0000000000000001	0x00
 tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	13	value	0x000000000000000e	0x000000000000000E	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S:67
 tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	14	value	0x000000000000000e	0x000000000000000E	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S:70
 tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	15	value	0x0000000000000001	0x0000000000000001	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S:73
+tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	16	value	0x7ffffffffffffffc	0x7FFFFFFFFFFFFFFC	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S:77
+tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	17	value	0xfffffffffffffffd	0xFFFFFFFFFFFFFFFD	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S:80
+tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	18	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S:83
 tests/inst/04-arith-logic-octa/ext.so_orri_rd.S	1	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/04-arith-logic-octa/ext.so_orri_rd.S:25
 tests/inst/04-arith-logic-octa/ext.so_orri_rd.S	2	value	0x8000000000000000	0x8000000000000000	tests/inst/04-arith-logic-octa/ext.so_orri_rd.S:32
 tests/inst/04-arith-logic-octa/ext.so_orri_rd.S	3	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/04-arith-logic-octa/ext.so_orri_rd.S:35
@@ -1565,6 +1585,9 @@ tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	12	value	0x0000000000000001	0x00
 tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	13	value	0x0000000000000002	0x0000000000000002	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S:67
 tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	14	value	0x0000000000000002	0x0000000000000002	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S:70
 tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	15	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S:73
+tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	16	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S:77
+tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	17	value	0xfffffffffffffffe	0xFFFFFFFFFFFFFFFE	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S:80
+tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	18	value	0x0000000000000064	0x0000000000000064	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S:83
 tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	1	value	0x0000000000000002	0x0000000000000002	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S:26
 tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	2	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S:34
 tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	3	value	0x0000000000000002	0x0000000000000002	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S:37
@@ -1579,6 +1602,9 @@ tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	11	value	0x0000000000000001	0x00
 tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	12	value	0x0000000000000002	0x0000000000000002	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S:64
 tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	13	value	0x0000000000000002	0x0000000000000002	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S:67
 tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	14	value	0x0000000000000000	0x0000000000000000	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S:70
+tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	15	value	0x0000000000000001	0x0000000000000001	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S:74
+tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	16	value	0x0000000000000002	0x0000000000000002	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S:77
+tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	17	value	0x8000000000000000	0x8000000000000000	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S:80
 tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	1	value	0xefcdab8967452301	0xEFCDAB8967452301	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S:26
 tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	2	value	0x89abcdef01234567	0x89ABCDEF01234567	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S:33
 tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	3	value	0xf7b3d591e6a2c480	0xF7B3D591E6A2C480	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S:36

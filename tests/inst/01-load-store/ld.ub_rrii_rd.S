@@ -5,7 +5,7 @@
 @@ 对齐：无要求（字节访问）
 @@ 合法性：目的为 0 号寄存器 ⇒ ILLI
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节数据单元，字面量见该文件）
-@@ 用例：encoding 2 / legality 3 / semantic 5 / boundary 9 / overlap 2 / rb0 3（链例 21 + 故障例 3；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
+@@ 用例：encoding 2 / legality 3 / semantic 5 / boundary 9 / overlap 2 / rb0 3（链例 25 + 故障例 3；其中 m20 追补：大端字节 4；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 
@@ -76,11 +76,19 @@ __rb0p:
 __rb0p_ck:
 	rd2rd	{rd21:rd21}, {rd5:rd5}
 	__CHECK_RD 21, rd21, 0x000000000000007F	@@ 正向极大
+
+	@@ ==== m20-testcases-011 追补：大端字节序（同一数据单元 0x0102030405060708）====
+	@@   最低地址字节 = 最高有效字节：+0x068=0x01、+0x069=0x02、+0x06F=0x08；
+	@@   高位置 1 的字节 +0x010=0x88（零扩展，与 ld.sb 的符号扩展对照）。
+	TEST_LD    22, ld.ub,   rd5,   rb6,   TEST_DATA,          0x068,    0x0000000000000001
+	TEST_LD    23, ld.ub,   rd5,   rb6,   TEST_DATA,          0x069,    0x0000000000000002
+	TEST_LD    24, ld.ub,   rd5,   rb6,   TEST_DATA,          0x06F,    0x0000000000000008
+	TEST_LD    25, ld.ub,   rd5,   rb6,   TEST_DATA,          0x010,    0x0000000000000088
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
-	TEST_FAULT        22, ld.ub,  rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）
-	TEST_FAULT        23, ld.ub,  rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
-	TEST_FAULT        24, ld.ub,  rd1,   CFXMEM, rb3,                0x180000000000, 0x000  @@ reserved cfx 地址空间（addr[47:42]=6）上的普通访存 ⇒ CFXMEM
+	TEST_FAULT        26, ld.ub,  rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）
+	TEST_FAULT        27, ld.ub,  rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
+	TEST_FAULT        28, ld.ub,  rd1,   CFXMEM, rb3,                0x180000000000, 0x000  @@ reserved cfx 地址空间（addr[47:42]=6）上的普通访存 ⇒ CFXMEM
 
 	__TEST_SECTIONS

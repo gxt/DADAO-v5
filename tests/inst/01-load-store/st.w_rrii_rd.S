@@ -5,7 +5,7 @@
 @@ 对齐：EA 需 2 B 自然对齐，未对齐 ⇒ MALIGN
 @@ 合法性：源 0 号寄存器：rd0 读出 0（合法）；无 dst_0 限制
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节数据单元，字面量见该文件）
-@@ 用例：encoding 2 / legality 3 / semantic 5 / boundary 8 / overlap 2 / rb0 3（链例 21 + 故障例 2；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
+@@ 用例：encoding 2 / legality 3 / semantic 5 / boundary 8 / overlap 2 / rb0 3（链例 25 + 故障例 3；其中 m20 追补：写后读 4 + MALIGN 不写存储器 1；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 
@@ -82,10 +82,20 @@ __rb0p:
 	.org	0x2190
 __rb0p_ck:
 	__CHECK_MEM 21, (ENTRY + 0x2188), 0, 0x0000000000001111
+
+	@@ ==== m20-testcases-011 追补：st.* 写后读 + 大端字节序（零区 0x0C8，本镜像专用）====
+	@@   st.w 写 0xBEEF ⇒ 最低地址字节 = 最高有效字节：+0x0C8=0xBE、+0x0C9=0xEF；
+	@@   再以 ld.sw 读同一 2 字节 = 0xFFFF…BEEF（ld.sw 的符号扩展）。
+	TEST_ST    22, st.w,    rd5,   rb6,   TEST_DATA,          0x0C8,    0x000000000000BEEF, 0xBEEF000000000000
+	TEST_LD    23, ld.ub,   rd7,   rb6,   TEST_DATA,          0x0C8,    0x00000000000000BE
+	TEST_LD    24, ld.ub,   rd7,   rb6,   TEST_DATA,          0x0C9,    0x00000000000000EF
+	TEST_LD    25, ld.sw,   rd7,   rb6,   TEST_DATA,          0x0C8,    0xFFFFFFFFFFFFBEEF
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
-	TEST_FAULT        22, st.w,   rd1,   MALIGN, rb3,                TEST_DATA, 0x001  @@ EA 未按 2 B 自然对齐 ⇒ MALIGN
-	TEST_FAULT        23, st.w,   rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
+	TEST_FAULT        26, st.w,   rd1,   MALIGN, rb3,                TEST_DATA, 0x001  @@ EA 未按 2 B 自然对齐 ⇒ MALIGN
+	TEST_FAULT        27, st.w,   rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
+	@@ 未对齐存储不写目标数据单元（异常在写存储器之前 raise；`spec/SimRISC-01 §1`）
+	TEST_FAULT_ST_MALIGN_KEEPMEM 28, st.w, rd1, 0xDEADBEEFCAFEF00D, rb3, TEST_DATA, 0x0D1, 0x0D0, 0xA5A5A5A5A5A5A5A5
 
 	__TEST_SECTIONS

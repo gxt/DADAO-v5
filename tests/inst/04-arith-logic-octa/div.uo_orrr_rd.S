@@ -6,7 +6,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[19:18] | hb[17:12] | hc[11:6] | hd[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 5 / boundary 5 / overlap 3（链例 15 + 故障例 1）
+@@ 用例：encoding 2 / semantic 5 / boundary 5 / overlap 3 / m20 追补 3（链例 18 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联；
@@ -72,11 +72,21 @@
 	@@ 两源同名 ⇒ 1
 	TEST_AR_ORRR        15, div.uo, rd9, 0x0000000000000000, rd11, 0x0000000000003039, rd11, 0x0000000000003039, 0x0000000000000001
 
+	@@ ==== m20-testcases-011 追补：无符号视角（同一位型与 div.so 对照）====
+	@@ 0xFFFF…F9 按无符号 = 2^64−7，除以 2 = 0x7FFF…FC（div.so 同操作数为 -3）。
+	TEST_AR_ORRR        16, div.uo, rd5, 0x0000000000000000, rd6, 0xFFFFFFFFFFFFFFF9, rd7, 0x0000000000000002, 0x7FFFFFFFFFFFFFFC
+
+	@@ 商余关系（无符号）：a=2^64−3、b=11 ⇒ q=0x1745D1745D1745D1、r=2。
+	TEST_AR_DIVREM_REL  17, div.uo, rem.uo, 0xFFFFFFFFFFFFFFFD, 0x000000000000000B, 0x1745D1745D1745D1, 0x0000000000000002
+
+	@@ 除数为 rd0（源读 0 ⇒ 除零定值全 1）：被除数最高位为 1 也不改变定值。
+	TEST_AR_ORRR        18, div.uo, rd5, 0x0000000000000000, rd6, 0x8000000000000000, rd0, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU3     16, div.uo, ILLI, rd0, rd6, rd7
+	TEST_FAULT_ALU3     19, div.uo, ILLI, rd0, rd6, rd7
 
 	__TEST_SECTIONS

@@ -42,6 +42,22 @@
 	__CHECK_RD  \pt, \hi, \exphi
 	.endif
 .endm
+@@ 商余关系（`spec/SimRISC-04 §1.4`：a = q×b + r，r 符号 = 被除数符号 / truncate-toward-zero）：
+@@   `divm`/`remm` 为被测的一对除余指令；q、r 先用内联期望单独钉住，再用
+@@   `mul.uo`+`add.uo` 现场重算 `q×b + r`（低 64 位在两种符号下逐位相同）与 a 比较。
+@@   `mul/add` 只作重算通路、不是本检查点的被测对象；全部断言共用点号 \pt。
+.macro TEST_AR_DIVREM_REL pt, divm, remm, a, b, q, r
+	set.rd	rd10, \a
+	set.rd	rd11, \b
+	\divm	rd5, rd10, rd11
+	\remm	rd6, rd10, rd11
+	mul.uo	{rd7, rd8}, rd5, rd11
+	add.uo	{rd12, rd9}, rd8, rd6
+	__VERIFY_RD \pt, rd5, \q
+	__VERIFY_RD \pt, rd6, \r
+	__CHECK_RD  \pt, rd9, \a
+.endm
+
 .macro TEST_AR_CMPI pt, mnem, dst, dstinit, b, bval, imm, exp
 	.ifnc	\dst, rd0
 	set.rd	\dst, \dstinit

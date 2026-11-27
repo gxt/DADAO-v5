@@ -187,10 +187,10 @@ asm	tests/inst/01-load-store/ld.o_rrii_rb.S	__CHECK_RD 15, rd21, 0x0011223344556
 asm	tests/inst/01-load-store/ld.o_rrii_rb.S	__CHECK_RD 19, rd21, 0x8000000000000000	@@ 负向极小	1
 asm	tests/inst/01-load-store/ld.o_rrii_rb.S	__CHECK_RD 21, rd21, 0x7FFFFFFFFFFFFFFF	@@ 正向极大	1
 asm	tests/inst/01-load-store/ld.o_rrii_rb.S	__CHECK_RD_IP 20, ld.o, rb5, rb13, rb	1
-asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_FAULT        22, ld.o,   rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）	1
-asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_FAULT        23, ld.o,   rd1,   MALIGN, rb3,                TEST_DATA, 0x004  @@ EA 未按 8 B 自然对齐 ⇒ MALIGN	1
-asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_FAULT        24, ld.o,   rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
-asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_FAULT        25, ld.o,   rd1,   CFXMEM, rb3,                0x380000000000, 0x000  @@ reserved cfx 地址空间（addr[47:42]=14）上的普通访存 ⇒ CFXMEM	1
+asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_FAULT        23, ld.o,   rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）	1
+asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_FAULT        24, ld.o,   rd1,   MALIGN, rb3,                TEST_DATA, 0x004  @@ EA 未按 8 B 自然对齐 ⇒ MALIGN	1
+asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_FAULT        25, ld.o,   rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
+asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_FAULT        26, ld.o,   rd1,   CFXMEM, rb3,                0x380000000000, 0x000  @@ reserved cfx 地址空间（addr[47:42]=14）上的普通访存 ⇒ CFXMEM	1
 asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_LD            1, ld.o,   rd63,  rb63,  TEST_DATA,          0x000,    0x0123456789ABCDEF	1
 asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_LD            2, ld.o,   rd1,   rb1,   TEST_DATA + 0x008,  0x000,    0x0011223344556677	1
 asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_LD            3, ld.o,   rd2,   rb4,   TEST_DATA,          0x000,    0x0123456789ABCDEF	1
@@ -208,6 +208,7 @@ asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_LD           14, ld.o,   rd1,  
 asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_LD    16, ld.o,    rd5,   rb6,   TEST_DATA,          0x028,    0x7FFFFFFFFFFFFFFF	1
 asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_LD    17, ld.o,    rd5,   rb6,   TEST_DATA,          0x020,    0x8000000000000000	1
 asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_LD    18, ld.o,    rd5,   rb6,   TEST_DATA,          0x088,    0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/01-load-store/ld.o_rrii_rd.S	TEST_LD    22, ld.o,    rd5,   rb6,   TEST_DATA,          0x068,    0x0102030405060708	1
 asm	tests/inst/01-load-store/ld.o_rrii_rd.S	__CHECK_RD 15, rd2, 0x0011223344556677	1
 asm	tests/inst/01-load-store/ld.o_rrii_rd.S	__CHECK_RD 19, rd21, 0x8000000000000000	@@ 负向极小	1
 asm	tests/inst/01-load-store/ld.o_rrii_rd.S	__CHECK_RD 21, rd21, 0x7FFFFFFFFFFFFFFF	@@ 正向极大	1
@@ -235,8 +236,8 @@ asm	tests/inst/01-load-store/ld.o_rrii_rf.S	__CHECK_RD 15, rd21, 0x0011223344556
 asm	tests/inst/01-load-store/ld.o_rrii_rf.S	__CHECK_RD 19, rd21, 0x8000000000000000	@@ 负向极小	1
 asm	tests/inst/01-load-store/ld.o_rrii_rf.S	__CHECK_RD 21, rd21, 0x7FFFFFFFFFFFFFFF	@@ 正向极大	1
 asm	tests/inst/01-load-store/ld.o_rrii_rf.S	__CHECK_RD_IP 20, ld.o, rf5, rf13, rf	1
-asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_FAULT        22, ld.sb,  rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）	1
-asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_FAULT        23, ld.sb,  rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
+asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_FAULT        24, ld.sb,  rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）	1
+asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_FAULT        25, ld.sb,  rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
 asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_LD            1, ld.sb,  rd63,  rb63,  TEST_DATA,          0x000,    0x0000000000000001	1
 asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_LD            2, ld.sb,  rd1,   rb1,   TEST_DATA + 0x008,  0x000,    0x0000000000000000	1
 asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_LD            3, ld.sb,  rd2,   rb4,   TEST_DATA,          0x000,    0x0000000000000001	1
@@ -254,13 +255,15 @@ asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_LD           14, ld.sb,  rd1, 
 asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_LD    16, ld.sb,   rd5,   rb6,   TEST_DATA,          0x028,    0x000000000000007F	1
 asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_LD    17, ld.sb,   rd5,   rb6,   TEST_DATA,          0x020,    0xFFFFFFFFFFFFFF80	1
 asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_LD    18, ld.sb,   rd5,   rb6,   TEST_DATA,          0x088,    0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_LD    22, ld.sb,   rd5,   rb6,   TEST_DATA,          0x068,    0x0000000000000001	1
+asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	TEST_LD    23, ld.sb,   rd5,   rb6,   TEST_DATA,          0x010,    0xFFFFFFFFFFFFFF88	1
 asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	__CHECK_RD 15, rd2, 0xFFFFFFFFFFFFFFEF	1
 asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	__CHECK_RD 19, rd21, 0xFFFFFFFFFFFFFF80	@@ 负向极小	1
 asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	__CHECK_RD 21, rd21, 0x000000000000007F	@@ 正向极大	1
 asm	tests/inst/01-load-store/ld.sb_rrii_rd.S	__CHECK_RD_IP 20, ld.sb, rd5, rd13, rd	1
-asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_FAULT        22, ld.st,  rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）	1
-asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_FAULT        23, ld.st,  rd1,   MALIGN, rb3,                TEST_DATA, 0x002  @@ EA 未按 4 B 自然对齐 ⇒ MALIGN	1
-asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_FAULT        24, ld.st,  rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
+asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_FAULT        23, ld.st,  rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）	1
+asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_FAULT        24, ld.st,  rd1,   MALIGN, rb3,                TEST_DATA, 0x002  @@ EA 未按 4 B 自然对齐 ⇒ MALIGN	1
+asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_FAULT        25, ld.st,  rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
 asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_LD            1, ld.st,  rd63,  rb63,  TEST_DATA,          0x000,    0x0000000001234567	1
 asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_LD            2, ld.st,  rd1,   rb1,   TEST_DATA + 0x008,  0x000,    0x0000000000112233	1
 asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_LD            3, ld.st,  rd2,   rb4,   TEST_DATA,          0x000,    0x0000000001234567	1
@@ -278,13 +281,14 @@ asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_LD           14, ld.st,  rd1, 
 asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_LD    16, ld.st,   rd5,   rb6,   TEST_DATA,          0x028,    0x000000007FFFFFFF	1
 asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_LD    17, ld.st,   rd5,   rb6,   TEST_DATA,          0x020,    0xFFFFFFFF80000000	1
 asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_LD    18, ld.st,   rd5,   rb6,   TEST_DATA,          0x088,    0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/01-load-store/ld.st_rrii_rd.S	TEST_LD    22, ld.st,   rd5,   rb6,   TEST_DATA,          0x068,    0x0000000001020304	1
 asm	tests/inst/01-load-store/ld.st_rrii_rd.S	__CHECK_RD 15, rd2, 0x0000000000112233	1
 asm	tests/inst/01-load-store/ld.st_rrii_rd.S	__CHECK_RD 19, rd21, 0xFFFFFFFF80000000	@@ 负向极小	1
 asm	tests/inst/01-load-store/ld.st_rrii_rd.S	__CHECK_RD 21, rd21, 0x000000007FFFFFFF	@@ 正向极大	1
 asm	tests/inst/01-load-store/ld.st_rrii_rd.S	__CHECK_RD_IP 20, ld.st, rd5, rd13, rd	1
-asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_FAULT        22, ld.sw,  rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）	1
-asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_FAULT        23, ld.sw,  rd1,   MALIGN, rb3,                TEST_DATA, 0x001  @@ EA 未按 2 B 自然对齐 ⇒ MALIGN	1
-asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_FAULT        24, ld.sw,  rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
+asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_FAULT        24, ld.sw,  rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）	1
+asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_FAULT        25, ld.sw,  rd1,   MALIGN, rb3,                TEST_DATA, 0x001  @@ EA 未按 2 B 自然对齐 ⇒ MALIGN	1
+asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_FAULT        26, ld.sw,  rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
 asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_LD            1, ld.sw,  rd63,  rb63,  TEST_DATA,          0x000,    0x0000000000000123	1
 asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_LD            2, ld.sw,  rd1,   rb1,   TEST_DATA + 0x008,  0x000,    0x0000000000000011	1
 asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_LD            3, ld.sw,  rd2,   rb4,   TEST_DATA,          0x000,    0x0000000000000123	1
@@ -302,6 +306,8 @@ asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_LD           14, ld.sw,  rd1, 
 asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_LD    16, ld.sw,   rd5,   rb6,   TEST_DATA,          0x028,    0x0000000000007FFF	1
 asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_LD    17, ld.sw,   rd5,   rb6,   TEST_DATA,          0x020,    0xFFFFFFFFFFFF8000	1
 asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_LD    18, ld.sw,   rd5,   rb6,   TEST_DATA,          0x088,    0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_LD    22, ld.sw,   rd5,   rb6,   TEST_DATA,          0x068,    0x0000000000000102	1
+asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	TEST_LD    23, ld.sw,   rd5,   rb6,   TEST_DATA,          0x06E,    0x0000000000000708	1
 asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	__CHECK_RD 15, rd2, 0x0000000000000011	1
 asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	__CHECK_RD 19, rd21, 0xFFFFFFFFFFFF8000	@@ 负向极小	1
 asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	__CHECK_RD 21, rd21, 0x0000000000007FFF	@@ 正向极大	1
@@ -331,9 +337,9 @@ asm	tests/inst/01-load-store/ld.t_rrii_rf.S	__CHECK_RD 15, rd21, 0x0000000000112
 asm	tests/inst/01-load-store/ld.t_rrii_rf.S	__CHECK_RD 19, rd21, 0x0000000080000000	@@ 负向极小	1
 asm	tests/inst/01-load-store/ld.t_rrii_rf.S	__CHECK_RD 21, rd21, 0x000000007FFFFFFF	@@ 正向极大	1
 asm	tests/inst/01-load-store/ld.t_rrii_rf.S	__CHECK_RD_IP 20, ld.t, rf5, rf13, rf	1
-asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_FAULT        22, ld.ub,  rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）	1
-asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_FAULT        23, ld.ub,  rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
-asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_FAULT        24, ld.ub,  rd1,   CFXMEM, rb3,                0x180000000000, 0x000  @@ reserved cfx 地址空间（addr[47:42]=6）上的普通访存 ⇒ CFXMEM	1
+asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_FAULT        26, ld.ub,  rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）	1
+asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_FAULT        27, ld.ub,  rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
+asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_FAULT        28, ld.ub,  rd1,   CFXMEM, rb3,                0x180000000000, 0x000  @@ reserved cfx 地址空间（addr[47:42]=6）上的普通访存 ⇒ CFXMEM	1
 asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_LD            1, ld.ub,  rd63,  rb63,  TEST_DATA,          0x000,    0x0000000000000001	1
 asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_LD            2, ld.ub,  rd1,   rb1,   TEST_DATA + 0x008,  0x000,    0x0000000000000000	1
 asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_LD            3, ld.ub,  rd2,   rb4,   TEST_DATA,          0x000,    0x0000000000000001	1
@@ -351,6 +357,10 @@ asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_LD           14, ld.ub,  rd1, 
 asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_LD    16, ld.ub,   rd5,   rb6,   TEST_DATA,          0x028,    0x000000000000007F	1
 asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_LD    17, ld.ub,   rd5,   rb6,   TEST_DATA,          0x020,    0x0000000000000080	1
 asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_LD    18, ld.ub,   rd5,   rb6,   TEST_DATA,          0x088,    0x00000000000000FF	1
+asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_LD    22, ld.ub,   rd5,   rb6,   TEST_DATA,          0x068,    0x0000000000000001	1
+asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_LD    23, ld.ub,   rd5,   rb6,   TEST_DATA,          0x069,    0x0000000000000002	1
+asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_LD    24, ld.ub,   rd5,   rb6,   TEST_DATA,          0x06F,    0x0000000000000008	1
+asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	TEST_LD    25, ld.ub,   rd5,   rb6,   TEST_DATA,          0x010,    0x0000000000000088	1
 asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	__CHECK_RD 15, rd2, 0x00000000000000EF	1
 asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	__CHECK_RD 19, rd21, 0x0000000000000080	@@ 负向极小	1
 asm	tests/inst/01-load-store/ld.ub_rrii_rd.S	__CHECK_RD 21, rd21, 0x000000000000007F	@@ 正向极大	1
@@ -878,8 +888,11 @@ asm	tests/inst/01-load-store/st.t_rrii_rf.S	TEST_ST_RF  17, st.t,    rf5,   rb6,
 asm	tests/inst/01-load-store/st.t_rrii_rf.S	__CHECK_MEM 18, (ENTRY + 0x2000), 0, 0x0000000011111111	@@ 负档槽（零）只被写低 32 位	1
 asm	tests/inst/01-load-store/st.t_rrii_rf.S	__CHECK_MEM 20, (ENTRY + 0x2188), 0, 0x0000000011111111	1
 asm	tests/inst/01-load-store/st.t_rrii_rf.S	__CHECK_RD 19, rd21, 0x0000000011111111	1
-asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_FAULT        22, st.w,   rd1,   MALIGN, rb3,                TEST_DATA, 0x001  @@ EA 未按 2 B 自然对齐 ⇒ MALIGN	1
-asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_FAULT        23, st.w,   rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
+asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_FAULT        26, st.w,   rd1,   MALIGN, rb3,                TEST_DATA, 0x001  @@ EA 未按 2 B 自然对齐 ⇒ MALIGN	1
+asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_FAULT        27, st.w,   rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
+asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_LD    23, ld.ub,   rd7,   rb6,   TEST_DATA,          0x0C8,    0x00000000000000BE	1
+asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_LD    24, ld.ub,   rd7,   rb6,   TEST_DATA,          0x0C9,    0x00000000000000EF	1
+asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_LD    25, ld.sw,   rd7,   rb6,   TEST_DATA,          0x0C8,    0xFFFFFFFFFFFFBEEF	1
 asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_ST            1, st.w,   rd63,  rb63,  TEST_DATA,          0x0B8,    0xDEADBEEFCAFEF00D, 0xF00D111111111111	1
 asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_ST            2, st.w,   rd1,   rb1,   TEST_DATA + 0x008,  0x0A8,    0xDEADBEEFCAFEF00D, 0xF00DF0F0F0F0F0F0	1
 asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_ST            3, st.w,   rd2,   rb3,   TEST_DATA,          0x010,    0xDEADBEEFCAFEF00D, 0xF00DAABBCCDDEEFF	1
@@ -897,6 +910,7 @@ asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_ST           14, st.w,   rd2,  
 asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_ST    16, st.w,    rd5,   rb6,   MSTORE + 0x1C6,   0x000,    0x0000000000007FFF, 0xC0DE000000007FFF	1
 asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_ST    17, st.w,    rd5,   rb6,   MSTORE + 0x1CE,   0x000,    0x0000000000008000, 0xC0DE000000008000	1
 asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_ST    18, st.w,    rd5,   rb6,   MSTORE + 0x1D6,   0x000,    0x000000000000FFFF, 0xC0DE00000000FFFF	1
+asm	tests/inst/01-load-store/st.w_rrii_rd.S	TEST_ST    22, st.w,    rd5,   rb6,   TEST_DATA,          0x0C8,    0x000000000000BEEF, 0xBEEF000000000000	1
 asm	tests/inst/01-load-store/st.w_rrii_rd.S	__CHECK_MEM 15, TEST_DATA, 0x070, 0x0000A5A55A5A5A5A	1
 asm	tests/inst/01-load-store/st.w_rrii_rd.S	__CHECK_MEM 19, (ENTRY + 0x2000), 0, 0x0000000000001111	@@ 负档槽（零）只被写低 16 位	1
 asm	tests/inst/01-load-store/st.w_rrii_rd.S	__CHECK_MEM 21, (ENTRY + 0x2188), 0, 0x0000000000001111	1
@@ -1671,6 +1685,8 @@ asm	tests/inst/04-arith-logic-octa/cmp.uo_orrr_rd.S	TEST_AR_ORRR        14, cmp.
 asm	tests/inst/04-arith-logic-octa/cmp.uo_orrr_rd.S	TEST_FAULT_ALU3     15, cmp.uo, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/04-arith-logic-octa/cmp.uo_orrr_rd.S	__CHECK_RD   1, rd5, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/04-arith-logic-octa/cmp.uo_orrr_rd.S	__CHECK_RD   2, rd63, 0x0000000000000000	1
+asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	TEST_AR_DIVREM_REL  16, div.so, rem.so, 0xFFFFFFFFFFFFFF9C, 0x0000000000000007, 0xFFFFFFFFFFFFFFF2, 0xFFFFFFFFFFFFFFFE	1
+asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	TEST_AR_DIVREM_REL  17, div.so, rem.so, 0xFFFFFFFFFFFFFFFD, 0x0000000000000007, 0x0000000000000000, 0xFFFFFFFFFFFFFFFD	1
 asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	TEST_AR_ORRR         3, div.so, rd5, 0x0000000000000000, rd6, 0x0000000000000064, rd7, 0x0000000000000007, 0x000000000000000E	1
 asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	TEST_AR_ORRR         4, div.so, rd5, 0x0000000000000000, rd6, 0xFFFFFFFFFFFFFF9C, rd7, 0x0000000000000007, 0xFFFFFFFFFFFFFFF2	1
 asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	TEST_AR_ORRR         5, div.so, rd5, 0x0000000000000000, rd6, 0x0000000000000064, rd7, 0xFFFFFFFFFFFFFFF9, 0xFFFFFFFFFFFFFFF2	1
@@ -1684,9 +1700,11 @@ asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	TEST_AR_ORRR        12, div.
 asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	TEST_AR_ORRR        13, div.so, rd9, 0x0000000000000064, rd9, 0x0000000000000064, rd10, 0x0000000000000007, 0x000000000000000E	1
 asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	TEST_AR_ORRR        14, div.so, rd9, 0x0000000000000007, rd10, 0x0000000000000064, rd9, 0x0000000000000007, 0x000000000000000E	1
 asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	TEST_AR_ORRR        15, div.so, rd9, 0x0000000000000000, rd11, 0xFFFFFFFFFFFFCFC7, rd11, 0xFFFFFFFFFFFFCFC7, 0x0000000000000001	1
-asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	TEST_FAULT_ALU3     16, div.so, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	TEST_AR_ORRR        18, div.so, rd5, 0x0000000000000000, rd6, 0xFFFFFFFFFFFFFFF9, rd7, 0x0000000000000002, 0xFFFFFFFFFFFFFFFD	1
+asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	TEST_FAULT_ALU3     19, div.so, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	__CHECK_RD   1, rd5, 0x000000000000000E	1
 asm	tests/inst/04-arith-logic-octa/div.so_orrr_rd.S	__CHECK_RD   2, rd63, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	TEST_AR_DIVREM_REL  17, div.uo, rem.uo, 0xFFFFFFFFFFFFFFFD, 0x000000000000000B, 0x1745D1745D1745D1, 0x0000000000000002	1
 asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	TEST_AR_ORRR         3, div.uo, rd5, 0x0000000000000000, rd6, 0x0000000000000064, rd7, 0x0000000000000007, 0x000000000000000E	1
 asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	TEST_AR_ORRR         4, div.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000001, rd7, 0x0000000000000001, 0x0000000000000001	1
 asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	TEST_AR_ORRR         5, div.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000000, rd7, 0x0000000000000007, 0x0000000000000000	1
@@ -1700,7 +1718,9 @@ asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	TEST_AR_ORRR        12, div.
 asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	TEST_AR_ORRR        13, div.uo, rd9, 0x0000000000000064, rd9, 0x0000000000000064, rd10, 0x0000000000000007, 0x000000000000000E	1
 asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	TEST_AR_ORRR        14, div.uo, rd9, 0x0000000000000007, rd10, 0x0000000000000064, rd9, 0x0000000000000007, 0x000000000000000E	1
 asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	TEST_AR_ORRR        15, div.uo, rd9, 0x0000000000000000, rd11, 0x0000000000003039, rd11, 0x0000000000003039, 0x0000000000000001	1
-asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	TEST_FAULT_ALU3     16, div.uo, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	TEST_AR_ORRR        16, div.uo, rd5, 0x0000000000000000, rd6, 0xFFFFFFFFFFFFFFF9, rd7, 0x0000000000000002, 0x7FFFFFFFFFFFFFFC	1
+asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	TEST_AR_ORRR        18, div.uo, rd5, 0x0000000000000000, rd6, 0x8000000000000000, rd0, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	TEST_FAULT_ALU3     19, div.uo, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	__CHECK_RD   1, rd5, 0x000000000000000E	1
 asm	tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S	__CHECK_RD   2, rd63, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/04-arith-logic-octa/ext.so_orri_rd.S	TEST_AR_ORRI         3, ext.so, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, 2, 0xFFFFFFFFFFFFFFFF	1
@@ -1840,7 +1860,10 @@ asm	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	TEST_AR_ORRR        12, rem.
 asm	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	TEST_AR_ORRR        13, rem.so, rd9, 0x0000000000000064, rd9, 0x0000000000000064, rd10, 0x0000000000000007, 0x0000000000000002	1
 asm	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	TEST_AR_ORRR        14, rem.so, rd9, 0x0000000000000007, rd10, 0x0000000000000064, rd9, 0x0000000000000007, 0x0000000000000002	1
 asm	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	TEST_AR_ORRR        15, rem.so, rd9, 0xFFFFFFFFFFFFFFFF, rd11, 0xFFFFFFFFFFFFCFC7, rd11, 0xFFFFFFFFFFFFCFC7, 0x0000000000000000	1
-asm	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	TEST_FAULT_ALU3     16, rem.so, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	TEST_AR_ORRR        16, rem.so, rd5, 0x0000000000000000, rd6, 0xFFFFFFFFFFFFFFF9, rd7, 0x0000000000000002, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	TEST_AR_ORRR        17, rem.so, rd5, 0x0000000000000000, rd6, 0x8000000000000000, rd7, 0x0000000000000003, 0xFFFFFFFFFFFFFFFE	1
+asm	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	TEST_AR_ORRR        18, rem.so, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000064, rd7, 0x0000000000000000, 0x0000000000000064	1
+asm	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	TEST_FAULT_ALU3     19, rem.so, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	__CHECK_RD   1, rd5, 0x0000000000000002	1
 asm	tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S	__CHECK_RD   2, rd63, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	TEST_AR_ORRR         3, rem.uo, rd5, 0x0000000000000000, rd6, 0x0000000000000064, rd7, 0x0000000000000007, 0x0000000000000002	1
@@ -1855,7 +1878,10 @@ asm	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	TEST_AR_ORRR        11, rem.
 asm	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	TEST_AR_ORRR        12, rem.uo, rd9, 0x0000000000000064, rd9, 0x0000000000000064, rd10, 0x0000000000000007, 0x0000000000000002	1
 asm	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	TEST_AR_ORRR        13, rem.uo, rd9, 0x0000000000000007, rd10, 0x0000000000000064, rd9, 0x0000000000000007, 0x0000000000000002	1
 asm	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	TEST_AR_ORRR        14, rem.uo, rd9, 0xFFFFFFFFFFFFFFFF, rd11, 0x0000000000003039, rd11, 0x0000000000003039, 0x0000000000000000	1
-asm	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	TEST_FAULT_ALU3     15, rem.uo, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	TEST_AR_ORRR        15, rem.uo, rd5, 0x0000000000000000, rd6, 0xFFFFFFFFFFFFFFF9, rd7, 0x0000000000000002, 0x0000000000000001	1
+asm	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	TEST_AR_ORRR        16, rem.uo, rd5, 0x0000000000000000, rd6, 0x8000000000000000, rd7, 0x0000000000000003, 0x0000000000000002	1
+asm	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	TEST_AR_ORRR        17, rem.uo, rd9, 0xFFFFFFFFFFFFFFFF, rd6, 0x8000000000000000, rd0, 0x0000000000000000, 0x8000000000000000	1
+asm	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	TEST_FAULT_ALU3     18, rem.uo, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	__CHECK_RD   1, rd5, 0x0000000000000002	1
 asm	tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S	__CHECK_RD   2, rd63, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/rev.o_orri_rd.S	TEST_AR_ORRI         3, rev.o, rd5, 0x0000000000000000, rd6, 0x0123456789ABCDEF, 1, 0xF7B3D591E6A2C480	1

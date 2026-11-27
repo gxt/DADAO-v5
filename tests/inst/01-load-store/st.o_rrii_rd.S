@@ -5,7 +5,7 @@
 @@ 对齐：EA 需 8 B 自然对齐，未对齐 ⇒ MALIGN
 @@ 合法性：源 0 号寄存器：rd0 读出 0（合法）；无 dst_0 限制。基址可用 rb0（= 当前指令地址）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节数据单元，字面量见该文件）
-@@ 用例：encoding 2 / legality 5 / semantic 5 / boundary 8 / overlap 2 / rb0 4（链例 22 + 故障例 4；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
+@@ 用例：encoding 2 / legality 5 / semantic 5 / boundary 8 / overlap 2 / rb0 4（链例 22 + 故障例 5；其中 m20 追补：MALIGN 不写存储器 1；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ rb0 段（`spec/SimRISC-00 §2`：rb0 = 当前指令地址）：本 id 的**数据源在 rd 银行**，
@@ -112,5 +112,7 @@ __rb0p_ck:
 	TEST_FAULT        24, st.o,   rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
 	TEST_FAULT        25, st.o,   rd1,   CFXMEM, rb3,                0x7C0000000000, 0x000  @@ reserved cfx 地址空间（addr[47:42]=31）上的普通访存 ⇒ CFXMEM
 	TEST_FAULT        26, st.o,   rd1,   CFXMEM, rb3,                0xF40000000000, 0x000  @@ reserved cfx 地址空间（addr[47:42]=61）上的普通访存 ⇒ CFXMEM
+	@@ 未对齐存储不写目标数据单元（异常在写存储器之前 raise；`spec/SimRISC-01 §1`）
+	TEST_FAULT_ST_MALIGN_KEEPMEM 27, st.o, rd1, 0xDEADBEEFCAFEF00D, rb4, MSTORE, 0x1DC, 0x1D8, 0xA5A5A5A5A5A5A5A5
 
 	__TEST_SECTIONS

@@ -5,7 +5,7 @@
 @@ 对齐：EA 需 8 B 自然对齐，未对齐 ⇒ MALIGN
 @@ 合法性：目的为 0 号寄存器 ⇒ ILLI
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节数据单元，字面量见该文件）
-@@ 用例：encoding 2 / legality 4 / semantic 5 / boundary 9 / overlap 2 / rb0 3（链例 21 + 故障例 4；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
+@@ 用例：encoding 2 / legality 4 / semantic 5 / boundary 9 / overlap 2 / rb0 3（链例 22 + 故障例 5；其中 m20 追补：大端跨宽度 1 + MALIGN 不写目的 1；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 
@@ -76,12 +76,19 @@ __rb0p:
 __rb0p_ck:
 	rd2rd	{rd21:rd21}, {rd5:rd5}
 	__CHECK_RD 21, rd21, 0x7FFFFFFFFFFFFFFF	@@ 正向极大
+
+	@@ ==== m20-testcases-011 追补：大端跨宽度（同一数据单元 0x0102030405060708）====
+	@@   最低地址字节 = 最高有效字节 ⇒ ld.o 原样返回该 64 位值（ld.st/ld.sw/ld.ub/
+	@@   ld.sb 镜像在同一单元/相邻偏移给出前缀/单字节证据）。
+	TEST_LD    22, ld.o,    rd5,   rb6,   TEST_DATA,          0x068,    0x0102030405060708
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
-	TEST_FAULT        22, ld.o,   rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）
-	TEST_FAULT        23, ld.o,   rd1,   MALIGN, rb3,                TEST_DATA, 0x004  @@ EA 未按 8 B 自然对齐 ⇒ MALIGN
-	TEST_FAULT        24, ld.o,   rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
-	TEST_FAULT        25, ld.o,   rd1,   CFXMEM, rb3,                0x380000000000, 0x000  @@ reserved cfx 地址空间（addr[47:42]=14）上的普通访存 ⇒ CFXMEM
+	TEST_FAULT        23, ld.o,   rd0,   ILLI,  rb3,                TEST_DATA, 0x000  @@ rd0 作目的 ⇒ ILLI（dst_rd0）
+	TEST_FAULT        24, ld.o,   rd1,   MALIGN, rb3,                TEST_DATA, 0x004  @@ EA 未按 8 B 自然对齐 ⇒ MALIGN
+	TEST_FAULT        25, ld.o,   rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
+	TEST_FAULT        26, ld.o,   rd1,   CFXMEM, rb3,                0x380000000000, 0x000  @@ reserved cfx 地址空间（addr[47:42]=14）上的普通访存 ⇒ CFXMEM
+	@@ 未对齐访问不写目的（异常在写 rd 之前 raise；`spec/SimRISC-01 §1`）
+	TEST_FAULT_LD_MALIGN_KEEPDST 27, ld.o, rd1, 0xA5A5A5A5A5A5A5A5, rb3, TEST_DATA, 0x004
 
 	__TEST_SECTIONS
