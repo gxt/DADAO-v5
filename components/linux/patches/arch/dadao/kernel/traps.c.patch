@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..012fb823b
+index 000000000..a7ef45baa
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,752 @@
+@@ -0,0 +1,722 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -54,9 +54,9 @@ index 000000000..012fb823b
 +/* m14-linux-017: no semihosting while a frame is live (待裁定 4 / C). */
 +extern int dadao_in_frame;
 +
++
 +/* ADR-0061 R2 async handoff (kernel/time.c, kernel/entry_common.c). */
 +void dadao_async_ack_sources(struct pt_regs *regs);
-+void __noreturn dadao_async_user_return(struct pt_regs *regs);
 +#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
 +void m45_note_irq(struct pt_regs *regs);
 +#endif
@@ -504,36 +504,6 @@ index 000000000..012fb823b
 +		dadao_trap_busy = 0;
 +		dadao_in_frame = 0;
 +		return policy;
-+	}
-+
-+	/*
-+	 * ADR-0061 R2: a user-context asynchronous capture was adopted into
-+	 * `task_pt_regs(current)` by kernel/async_trap.S and handed here.  Ack
-+	 * the captured source bits, then leave through the normal return-to-user
-+	 * work loop and umon entry.  The smon frame this trap built is abandoned
-+	 * (the path never returns).
-+	 */
-+	if (cause == DADAO_CAUSE_CFXTRAP &&
-+	    (info & 0x3ffffUL) == DADAO_SMON_FROM_ASYNC) {
-+		struct pt_regs *uframe = task_pt_regs(current);
-+		struct pt_regs *old_regs;
-+
-+		dadao_early_printf("K2 async user: frame_ip=%#lx sp=%#lx\n",
-+				   (unsigned long)uframe->ip,
-+				   (unsigned long)uframe->rb[1]);
-+		arch_local_irq_disable();
-+		irq_enter_rcu();
-+		old_regs = set_irq_regs(uframe);
-+#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
-+		m45_note_irq(uframe);
-+#endif
-+		dadao_async_ack_sources(uframe);
-+		set_irq_regs(old_regs);
-+		irq_exit_rcu();
-+
-+		dadao_trap_busy = 0;
-+		dadao_in_frame = 0;
-+		dadao_async_user_return(uframe);
 +	}
 +
 +	/*

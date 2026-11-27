@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/async_trap.S b/arch/dadao/kernel/async_trap.S
 new file mode 100644
-index 000000000..5d3e76df8
+index 000000000..a652047f6
 --- /dev/null
 +++ b/arch/dadao/kernel/async_trap.S
-@@ -0,0 +1,253 @@
+@@ -0,0 +1,315 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO cfx_hart supv asynchronous-interrupt vector (ADR-0061 R3).
@@ -37,11 +37,15 @@ index 000000000..5d3e76df8
 + * why the `restore -> escape` window of the old R2/jmon design no longer
 + * exists.
 + *
-+ * User context: switch to the task's kernel stack and copy the captured frame
-+ * into `task_pt_regs(current)` (the umon entry's own slot), then hand the
-+ * capture to `cfx_smon` with `trap cfx_smon, DADAO_SMON_FROM_ASYNC`.  The smon
-+ * half acks the source(s), runs the return-to-user work loop and enters user
-+ * mode through `dadao_enter_user()`; it never returns here.
++ * User context: switch to the task's kernel stack, copy the captured frame into
++ * `task_pt_regs(current)` (the umon entry's own slot), rewrite the hart exit
++ * intent to return to a supv continuation with `inner_cfx_code` restored to
++ * the captured previous cfx, and `escape cfx_hart` into that continuation
++ * (`dadao_async_user_finish`).  The finish acks the source(s), runs the
++ * return-to-user work loop and enters user mode through `dadao_enter_user()`;
++ * it never returns here.  Retiring the hart frame *before* the work loop keeps
++ * a `schedule()` there from leaving a foreign monitor cfx behind for another
++ * task's `escape` (ISS-m18-009).
 + *
 + * Kernel context: handle the capture on the current kernel stack, then write
 + * the saved exit intent back into the hart's `cg5 rc8`-`rc11`, restore the
@@ -181,16 +185,28 @@ index 000000000..5d3e76df8
 +	ld.o	rd2, [rb4, 0]
 +	cfx2rc	cfx_hart, cg5, rc11, rd2
 +
-+	/* 6. Restore the whole register file and return to the exact ip.
-+	 *    The escape also whole-word restores the saved async mask, with
-+	 *    the switch and the jump, so no software re-open window exists. */
-+	DADAO_GPR_RESTORE dadao_async_save
-+	escape	cfx_hart
-+	jump	[rb0, .Lstuck]			/* escape never returns */
++	/* 6. Restore the whole register file and return to the exact ip.  The
++	 *    escape also whole-word restores the saved async mask, with the
++	 *    switch and the jump, so no software re-open window exists.  One
++	 *    restore site serves the kernel, user and early-boot exits; the
++	 *    differences are in the exit intent written before it (rc10). */
++	jump	[rb0, .Lasync_restore]
 +
 +	/*
 +	 * 7. User context: move to the task's kernel stack, adopt the capture
-+	 *    into task_pt_regs(current) and hand it to cfx_smon.
++	 *    into task_pt_regs(current), and retire the hart frame through its
++	 *    own exit intent *into supv* so the return-to-user work loop runs
++	 *    with `inner_cfx_code = cfx_umon` (the captured `prev_cfx`) and on a
++	 *    per-task kernel stack.
++	 *
++	 * Why the handoff to cfx_smon is gone: that frame is per-hart
++	 * (`cfx_smon cg5` + the static capture) and the return-to-user work loop
++	 * may `schedule()`; another task's supv/async entry then overwrites the
++	 * live frame state (ISS-m18-009).  The hart frame's own exit intent
++	 * belongs to *this* delivery: rc8 = prev run mode (user) is rewritten to
++	 * supv so the escape lands in a kernel continuation, rc9 = prev cfx
++	 * (cfx_umon) restores `inner_cfx_code` before any schedule, rc10 = the
++	 * finish trampoline, rc11 = the smon mask word captured at entry.
 +	 */
 +.Lasync_from_user:
 +	set.rb	rb4, dadao_user_stack_top
@@ -200,16 +216,62 @@ index 000000000..5d3e76df8
 +	add.si	rb1, -PT_REGS_SIZE
 +	set.rb	rb5, dadao_async_adopt
 +	call	[rb5, rd0, 0]			/* rb8 = &task frame */
-+	jump	[rb0, .Lasync_handoff]
++
++	/* Exit intent: supv mode, cfx_umon, finish trampoline, saved mask. */
++	set.rd	rd2, DADAO_MODE_SUPV
++	cfx2rc	cfx_hart, cg5, rc8, rd2
++	set.rb	rb4, dadao_async_esc_cfx
++	ld.o	rd2, [rb4, 0]
++	cfx2rc	cfx_hart, cg5, rc9, rd2
++	set.rb	rb4, .Lasync_user_finish
++	rb2rd	rd2, rb4, 1
++	cfx2rc	cfx_hart, cg5, rc10, rd2
++	set.rb	rb4, dadao_async_saved_mask
++	ld.o	rd2, [rb4, 0]
++	cfx2rc	cfx_hart, cg5, rc11, rd2
++	jump	[rb0, .Lasync_restore]
 +
 +.Lasync_static:
-+	set.rb	rb8, dadao_async_save
++	/* Early boot (no task stack yet): the static async frame is the context;
++	 * the finish trampoline keeps the captured kernel SP for it. */
++	set.rd	rd2, DADAO_MODE_SUPV
++	cfx2rc	cfx_hart, cg5, rc8, rd2
++	set.rb	rb4, dadao_async_esc_cfx
++	ld.o	rd2, [rb4, 0]
++	cfx2rc	cfx_hart, cg5, rc9, rd2
++	set.rb	rb4, .Lasync_user_finish
++	rb2rd	rd2, rb4, 1
++	cfx2rc	cfx_hart, cg5, rc10, rd2
++	set.rb	rb4, dadao_async_saved_mask
++	ld.o	rd2, [rb4, 0]
++	cfx2rc	cfx_hart, cg5, rc11, rd2
 +
-+.Lasync_handoff:
-+	/* The C half reads the globals above; the mode is already supv. */
-+	trap	cfx_smon, DADAO_SMON_FROM_ASYNC
++.Lasync_restore:
++	/* The only register-file restore of this stub.  The async window probes
++	 * inject immediately before this line. */
++	DADAO_GPR_RESTORE dadao_async_save
++	escape	cfx_hart
++	jump	[rb0, .Lstuck]			/* escape never returns */
++
++.Lasync_user_finish:
++	/* Supv continuation after the user escape: move to the task's kernel
++	 * stack and hand the adopted frame to the C finish.  Clobbering the
++	 * caller-saved banks here is safe: the user file is in task_pt_regs and
++	 * `dadao_enter_user()` restores it. */
++	set.rb	rb4, dadao_user_stack_top
++	ld.o	rb4, [rb4, 0]
++	br.z	{rb4}?, [rb0, .Lasync_finish_static]
++	rb2rb	{rb1}, {rb4}
++	add.si	rb1, -PT_REGS_SIZE
++	rb2rb	{rb16}, {rb1}
++	jump	[rb0, .Lasync_finish_call]
++.Lasync_finish_static:
++	set.rb	rb16, dadao_async_save
++.Lasync_finish_call:
++	set.rb	rb5, dadao_async_user_finish
++	jump	[rb5, rd0, 0]			/* never returns */
 +.Lstuck:
-+	jump	[rb0, .Lstuck]			/* the smon half never returns */
++	jump	[rb0, .Lstuck]			/* unreachable: escape never returns */
 +
 +	/*
 +	 * PC-relative parking for the two staging registers and the inherited

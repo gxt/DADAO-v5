@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/entry_common.c b/arch/dadao/kernel/entry_common.c
 new file mode 100644
-index 000000000..8035f50e8
+index 000000000..727c4e9ac
 --- /dev/null
 +++ b/arch/dadao/kernel/entry_common.c
-@@ -0,0 +1,355 @@
+@@ -0,0 +1,387 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * The generic entry/exit hooks this port owns (m14-linux-045).
@@ -107,6 +107,7 @@ index 000000000..8035f50e8
 +#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
 +/* Probe-image hooks (kernel/m45_entry_selftest.c); never in a milestone image. */
 +void m45_note_exit_to_user(struct pt_regs *regs, bool syscall);
++void m45_note_irq(struct pt_regs *regs);
 +/* Records that the signal dispatch point was reached with the bit set. */
 +void m45_note_signal(void);
 +#endif
@@ -266,13 +267,44 @@ index 000000000..8035f50e8
 +}
 +
 +/*
-+ * User-context asynchronous return (ADR-0061 R2, kernel/async_trap.S):
-+ * the capture is already in `task_pt_regs(current)` and `cfx_smon` was entered
-+ * through `trap cfx_smon, DADAO_SMON_FROM_ASYNC`.  Run the return-to-user work
-+ * loop (signals / `_TIF_NEED_RESCHED` / task_work) and enter user mode through
-+ * the normal umon path.  Never returns; the aborted smon trap frame is not used
-+ * again.
++ * User-context asynchronous return (ADR-0061 R2, kernel/async_trap.S).
++ *
++ * kernel/async_trap.S adopts the capture into `task_pt_regs(current)` and
++ * retires the hart frame with `escape cfx_hart` straight into supv, with
++ * `inner_cfx_code` restored to the captured `prev_cfx` (cfx_umon) and rc11
++ * restoring the inherited smon mask word.  `dadao_async_user_finish()` is the
++ * escape's continuation: it acks the captured sources on the task's kernel
++ * stack and runs the return-to-user work loop (signals / `_TIF_NEED_RESCHED` /
++ * task_work) before entering user mode through the normal umon path.
++ *
++ * Retiring the hart frame before the work loop is the ISS-m18-009 fix: the
++ * loop may `schedule()`, and it must not run while `inner_cfx_code` is a
++ * monitor other than the task's own, or a task resuming its umon frame takes
++ * CFXESC at `escape cfx_umon` (spec/DADAO-12 §5.3 step 0).  Never returns.
 + */
++extern void dadao_async_ack_sources(struct pt_regs *regs);
++void __noreturn dadao_async_user_return(struct pt_regs *regs);
++
++void __noreturn dadao_async_user_finish(struct pt_regs *regs)
++{
++	struct pt_regs *old_regs;
++
++	dadao_early_printf("K2 async user: frame_ip=%#lx sp=%#lx\n",
++			   (unsigned long)regs->ip,
++			   (unsigned long)regs->rb[1]);
++	arch_local_irq_disable();
++	irq_enter_rcu();
++	old_regs = set_irq_regs(regs);
++#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
++	m45_note_irq(regs);
++#endif
++	dadao_async_ack_sources(regs);
++	set_irq_regs(old_regs);
++	irq_exit_rcu();
++
++	dadao_async_user_return(regs);
++}
++
 +void __noreturn dadao_async_user_return(struct pt_regs *regs)
 +{
 +	unsigned long flags;
