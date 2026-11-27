@@ -71,9 +71,26 @@
 	@@ Inf 作加数：1 × 2 + (−Inf) ⇒ −Inf，不置标志（`§2.5`「特例」第 3 条）
 	TEST_FP4	24, ft, ftfma, rf5, rf6, 0x000000003F800000, rf7, 0x0000000040000000, rf8, 0x00000000FF800000, 0, 0x00000000FF800000, 0x00
 
+	@@ ---- 边界补齐（m20-testcases-009；0×Inf 优先 / NaN 加法数 / tininess-after-rounding）----
+	@@ 0 × −Inf + qNaN ⇒ qNaN + NV（负 Inf 变体；零乘无穷优先于 NaN 传播）
+	TEST_FP4	25, ft, ftfma, rf5, rf6, 0x0000000000000000, rf7, 0x00000000FF800000, rf8, 0x000000007FC00000, 0, 0x000000007FC00000, 0x01
+	@@ Inf × Inf + (−Inf) ⇒ qNaN + NV（Inf + (−Inf)）
+	TEST_FP4	26, ft, ftfma, rf5, rf6, 0x000000007F800000, rf7, 0x000000007F800000, rf8, 0x00000000FF800000, 0, 0x000000007FC00000, 0x01
+	@@ 加数为负号 qNaN（含 payload）⇒ canonical 正 qNaN，不置标志
+	TEST_FP4	27, ft, ftfma, rf5, rf6, 0x000000003F800000, rf7, 0x000000003F800000, rf8, 0x00000000FFC00123, 0, 0x000000007FC00000, 0x00
+	@@ 加数为 sNaN ⇒ qNaN + NV（有限积不掩盖 sNaN）
+	TEST_FP4	28, ft, ftfma, rf5, rf6, 0x000000003F800000, rf7, 0x000000003F800000, rf8, 0x000000007F800001, 0, 0x000000007FC00000, 0x01
+	@@ tininess-after-rounding（RNE）：最大次正规 × (1+2^-23) 的精确积 = min_normal − 2^-172，
+	@@   舍入后等于最小正规 ⇒ 非 tiny ⇒ 只置 NX、不置 UF（`SimRISC-07 §1.3/§2.5`）
+	TEST_FP4	29, ft, ftfma, rf5, rf6, 0x00000000007FFFFF, rf7, 0x000000003F800001, rf8, 0x0000000000000000, 0, 0x0000000000800000, 0x10
+	@@ 同一输入 RTZ 舍到最大次正规（舍入后仍 tiny 且 inexact）⇒ UF|NX
+	TEST_FP4	30, ft, ftfma, rf5, rf6, 0x00000000007FFFFF, rf7, 0x000000003F800001, rf8, 0x0000000000000000, 1, 0x00000000007FFFFF, 0x18
+	@@ 最小次正规 × 2 = 2^-148（精确次正规输出）⇒ 不置 UF/NX
+	TEST_FP4	31, ft, ftfma, rf5, rf6, 0x0000000000000001, rf7, 0x0000000040000000, rf8, 0x0000000000000000, 0, 0x0000000000000002, 0x00
+
 	@@ ---- legality ----
 	@@ 目的 rf0 ⇒ ILLI（dst_rf0；汇编器拒绝，给编码字）
-	TEST_FAULT_FP	25, ILLI, 0x5E0020C4
+	TEST_FAULT_FP	32, ILLI, 0x5E0020C4
 
 	__TEST_END
 

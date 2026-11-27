@@ -56,9 +56,29 @@
 	@@ 两源同名（rf9 = rf6 + rf6）
 	TEST_FP3	18, ft, ftadd, rf9, rf6, 0x000000003FC00000, rf6, 0x000000003FC00000, 0, 0x0000000040400000, 0x00
 
+	@@ ---- 边界补齐（m20-testcases-009；NaN 优先 / 次正规 / 溢出四象限，`SimRISC-07 §2.1/§1.3`）----
+	@@ qNaN + sNaN ⇒ canonical qNaN + NV（sNaN 优先置 NV，qNaN 不掩盖）
+	TEST_FP3	19, ft, ftadd, rf5, rf6, 0x000000007FC00000, rf7, 0x000000007F800001, 0, 0x000000007FC00000, 0x01
+	@@ 负号 qNaN（含 payload）+ 1.0 ⇒ canonical 正 qNaN，不置标志（payload/符号归零）
+	TEST_FP3	20, ft, ftadd, rf5, rf6, 0x00000000FFC12345, rf7, 0x000000003F800000, 0, 0x000000007FC00000, 0x00
+	@@ 最小次正规 + 最小次正规 = 2^-148（精确次正规输出）⇒ 不置 UF/NX
+	TEST_FP3	21, ft, ftadd, rf5, rf6, 0x0000000000000001, rf7, 0x0000000000000001, 0, 0x0000000000000002, 0x00
+	@@ 最大次正规 + 最小次正规 = 最小正规（精确进位）⇒ 不置 UF/NX
+	TEST_FP3	22, ft, ftadd, rf5, rf6, 0x00000000007FFFFF, rf7, 0x0000000000000001, 0, 0x0000000000800000, 0x00
+	@@ 最大次正规 + 最大次正规 = 0x00FFFFFE（精确，和进入正规区）⇒ 不置 UF/NX
+	TEST_FP3	23, ft, ftadd, rf5, rf6, 0x00000000007FFFFF, rf7, 0x00000000007FFFFF, 0, 0x0000000000FFFFFE, 0x00
+	@@ 正溢出 RUP ⇒ +Inf + OF|NX
+	TEST_FP3	24, ft, ftadd, rf5, rf6, 0x000000007F7FFFFF, rf7, 0x000000007F7FFFFF, 3, 0x000000007F800000, 0x14
+	@@ 正溢出 RDN ⇒ +ft_max + OF|NX（溢出 ≠ Inf）
+	TEST_FP3	25, ft, ftadd, rf5, rf6, 0x000000007F7FFFFF, rf7, 0x000000007F7FFFFF, 2, 0x000000007F7FFFFF, 0x14
+	@@ 负溢出 RDN ⇒ −Inf + OF|NX
+	TEST_FP3	26, ft, ftadd, rf5, rf6, 0x00000000FF7FFFFF, rf7, 0x00000000FF7FFFFF, 2, 0x00000000FF800000, 0x14
+	@@ 负溢出 RUP ⇒ −ft_max + OF|NX（溢出 ≠ Inf）
+	TEST_FP3	27, ft, ftadd, rf5, rf6, 0x00000000FF7FFFFF, rf7, 0x00000000FF7FFFFF, 3, 0x00000000FF7FFFFF, 0x14
+
 	@@ ---- legality ----
 	@@ 目的 rf0 ⇒ ILLI（dst_rf0；汇编器拒绝，给编码字）
-	TEST_FAULT_FP	19, ILLI, 0x44400083
+	TEST_FAULT_FP	28, ILLI, 0x44400083
 
 	__TEST_END
 
