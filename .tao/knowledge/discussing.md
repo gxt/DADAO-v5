@@ -533,7 +533,7 @@
   - **hmon SRAM 8 KiB**（`0x0FFF_0000_0000`）；
   - **主 SRAM 256 KiB**（`0xFFFF_FF00_0000`）；
   - **入口 `0xFFFF_FF00_0100`**（`base + 0x100`）；
-  - BRAM：主 SRAM 64 + ROM 2 + hmon 2 = **68 / 445（15.3%）**，余 **377** 给 wuqing/wuxing 的 buffer/cache。
+  - BRAM：主 SRAM 64 + ROM 2 + hmon 2 = **68 / 445（15.3%）**，余 **377** 留作后续使用（本册不展开）。
 - **初步方向 / 建议（未裁，见 `N44`–`N48`）**：
   - TSI ↔ power 优先 **SRAM mailbox**（不新增 cfx 桥）；
   - `tohost/fromhost` 放 SRAM 固定字，配 `signature + done/exit`；
