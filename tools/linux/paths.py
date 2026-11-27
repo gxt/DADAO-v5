@@ -13,6 +13,7 @@ they are *runtime* paths (the manifest is the record, not the task book).
 """
 from __future__ import annotations
 
+import os
 import sys
 import tomllib
 from pathlib import Path
@@ -44,12 +45,39 @@ def _work_root() -> Path:
 
 
 def linux_source_dir() -> Path:
-    """Component source checkout (``make fetch`` creates it, patches apply in it)."""
+    """Component source checkout (``make fetch`` creates it, patches apply in it).
+
+    ``DADAO_LINUX_SOURCE`` overrides it: a task that runs kernel builds while
+    another task owns the shared component tree (write-mutex, AGENTS.md §3)
+    points the whole Linux tooling at its own replay of the locked patch series
+    instead of reading a tree someone else is editing.
+    """
+    override = os.environ.get("DADAO_LINUX_SOURCE")
+    if override:
+        return Path(override).resolve()
     return _work_root() / "source" / _COMPONENT
 
 
+def component_source_dir(name: str) -> Path:
+    """``make fetch`` worktree of any locked component (read-only for consumers).
+
+    Used by the test-suite builders that consume a locked upstream corpus (the
+    LTP suite, ``m18-linux-006``) instead of the kernel tree.
+    """
+    return _work_root() / "source" / name
+
+
 def linux_build_dir() -> Path:
-    """Out-of-tree kernel build directory (disposable, under ``work_root``)."""
+    """Out-of-tree kernel build directory (disposable, under ``work_root``).
+
+    ``DADAO_LINUX_BUILD`` overrides it for the same reason as
+    ``DADAO_LINUX_SOURCE`` (a private replay while the shared build tree is
+    being written by another task).  The suite root derives from its parent, so
+    one override moves the whole disposable Linux work root.
+    """
+    override = os.environ.get("DADAO_LINUX_BUILD")
+    if override:
+        return Path(override).resolve()
     return _work_root() / "build" / _COMPONENT
 
 

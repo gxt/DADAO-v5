@@ -1,0 +1,27 @@
+diff --git a/lib/safe_macros.c b/lib/safe_macros.c
+index 1875500..eb1d8a4 100644
+--- a/lib/safe_macros.c
++++ b/lib/safe_macros.c
+@@ -821,7 +821,21 @@ pid_t safe_waitpid(const char *file, const int lineno, void (cleanup_fn)(void),
+ {
+ 	pid_t rval;
+ 
+-	rval = waitpid(pid, status, opts);
++	/*
++	 * The DADAO Linux port resolves -ERESTARTSYS into EINTR for the caller
++	 * instead of restarting the system call (arch/dadao/kernel/signal.c:
++	 * "Syscall restart is not this file's business ... m14-linux-023").
++	 * LTP's own harness delivers SIGUSR1 (heartbeat) to the parent while it
++	 * waits for the test child, and with no syscall restart the parent's
++	 * waitpid() returns EINTR -- which used to abort every tst_test case as
++	 * TBROK before it produced a verdict.  This wait is harness bookkeeping,
++	 * not a test assertion, so retry it; the missing syscall restart itself
++	 * stays a kernel item (ISS-m18-007: -ERESTARTSYS is always returned as
++	 * -EINTR; delete this retry once the kernel restarts system calls).
++	 */
++	do {
++		rval = waitpid(pid, status, opts);
++	} while (rval == -1 && errno == EINTR);
+ 
+ 	if (rval == -1) {
+ 		tst_brkm_(file, lineno, TBROK | TERRNO, cleanup_fn,

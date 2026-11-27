@@ -72,10 +72,17 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def build_init() -> tuple[Path, bytes]:
-    wrapper = suite_paths.cc_wrapper()
+def build_init(cases: list[suite_cases.Case]) -> tuple[Path, bytes]:
+    """Compile the supervisor with the cross CC of the suite being imaged.
+
+    An LTP-only work root (a private replay of the locked kernel tree) has the
+    LTP wrapper but never ran the kselftest builder, so pick the wrapper by the
+    case kind instead of assuming the kselftest one exists.
+    """
+    ltp_only = bool(cases) and all(case.kind == "ltp" for case in cases)
+    wrapper = suite_paths.ltp_cc_wrapper() if ltp_only else suite_paths.cc_wrapper()
     if not wrapper.is_file():
-        raise SetupError(f"{wrapper} not found — run build_suite.py first")
+        raise SetupError(f"{wrapper} not found — run the suite builder first")
     out = suite_paths.image_dir() / "init"
     out.parent.mkdir(parents=True, exist_ok=True)
     env = {"SOURCE_DATE_EPOCH": "0", "PATH": "/usr/bin:/bin"}
@@ -124,6 +131,13 @@ def image_entries(cases: list[suite_cases.Case], init_bytes: bytes,
             parent = parent.rsplit("/", 1)[0]
         items.append(newc.Entry(case.image_path, newc.MODE_FILE, "file",
                                 binary.read_bytes()))
+        for helper in case.helpers:
+            helper_binary = suite_paths.build_dir() / case.dir / helper
+            if not helper_binary.is_file():
+                raise SetupError(f"{helper_binary} not built — run the suite "
+                                 f"builder first")
+            items.append(newc.Entry(case.helper_image_path(helper), newc.MODE_FILE,
+                                    "file", helper_binary.read_bytes()))
     for name in dirs:
         items.append(newc.Entry(name, newc.MODE_DIR, "dir", b""))
     return sorted(items, key=lambda entry: entry.name)
@@ -184,6 +198,8 @@ def verify(archive: bytes, cases: list[suite_cases.Case],
         expected[name] = (newc.MODE_CHARDEV, rdev)
     for case in cases:
         expected[case.image_path] = (newc.MODE_FILE, None)
+        for helper in case.helpers:
+            expected[case.helper_image_path(helper)] = (newc.MODE_FILE, None)
         parent = case.image_path.rsplit("/", 1)[0]
         while parent != "tests":
             expected[parent] = (newc.MODE_DIR, None)
@@ -214,6 +230,16 @@ def verify(archive: bytes, cases: list[suite_cases.Case],
         if _sha256(body) != built[case.id]["sha256"]:
             raise CheckError(f"{case.image_path} payload differs from the build "
                              f"product of case {case.id}")
+        recorded = {helper["name"]: helper["sha256"]
+                    for helper in built[case.id].get("helpers", [])}
+        for helper in case.helpers:
+            if helper not in recorded:
+                raise CheckError(f"{case.id}: build report has no hash for helper "
+                                 f"{helper}")
+            got = _sha256(present[case.helper_image_path(helper)]["body"])
+            if got != recorded[helper]:
+                raise CheckError(f"{case.helper_image_path(helper)} payload differs "
+                                 f"from the build product")
     if present["cases"]["body"] != cases_file_text(cases):
         raise CheckError("/cases content differs from the case list")
 
@@ -230,7 +256,7 @@ def build_image(inject: str | None = None,
     if {record["id"] for record in build_report["cases"]} != {case.id for case in cases}:
         raise SetupError("build report does not match suite.yaml — rebuild first")
 
-    init_path, init_bytes = build_init()
+    init_path, init_bytes = build_init(cases)
     cases_bytes = cases_file_text(cases)
     entries = image_entries(cases, init_bytes, cases_bytes, inject=inject)
     archive = build_cpio(entries, inject=inject)
@@ -264,6 +290,8 @@ def build_image(inject: str | None = None,
                  "sha256": _sha256(init_bytes)},
         "cases": [{"id": case.id, "timeout": case.timeout,
                    "path": case.image_path,
+                   "helpers": [case.helper_image_path(helper)
+                               for helper in case.helpers],
                    "sha256": _sha256((suite_paths.build_dir() / case.dir
                                       / case.prog).read_bytes())}
                   for case in cases],

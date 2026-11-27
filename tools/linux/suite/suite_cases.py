@@ -22,14 +22,21 @@ case):
 
 Verdict vocabulary (results, not triage classes):
   PASS / FAIL / SKIP / TIMEOUT / SIGNAL / MISSING / HOST_TIMEOUT
+  plus the LTP result classes TCONF (every sub-test was skipped: the facility or
+  environment is missing) and TBROK (the test broke) for ``kind: ltp`` cases.
   PASS means rc=0 **and** at least one sub-test really passed; a program that
   only skips (rc=0 with ``# Totals: pass:0 skip:N`` or rc=4) is SKIP, so a
   skipped case can never be reported as a real pass.
+
+``kind`` selects the builder: ``kselftest`` (default; kernel selftests tree,
+``tools/linux/suite/build_suite.py``) or ``ltp`` (the locked LTP corpus,
+``tools/linux/suite/build_ltp.py``).  One suite definition is homogeneous in
+``kind``; the runner refuses a mixed boot group.
 """
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -38,21 +45,53 @@ if str(_REPO_ROOT) not in sys.path:
 
 import yaml  # noqa: E402
 
-SUITE_YAML = _REPO_ROOT / "tests" / "unit" / "linux" / "suite" / "suite.yaml"
-TRIAGE_YAML = _REPO_ROOT / "tests" / "unit" / "linux" / "suite" / "triage.yaml"
-PATCH_DIR = _REPO_ROOT / "tests" / "unit" / "linux" / "suite" / "patches" / "kselftest"
+SUITE_DIR = _REPO_ROOT / "tests" / "unit" / "linux" / "suite"
+SUITE_YAML = SUITE_DIR / "suite.yaml"
+TRIAGE_YAML = SUITE_DIR / "triage.yaml"
+PATCH_DIR = SUITE_DIR / "patches" / "kselftest"
 PATCH_MANIFEST = PATCH_DIR / "manifest.yaml"
 
+#: Every suite the shared skeleton can run, by name -> its ``suite.yaml``.  The
+#: kselftest pilot keeps the in-repo ``suite.yaml`` at the directory root; a
+#: second corpus (LTP, m18-linux-006) lives in its own sub-directory with the
+#: same file layout, so one runner and one checker serve both.
+SUITES = {
+    "kselftest": SUITE_YAML,
+    "ltp": SUITE_DIR / "ltp" / "suite.yaml",
+}
+KINDS = ("kselftest", "ltp")
+
 VERDICTS = ("PASS", "FAIL", "SKIP", "TIMEOUT", "SIGNAL", "MISSING",
-            "HOST_TIMEOUT")
+            "HOST_TIMEOUT", "TCONF", "TBROK")
 CLASSES = ("KERNEL_BUG", "TEST_ADAPT", "UNSUPPORTED", "SUITE_ENV")
 
-_CASE_KEYS = {"id", "dir", "prog", "timeout", "expect", "note", "stall"}
+_CASE_KEYS = {"id", "kind", "dir", "prog", "timeout", "expect", "note",
+              "stall", "helpers"}
 _TOP_KEYS = {"format", "cases"}
 
 
 class SuiteError(RuntimeError):
     """The suite definition or the ledger is malformed (exit 2)."""
+
+
+def suite_yaml(name: str = "kselftest") -> Path:
+    """Definition file of a named suite (``--suite`` on the runner)."""
+    if name not in SUITES:
+        raise SuiteError(f"unknown suite {name!r}; known: {sorted(SUITES)}")
+    return SUITES[name]
+
+
+def triage_yaml(name: str = "kselftest") -> Path:
+    """The triage ledger lives next to the suite definition it belongs to."""
+    return suite_yaml(name).parent / "triage.yaml"
+
+
+def suite_name_of(path: Path) -> str:
+    """Reverse lookup: which named suite owns *path*."""
+    for name, candidate in SUITES.items():
+        if candidate == path:
+            return name
+    raise SuiteError(f"{path} is not a registered suite definition")
 
 
 @dataclass(frozen=True)
@@ -64,6 +103,8 @@ class Case:
     expect: str
     note: str = ""
     stall: bool = False
+    kind: str = "kselftest"
+    helpers: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def top(self) -> str:
@@ -74,6 +115,9 @@ class Case:
     def image_path(self) -> str:
         """Path of the program inside the suite image."""
         return f"tests/{self.dir}/{self.prog}"
+
+    def helper_image_path(self, helper: str) -> str:
+        return f"tests/{self.dir}/{helper}"
 
 
 def _load_yaml(path: Path) -> dict:
@@ -107,13 +151,20 @@ def load_cases(path: Path | None = None) -> list[Case]:
         unknown = set(row) - _CASE_KEYS
         if unknown:
             raise SuiteError(f"case #{index}: unknown key(s) {sorted(unknown)}")
-        missing = _CASE_KEYS - {"note", "stall"} - set(row)
+        missing = _CASE_KEYS - {"note", "stall", "kind", "helpers"} - set(row)
         if missing:
             raise SuiteError(f"case #{index}: missing key(s) {sorted(missing)}")
+        helpers = row.get("helpers") or []
+        if not isinstance(helpers, list):
+            raise SuiteError(f"case #{index}: helpers must be a list")
         case = Case(id=str(row["id"]), dir=str(row["dir"]), prog=str(row["prog"]),
                     timeout=int(row["timeout"]), expect=str(row["expect"]),
                     note=str(row.get("note", "")),
-                    stall=bool(row.get("stall", False)))
+                    stall=bool(row.get("stall", False)),
+                    kind=str(row.get("kind", "kselftest")),
+                    helpers=tuple(str(helper) for helper in helpers))
+        if case.kind not in KINDS:
+            raise SuiteError(f"case {case.id}: kind={case.kind!r} not in {KINDS}")
         if case.id in seen:
             raise SuiteError(f"duplicate case id {case.id!r}")
         if case.expect not in VERDICTS:
@@ -122,6 +173,10 @@ def load_cases(path: Path | None = None) -> list[Case]:
             raise SuiteError(f"case {case.id}: timeout must be > 0")
         if "/" in case.prog or not case.prog:
             raise SuiteError(f"case {case.id}: prog must be a bare name")
+        if any("/" in helper or not helper for helper in case.helpers):
+            raise SuiteError(f"case {case.id}: helpers must be bare names")
+        if case.helpers and case.kind != "ltp":
+            raise SuiteError(f"case {case.id}: helpers are an LTP-only field")
         seen.add(case.id)
         cases.append(case)
     # A `stall` case is known to wedge the machine (host sees no console output

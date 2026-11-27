@@ -8,6 +8,7 @@ subdirs = [
     "gem5",
     "linux",
     "llvm-project",
+    "ltp",
     "musl",
     "picolibc",
     "qemu",
@@ -19,6 +20,7 @@ chipyard = "chipyard"
 gem5 = "gem5"
 linux = "linux"
 llvm-project = "llvm"
+ltp = "linux"
 musl = "infra"
 picolibc = "testcases"
 qemu = "qemu"

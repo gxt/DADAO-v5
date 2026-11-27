@@ -1,0 +1,55 @@
+format: 1
+# In-repo triage ledger of the LTP subset (m18-linux-006).  One row per
+# **non-PASS** verdict of the current baseline; `suite_checks.py` S3 fails when
+# a non-PASS case has no row, a row is stale, or a row's verdict differs from
+# the run.  `case_output` quotes the run verbatim, so the evidence can be
+# re-checked in the console log of any run.
+#
+# class:
+#   KERNEL_BUG    the kernel's behaviour is wrong (recorded, fixed elsewhere)
+#   TEST_ADAPT    the test encodes a wrong assumption for this machine; the fix
+#                 lives in components/ltp/patches (docs/Process-01)
+#   UNSUPPORTED   this port does not implement the facility at all
+#   SUITE_ENV     the environment cannot run it yet (image contents), with the
+#                 dependency and the re-run condition named
+# A whole-boot flake (`stop_reason=idle`, random case `HOST_TIMEOUT`, no
+# `handle_softirqs`/die signature -- ISS-m18-005 family) is **not** a case
+# verdict: the case is rerun (<=3 per round) and the baseline is the pair of
+# clean runs whose per-case verdicts agree.  ISS-m18-006 (`die=0xe4` /
+# `pf-va=0x10`) is counted separately too; it was 0 in this round.
+rows:
+  - id: ltp-fcntl07
+    class: SUITE_ENV
+    verdict: TBROK
+    case_output: "fcntl07 1  TBROK  :  .../fcntl07.c:128: exec failed"
+    evidence: >-
+      The close-on-exec arm re-execs the test binary itself with
+      `execlp(TCID, TCID, "-T", pidname, NULL)`; execlp searches $PATH, and the
+      guest supervisor starts every case by absolute path with no PATH (the
+      suite image has no LTP install tree either). The child's exec therefore
+      fails with ENOENT and the parent reports `case 2: exec failed` for each
+      sub-case, exit code 2 (TBROK). Environment, not kernel: fcntl01 (same
+      facility) is PASS.
+    recheck: >-
+      Re-run after the supervisor exports a PATH containing the shipped case
+      directories (or after the image gains an LTP install tree). The test then
+      checks the CLOEXEC flag across exec() as written.
+  - id: ltp-mlockall02
+    class: SUITE_ENV
+    verdict: TBROK
+    case_output: "mlockall02 1 TBROK : .../tst_sig.c:234: unexpected signal SIGSEGV(11) received (pid = 16)."
+    evidence: >-
+      Its setup() does `ltpuser = getpwnam("nobody")` and dereferences
+      ltpuser->pw_uid; the image has no /etc/passwd, so getpwnam() returns NULL
+      and the process takes SIGSEGV. Since m18-linux-024 fixed the asynchronous
+      delivery path the signal is handed to the process normally: the console
+      shows `K3 pf: ... va=0x10 vma=0x0-0x0 ... result=die-no-vma` followed by
+      LTP's own captured `unexpected signal SIGSEGV(11)` and
+      `SUITE CASE END ltp-mlockall02 rc=2 status=exit` (TBROK). mlockall01
+      (same facility) is PASS. The remaining gap is the image contents.
+    recheck: >-
+      Ship an /etc/passwd with a `nobody` entry in the suite image (the test
+      then reaches its real mlockall() error-path assertions). Before
+      m18-linux-024 the same environment died in the kernel instead
+      (`MALIGN(0x1000)` -> `die mode=2 code=0xec`, HOST_TIMEOUT); that
+      regression is covered by `--only ltp-mlockall02` and no longer reproduces.

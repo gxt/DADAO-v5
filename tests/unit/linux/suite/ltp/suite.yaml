@@ -1,0 +1,178 @@
+format: 1
+# LTP subset (m18-linux-006): the first slice of the Linux Test Project corpus
+# on DADAO.  Same schema as the kselftest pilot (../suite.yaml) plus the fields
+# this corpus needs:
+#
+#   kind: ltp        builder = tools/linux/suite/build_ltp.py (locked component
+#                    .work/source/ltp + components/ltp/patches)
+#   dir              test directory **relative to** LTP's testcases/, e.g.
+#                    kernel/syscalls/mmap -> testcases/kernel/syscalls/mmap
+#   helpers          extra programs built from the same directory and shipped
+#                    next to the case (LTP's resource_files convention)
+#
+# `expect` is the **recorded baseline verdict** of the current implementation
+# (run_suite.py fails when a run departs from it).  Every non-PASS case has a
+# row in triage.yaml explaining the class and the re-check condition.
+#
+# Subset policy, the deferred candidates and the kernel behaviour that keeps
+# them out are in README.md ("子集怎么选").  The 64 KiB memory cases that were
+# the rework's TEST_ADAPT candidates (`mmap01`, `brk01`, `munmap01`) are named
+# there with their measured verdicts; none of them carries a 4 KiB assumption
+# (their lengths come from getpagesize()), so no 64 KiB test patch is warranted
+# by this slice -- that is a result, not a dropped item.
+cases:
+  # ---- file I/O -----------------------------------------------------------
+  - id: ltp-fcntl01
+    kind: ltp
+    dir: kernel/syscalls/fcntl
+    prog: fcntl01
+    timeout: 60
+    expect: PASS
+    note: >-
+      fcntl(F_DUPFD) duplicates a descriptor and the copy shares the open file
+      description: the descriptor-table half of file I/O.
+  - id: ltp-read01
+    kind: ltp
+    dir: kernel/syscalls/read
+    prog: read01
+    timeout: 60
+    expect: PASS
+    note: >-
+      read() size/EOF handling on a regular file (short reads, offset advance).
+  - id: ltp-lseek01
+    kind: ltp
+    dir: kernel/syscalls/lseek
+    prog: lseek01
+    timeout: 60
+    expect: PASS
+    note: >-
+      lseek(SEEK_SET/CUR/END) offsets on a regular file, including past-EOF.
+  - id: ltp-fstat02
+    kind: ltp
+    dir: kernel/syscalls/fstat
+    prog: fstat02
+    timeout: 60
+    expect: PASS
+    note: >-
+      fstat() on a file and a pipe: st_mode/st_size/uid/gid bookkeeping.
+
+  # ---- mmap / munmap on 64 KiB pages -------------------------------------
+  - id: ltp-mmap01
+    kind: ltp
+    dir: kernel/syscalls/mmap
+    prog: mmap01
+    timeout: 60
+    expect: PASS
+    note: >-
+      Beyond-EOF bytes of the last page must read as zero and must not be
+      written back to the file: a 12-byte MAP_SHARED file mapped for one
+      64 KiB page, written past EOF, then msync(MS_SYNC). This is the rework's
+      prime 64 KiB candidate; it passes on the locked kernel tree, and every
+      length it uses is getpagesize()-derived, so there is no 4 KiB assumption
+      to patch.
+  - id: ltp-munmap03
+    kind: ltp
+    dir: kernel/syscalls/munmap
+    prog: munmap03
+    timeout: 60
+    expect: PASS
+    note: >-
+      munmap() argument validation: len == 0, address not page aligned, range
+      outside the address space, partial unmap. All lengths/addresses derive
+      from getpagesize(), so the 64 KiB granularity is what is checked.
+  - id: ltp-getpagesize01
+    kind: ltp
+    dir: kernel/syscalls/getpagesize
+    prog: getpagesize01
+    timeout: 60
+    expect: PASS
+    note: >-
+      getpagesize() == sysconf(_SC_PAGESIZE) -- the user-visible page-size ABI
+      on a 64 KiB port (AT_PAGESZ path).
+
+  # ---- memory locking (page accounting) ----------------------------------
+  - id: ltp-mlockall01
+    kind: ltp
+    dir: kernel/syscalls/mlockall
+    prog: mlockall01
+    timeout: 60
+    expect: PASS
+    note: >-
+      mlockall(MCL_CURRENT|MCL_FUTURE) then unlock: page-locking accounting on
+      64 KiB pages. Requires root (the suite runs every case as PID 1's uid 0).
+
+  # ---- signals / wait / clock / new API ----------------------------------
+  - id: ltp-sigaction01
+    kind: ltp
+    dir: kernel/syscalls/sigaction
+    prog: sigaction01
+    timeout: 60
+    expect: PASS
+    note: >-
+      sigaction() install/query of a SIGUSR1 handler and delivery to itself.
+      Required the musl signal-frame patch set (SA_RESTORER + restore trampoline,
+      m18-infra-003); with it the delivery round-trip works and the case passes
+      (the rework's former UNSUPPORTED row is closed).
+  - id: ltp-wait01
+    kind: ltp
+    dir: kernel/syscalls/wait
+    prog: wait01
+    timeout: 60
+    expect: PASS
+    note: >-
+      wait() with no unwaited-for children returns ECHILD: the wait4 path and
+      the child-reaping bookkeeping the LTP harness itself depends on.
+  - id: ltp-clock-gettime01
+    kind: ltp
+    dir: kernel/syscalls/clock_gettime
+    prog: clock_gettime01
+    timeout: 60
+    expect: PASS
+    note: >-
+      clock_gettime() on the advertised clocks. Uses the tst_test heartbeat, so
+      it also proves the harness wait retry (see the restart patch).
+  - id: ltp-open01
+    kind: ltp
+    dir: kernel/syscalls/open
+    prog: open01
+    timeout: 60
+    expect: PASS
+    note: >-
+      open(O_CREAT)/fstat/close/unlink via the tst_test harness. Its heartbeat
+      SIGUSR1 to the parent needs the signal-frame ABI (m18-infra-003) and the
+      harness's waitpid retry (components/ltp/patches/lib/safe_macros.c.patch:
+      this port has no syscall restart, so a signalled wait returns EINTR).
+
+  # ---- SUITE_ENV: the test needs the binary on $PATH ---------------------
+  - id: ltp-fcntl07
+    kind: ltp
+    dir: kernel/syscalls/fcntl
+    prog: fcntl07
+    timeout: 60
+    expect: TBROK
+    note: >-
+      close-on-exec across exec(): the test re-execs itself with
+      `execlp(TCID, ...)`, so it needs the case binary on $PATH. The guest
+      supervisor starts every case by absolute path with no PATH and the image
+      has no LTP install tree, so the child cannot be found and the harness
+      reports "exec failed" as a TBROK (SUITE_ENV in triage.yaml).
+
+  # ---- SUITE_ENV: the test needs a passwd database (own boot) ------------
+  # Its setup() calls getpwnam("nobody") and dereferences the result; the image
+  # has no /etc/passwd, so the process takes SIGSEGV.  With m18-linux-024's
+  # asynchronous-delivery fix the signal is delivered normally (the kernel
+  # reports `die-no-vma` for the NULL access and hands SIGSEGV to the process),
+  # so LTP records its own `unexpected signal` TBROK.  SUITE_ENV in triage.yaml;
+  # own boot so a future delivery regression cannot take the other cases down.
+  - id: ltp-mlockall02
+    kind: ltp
+    dir: kernel/syscalls/mlockall
+    prog: mlockall02
+    timeout: 60
+    expect: TBROK
+    stall: true
+    note: >-
+      mlockall() error paths (ENOMEM/EPERM/EINVAL). The no-passwd environment
+      makes setup() dereference a NULL getpwnam() and take SIGSEGV; LTP catches
+      it and reports TBROK. The signal frame/delivery itself works (m18-linux-024);
+      the missing piece is the image's /etc/passwd (SUITE_ENV).

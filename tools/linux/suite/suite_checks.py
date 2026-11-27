@@ -5,17 +5,23 @@ Checks are deliberately *not* "did every test pass": the suite exists to record
 实况.  They assert that the run is attributable and that the in-repo records agree
 with it:
 
-  S1  the results cover exactly the case list of ``suite.yaml``;
+  S1  the results cover exactly the case list of the run's ``suite.yaml``;
   S2  every case's verdict equals its recorded baseline (``expect``) — a
       tampered criterion/value changes a verdict and lands here;
   S3  the triage ledger explains every non-PASS verdict with a legal class and
       evidence, has no stale rows, and its class counts match the run;
-  S4  the adaptation patch manifest matches the locked kernel tree and the patch
-      still applies cleanly (upstream commit + per-file sha256 + post-patch
-      sha256); a patch that no longer applies is red here;
+  S4  (kselftest) the adaptation patch manifest matches the locked kernel tree
+      and the patch still applies cleanly (upstream commit + per-file sha256 +
+      post-patch sha256); a patch that no longer applies is red here;
+  S7  (ltp) the corpus worktree is the locked commit plus exactly its patch
+      series and is clean -- the programs' provenance;
   S5  the image manifest belongs to this run's archive and ships every case plus
       the required devices/``/tmp``;
   S6  the printed counts are derived from the case records, not written down.
+
+A run carries the path of the suite definition it belongs to (``results.suite``),
+so the checks always reload that suite's cases and ledger: the kselftest pilot
+and the LTP subset never judge each other's rows.
 
 Each check prints ``[PASS]/[FAIL] <id> <name> | 期望=... 实际=...`` and returns
 its finding text, so the caller (``run_suite.py``) can fail the run.
@@ -286,6 +292,14 @@ def check_image(rep: Report, results: dict,
     rep.check("S5e", "镜像含 /init 与 /cases", "init" in entries and "cases" in entries,
               ["init", "cases"], sorted(set(entries) & {"init", "cases"}))
 
+    # LTP cases may ship helper programs next to the test (LTP's resource_files
+    # convention); the manifest records what the image really carries, so a
+    # helper that failed to stage is visible here instead of as a runtime TCONF.
+    helpers = [helper for case in manifest["cases"] for helper in case.get("helpers", [])]
+    missing_helpers = [helper for helper in helpers if helper not in entries]
+    rep.check("S5f", "镜像装载了每个用例的 helper 程序",
+              not missing_helpers, "all present", missing_helpers)
+
 
 def check_counts(rep: Report, results: dict) -> None:
     live: dict[str, int] = {}
@@ -299,19 +313,83 @@ def check_counts(rep: Report, results: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# S7 — LTP source state (the corpus binaries came from the locked+patched tree)
+# ---------------------------------------------------------------------------
+
+def _ltp_locked() -> dict:
+    lock = _REPO_ROOT / "manifests" / "components.lock.toml"
+    data = tomllib.loads(lock.read_text(encoding="utf-8"))
+    for component in data.get("component", []):
+        if component.get("name") == "ltp":
+            return component
+    raise CheckError(f"{lock.name} has no ltp component")
+
+
+def check_ltp_source(rep: Report) -> None:
+    """The LTP programs must come from the locked commit + its patch series.
+
+    The adaptation patches are a *component* patch set (docs/Process-01), so the
+    suite does not copy or patch anything itself: it builds whatever the worktree
+    holds.  These three checks make that state observable in every run -- a dirty
+    tree or a wrong patch count would otherwise produce unattributable binaries.
+    """
+    source = linux_paths.component_source_dir("ltp")
+    locked = _ltp_locked()
+    base = locked.get("commit")
+    series = _REPO_ROOT / locked["patch_series"]
+    entries = [line.strip() for line in series.read_text(encoding="utf-8").splitlines()
+               if line.strip() and not line.strip().startswith("#")]
+    if not (source / ".git").exists():
+        rep.check("S7a", "LTP 源树存在（make fetch）", False, str(source), "missing")
+        return
+    ancestor = _git(source, "merge-base", "--is-ancestor", base or "", "HEAD")
+    rep.check("S7a", "LTP 源树 HEAD 含锁定 commit", ancestor.returncode == 0,
+              f"ancestor of HEAD: {str(base)[:12]}",
+              _git(source, "rev-parse", "--short=12", "HEAD").stdout.strip())
+    count = _git(source, "rev-list", "--count", f"{base}..HEAD").stdout.strip()
+    rep.check("S7b", "HEAD = 锁定 commit + 补丁集条数（未多打/漏打）",
+              count == str(len(entries)), len(entries), count)
+    dirty = _git(source, "status", "--porcelain=v1").stdout.strip()
+    rep.check("S7c", "LTP 工作树干净（产物只来自补丁集）", not dirty, "clean",
+              dirty.splitlines()[:5] or "clean")
+
+
+def _git(source: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", str(source), *args],
+                          capture_output=True, text=True)
+
+
+# ---------------------------------------------------------------------------
 # entry
 # ---------------------------------------------------------------------------
 
-def run_checks(results: dict, results_path: Path | None = None) -> list[str]:
-    cases = suite_cases.load_cases()
-    ledger = suite_cases.load_triage()
+def run_checks(results: dict, results_path: Path | None = None,
+               suite_path: Path | None = None) -> list[str]:
+    """Re-check one run against the suite definition it was produced for.
+
+    ``suite_path`` names the definition (``.../suite.yaml``); the triage ledger
+    is the ``triage.yaml`` next to it and the adaptation check depends on the
+    corpus (kselftest: in-repo patch manifest; LTP: the locked component tree).
+    Without it the kselftest pilot's records are used, as before.
+    """
+    suite_path = suite_path or suite_cases.SUITE_YAML
+    cases = suite_cases.load_cases(suite_path)
+    ledger = suite_cases.load_triage(suite_path.parent / "triage.yaml")
+    kinds = {case.kind for case in cases}
+    if len(kinds) != 1:
+        raise CheckError(f"{suite_path}: suite mixes kinds {sorted(kinds)}")
+    kind = kinds.pop()
     rep = Report()
     print(f"[INFO] suite checks for {results_path or '<results>'}: "
-          f"{len(cases)} case(s) in suite.yaml, {len(ledger['rows'])} ledger row(s)")
+          f"{len(cases)} case(s) in {suite_path.name} ({kind}), "
+          f"{len(ledger['rows'])} ledger row(s)")
     check_coverage(rep, results, cases)
     check_baseline(rep, results, cases)
     check_ledger(rep, results, cases, ledger)
-    check_patches(rep)
+    if kind == "ltp":
+        check_ltp_source(rep)
+    else:
+        check_patches(rep)
     snapshot = (results_path.parent / "image-manifest.json"
                 if results_path is not None else None)
     check_image(rep, results,

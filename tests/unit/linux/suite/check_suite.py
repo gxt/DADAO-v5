@@ -35,54 +35,62 @@ from tools.linux.suite import suite_checks  # noqa: E402
 from tools.linux.suite import suite_paths   # noqa: E402
 
 
-def latest_results() -> Path:
-    """Newest run that covers every case of ``suite.yaml``.
+def latest_results(suite: str) -> Path:
+    """Newest run that covers every case of the named suite's ``suite.yaml``.
 
     ``run_suite.py --only`` writes single-case runs (the fault-path evidence of
     m18-linux-014 makes nine of them per invocation).  A single-case run cannot
     satisfy S1/S3f -- the coverage checks describe the *suite*, not that run --
     so landing on one would report five failures that say nothing about the
     suite (F-R2).  ``--latest`` therefore skips those and picks the newest full
-    run; ``--results <path>`` still takes any run on request.
+    run of *this* suite; ``--results <path>`` still takes any run on request.
     """
-    wanted = {case.id for case in suite_cases.load_cases()}
+    wanted = {case.id for case in suite_cases.load_cases(suite_cases.suite_yaml(suite))}
     runs = sorted(suite_paths.runs_dir().glob("*/results.json"))
     full = [path for path in runs
             if wanted <= {case["id"]
                           for case in json.loads(path.read_text(encoding="utf-8"))["cases"]}]
     if not full:
-        raise SystemExit(f"check_suite: no full-suite results.json under "
+        raise SystemExit(f"check_suite: no full-suite results.json for {suite} under "
                          f"{suite_paths.runs_dir()} (only single-case runs: "
                          f"{len(runs)}); run tools/linux/suite/run_suite.py "
-                         f"without --only first")
+                         f"--suite {suite} without --only first")
     return full[-1]
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--suite", default="kselftest",
+                        choices=sorted(suite_cases.SUITES),
+                        help="which suite's records to check (default: kselftest)")
     parser.add_argument("--results", type=Path, default=None,
                         help="results.json of the run to check")
     parser.add_argument("--latest", action="store_true",
                         help="use the newest run that covers every suite.yaml case "
                              "(single-case --only runs are skipped)")
     parser.add_argument("--patches-only", action="store_true",
-                        help="only check the adaptation patch manifest/applicability")
+                        help="only check the adaptation patch manifest/applicability "
+                             "(kselftest) or the corpus provenance (ltp)")
     args = parser.parse_args()
 
+    suite_yaml = suite_cases.suite_yaml(args.suite)
     failures: list[str] = []
     try:
         if args.patches_only:
             rep = suite_checks.Report()
-            suite_checks.check_patches(rep)
+            if args.suite == "ltp":
+                suite_checks.check_ltp_source(rep)
+            else:
+                suite_checks.check_patches(rep)
             failures = rep.failures
         else:
-            path = args.results or (latest_results() if args.latest else None)
+            path = args.results or (latest_results(args.suite) if args.latest else None)
             if path is None:
                 parser.error("give --results, --latest or --patches-only")
             if not path.is_file():
                 raise SystemExit(f"check_suite: {path} not found")
             results = json.loads(path.read_text(encoding="utf-8"))
-            failures = suite_checks.run_checks(results, path)
+            failures = suite_checks.run_checks(results, path, suite_yaml)
     except (suite_cases.SuiteError, suite_checks.CheckError) as exc:
         print(f"check_suite: SETUP ERROR: {exc}", file=sys.stderr)
         return 2

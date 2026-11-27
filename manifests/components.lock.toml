@@ -305,6 +305,28 @@ role = "Linux user-space shell + core applets (M14 K6: static /init, sh + ls/cat
 name = "official"
 url = "https://git.busybox.net/busybox"
 
+# LTP -- the Linux Test Project's system-call test suite (M18 `m18-linux-006`).
+# A *test corpus* component: the upstream tree is fetched read-only into
+# `.work/source/ltp` and the DADAO adaptations (64 KiB pages, big endian) live
+# in the component's own tree-shaped patch set, so every deviation from upstream
+# is a reviewable patch (docs/Process-01).  The corpus itself is never committed.
+#
+# Source (user ruling 2026-11-22): github.com/linux-test-project/ltp, tag
+# `20260930`.  The tag is **annotated**: `git ls-remote` reports the tag object
+# a6bade7f... and its `^{}` line peels to the commit recorded here (a tag object
+# is not a commit and must not be recorded -- same convention as qemu/linux).
+# Channnel: shallow bare mirror (`--depth 1 --branch 20260930`), no mirror host.
+[[component]]
+name = "ltp"
+enabled = true
+repository = "https://github.com/linux-test-project/ltp.git"
+commit = "2279d708c817db657611a30c427c7d06c4360049"
+shallow = true
+shallow_ref = "20260930"
+patch_dir = "components/ltp/patches"
+patch_series = "components/ltp/series"
+role = "Linux system-call test corpus (M18 suite: syscall/ABI breadth on DADAO)"
+
 # libc-test -- the musl/Linux user-space *conformance test suite* feeding M8
 # (ADR-0025 D6): a corpus independent of our own implementation, used to judge
 # whether the musl port (P1 static / P2 dynamic) holds. It started as a

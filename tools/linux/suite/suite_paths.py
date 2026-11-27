@@ -75,3 +75,18 @@ def runs_dir() -> Path:
 
 def log_dir() -> Path:
     return suite_root() / "log"
+
+
+def ltp_root() -> Path:
+    """Work root of the LTP suite build (its own tree; no kselftest paths)."""
+    return suite_root() / "ltp"
+
+
+def ltp_build_dir() -> Path:
+    """``top_builddir`` of LTP's own Makefile system (out-of-tree build)."""
+    return ltp_root() / "build"
+
+
+def ltp_cc_wrapper() -> Path:
+    """Cross-CC wrapper for LTP programs (static musl, public headers only)."""
+    return ltp_root() / "cc-ltp.sh"

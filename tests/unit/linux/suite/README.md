@@ -8,8 +8,12 @@
 一条命令：
 
 ```sh
-python3 tools/linux/suite/run_suite.py
+python3 tools/linux/suite/run_suite.py            # = --suite kselftest
 ```
+
+同一骨架还跑第二块套件（LTP 子集，`m18-linux-006`）：`run_suite.py --suite ltp`，
+用例清单/台账/口径见 `ltp/README.md`；两套件的 `results.json` 各自带 `suite` 字段，
+校验永远重载本套件的用例与台账，互不串判。
 
 它依次做：交叉构建 → 生成镜像 → 重建带该镜像的内核 → 启动 QEMU → 按用例
 归属输出 → 写 `results.json` + `summary.txt` → 跑本目录的校验。退出码**只反映

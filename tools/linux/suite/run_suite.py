@@ -44,11 +44,12 @@ if str(_REPO_ROOT) not in sys.path:
 from tools.linux import config_pins                  # noqa: E402
 from tools.linux import make_defconfig as defconfig  # noqa: E402
 from tools.linux import paths as linux_paths         # noqa: E402
-from tools.linux.suite import build_suite            # noqa: E402
-from tools.linux.suite import make_image             # noqa: E402
-from tools.linux.suite import suite_cases            # noqa: E402
-from tools.linux.suite import suite_checks           # noqa: E402
-from tools.linux.suite import suite_paths            # noqa: E402
+from tools.linux.suite import build_ltp               # noqa: E402
+from tools.linux.suite import build_suite             # noqa: E402
+from tools.linux.suite import make_image              # noqa: E402
+from tools.linux.suite import suite_cases             # noqa: E402
+from tools.linux.suite import suite_checks            # noqa: E402
+from tools.linux.suite import suite_paths             # noqa: E402
 from tools.qemu import k0_boot_probe as k0           # noqa: E402
 
 JOBS = os.environ.get("JOBS", "32")
@@ -165,7 +166,18 @@ def firmware() -> str:
 
 
 def boot(host_timeout: int) -> tuple[int, str, list[str], str]:
-    qemu = linux_paths.toolchain_bin() / "qemu-system-dadao"
+    # ``SUITE_QEMU`` names a different qemu-system-dadao on purpose: the
+    # installed binary and the kernel in the shared build tree must implement
+    # the same exception-cause model.  Master currently carries an ADR-0062
+    # flat-bitmap qemu while the kernel still speaks ADR-0061 R2 (the decoder is
+    # m18-linux-023), so every boot dies in the K1 PTW probe with
+    # ``cause=unknown(0x10000000000000)`` (bit 56, ADWBFAIL).  The override lets
+    # a run pin the qemu its kernel was validated with, and the binary actually
+    # used is recorded in ``results.json`` (``qemu_cmd``) — never silent.
+    # Default stays the install root, so the day the kernel decodes the bitmap
+    # this override can be dropped without touching the suite.
+    qemu = Path(os.environ["SUITE_QEMU"]) if os.environ.get("SUITE_QEMU") \
+        else linux_paths.toolchain_bin() / "qemu-system-dadao"
     if not os.access(qemu, os.X_OK):
         raise SetupError(f"{qemu} missing — run 'make install-host'")
     if not VMLINUX.is_file():
@@ -257,6 +269,11 @@ def parse_console(text: str, cases: list[suite_cases.Case]) -> list[dict]:
 #: kselftest's own exit codes (tools/testing/selftests/kselftest.h).
 KSFT_SKIP_EXIT = 4
 
+#: LTP's own result classes (include/tst_res_flags.h); tst_test.c ORs them into
+#: the exit status: 1 = a sub-test failed, 2 = the test broke, 32 = everything
+#: skipped (TCONF), 4 = warnings only.
+LTP_TFAIL, LTP_TBROK, LTP_TWARN, LTP_TCONF = 1, 2, 4, 32
+
 
 def skipped_only(output: str) -> bool:
     """True when a program printed sub-tests but every one of them skipped.
@@ -271,7 +288,31 @@ def skipped_only(output: str) -> bool:
     return int(totals.group(1)) == 0 and int(totals.group(2)) > 0
 
 
-def verdict_of(record: dict) -> str:
+def ltp_verdict(record: dict) -> str:
+    """Map an LTP exit status to a suite verdict (LTP's own result classes).
+
+    ``do_exit()`` in lib/tst_test.c ORs the classes into the exit status, so
+    the bits -- not the number -- decide: a test that both failed and skipped
+    (33) is FAIL, one that broke (2 or 34) is TBROK, and one whose every
+    sub-test was skipped (32) is TCONF.  Warnings alone (4) stay a PASS: the
+    test asserted nothing and warned.
+    """
+    rc = record.get("rc")
+    if rc is None:
+        return "FAIL"
+    if rc & LTP_TBROK:
+        return "TBROK"
+    if rc & LTP_TFAIL:
+        return "FAIL"
+    if rc & LTP_TCONF:
+        return "TCONF"
+    if rc & LTP_TWARN:
+        record["warning"] = True
+        return "PASS"
+    return "FAIL" if rc else "PASS"
+
+
+def verdict_of(record: dict, kind: str = "kselftest") -> str:
     status = record["status"]
     if status == "missing":
         return "MISSING"
@@ -283,6 +324,8 @@ def verdict_of(record: dict) -> str:
         return "SIGNAL"
     if status != "exit":
         return "FAIL"
+    if kind == "ltp":
+        return ltp_verdict(record)
     if record["rc"] == KSFT_SKIP_EXIT:
         return "SKIP"
     if record["rc"] != 0:
@@ -300,9 +343,16 @@ def _run_boots(args, groups, run_dir: Path) -> tuple[list[dict], list[dict]]:
     boots: list[dict] = []
     for index, group in enumerate(groups, start=1):
         label = "+".join(case.id for case in group)
-        print(f"[INFO] boot {index}/{len(groups)}: {label}", flush=True)
+        kinds = {case.kind for case in group}
+        if len(kinds) != 1:
+            raise SetupError(f"boot group mixes builders: {sorted(kinds)}")
+        kind = kinds.pop()
+        print(f"[INFO] boot {index}/{len(groups)}: {label} ({kind})", flush=True)
         if not args.skip_build:
-            built = build_suite.build_all(cases=group)
+            if kind == "ltp":
+                built = build_ltp.build_cases(group)
+            else:
+                built = build_suite.build_all(cases=group)
             if built["failed"]:
                 raise SetupError(f"build failed for {built['failed']}")
             make_image.build_image(cases=group)
@@ -324,11 +374,13 @@ def _run_boots(args, groups, run_dir: Path) -> tuple[list[dict], list[dict]]:
         console_log.write_text(console, encoding="utf-8")
 
         for case, record in zip(group, parse_console(console, group)):
-            record["verdict"] = verdict_of(record)
+            record["verdict"] = verdict_of(record, case.kind)
+            record["kind"] = case.kind
             record["timeout"] = case.timeout
             record["console"] = str(console_log)
             records.append(record)
         boots.append({"cases": [case.id for case in group],
+                      "kind": kind,
                       "console": str(console_log),
                       "cpio_sha256": cpio_sha,
                       "qemu_rc": rc, "host_timeout": host_timeout,
@@ -338,7 +390,10 @@ def _run_boots(args, groups, run_dir: Path) -> tuple[list[dict], list[dict]]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="run the kselftest suite once")
+    parser = argparse.ArgumentParser(description="run a test suite once")
+    parser.add_argument("--suite", default="kselftest",
+                        choices=sorted(suite_cases.SUITES),
+                        help="which suite definition to run (default: kselftest)")
     parser.add_argument("--only", action="append", default=[],
                         help="build/run only these case ids (evidence)")
     parser.add_argument("--skip-build", action="store_true",
@@ -346,12 +401,15 @@ def main() -> int:
                              "(single-boot debugging only)")
     parser.add_argument("--skip-checks", action="store_true",
                         help="collect results but skip the suite checks")
-    parser.add_argument("--expect", default=str(suite_cases.SUITE_YAML),
-                        help="suite definition (default: in-repo suite.yaml)")
+    parser.add_argument("--expect", default=None,
+                        help="suite definition (default: the named suite's in-repo "
+                             "suite.yaml)")
     args = parser.parse_args()
 
     try:
-        cases = suite_cases.load_cases(Path(args.expect))
+        suite_path = Path(args.expect) if args.expect else \
+            suite_cases.suite_yaml(args.suite)
+        cases = suite_cases.load_cases(suite_path)
         if args.only:
             wanted = set(args.only)
             unknown = wanted - {case.id for case in cases}
@@ -385,7 +443,10 @@ def main() -> int:
         results = {
             "format": 1,
             "generated_at": _dt.datetime.now().isoformat(timespec="seconds"),
-            "suite": str(Path(args.expect).name),
+            # The suite definition this run belongs to, repo-relative: the
+            # checks reload *that* suite's case list and ledger, so a run of one
+            # suite can never be judged against another suite's records.
+            "suite": os.path.relpath(suite_path, _REPO_ROOT),
             "kernel": {"vmlinux": str(VMLINUX),
                        "sha256": _sha256_file(VMLINUX)},
             "image": {"cpio_sha256": boots[-1]["cpio_sha256"],
@@ -409,7 +470,7 @@ def main() -> int:
         results_path.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n",
                                 encoding="utf-8")
 
-        summary = [f"suite run {stamp}",
+        summary = [f"suite run {stamp} ({results['suite']})",
                    f"boots: {len(boots)} ({', '.join(b['stop_reason'] for b in boots)})",
                    f"results: {results_path}",
                    "verdicts: " + ", ".join(f"{key}={value}"
@@ -425,14 +486,16 @@ def main() -> int:
         if args.skip_checks:
             print("run_suite: PASS (checks skipped on request)")
             return 0
-        failures = suite_checks.run_checks(results, results_path)
+        failures = suite_checks.run_checks(results, results_path,
+                                           suite_path=suite_path)
         if failures:
             print(f"\nrun_suite: FAIL: {len(failures)} check(s) failed",
                   file=sys.stderr)
             return 1
         print("\nrun_suite: PASS")
         return 0
-    except (SetupError, suite_cases.SuiteError, make_image.SetupError) as exc:
+    except (SetupError, suite_cases.SuiteError, make_image.SetupError,
+            build_ltp.SetupError) as exc:
         print(f"run_suite: SETUP ERROR: {exc}", file=sys.stderr)
         return 2
 
