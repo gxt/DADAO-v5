@@ -451,6 +451,7 @@
 - **`ISS-480`（2026-11-22 裁定）**：`__pycache__` 是**生成物**，`check-manifests-guard` 是**文件系统**双向集合断言（不读 `.gitignore`），故冲突真实存在；修法 = 清单新增 `ignore = ["__pycache__"]`（**数据面**声明，非代码硬编码），且条目须被 `git check-ignore` 判为忽略、不得与已登记项同名；其它游离目录仍红。
 - **执行器依据锁（2026-11-22 裁 B）**：`idl/data/exec_anchor.toml` 锁 263 个 op 正文 + `idl/lib/*.idl` 的 sha256；`check-idl-exec-anchor` 进 L1；改 `.idl` ⇒ 必须 `--update` 并在评审里说明实现是否跟改。**不**声称语义等价（`m17-idl-017`）。
 - **已知红（2026-11-26 更新）**：`check-idl-full` 全四方唯一红 `escape_ciii_cfx`（chipyard），归 cg15/escape 全链（`m18-chipyard-002/003`、`m18-spec-007` 0.8.0）；gem5 侧已 0。逐指令 trace（IDL↔QEMU）在 canonical cg15 QEMU（md5 `1896525d…`）下 **273/274**，唯一红同例（IDL 未迁 cg15，`m18-idl-004` 待开始）；pre-cg15 QEMU（`90b6bba5…`）下 274/274。
+- **多 hart 不在范围（2026-11-27 用户裁定）**：不实现、不登记多 hart 相关事项；`ISS-459`（TLB 跨 hart shootdown）已删除，相关语义等将来明确要支持多 hart 时再重新提出。
 - **M17 收口等待（2026-11-26 更新）**：等 cg15/escape 全链（`m18-idl-004` + `m18-chipyard-002/003`）合入后复跑 `check-idl-full` 与 trace；用户 2026-11-26 已裁定暂停 M16 chipyard 侧（`m16-chipyard-033` 停、`030` 未派）。
 - **页表与 ADWBFAIL（2026-11-25 用户裁定）**：页表必须放内存、PTE 一律用内存物理地址；把页表放 BootROM 的构造违反软件契约，不得作载体；**ADWBFAIL 不需要测试**，不构造用例、不登记 DIV；`m17-chipyard-001` 的「PTE 越窗 RTL CFXMEM vs QEMU exit(1)」**不登记**，由 **`m16-testcases-023`**（已立，同口径且含 `DIV-14`/`DIV-04`/`ISS-515` 收口）删除该测试路径；M17 不另立重复任务。
 - **`opcodes.yaml` 维护约束（2026-11-25 用户确认 D1–D5）**：yaml 为编码数据真源（非语义真源）、生成器唯一写者、L1 `check-opcodes-repro` 只防漂移、D4 修改流程、16 个直接读点按跨模块处理；ADR-0063 Accepted，新开不并入 0032。
