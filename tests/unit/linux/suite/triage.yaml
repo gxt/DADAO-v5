@@ -15,6 +15,13 @@ format: 1
 #                 dependency and the re-run condition named
 #
 # Resolved (row removed; a PASS case must not stay in the ledger — S3c):
+#   mm-mremap-dontunmap (m18-linux-018).  Was SUITE_ENV / FAIL: the shmem arm's
+#   memfd_create returned ENOENT because the suite kernel had CONFIG_TMPFS=n.
+#   The arch defconfig now sets CONFIG_TMPFS=y (which selects MEMFD_CREATE) and
+#   run_suite.py pins the same value; both arms pass.
+#   mm-on-fault-limit (m18-linux-018).  Was SUITE_ENV / SKIP ("must be run from
+#   a normal user").  suite.yaml now says `user: nobody`; the supervisor's child
+#   drops to 65534:65534 (image /etc/passwd) before exec, and the case passes.
 #   mm-map-populate (m18-linux-014).  Was KERNEL_BUG / HOST_TIMEOUT, with
 #   "WARNING: include/linux/rwsem.h:81 ... Comm: map_populate".  Root cause: the
 #   port's generic fault arm ignored VM_FAULT_COMPLETED, so after
@@ -28,37 +35,23 @@ format: 1
 #   `run_suite.py --only mm-map-populate` runs are PASS with SUITE CASE END and
 #   no rwsem warning; suite.yaml's baseline for this case is PASS again.
 rows:
-  - id: mm-mremap-dontunmap
-    class: SUITE_ENV
-    verdict: FAIL
-    case_output: "Bail out! [FAIL]	mremap_dontunmap_simple_shmem:134	memfd_create:No such file or directory"
-    evidence: >-
-      `ok 1 mremap_dontunmap_simple` passes (mremap(MREMAP_DONTUNMAP) on an
-      anonymous mapping works); the next case needs memfd_create, which the image
-      cannot back because the suite kernel is built with CONFIG_TMPFS=n (no
-      shmem), so memfd_create returns ENOENT and the harness bails out.
-    recheck: >-
-      Rerun after the suite image enables CONFIG_TMPFS (and MEMFD_CREATE) — a
-      kernel-image config decision for the kernel owner, not a test change.
   - id: mm-pfnmap
     class: SUITE_ENV
     verdict: SKIP
-    case_output: "1..0 # SKIP Cannot find ram target in '/proc/iomem': No such file or directory"
+    case_output: "1..0 # SKIP Cannot open '/dev/mem': No such file or directory"
     evidence: >-
-      The test needs a RAM region advertised in /proc/iomem; the DADAO machine
-      has no /proc/iomem ram target (no firmware memory map is exported), so the
-      whole case self-skips (kselftest SKIP exit code 4).
-    recheck: Rerun when the kernel exports memory regions in /proc/iomem.
-  - id: mm-on-fault-limit
-    class: SUITE_ENV
-    verdict: SKIP
-    case_output: "ok 1 # SKIP The test must be run from a normal user"
-    evidence: >-
-      The suite runs every case as PID 1's uid (0); the test refuses to run as
-      root and skips itself. It is not a kernel verdict either way.
+      The kernel now exports the machine's one RAM window as a `System RAM`
+      entry in /proc/iomem (arch/dadao/kernel/setup.c), so find_ram_target()
+      succeeds and this is no longer the old iomem SKIP.  The case then opens
+      /dev/mem, which the suite image does not ship: adding a 1:1 node was tried
+      and the guest wedged in the user async-delivery loop as soon as the test
+      mapped the physical range (no console progress, host idle timeout), i.e.
+      this port's devmem mmap path is not usable yet.  It is an environment
+      dependency, not a test assertion.
     recheck: >-
-      Rerun after the suite supervisor drops to a non-root uid for cases (needs
-      ownership/setuid support in the image) — tracked as the SUITE_ENV reason.
+      Rerun when the port supports the /dev/mem mmap path (devmem_is_allowed /
+      pfn remap on DADAO) and the image ships the node; the /proc/iomem half is
+      already verified by `grep 'System RAM' /proc/iomem` in the suite console.
   - id: futex-wait-timeout
     class: KERNEL_BUG
     verdict: FAIL

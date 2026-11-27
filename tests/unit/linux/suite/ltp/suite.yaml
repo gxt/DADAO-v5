@@ -143,36 +143,33 @@ cases:
       harness's waitpid retry (components/ltp/patches/lib/safe_macros.c.patch:
       this port has no syscall restart, so a signalled wait returns EINTR).
 
-  # ---- SUITE_ENV: the test needs the binary on $PATH ---------------------
+  # ---- close-on-exec across exec() (was SUITE_ENV: no PATH) --------------
   - id: ltp-fcntl07
     kind: ltp
     dir: kernel/syscalls/fcntl
     prog: fcntl07
     timeout: 60
-    expect: TBROK
+    expect: PASS
     note: >-
       close-on-exec across exec(): the test re-execs itself with
-      `execlp(TCID, ...)`, so it needs the case binary on $PATH. The guest
-      supervisor starts every case by absolute path with no PATH and the image
-      has no LTP install tree, so the child cannot be found and the harness
-      reports "exec failed" as a TBROK (SUITE_ENV in triage.yaml).
+      `execlp(TCID, ...)`.  The supervisor now exports a PATH whose first
+      entry is the case's own image directory (plus /bin), so the child finds
+      itself and the CLOEXEC flag is checked across exec() as written.
 
-  # ---- SUITE_ENV: the test needs a passwd database (own boot) ------------
-  # Its setup() calls getpwnam("nobody") and dereferences the result; the image
-  # has no /etc/passwd, so the process takes SIGSEGV.  With m18-linux-024's
-  # asynchronous-delivery fix the signal is delivered normally (the kernel
-  # reports `die-no-vma` for the NULL access and hands SIGSEGV to the process),
-  # so LTP records its own `unexpected signal` TBROK.  SUITE_ENV in triage.yaml;
-  # own boot so a future delivery regression cannot take the other cases down.
+  # ---- mlockall() error paths (was SUITE_ENV: no /etc/passwd) ------------
+  # Its setup() calls getpwnam("nobody") and dereferences the result.  The
+  # image now ships /etc/passwd, so the test reaches its real assertions and
+  # passes (ENOMEM/EPERM/EINVAL).  The old `die-no-vma va=0x10` was the NULL
+  # pointer access on the missing passwd entry -- the kernel delivered SIGSEGV
+  # correctly; it was not a kernel defect.  Own boot so a future delivery
+  # regression cannot take the other cases down.
   - id: ltp-mlockall02
     kind: ltp
     dir: kernel/syscalls/mlockall
     prog: mlockall02
     timeout: 60
-    expect: TBROK
+    expect: PASS
     stall: true
     note: >-
-      mlockall() error paths (ENOMEM/EPERM/EINVAL). The no-passwd environment
-      makes setup() dereference a NULL getpwnam() and take SIGSEGV; LTP catches
-      it and reports TBROK. The signal frame/delivery itself works (m18-linux-024);
-      the missing piece is the image's /etc/passwd (SUITE_ENV).
+      mlockall() error paths (ENOMEM/EPERM/EINVAL); setup() needs
+      getpwnam("nobody") from the image's /etc/passwd.  Three TPASS, no die.

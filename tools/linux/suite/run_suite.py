@@ -69,6 +69,13 @@ KERNEL_RECORD = "kernel-image.json"
 #: (``check-config-pins`` C4), and it is what lets the boot reach ``/init``.
 SUITE_SHELL_LINE = "CONFIG_DADAO_K6_SHELL=y"
 
+#: shmem/tmpfs backs ``memfd_create`` (TMPFS selects MEMFD_CREATE); the
+#: kselftest mm/mremap ``MREMAP_DONTUNMAP`` shmem arm needs it.  The arch
+#: defconfig carries the same value, so a fresh tree already has it; this line
+#: is what makes an *existing* shared build tree converge, and it is the single
+#: line the evidence script flips to prove the memfd case can fail.
+SUITE_TMPFS_LINE = "CONFIG_TMPFS=y"
+
 AUTO_MARKER = "SUITE START"
 DONE_MARKER = "SUITE DONE"
 BEGIN_RE = re.compile(r"^SUITE CASE BEGIN (\S+)\s*$")
@@ -104,6 +111,7 @@ def kernel_image_config() -> int:
             return rc
     lines = config_pins.config_lines(build_suite.CONFIG_PINS) + [
         SUITE_SHELL_LINE,
+        SUITE_TMPFS_LINE,
         f'CONFIG_INITRAMFS_SOURCE="{cpio}"',
     ]
     return defconfig.apply_config_lines(lines)

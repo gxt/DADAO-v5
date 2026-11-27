@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..e260a00a0
+index 000000000..b1b14e8c3
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,550 @@
+@@ -0,0 +1,573 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -24,6 +24,7 @@ index 000000000..e260a00a0
 + */
 +#include <linux/init.h>
 +#include <linux/kernel.h>
++#include <linux/ioport.h>
 +#include <linux/memblock.h>
 +#include <linux/mm.h>
 +#include <linux/sched.h>
@@ -85,6 +86,19 @@ index 000000000..e260a00a0
 +/* RAM window base/size in PA (the boot info carries VAs). */
 +unsigned long dadao_ram_base;
 +unsigned long dadao_ram_size;
++
++/*
++ * /proc/iomem: one "System RAM" child for the machine's single PA RAM window
++ * (contract-linux-boot §4: ram_base/ram_size are the whole memory).  The
++ * generic resource tree is what /proc/iomem walks; without this entry the file
++ * exists but names no RAM, and tools that locate system memory (the kselftest
++ * mm/pfnmap target, kexec, ...) cannot find one.  IORESOURCE_SYSTEM_RAM is the
++ * flag arm64/riscv use for DRAM.
++ */
++static struct resource dadao_system_ram = {
++	.name	= "System RAM",
++	.flags	= IORESOURCE_SYSTEM_RAM | IORESOURCE_BUSY,
++};
 +
 +/*
 + * The boot info parse itself: copy the 15 fields out of the block (a VA) and
@@ -259,6 +273,15 @@ index 000000000..e260a00a0
 +	dadao_parse_boot_info();
 +
 +	memblock_add(dadao_ram_base, dadao_ram_size);
++	/*
++	 * Publish the same window to the resource tree so /proc/iomem names it.
++	 * The range is the boot info's ram_base/ram_size unchanged: this is an
++	 * export, not a memory-map decision.
++	 */
++	dadao_system_ram.start = dadao_ram_base;
++	dadao_system_ram.end = dadao_ram_base + dadao_ram_size - 1;
++	if (request_resource(&iomem_resource, &dadao_system_ram))
++		dadao_early_printf("K2 setup_arch: /proc/iomem System RAM request failed\n");
 +	/*
 +	 * Reserve the kernel image.  K1-K3 never allocated from RAM (the page
 +	 * fault channel took pages off the top and nothing else asked), so the

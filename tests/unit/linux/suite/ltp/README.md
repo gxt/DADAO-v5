@@ -24,12 +24,11 @@ python3 tools/linux/suite/run_suite.py --suite ltp
 | `config.h` | 交叉目标要用的 `config.h`（见下「为什么要自己的 config.h」） |
 | `../check_suite.py` | 校验入口，加 `--suite ltp` |
 
-本轮子集（14 例）：**12 例真 PASS**（`fcntl01`、`read01`、`lseek01`、`fstat02`、
-`munmap03`、`getpagesize01`、`mlockall01`、`mmap01`、`sigaction01`、`wait01`、
-`clock_gettime01`、`open01`）；`fcntl07` **TBROK**（镜像无 PATH，`SUITE_ENV`）；
-`mlockall02` **TBROK**（镜像无 `/etc/passwd`，`getpwnam("nobody")` 返回 NULL 后
-解引用；信号本身经 `m18-linux-024` 正常投递，`SUITE_ENV`）。逐例判定见
-`triage.yaml` 与运行期 `summary.txt`。
+本轮子集（14 例）：**14 例全部 PASS**。`m18-linux-018` 补齐了套件镜像环境：
+supervisor 为每个用例导出 `PATH=<用例镜像目录>:/bin`（`fcntl07` 的 `execlp`），
+镜像带最小 `/etc/passwd`（`mlockall02` 的 `getpwnam("nobody")`）；`mlockall02`
+此前的 `die-no-vma va=0x10` 是缺 passwd 导致的 NULL 解引用，内核的 SIGSEGV 投递
+本身正确，不是内核缺陷。`triage.yaml` 现为空。
 
 构建器是 `tools/linux/suite/build_ltp.py`，补丁集是**组件补丁**
 `components/ltp/{series,patches/}`（`docs/Process-01`），由
@@ -163,7 +162,8 @@ LTP 的构建依赖 Autotools 生成的 `configure`，但上游**不发布**生�
 - **`brk01` 不可用**：musl 的 `brk()` 是 `-ENOMEM` 桩（`src/linux/brk.c`），测试
   的 libc 变体直接 `TCONF`，随后退出路径也会停摆；记在「候选但未入子集」。
 - **需要 `PATH` 的用例**（`fcntl07`、`execve01` 用 `execlp`/`tst_get_path`）：
-  镜像没有安装树、supervisor 也未注入 PATH ⇒ `fcntl07` 记 `SUITE_ENV`。
+  supervisor 已为每个用例导出「自身镜像目录 + `/bin`」，`fcntl07` 因此 PASS；
+  `execve01` 可按下节条件复评后入子集。
 - **需要块设备/mkfs 的用例**（`mmap16`、`stat04`、`lstat03`）不在子集：镜像
   没有 `/dev` 块设备。
 - **`mprotect04` 的 PROT_EXEC 子例 TCONF**：`config.h` 没有 `HAVE_CLEAR_CACHE`
@@ -178,7 +178,7 @@ LTP 的构建依赖 Autotools 生成的 `configure`，但上游**不发布**生�
   并发改写期间跑过，判定不可信；其中 `msync01`/`mmap02`/`mprotect02`/`munmap04`
   命中上面的信号投递故障。复评：`m18-linux-024` 修复后在私人重放里逐个
   `--only` 复跑，通过的再入子集。
-- `execve01`：需要 `PATH`（同 `fcntl07`）。
+- `execve01`：`PATH` 已由 `m18-linux-018` 补入 supervisor，可按 `--only` 复跑确认后入子集。
 - `brk01`：见「已知边界」。
 
 ## 复现与复评

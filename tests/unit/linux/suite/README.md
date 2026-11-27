@@ -32,6 +32,9 @@ python3 tools/linux/suite/run_suite.py            # = --suite kselftest
 
 1. 在 `suite.yaml` 里加一行：`id`（唯一）、`dir`（kselftest 目录，可嵌套）、
    `prog`（目录里的程序名）、`timeout`（**guest 侧**秒数）、`expect`（当前实况）。
+   需要普通用户的用例加 `user: nobody`：supervisor 在 exec 前 `setgroups/setgid/
+   setuid` 到 65534（镜像里有 `/etc/passwd`），默认 `root`。每个用例还会得到
+   `PATH=<用例自身镜像目录>:/bin`，供 `execlp` 一类自我重执行的用例使用。
 2. 跑一次 `run_suite.py`；若该用例非 PASS，就在 `triage.yaml` 加一行，写清分类与
    证据（用例输出里的一句话 + 退出码）与复评条件。
 3. 只要用例依赖的设施在本机不存在（`CONFIG_*` 关着、没有 loader 等），就记
@@ -50,8 +53,9 @@ python3 tools/linux/suite/run_suite.py            # = --suite kselftest
 - `TEST_ADAPT`：用例把 x86 假设写死了（4 KiB 页、glibc 扩展、x86 指令），修法在
   `patches/kselftest/`。
 - `UNSUPPORTED`：本移植根本没有该设施（如 SysV IPC、socket），需要产品决策。
-- `SUITE_ENV`：环境暂时不具备（镜像缺 tmpfs、以 root 跑导致用例跳过、依赖
-  `m18-infra-002` 的动态加载器），写明依赖与重跑条件。
+- `SUITE_ENV`：环境暂时不具备（如镜像没有 `/dev/mem`、依赖 `m18-infra-002` 的
+  动态加载器），写明依赖与重跑条件。`m18-linux-018` 已补齐 tmpfs/memfd、
+  `/etc/passwd`、`PATH` 与按用例的 `user: nobody` 降权。
 
 **「内核红」与「测试假设红」的区分办法**：先看证据里的判据来源。判据用到
 `sysconf(_SC_PAGESIZE)`/`getpagesize()` 的，64 KiB 页不是理由；出现字面 4096、

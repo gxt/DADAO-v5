@@ -17,6 +17,8 @@ case):
       timeout: 60                 # guest-side seconds (kernel-tick alarm)
       expect: PASS                # recorded baseline verdict
       note: ...                   # optional, human context
+      user: nobody                # optional: run the case as this uid (image
+                                  # /etc/passwd); default root
       stall: true                 # optional: the case wedges the machine; it is
                                   # ordered last so the rest of the run survives
 
@@ -66,8 +68,11 @@ VERDICTS = ("PASS", "FAIL", "SKIP", "TIMEOUT", "SIGNAL", "MISSING",
 CLASSES = ("KERNEL_BUG", "TEST_ADAPT", "UNSUPPORTED", "SUITE_ENV")
 
 _CASE_KEYS = {"id", "kind", "dir", "prog", "timeout", "expect", "note",
-              "stall", "helpers"}
+              "stall", "helpers", "user"}
 _TOP_KEYS = {"format", "cases"}
+
+#: Accounts the image's /etc/passwd defines; the supervisor only knows these.
+USERS = ("root", "nobody")
 
 
 class SuiteError(RuntimeError):
@@ -104,6 +109,7 @@ class Case:
     note: str = ""
     stall: bool = False
     kind: str = "kselftest"
+    user: str = "root"
     helpers: tuple[str, ...] = field(default_factory=tuple)
 
     @property
@@ -151,7 +157,7 @@ def load_cases(path: Path | None = None) -> list[Case]:
         unknown = set(row) - _CASE_KEYS
         if unknown:
             raise SuiteError(f"case #{index}: unknown key(s) {sorted(unknown)}")
-        missing = _CASE_KEYS - {"note", "stall", "kind", "helpers"} - set(row)
+        missing = _CASE_KEYS - {"note", "stall", "kind", "helpers", "user"} - set(row)
         if missing:
             raise SuiteError(f"case #{index}: missing key(s) {sorted(missing)}")
         helpers = row.get("helpers") or []
@@ -162,9 +168,12 @@ def load_cases(path: Path | None = None) -> list[Case]:
                     note=str(row.get("note", "")),
                     stall=bool(row.get("stall", False)),
                     kind=str(row.get("kind", "kselftest")),
+                    user=str(row.get("user", "root")),
                     helpers=tuple(str(helper) for helper in helpers))
         if case.kind not in KINDS:
             raise SuiteError(f"case {case.id}: kind={case.kind!r} not in {KINDS}")
+        if case.user not in USERS:
+            raise SuiteError(f"case {case.id}: user={case.user!r} not in {USERS}")
         if case.id in seen:
             raise SuiteError(f"duplicate case id {case.id!r}")
         if case.expect not in VERDICTS:

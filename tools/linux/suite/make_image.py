@@ -4,13 +4,18 @@
 The suite image is **independent** of the K6 image: K6's ``/init``, ``APPLETS``
 and gate are untouched.  What it ships (lexicographic cpio order):
 
-  .  cases  dev/  dev/console  dev/null  dev/zero  init  proc
-  tests/  tests/<dir>/  tests/<dir>/<prog>  tmp/
+  .  cases  dev/  dev/console  dev/null  dev/zero  etc/  etc/passwd
+  init  proc  tests/  tests/<dir>/  tests/<dir>/<prog>  tmp/
 
 * ``init`` — ``suite_init.c`` (PID 1: mounts /proc and a writable /tmp, runs
   each case under a kernel-tick ``alarm``, brackets its output with markers);
-* ``cases`` — one ``<id> <timeout> /tests/<dir>/<prog>`` line per case;
-* ``dev/console`` (240:0, the semihosting console) plus ``dev/null``/``dev/zero``;
+* ``cases`` — one ``<id> <timeout> <user> /tests/<dir>/<prog>`` line per case
+  (``user`` is ``root`` or ``nobody``; see ``suite.yaml``);
+* ``dev/console`` (240:0, the semihosting console) plus
+  ``dev/null``/``dev/zero``; no ``/dev/mem`` (the mm/pfnmap target skips at
+  open() until this port supports the devmem mmap path -- see triage.yaml);
+* ``etc/passwd`` — the minimal passwd database the tests look up (mlockall02's
+  ``getpwnam("nobody")``);
 * ``tmp`` mode 1777 (ramfs mounted on it by ``init``).
 
 Determinism (acceptance 1: two runs produce the same verdict set; the archive
@@ -59,6 +64,14 @@ DEVICES = {
 
 TMP_MODE = 0o041777  # S_IFDIR | 1777
 
+#: Minimal passwd database.  LTP's mlockall02 setup() calls
+#: ``getpwnam("nobody")`` and dereferences the result; without this file it
+#: takes SIGSEGV instead of testing mlockall().  The uid/gid match the
+#: supervisor's hard-coded drop target (suite_init.c) and the kernel's default
+#: overflow uid for an unmapped user.
+PASSWD = (b"root:x:0:0:root:/:/bin/sh\n"
+          b"nobody:x:65534:65534:nobody:/:/bin/false\n")
+
 
 class CheckError(RuntimeError):
     """The produced image violates a required property (exit 1)."""
@@ -97,9 +110,10 @@ def build_init(cases: list[suite_cases.Case]) -> tuple[Path, bytes]:
 
 
 def cases_file_text(cases: list[suite_cases.Case]) -> bytes:
-    lines = ["# <id> <timeout-seconds> <argv...>  (tools/linux/suite/make_image.py)"]
+    lines = ["# <id> <timeout-seconds> <user> <argv...>  "
+             "(tools/linux/suite/make_image.py)"]
     for case in cases:
-        lines.append(f"{case.id} {case.timeout} {case.image_path}")
+        lines.append(f"{case.id} {case.timeout} {case.user} {case.image_path}")
     return ("\n".join(lines) + "\n").encode()
 
 
@@ -112,6 +126,8 @@ def image_entries(cases: list[suite_cases.Case], init_bytes: bytes,
         newc.Entry(".", newc.MODE_DIR, "dir", b""),
         newc.Entry("cases", newc.MODE_FILE, "file", cases_bytes),
         newc.Entry("dev", newc.MODE_DIR, "dir", b""),
+        newc.Entry("etc", newc.MODE_DIR, "dir", b""),
+        newc.Entry("etc/passwd", newc.MODE_FILE, "file", PASSWD),
         newc.Entry("init", newc.MODE_FILE, "file", init_bytes),
         newc.Entry("proc", newc.MODE_DIR, "dir", b""),
         newc.Entry("tests", newc.MODE_DIR, "dir", b""),
@@ -189,6 +205,8 @@ def verify(archive: bytes, cases: list[suite_cases.Case],
         ".": (newc.MODE_DIR, None),
         "cases": (newc.MODE_FILE, None),
         "dev": (newc.MODE_DIR, None),
+        "etc": (newc.MODE_DIR, None),
+        "etc/passwd": (newc.MODE_FILE, None),
         "init": (newc.MODE_FILE, None),
         "proc": (newc.MODE_DIR, None),
         "tests": (newc.MODE_DIR, None),
@@ -223,6 +241,8 @@ def verify(archive: bytes, cases: list[suite_cases.Case],
                 f"{present[name]['rdevminor']}, expected {rdev[0]}:{rdev[1]}")
     if present["init"]["body"] != init_bytes:
         raise CheckError("/init payload is not the compiled supervisor")
+    if present["etc/passwd"]["body"] != PASSWD:
+        raise CheckError("/etc/passwd payload differs from PASSWD")
 
     built = {record["id"]: record for record in build_report["cases"]}
     for case in cases:

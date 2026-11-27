@@ -27,21 +27,27 @@ cases:
     prog: mlock2-tests
     timeout: 60
     expect: PASS
+  # Was FAIL: the shmem arm's memfd_create returned ENOENT because the suite
+  # kernel had CONFIG_TMPFS=n.  The arch defconfig enables tmpfs/memfd (and
+  # run_suite.py pins the same value), so both arms run and pass.
   - id: mm-mremap-dontunmap
     dir: mm
     prog: mremap_dontunmap
     timeout: 60
-    expect: FAIL
+    expect: PASS
   - id: mm-pfnmap
     dir: mm
     prog: pfnmap
     timeout: 60
     expect: SKIP
+  # The test refuses to run as root.  `user: nobody` makes the supervisor drop
+  # privileges for this case (the image carries /etc/passwd and 0755 binaries).
   - id: mm-on-fault-limit
     dir: mm
     prog: on-fault-limit
     timeout: 60
-    expect: SKIP
+    expect: PASS
+    user: nobody
   - id: futex-wait-timeout
     dir: futex/functional
     prog: futex_wait_timeout

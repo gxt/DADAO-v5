@@ -8,8 +8,11 @@
  * suite's `/init` is this supervisor:
  *
  *   1. mount `/proc` (proc) and a writable `/tmp` (ramfs, tmpfs as fallback);
- *   2. read `/cases` — one `<id> <timeout-seconds> <argv...>` line per test;
- *   3. for each case: print `SUITE CASE BEGIN <id>`, fork+exec the test, arm
+ *   2. read `/cases` — one `<id> <timeout-seconds> <user> <argv...>` line per
+ *      test (`user` is `root` or `nobody`, resolved through the image's
+ *      `/etc/passwd`; `nobody` is 65534:65534);
+ *   3. for each case: print `SUITE CASE BEGIN <id>`, set PATH to the case's
+ *      own directory plus /bin, fork, optionally drop to `nobody`, exec, arm
  *      `alarm(timeout)` (kernel tick based — ADR-0058), and print
  *      `SUITE CASE END <id> rc=<n> status=<exit|timeout|signal>`;
  *   4. print `SUITE DONE` and park (the host stops QEMU on that marker).
@@ -29,6 +32,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -43,9 +47,14 @@
 #define MAX_ARGS 8
 #define LINE_MAX_LEN 512
 
+/*: nobody:nogroup in the image's /etc/passwd (make_image.py PASSWD). */
+#define NOBODY_UID 65534
+#define NOBODY_GID 65534
+
 struct case_spec {
 	char id[64];
 	unsigned int timeout;
+	char user[16];
 	char *argv[MAX_ARGS + 1];
 	char line[LINE_MAX_LEN];
 };
@@ -134,7 +143,7 @@ static int load_cases(struct case_spec *cases)
 	while (offset < len && count < MAX_CASES) {
 		char *line = text + offset;
 		char *nl = strchr(line, '\n');
-		char *tok[MAX_ARGS + 3];
+		char *tok[MAX_ARGS + 4];
 		int ntok, i;
 
 		if (nl)
@@ -147,8 +156,8 @@ static int load_cases(struct case_spec *cases)
 		if (line[0] == '#' || line[0] == '\0')
 			continue;
 		snprintf(cases[count].line, sizeof(cases[count].line), "%s", line);
-		ntok = split(cases[count].line, tok, MAX_ARGS + 2);
-		if (ntok < 3 || ntok > MAX_ARGS + 2) {
+		ntok = split(cases[count].line, tok, MAX_ARGS + 3);
+		if (ntok < 4 || ntok > MAX_ARGS + 3) {
 			say("SUITE FATAL: bad /cases line (%d tokens)\n", ntok);
 			continue;
 		}
@@ -158,9 +167,16 @@ static int load_cases(struct case_spec *cases)
 			say("SUITE FATAL: case %s has timeout 0\n", cases[count].id);
 			continue;
 		}
-		for (i = 2; i < ntok; i++)
-			cases[count].argv[i - 2] = tok[i];
-		cases[count].argv[ntok - 2] = NULL;
+		snprintf(cases[count].user, sizeof(cases[count].user), "%s", tok[2]);
+		if (strcmp(cases[count].user, "root") &&
+		    strcmp(cases[count].user, "nobody")) {
+			say("SUITE FATAL: case %s has unknown user %s\n",
+			    cases[count].id, cases[count].user);
+			continue;
+		}
+		for (i = 3; i < ntok; i++)
+			cases[count].argv[i - 3] = tok[i];
+		cases[count].argv[ntok - 3] = NULL;
 		count++;
 	}
 	free(text);
@@ -173,21 +189,70 @@ static void reap_zombies(void)
 		;
 }
 
+/*
+ * fcntl07 re-execs itself with `execlp(TCID, ...)`, so the case's own
+ * directory must be on PATH; the image has no LTP install tree.  HOME/TMPDIR
+ * point at the writable 1777 /tmp so a non-root case has a writable scratch
+ * area without changing the cwd (the /cases argv paths are relative to /).
+ */
+/* /cases paths are image-relative ("tests/..."); make them absolute. */
+static void absolute_path(char *out, size_t size, const char *path)
+{
+	if (path[0] == '/')
+		snprintf(out, size, "%s", path);
+	else
+		snprintf(out, size, "/%s", path);
+}
+
+static void set_case_env(const struct case_spec *spec, char *prog, size_t size)
+{
+	char dir[LINE_MAX_LEN], path[LINE_MAX_LEN + 32];
+	const char *slash;
+
+	absolute_path(prog, size, spec->argv[0]);
+	slash = strrchr(prog, '/');
+	if (slash) {
+		size_t len = (size_t)(slash - prog);
+
+		if (len >= sizeof(dir))
+			len = sizeof(dir) - 1;
+		memcpy(dir, prog, len);
+		dir[len] = '\0';
+		snprintf(path, sizeof(path), "%s:/bin", dir);
+	} else {
+		snprintf(path, sizeof(path), "/bin");
+	}
+	setenv("PATH", path, 1);
+	setenv("HOME", "/tmp", 1);
+	setenv("TMPDIR", "/tmp", 1);
+}
+
 static void run_case(const struct case_spec *spec)
 {
 	pid_t pid;
 	int status = 0, rc;
 
 	say("SUITE CASE BEGIN %s\n", spec->id);
+	say("SUITE CASE USER %s user=%s\n", spec->id, spec->user);
 	fflush(stdout);
 	reap_zombies();
 	timed_out = 0;
 
 	pid = fork();
 	if (pid == 0) {
-		execv(spec->argv[0], spec->argv);
-		fprintf(stdout, "SUITE FATAL: execv(%s) errno=%d\n",
-			spec->argv[0], errno);
+		char prog[LINE_MAX_LEN];
+
+		set_case_env(spec, prog, sizeof(prog));
+		if (strcmp(spec->user, "nobody") == 0 &&
+		    (setgroups(0, NULL) || setgid(NOBODY_GID) ||
+		     setuid(NOBODY_UID))) {
+			fprintf(stdout, "SUITE FATAL: drop to nobody errno=%d\n",
+				errno);
+			fflush(stdout);
+			_exit(127);
+		}
+		execv(prog, spec->argv);
+		fprintf(stdout, "SUITE FATAL: execv(%s) errno=%d\n", prog, errno);
 		fflush(stdout);
 		_exit(127);
 	}

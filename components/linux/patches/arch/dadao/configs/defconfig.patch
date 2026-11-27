@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/configs/defconfig b/arch/dadao/configs/defconfig
 new file mode 100644
-index 000000000..728690258
+index 000000000..e141b6e41
 --- /dev/null
 +++ b/arch/dadao/configs/defconfig
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,62 @@
 +# K0 minimal defconfig: single hart, big endian, 64 KiB pages, no SMP,
 +# no device tree, no UART/PCI, semihosting console stub.
 +CONFIG_DADAO=y
@@ -40,6 +40,10 @@ index 000000000..728690258
 +CONFIG_PRINTK=y
 +CONFIG_TTY=y
 +CONFIG_PROC_FS=y
++# tmpfs/shmem backs memfd_create (TMPFS selects MEMFD_CREATE); the suite's
++# mm/mremap `MREMAP_DONTUNMAP` shmem arm needs it.  K6 never uses either, so
++# its image grows slightly and its verdicts are unchanged.
++CONFIG_TMPFS=y
 +CONFIG_SYSFS=y
 +CONFIG_BUG=y
 +CONFIG_EMBEDDED=y

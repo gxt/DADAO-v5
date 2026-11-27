@@ -17,39 +17,13 @@ format: 1
 # verdict: the case is rerun (<=3 per round) and the baseline is the pair of
 # clean runs whose per-case verdicts agree.  ISS-m18-006 (`die=0xe4` /
 # `pf-va=0x10`) is counted separately too; it was 0 in this round.
-rows:
-  - id: ltp-fcntl07
-    class: SUITE_ENV
-    verdict: TBROK
-    case_output: "fcntl07 1  TBROK  :  .../fcntl07.c:128: exec failed"
-    evidence: >-
-      The close-on-exec arm re-execs the test binary itself with
-      `execlp(TCID, TCID, "-T", pidname, NULL)`; execlp searches $PATH, and the
-      guest supervisor starts every case by absolute path with no PATH (the
-      suite image has no LTP install tree either). The child's exec therefore
-      fails with ENOENT and the parent reports `case 2: exec failed` for each
-      sub-case, exit code 2 (TBROK). Environment, not kernel: fcntl01 (same
-      facility) is PASS.
-    recheck: >-
-      Re-run after the supervisor exports a PATH containing the shipped case
-      directories (or after the image gains an LTP install tree). The test then
-      checks the CLOEXEC flag across exec() as written.
-  - id: ltp-mlockall02
-    class: SUITE_ENV
-    verdict: TBROK
-    case_output: "mlockall02 1 TBROK : .../tst_sig.c:234: unexpected signal SIGSEGV(11) received (pid = 16)."
-    evidence: >-
-      Its setup() does `ltpuser = getpwnam("nobody")` and dereferences
-      ltpuser->pw_uid; the image has no /etc/passwd, so getpwnam() returns NULL
-      and the process takes SIGSEGV. Since m18-linux-024 fixed the asynchronous
-      delivery path the signal is handed to the process normally: the console
-      shows `K3 pf: ... va=0x10 vma=0x0-0x0 ... result=die-no-vma` followed by
-      LTP's own captured `unexpected signal SIGSEGV(11)` and
-      `SUITE CASE END ltp-mlockall02 rc=2 status=exit` (TBROK). mlockall01
-      (same facility) is PASS. The remaining gap is the image contents.
-    recheck: >-
-      Ship an /etc/passwd with a `nobody` entry in the suite image (the test
-      then reaches its real mlockall() error-path assertions). Before
-      m18-linux-024 the same environment died in the kernel instead
-      (`MALIGN(0x1000)` -> `die mode=2 code=0xec`, HOST_TIMEOUT); that
-      regression is covered by `--only ltp-mlockall02` and no longer reproduces.
+# Resolved (row removed; a PASS case must not stay in the ledger -- S3c):
+#   ltp-fcntl07 (m18-linux-018).  Was SUITE_ENV / TBROK: execlp(TCID) searched
+#   an empty PATH.  The supervisor now exports PATH with the case's own image
+#   directory first, so the close-on-exec arm re-execs and passes.
+#   ltp-mlockall02 (m18-linux-018).  Was SUITE_ENV / TBROK: getpwnam("nobody")
+#   returned NULL without /etc/passwd and the NULL dereference produced the
+#   `die-no-vma va=0x10` SIGSEGV.  The image now ships /etc/passwd; the test
+#   reaches its three assertions and passes (ENOMEM/EPERM/EINVAL).  The old
+#   die was correct SIGSEGV delivery, not a kernel defect.
+rows: []
