@@ -30,7 +30,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m18-linux-027 | — | **并入 026**（用户裁定：出口帧与源接口一起在重启的 026 内完成） |
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |

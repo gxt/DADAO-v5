@@ -756,7 +756,7 @@
 
 - `m18-linux-025`（`ISS-m18-001` 自旋根因）：实现完成、`待验收`；根因 = umon 返回路径 `DADAO_GPR_RESTORE_AT` 先恢复用户 SP、`escape cfx_umon` 尚未执行，supv 异步门仍开 ⇒ 异步 handler 在用户栈上跑，栈页未驻留时同一 `st.o` 无限重入。修法 = 两条返回路径 restore 前 `DADAO_CLOSE_SUPV_ASYNC`（置 `cfx_smon cg15 rc3` 源位 15/32）。修前 30/200（15%）、修后 0/1000 + 2048 启 0。
 - `m18-linux-006`（LTP 两轮）：`待返工`，**等 025 合入后**在新内核 + 新 QEMU 上复跑；LTP 入口本身在 025 期间仍不可用。
-- **统一跨实现测试尚未立册**（`m18-testcases-005` 向量 + QEMU/gem5/RTL/IDL/内核同 ELF 对拍）；按 discussing 既有条目在 025/006 之后做，之前跨实现红一律 KNOWN-RED。
+- **M18 范围（用户 2026-11-27 明确）**：只关心「Linux 在 QEMU 上跑 busybox / LTP / kselftest」；跨实现（QEMU/gem5/RTL/IDL）对拍**不属 M18**，归 M20 `m20-integ-001/002`。M18 收口 = busybox（K6）+ kselftest + LTP 子集两轮一致、非 PASS 全部有分诊。
 - `m20-spec-001` 已承接原 `m18-spec-001`（cg4 `scratch_regs_num` 缺省 2）；M18 侧不再派。
 - chipyard 写者已交还 M16（002/003 合入后），M18 不再派 chipyard，直到 M16 明确释放。
 
