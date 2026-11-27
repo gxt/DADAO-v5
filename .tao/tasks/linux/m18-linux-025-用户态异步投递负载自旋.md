@@ -7,7 +7,7 @@
 **可并行分片**：否（改 `components/linux`）
 **预估**：3–5 h（标定：同档 linux-024 3–5 h；本任务为复现+根因+修复+长跑，取 1–1.5×）
 **档位**：大改（异步入口/返回）
-**状态**：待开始
+**状态**：已验证
 **执行环境**：本地（QEMU system `-M kaiwu-vast`）
 
 ## 背景
@@ -54,16 +54,57 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`run.sh` FAST **29/29 PASS**；全量逐跑如实：旧 44 项脚本两跑 **42/44**（跑 1 为 K5 F 组 `f7_tid_cleared`、suite 全过，跑 2 为 suite 某一轮随机 case `HOST_TIMEOUT`）；第 3 跑（45 项）**41/45**（suite r1 与注入回绿各 1 红）；reviewer 用当前 45 项脚本全量 1 跑 **43/45**（2 红 = kselftest r2 `mm-map-populate HOST_TIMEOUT`，属 `ISS-m18-005` 族）；独立 K5 重跑 **285/285** 两次，suite r3/r4 逐例一致。其余：QEMU md5 `7a733255…`、patch-tree linux **105/0**、config-pins **93/93**、changelog/knowledge rc=0、K2 **170/170**、K6 **82/82**（attempts=1 spins=0）、amb **14/14**、soak-inject reopen **40/40 红→cp+md5 还原→回绿**、soak `--soak-strict` **0/1000**、window **0/2000**。
+**复现率**：修前同脚本 `--soak 200 --jobs 32` **30/200（15%）** ISS 自旋（监控定向捕获 **12/64**，PC 全在 `dadao_trap_handler+0x4`、MODE=2/CFX=2、`cfx_smon SYNCN=0x1a4dbf`，签名字段与 reviewer 现场对账一致）；修后 **0/1000**、**0/200**，soak/strict/回绿合计 **6600 启 0 红**；2000 启窗口签名 0（另有 1 次极早停摆 `workingset` 后、`M45 begin` 前，另登 issue）。
+**根因**：`DADAO_GPR_RESTORE_AT` 先恢复 `rb1`（用户 SP）后再恢复其余寄存器；此时仍在 supv、supv 异步门由 `trap_exit` 重开、`escape cfx_umon` 尚未执行 ⇒ 异步入口按 `cg15 rc0=supv` 走内核臂不换栈，`dadao_async_kernel_handler` 在用户 SP 上运行；用户栈页未驻留时 C 序言第一条栈存触发 supv 同步异常，`dadao_trap_busy` 尚未置位 ⇒ 同一 `st.o` 无限重入（QEMU `info registers` + monitor `x` 证明目标地址不可访问）。
+**修改文件**：`components/linux/patches/arch/dadao/kernel/trap.S.patch`（新增 `DADAO_CLOSE_SUPV_ASYNC`，两条 umon 返回路径在 `DADAO_GPR_RESTORE_AT` 前关 `cfx_smon cg15 rc3` 源位 15/32）、`components/linux/changelog.md`、`tests/unit/linux/amb_window_probe.py`（`--soak-strict`、`--source-check`）、`.tao/knowledge/issues-m18.yaml`（ISS-m18-001 根因/闭合）、本任务书。
+**验收结果**：`make check` rc=2，红集 `check-arch-self-test`/`check-interface`/`check-milestones-fresh`/`check-temp-dirs`，四者与 026/基线已知红同集；`check-patch-tree` linux 105/0。验收 #2 的 5 组观测量对照以 reviewer 现场对账（`System.map`+monitor 捕获）为准。
+**可达 FAIL**：① 删两条 `DADAO_CLOSE_SUPV_ASYNC` ⇒ 200 启 **42/200（21%）** 红（reviewer FAST 另见 29/200=14.5%、归档 40/200）、`cp`+md5 还原后 **0/200** 绿；② 删一条 ⇒ `--source-check` 红、还原后绿。
+**新发现/坑**：① 该窗口只在**恢复用户 SP 后、escape 前**；K4 入口/用户故障交接尾部已屏蔽，唯 syscall/trap 返回路径漏掉。② 用户栈页未驻留是触发条件，所以空载 m45 极少命中、负载（多任务/日志/页未驻留）升到 15–20%。③ `check-musl-freshness` 的红来自只建静态 musl，`build-musl-shared` 后回绿。④ 共享 `.config` 会被前面的 probe 切片钉空：K2 后必须 `make linux-defconfig` 再跑 K5/K6。
+**遗留问题**：① `m18-linux-006` 的 `run_suite.py --suite ltp` 仍因 006 未完成不可用（KSelftest r3/r4 两轮逐例一致）；② 2000 启中 1 次极早停摆（非用户异步自旋签名）已登 `ISS-m18-004`；③ suite 在全量 run.sh 中随机 case 的 `HOST_TIMEOUT`（已见 mm-pfnmap / mm-map-populate / futex-wait-timeout，用例名随机、形状一致），频率约每 2 次全量 1 次，已登 `ISS-m18-005`；④ K5 F 组 `f7_tid_cleared` 单次 flake（全量 run.sh 跑 1 中 1 次、suite 全过；独立重跑 285/285 两次，按遗留跟踪）；⑤ `handle_softirqs die 0xe4/pf-va=0x10` 仍按 ISS-m18-001 的另一签名单独计数（200 启注入回绿样本 1 次，已登 `ISS-m18-006`），`--soak-strict` 只判静默自旋、窗口判据未放宽；⑥ 证据管理：第 3 跑的注入回绿红日志被后续跑覆盖、不可回溯（后续任务须按跑次分目录留存运行期日志）。
 
 ## 审阅记录
 
 ### 第 1 轮 engineer 自审
-（工程师自审意见、问题、判决及 finding 处置）
+
+**范围**：`trap.S`（umon 返回路径）、`amb_window_probe.py`（strict/source-check）、`changelog.md`、`issues-m18.yaml`、本任务书；逐行核对 JAL/`DADAO_GPR_RESTORE_AT` 的寄存器次序与三处 `escape` 的 mask 恢复口径。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 修前只知“负载自旋”，未定位到具体窗口 | ✅已修 | monitor 抓 PC/寄存器/cfx 快照 + `x` 读目标地址，定位到 `DADAO_GPR_RESTORE_AT` 恢复 `rb1` 后的 supv 窗口 | 修前 19/96 启同一 PC/`CINFO`；`x` 显示用户栈不可访问 |
+| F2 只屏蔽 supv 行是否足够（umon 行是否也要关） | ✅已修（结论：足够） | `escape cfx_umon` 整字恢复 umon 行；supv 行由下一次内核入口重开 | K5 285/285、K6 82/82、suite 两轮一致；`source-check` 两路径 |
+| F3 `run.sh` 注入①把 `[FAIL]` 行误判为“无红” | ✅已修 | 判据改 `grep '\[FAIL\] soak-strict:'`；还原后判 `[PASS]` | FAST 全量 `summary: pass=29 fail=0`；注入① 26/200 红→还原 0/200 绿 |
+| F4 2000 启 strict soak 出现 1 次极早停摆 | ⏸登记（非本修根因） | 不修改判据；窗口签名仍 0/2000，另登 `ISS-m18-004` | 该 boot console 停在 `workingset` 后、`M45 begin` 前；追加 2048 启 0 复现 |
+| F5 K2 后直接跑 K5 出现 255/285（空 rootfs） | ✅已修（脚本顺序） | `run.sh` 在每个门控前 `make linux-defconfig` | 单独 K5 **285/285**、K6 **82/82** |
+| F6 changelog 插入时误删 `## M18` 标题 | ✅已修 | 恢复标题并把 025 条目移到 026 之后 | `grep '^## M18'` = 1；条目按日期升序 |
+| F7 `check-musl-freshness` 新红（未建 shared libc） | ✅已修（环境） | `make build-musl-shared` | `check_musl_freshness: PASS`；`make check` 红集 = 4 项已知红 |
+| F8 suite r2 单次 `HOST_TIMEOUT` | ⏸记录 | 不重试、不改判据；r3/r4 与 64 次全量启动 0 复现 | 完成区“遗留问题”③ |
+
+**判决**：F1–F3、F5–F7 已修并有真实复验；F4/F8 为独立/未复现残余，已登记。门控、注入与两轮 suite 均绿，状态对账为 **待验收**。
 
 ### 第 1 轮 reviewer 验收
-（审查者独立重跑记录、约束核验、判决）
+
+**重跑（全部本人在仓库根执行运行期证据目录内的 `run.sh` 与探针）**
+1. `FAST=1` ⇒ `summary: pass=29 fail=0 total=29`、`EXIT=0`：window 0/2000、strict 0/1000、amb 14/14、reopen 注入 40/40 红→还原回绿。
+2. `--soak 200 --jobs 32` ⇒ `rc=0`，非窗口红 0/200。
+3. `FAST=0` ⇒ `summary: pass=43 fail=2 total=45`、`EXIT=1`；2 红全为 kselftest r2 `mm-map-populate HOST_TIMEOUT`（rc=None、无 SUITE DONE、后 5 例 MISSING），与已登 `ISS-m18-005` 同形状；K2 170/170、K5 285/285（attempts=1 spins=0）、K6 82/82、window 0/2000、strict 0/1000、amb 14/14 全 PASS。
+4. 注入①（删两条宏）⇒ 200 启红 **42/200（21%）**（FAST 一跑 29/200=14.5%），`[FAIL] soak-strict … got=42`；`cp`+md5 `a7d127e1…` 还原后 0/200 回绿。
+5. 注入②（删一条）⇒ `[FAIL] source: 两个 umon 返回路径… want=2 got=1`，还原后 2/2 `rc=0` ⇒ strict/source-check 各有可达 FAIL，非恒真。
+6. 静态：patch-tree linux 105（463 patches OK）、config-pins 93/93、changelog/knowledge-refs rc=0；patch 正文与已应用 `trap.S` 逐行相同（1755 行）。
+
+**根因（源码行级）**：`entry.h` `DADAO_GPR_RESTORE_AT` 首条即 `ldm.o {rb1:rb2}`（先落用户 SP）、`escape cfx_umon` 在其后；`entry_common.c` 退出尾 `arch_local_irq_restore(flags)` 在返回前重开 `cfx_smon cg15 rc3`；`async_trap.S` 按 `cg15 rc0` 分支，非 user 走内核臂、不换栈；`traps.c` 的 `dadao_trap_busy` 要进 C 体才置位，而序言首笔栈存已重入 ⇒ 同址无限重入。现场独立对账：`PC=…150c1c` = `System.map` 的 `dadao_trap_handler=…150c18` **+4**，`MODE=2`、`CFX02 SYNCN=0x1a4dbf`、`CINFO=0x3ffb126c90`、`RB01=0x3ffb126c40`（用户栈），与完成区逐字段一致。
+
+**修法**：`spec/DADAO-12` §4.1–§4.4/§5.4 — `cg15 rc3` 位=源 cfxha（TIMER=15、PMEM_DMA=32）、`1=屏蔽`、归当前模式 monitor，宏为读-改-写保留既有位；`rd2/rd3` 随即被 restore 宏当 scratch 并从帧重装 = 死寄存器；全仓仅 2 处 `escape cfx_umon` 均已覆盖，交接尾第三处同口径，`dadao_umon_enter` 由 `dadao_enter_user()` 关门覆盖。不丢用户态中断：`escape` 按 `rc11` 整字恢复 umon 行（本修只写 smon 行）、pending 归源不清；soak 绿判据强制 `irq_user>0`，修后我方 soak/strict/回绿合计 **6600 启 0 红**（每启均有 user 态投递），K2 IMASK「释放恰好补投」仍 170/170。
+
+**ISS**：001 `closed`/`resolved_by=025` 成立（根因 + 修后 0/1000、0/2000）；其 `handle_softirqs die` 签名由 006 `open` 承接（`die=0xe4`/`pf-va=0x10|0x204002130f4` 与实测同形），未被吞；004/005 均 `open`；`window_reds == 0` 判据原样保留，strict 只新增、未放松。
+
+**范围**：5 文件与声明一致，无 QEMU/spec/契约/Makefile/他组件；未 push；状态 `待验收`；完成区 10 行。注入前后 `git status --porcelain -uall` 均空、7 个目标文件 md5 前后逐一相同（本轮仅追加本审阅记录）。
+
+**finding（文档级，不阻断，交 architect 收尾改）**
+- F1 完成区「三跑均 42/44」与归档第 3 跑 `41/45`（另含注入回绿 1 红）不符，前两跑还用旧版 `run.sh`（44 项）；遗留③「三次全量每次 1 轮 suite flake」与第 1 跑 suite 全过自相矛盾。
+- F2 「26/200」「19/96」「2048 启 0」无可对存档：本轮实测注入红 42/200、29/200，归档 40/200；监控捕获 12/64（签名字段却逐项吻合）。
+- F3 `ISS-m18-005` 标题写死 `futex-wait-timeout`，实测三例为 mm-pfnmap、mm-map-populate（形状一致、用例名随机）；本轮 1/2 轮复现，频率高于「≤2/6 轮、64 次 0 复现」，建议按区间改写。
+- F4 K5 `f7_tid_cleared` flake 只在完成区遗留④、未登 issue；run3 注入回绿那 1 红的日志已被后续 run 覆盖，无法回溯归因。
+- F5 任务验收 #2「5 组观测量修前/修后对照」未见独立存档（可对的只有 PC/SYNCN/MODE/CINFO 与 mask 探针）；#3 的 LTP 连跑因 006 未完成不可执行，已由遗留①披露。
+
+**判决：Accepted**

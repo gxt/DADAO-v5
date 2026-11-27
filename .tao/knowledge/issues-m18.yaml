@@ -229,7 +229,31 @@
   scope:
   - linux
   milestone: M18
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-025（umon 返回路径恢复用户 SP 前未关 supv 异步门 ⇒ 异步 handler 跑在用户栈；见 title 末段）
+  title: 【P2】`m18-linux-024` 收口后 4800 启中 3 次非窗口签名红（≈1/1600）：boot 78 静默停摆 `rc=124`（`/tmp` 满盘时段）；boot 1974 `handle_softirqs` `va=0x204002130f4` → `die 0xe4`/`PTWMEM`（盘满）；boot 181 `handle_softirqs` `va=0x10` → `die 0xe4`/`PTWMEM`（盘正常）。故障 ip 在通用内核 `handle_softirqs`、不在任何返程桩恢复点，与窗口 die 非同签名；台账与 console 在运行期证据目录。另立任务定位。reviewer 300 启（load≈7–8、多会话并发）2 次同族非窗口红（0.67%）；频率随负载变化，登记为区间而非单点。`m18-linux-026`（0.8.1-rc 迁移）复测：soak 2000 启窗口签名 0，ISS-m18-001 自旋 344–359/2000（≈17–18%，load≈20 并发）；kselftest 两轮各 2 次 spin（共 4）、K6 2 次、K5 1 次；均按 ≤3 重试且不作用例失败，频率仍按负载区间登记；归 `m18-linux-025`。 **m18-linux-025 定位并修复（2026-11-27）**：根因是 `trap.S` 的 `DADAO_GPR_RESTORE_AT` 先恢复 `rb1`（用户 SP）、后恢复其余寄存器，而 `escape cfx_umon` 尚未执行 ⇒ 该窗口内异步入口按 supv 臂不换栈，`dadao_async_kernel_handler` 在用户 SP 上运行；用户栈页未驻留时 C 序言第一笔栈存触发 supv 同步异常，`dadao_trap_busy` 尚未置位 ⇒ `dadao_trap_handler` 在同一用户栈上无限重入（实测 `cfx_smon SYNCN=0x1a4dbf`、`cause=DGPTRAP`、`CINFO`=用户栈地址、vCPU 100%）。修法：两条 umon 返回路径在 `DADAO_GPR_RESTORE_AT` 前 `DADAO_CLOSE_SUPV_ASYNC`（置 `cfx_smon cg15 rc3` 源位 15/32），`escape` 仍整字恢复目标行，下一次内核入口再开 supv 行。证据：修前 soak 30/200（15%）、修后 0/1000（`--soak-strict`，32 并发）；kselftest 连续两轮逐例一致、K5 285/285、K6 82/82（attempts=1、spins=0）。
+- id: ISS-m18-004
+  scope:
+  - linux
+  milestone: M18
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P2】`m18-linux-024` 收口后 4800 启中 3 次非窗口签名红（≈1/1600）：boot 78 静默停摆 `rc=124`（`/tmp` 满盘时段）；boot 1974 `handle_softirqs` `va=0x204002130f4` → `die 0xe4`/`PTWMEM`（盘满）；boot 181 `handle_softirqs` `va=0x10` → `die 0xe4`/`PTWMEM`（盘正常）。故障 ip 在通用内核 `handle_softirqs`、不在任何返程桩恢复点，与窗口 die 非同签名；台账与 console 在运行期证据目录。另立任务定位。reviewer 300 启（load≈7–8、多会话并发）2 次同族非窗口红（0.67%）；频率随负载变化，登记为区间而非单点。`m18-linux-026`（0.8.1-rc 迁移）复测：soak 2000 启窗口签名 0，ISS-m18-001 自旋 344–359/2000（≈17–18%，load≈20 并发）；kselftest 两轮各 2 次 spin（共 4）、K6 2 次、K5 1 次；均按 ≤3 重试且不作用例失败，频率仍按负载区间登记；归 `m18-linux-025`。
+  title: 【P3】`m18-linux-025` 2000 启样本中 1 次极早停摆（`--soak-strict` 计数 1/2000，窗口签名仍 0/2000）：console 停在 `workingset（timestamp_bits）…` 之后、`M45 selftest begin` 之前，`rc=124`，与用户态异步返回窗口（`ISS-m18-001` 已修）签名不同；同一镜像追加 2048 启 0 复现（64 并发、8 s 判活），故按 ≤1/2000 区间登记。复现条件未知（load≈5–8、`/tmp` 85% 时段）；下次复现须抓 QEMU monitor `info registers` 与 `cfx_smon/hart` 快照，归后续任务。
+- id: ISS-m18-005
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m18-linux-025` 全量 `run.sh` 中随机 case 的 `HOST_TIMEOUT`（已见 mm-pfnmap / mm-map-populate / futex-wait-timeout，用例名随机、形状一致；guest 无 `SUITE DONE`、`rc=None`、宿主 idle 120 s 才杀）。频率约每 2 次全量 1 次。未改判据/未重试；复现时须抓 QEMU monitor `info registers`、`cfx_smon cg15 rc3`、`cg16 rc17` 与 `dadao_ticks`，归后续任务。
+- id: ISS-m18-006
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`handle_softirqs` 内 `die=0xe4`/`pf-va=0x10`（`PTWMEM`，坏指针取数）仍是 `ISS-m18-001` 的独立签名：`m18-linux-025` 的注入回绿样本（200 启、32 并发）出现 1 次，`--soak-strict` 只判静默自旋后按 1/200 单独计数；修前 024/026 已登记同签名（`va=0x10`/`0x204002130f4`），本任务未改该路径。复现时抓 `ip`/`rb4`/`va` 与 `handle_softirqs` 的 percpu 基址，归后续任务。

@@ -64,6 +64,7 @@ import m45_entry_probe as m45                                  # noqa: E402
 m45.SCRATCH = Path("/tmp/opencode/m18-linux-026/check-linux-amb")
 
 ASYNC_S = "arch/dadao/kernel/async_trap.S"
+TRAP_S = "arch/dadao/kernel/trap.S"
 
 #: The kernel-context return writes the saved exit intent back and restores the
 #: register file; `rc11` is the async source mask and the `escape` restores it
@@ -236,16 +237,18 @@ def boot_verdict(text: str, rc: int) -> tuple[bool, str]:
              and irq is not None and int(irq.group(1)) > 0
              and int(irq.group(2)) > 0)
     text_why = ",".join(why) or "ok"
-    # ISS-m18-001 has two documented shapes: the silent `rc=124` stop and the
-    # `handle_softirqs` `die 0xe4` / `va=0x10` (or `va=0x204002130f4`) load
-    # fault registered in issues-m18.yaml.  Both are counted separately; the
-    # window signature (`va=0x208`) never is.
-    iss = (rc == 124) or (died and "die=0xe4" in text_why
-                          and ("pf-va=0x10," in text_why
-                               or "pf-va=0x204002130f4" in text_why))
+    # ISS-m18-001 has two documented shapes: the `handle_softirqs` `die 0xe4`
+    # / `va=0x10` (or `va=0x204002130f4`) load fault, and the silent `rc=124`
+    # stop (the load-spin shape this task fixed).  Keep them apart: the window
+    # signature (`va=0x208`) never counts as either.
+    softirq_die = (died and "die=0xe4" in text_why
+                   and ("pf-va=0x10," in text_why
+                        or "pf-va=0x204002130f4" in text_why))
+    silent = rc == 124
     kind = "green" if green else (
         "window" if "va=0x208" in text_why else
-        "iss" if iss else "other")
+        "softirq" if softirq_die else
+        "iss" if silent else "other")
     return green, text_why, kind
 
 
@@ -339,8 +342,13 @@ SOAK_INJECTS: dict[str, list] = {
 }
 
 
-def _soak_counts(tag: str, count: int, jobs: int) -> tuple[int, int, int, int]:
-    """Boot the current image @count times; (greens, reds, window_reds, iss)."""
+def _soak_counts(tag: str, count: int, jobs: int) -> tuple[int, int, int, int, int]:
+    """Boot the current image @count times.
+
+    Returns ``(greens, reds, window_reds, silent_spins, softirq_dies)``.  The
+    silent stop is the m18-linux-025 load-spin shape; the `handle_softirqs`
+    die is the pre-existing ISS-m18-001 family and is reported separately.
+    """
     from concurrent.futures import ThreadPoolExecutor
 
     rom = m45.firmware()
@@ -354,6 +362,7 @@ def _soak_counts(tag: str, count: int, jobs: int) -> tuple[int, int, int, int]:
     reds = 0
     window_reds = 0
     iss = 0
+    softirq = 0
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         for i, green, why, kind in pool.map(one, range(1, count + 1)):
             greens += green
@@ -361,29 +370,43 @@ def _soak_counts(tag: str, count: int, jobs: int) -> tuple[int, int, int, int]:
                 reds += 1
                 window_reds += kind == "window"
                 iss += kind == "iss"
+                softirq += kind == "softirq"
                 print(f"[INFO] {tag} boot {i}: RED ({why}, kind={kind})",
                       flush=True)
             elif i % 250 == 0:
                 print(f"[INFO] {tag} {i}/{count} boots, 0 window red", flush=True)
     if iss:
-        print(f"[WARN] {tag}: {iss} boot(s) hit ISS-m18-001 (counted "
-              f"separately, not a window signature)", flush=True)
-    return greens, reds, window_reds, iss
+        print(f"[WARN] {tag}: {iss} boot(s) hit the silent load spin "
+              f"(ISS-m18-001 spin shape; counted separately)", flush=True)
+    if softirq:
+        print(f"[WARN] {tag}: {softirq} boot(s) hit the pre-existing "
+              f"handle_softirqs die (ISS-m18-001 die shape; separate)", flush=True)
+    return greens, reds, window_reds, iss, softirq
 
 
-def soak(rep: Report, count: int, jobs: int) -> None:
+def soak(rep: Report, count: int, jobs: int, strict: bool = False) -> None:
     rc, snap = m45.build_image("amb:soak")
     rep.check("soak: 镜像可构建", rc == 0 and snap is not None, 0, rc)
     if snap is None:
         return
-    _greens, reds, window_reds, iss = _soak_counts("soak", count, jobs)
+    _greens, reds, window_reds, iss, softirq = _soak_counts("soak", count, jobs)
     # The main criterion is the window signature (the master assertion was
     # `reds == 0`; the ISS-m18-001 family is split out per user ruling and
     # counted below).  A `va=0x208` red still fails this soak.
     nonwindow = reds - window_reds
     rep.check(f"soak: 窗口签名 0/{count} 启（{jobs} 并发；"
-              f"非窗口红 {nonwindow}，其中 ISS 自旋 {iss}）",
+              f"非窗口红 {nonwindow}，其中静默自旋 {iss}、"
+              f"handle_softirqs die {softirq}）",
               window_reds == 0, 0, window_reds)
+    if strict:
+        # m18-linux-025: the silent load-spin shape is what this task fixes.
+        # The pre-existing `handle_softirqs` die is a separate documented
+        # ISS-m18-001 signature and is reported, not hidden; the 024/026
+        # window criterion above is unchanged and never loosened.
+        spin_reds = reds - window_reds - softirq
+        rep.check(f"soak-strict: 静默自旋 0/{count} 启（窗口 0、"
+                  f"handle_softirqs die {softirq}）", spin_reds == 0, 0,
+                  spin_reds)
 
 
 def soak_inject(rep: Report, name: str, count: int, jobs: int) -> None:
@@ -413,14 +436,14 @@ def soak_inject(rep: Report, name: str, count: int, jobs: int) -> None:
         rep.check(f"soak-inject:{name}: 镜像可构建", rc == 0 and snap is not None,
                   0, rc)
         if snap is not None:
-            _g, reds, _w, iss = _soak_counts(f"soak-inject-{name}", count, jobs)
+            _g, reds, _w, iss, softirq = _soak_counts(
+                f"soak-inject-{name}", count, jobs)
             rep.check(f"soak-inject:{name}: 注入后红 > 0（定向窗口探针可达 FAIL）",
                       reds >= 1, ">=1", reds)
-            if iss:
-                print(f"[WARN] soak-inject:{name}: {iss}/{reds} red(s) are the "
-                      f"silent early-init stop classified as ISS-m18-001; the "
-                      f"pin itself is deterministic (see each boot line)",
-                      flush=True)
+            if iss or softirq:
+                print(f"[WARN] soak-inject:{name}: {iss} silent + {softirq} "
+                      f"handle_softirqs die(s) of {reds} red(s); the pin itself "
+                      f"is deterministic (see each boot line)", flush=True)
     finally:
         path.write_bytes(before)
         restored = md5(path)
@@ -431,10 +454,33 @@ def soak_inject(rep: Report, name: str, count: int, jobs: int) -> None:
               rc == 0 and snap is not None, 0, rc)
     if snap is None:
         return
-    _g, reds, _w, iss = _soak_counts(f"soak-inject-{name}-green", count, jobs)
-    other = reds - iss
+    _g, reds, _w, iss, softirq = _soak_counts(
+        f"soak-inject-{name}-green", count, jobs)
+    other = reds - iss - softirq
     rep.check(f"soak-inject:{name}: 还原后回绿（0 非 ISS 红）", other == 0, 0,
               other)
+
+
+def source_check(rep: Report) -> None:
+    """m18-linux-025 structural guard: every user return closes the supv
+    async gate before `DADAO_GPR_RESTORE_AT` restores the user's SP.
+
+    The two umon return paths are the ones the load spin hit (async taken
+    after `rb1` became the user's, handler then ran on the user stack).  The
+    delegated-fault tail has its own inline close; both are checked.  This is
+    a source fact, so the fail path is a code edit (see run.sh route 2), not a
+    boot.
+    """
+    text = (m45.SOURCE / TRAP_S).read_text(encoding="utf-8")
+    n_calls = text.count("\tDADAO_CLOSE_SUPV_ASYNC\n\tDADAO_GPR_RESTORE_AT\n")
+    rep.check("source: 两个 umon 返回路径都在恢复 GPR 前关闭 supv 异步门",
+              n_calls == 2, 2, n_calls)
+    delegate = text.split(".Lumon_delegate", 1)[-1]
+    rep.check("source: 用户故障交接尾部仍先关 supv 异步门再恢复 GPR",
+              "\tcfx2rc\tcfx_smon, cg15, rc3, rd2\n\tDADAO_GPR_RESTORE_AT\n"
+              in delegate, True,
+              "\tcfx2rc\tcfx_smon, cg15, rc3, rd2\n\tDADAO_GPR_RESTORE_AT\n"
+              in delegate)
 
 
 def main() -> int:
@@ -444,6 +490,12 @@ def main() -> int:
                     help="boots per case (default: the case's own count)")
     ap.add_argument("--soak", type=int, default=0,
                     help="boot the baseline image N times (no case injection)")
+    ap.add_argument("--soak-strict", action="store_true",
+                    help="with --soak: also require silent load-spin reds == 0 "
+                         "(m18-linux-025 criterion; the pre-existing "
+                         "handle_softirqs die is counted separately)")
+    ap.add_argument("--source-check", action="store_true",
+                    help="only run the m18-linux-025 static return-path guard")
     ap.add_argument("--soak-inject", choices=sorted(SOAK_INJECTS), default=None,
                     help="inject the restore-window pin, require the soak to "
                          "go red, then cp+md5 restore and require green")
@@ -459,6 +511,14 @@ def main() -> int:
         return 0
 
     rep = Report()
+    if args.source_check:
+        source_check(rep)
+        if rep.failed:
+            print(f"amb_window_probe: {rep.total - len(rep.failed)}/{rep.total} "
+                  f"checks passed, {len(rep.failed)} FAILED")
+            return 1
+        print(f"amb_window_probe: {rep.total}/{rep.total} passed")
+        return 0
     saved_initramfs = shared_initramfs_line()
     try:
         if args.soak_inject:
@@ -469,7 +529,7 @@ def main() -> int:
         elif args.soak:
             print(f"\n=== soak: {args.soak} boots, {args.jobs} in parallel ===",
                   flush=True)
-            soak(rep, args.soak, args.jobs)
+            soak(rep, args.soak, args.jobs, args.soak_strict)
         cases = args.case or ([] if (args.soak or args.soak_inject)
                               else sorted(CASES))
         for case in cases:
