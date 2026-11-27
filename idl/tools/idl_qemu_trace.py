@@ -9,7 +9,7 @@
     不属于被测应用，丢弃；
   * **连续重复记录**（同 PC 且状态逐字段相同）是 QEMU TB 日志伪影，折叠；
   * 第 i 条指令的执行效果 = `records[i+1] - records[i]`（四寄存器组、运行模式、
-    cfx code、cfx5/cfx4）；异常 = 记录间 `cfx3`/`cfx63` 的 `TRAPN/SYNCN/ASYNCN`
+    cfx code、cfx 计数行）；异常 = 记录间 `cfx3`/`cfx63` 的 `TRAPN/SYNCN/ASYNCN`
     计数增量，异常码/地址/信息取该 cfx 的 `CG5`（`cause_id`/`cause_ip`/`cause_info`）；
   * 取指异常 QEMU **不出记录**，其效果落在下一条记录（handler）上 ⇒ 归属到前一条
     指令的区间（与执行器的归并规则一致）。
@@ -37,6 +37,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.dont_write_bytecode = True       # `idl/`/`tools/` 不留字节码残渣
+import idl_qemu_state as qs  # noqa: E402
 import idl_trace_common as tc  # noqa: E402
 
 DEFAULT_QEMU = REPO_ROOT / ".dadao" / "cross-toolchain" / "bin" / "qemu-system-dadao"
@@ -45,9 +46,7 @@ _BANK_RE = re.compile(r"(RD|RB|RF|RA)\[(\d\d)\]: ([0-9a-f]{16})")
 _CFX5_RE = re.compile(r"CFX(\d\d) PREVM:([0-9a-f]+) CID:([0-9a-f]+) "
                       r"CIP:([0-9a-f]+) CINFO:([0-9a-f]+) "
                       r"(?:PEND|PIM):([0-9a-f]+)")
-_CFX4_RE = re.compile(r"CFX(\d\d) ID:[0-9a-f]+ VER:[0-9a-f]+ "
-                      r"TRAPN:([0-9a-f]+) SYNCN:([0-9a-f]+) "
-                      r"ASYNCN:([0-9a-f]+) ESCN:([0-9a-f]+)")
+
 _BITS_RE = re.compile(r"^\[(\d+):(\d+)\]$")
 
 # contract-semihosting §3 的「无返回 / 宿主时钟」服务号。
@@ -66,7 +65,7 @@ def elf_entry(path):
 
 
 def parse_dump(path):
-    """流式解析 `-d cpu` 记录（只保留四寄存器组、mode、cfx code、cfx3/63）。"""
+    """流式解析 `-d cpu` 记录（四寄存器组、mode、cfx code、cfx3/63 计数与帧）。"""
     records = []
     cur = None
     with open(path, encoding="utf-8", errors="replace") as fh:
@@ -77,7 +76,7 @@ def parse_dump(path):
                 cur = {"pc": int(line.split()[1], 16), "mode": None,
                        "cfx": None,
                        "banks": {b: [0] * 64 for b in tc.BANKS},
-                       "cfx5": {}, "cfx4": {}}
+                       "cfx5": {}, "cfx_regs": {}}
                 continue
             if cur is None:
                 continue
@@ -95,11 +94,11 @@ def parse_dump(path):
                     if cfx in (3, 63):
                         cur["cfx5"][cfx] = [int(x, 16) for x in m.groups()[1:]]
                     continue
-                m = _CFX4_RE.match(line)
-                if m:
-                    cfx = int(m.group(1))
-                    if cfx in (3, 63):
-                        cur["cfx4"][cfx] = [int(x, 16) for x in m.groups()[1:5]]
+                hit = qs.parse_cfx_regs(line)
+                if hit is not None:
+                    cfxha, regs = hit
+                    if cfxha in (3, 63):
+                        cur["cfx_regs"][cfxha] = regs
     if cur is not None:
         records.append(cur)
     return records
@@ -108,7 +107,8 @@ def parse_dump(path):
 def _same_state(a, b):
     return (a["pc"] == b["pc"] and a["mode"] == b["mode"]
             and a["cfx"] == b["cfx"] and a["banks"] == b["banks"]
-            and a["cfx5"] == b["cfx5"] and a["cfx4"] == b["cfx4"])
+            and a["cfx5"] == b["cfx5"]
+            and a["cfx_regs"] == b["cfx_regs"])
 
 
 def entry_index(records, entry):
@@ -135,7 +135,9 @@ def collapse(records):
 def entry_state(rec):
     return {"ip": rec["pc"], "mode": rec["mode"], "cfx": rec["cfx"],
             "rd": list(rec["banks"]["rd"]), "rb": list(rec["banks"]["rb"]),
-            "rf": list(rec["banks"]["rf"]), "ra": list(rec["banks"]["ra"])}
+            "rf": list(rec["banks"]["rf"]), "ra": list(rec["banks"]["ra"]),
+            "cfx_regs": {cfxha: dict(regs)
+                         for cfxha, regs in rec["cfx_regs"].items()}}
 
 
 def run_qemu(elf, bootrom, qemu=None, log_path=None, guest_out=None,
@@ -301,9 +303,10 @@ def derive_trace(records, image, decoder):
                                 rd8_ok=not rd8_taint)
         exc = None
         for cfx in (3, 63):
-            prev4 = a["cfx4"].get(cfx, [0, 0, 0, 0])
-            next4 = b["cfx4"].get(cfx, [0, 0, 0, 0])
-            if prev4[:3] != next4[:3]:
+            prev4 = a["cfx_regs"].get(cfx, {})
+            next4 = b["cfx_regs"].get(cfx, {})
+            if any(prev4.get(key, 0) != next4.get(key, 0)
+                   for key in ("trap_num", "sync_num", "async_num")):
                 frame = b["cfx5"].get(cfx, [0] * 5)
                 exc = tc.exc_object(cfx, frame[1], frame[2], frame[3])
                 break

@@ -96,7 +96,8 @@ CG3_TRAP, CG3_MEM, CG3_REG, CG3_EXE, CG3_SWITCH, CG3_VECTOR = \
     0, 1, 2, 3, 14, 15
 # cg4（§3.5）：0 id、1 version、2 trap_num、3 excp_sync_num、4 excp_async_num、
 # 5 escape_num、6 scratch_regs_num。
-CG4_TRAP_NUM, CG4_SYNC_NUM, CG4_ASYNC_NUM, CG4_ESCAPE_NUM = 2, 3, 4, 5
+CG4_ID, CG4_VERSION, CG4_TRAP_NUM, CG4_SYNC_NUM, CG4_ASYNC_NUM, \
+    CG4_ESCAPE_NUM, CG4_SCRATCH_NUM = 0, 1, 2, 3, 4, 5, 6
 # cg7（§3.8）：每 4 个 rc 一个空间块：desc/start/size/attr。
 CG7_DESC, CG7_START, CG7_SIZE, CG7_ATTR = 0, 1, 2, 3
 
@@ -1134,11 +1135,17 @@ class Machine:
         }
 
     def load_state(self, state):
-        """装入初始架构状态（QEMU 观测面）：只写寄存器组，不启发式修正。
+        """装入初始架构状态（QEMU 观测面）：只写寄存器组与 cfx 计数，不启发式修正。
 
         `rf0`/`ra0` 的只读位保持观测值（运行期写入仍走 `set` 的写语义）。
         入口态给的是**逻辑** RA 视图（`ra0` + `ra1..ra63`）⇒ 基准归 0 后按映射
         落到物理槽（环形布局相对基准等价，入口基准本身不影响后续语义）。
+
+        `cfx_regs[cfxha]`（`m17-idl-025`）seed 该 cfx 的 `cg4 rc0–rc6` 与
+        `cg15 rc3`（async_mask）：启动链已执行过的 trap/escape 等计数必须在
+        IDL 初态里可见，否则 trace 从 0 起会与 QEMU 入口观测不一致。**只做初态
+        seed**；运行期继续由执行器语义自行累加，比较器不读 QEMU 值。
+        未被 Tiny 实现的 cfx 不在本模型观测面，跳过。
         """
         self.ip = state["ip"] & MASK64
         self.mode = state.get("mode", MODE_HYPV) & 0x3
@@ -1152,6 +1159,22 @@ class Machine:
                     continue
                 phys = self._ra_phys(i) if bank == "ra" else i
                 self.banks[bank][phys] = val & MASK64
+        cfx_regs = state.get("cfx_regs")
+        if not cfx_regs:
+            raise ExecError("init state missing cfx_regs（QEMU CFX 计数行）")
+        for key, regs in cfx_regs.items():
+            cfx = self.cfx.get(int(key))
+            if cfx is None:
+                continue
+            cfx.cg4[CG4_ID] = regs["id"] & MASK64
+            cfx.cg4[CG4_VERSION] = regs["ver"] & MASK64
+            cfx.cg4[CG4_TRAP_NUM] = regs["trap_num"] & MASK64
+            cfx.cg4[CG4_SYNC_NUM] = regs["sync_num"] & MASK64
+            cfx.cg4[CG4_ASYNC_NUM] = regs["async_num"] & MASK64
+            cfx.cg4[CG4_ESCAPE_NUM] = regs["escape_num"] & MASK64
+            cfx.cg4[CG4_SCRATCH_NUM] = regs["scratch_num"] & MASK64
+            if cfx.cg15 is not None:
+                cfx.cg15[CG15_ASYNC_INTR_MASK] = regs["async_mask"] & MASK64
 
 
 # 每个 operation 的语义按 idl/*.idl 的正文实现；id 与 contracts/opcodes.yaml 同源。

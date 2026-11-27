@@ -15,8 +15,10 @@
 
     {"entry": <state>, "last": <state>, "qemu_rc": <int>, "guest_out_hex": "…"}
 
-`<state>` = `{ip, mode, cfx, rd[64], rb[64], rf[64], ra[64]}`。实现只读 QEMU 的
-文本观测面，不解释指令语义。
+`<state>` = `{ip, mode, cfx, rd[64], rb[64], rf[64], ra[64], cfx_regs}`：
+`cfx_regs[cfxha]` = 该 cfx 的 `cg4 rc0–rc6`（id/version/trap/sync/async/escape/
+scratch）与 `cg15 rc3`（async_mask），取自 dump 里同一条 `CFXnn …` 行
+（`m17-idl-025`）。实现只读 QEMU 的文本观测面，不解释指令语义。
 """
 from __future__ import annotations
 
@@ -34,6 +36,27 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_QEMU = REPO_ROOT / ".dadao" / "cross-toolchain" / "bin" / "qemu-system-dadao"
 
 _BANK_RE = re.compile(r"(RD|RB|RF|RA)\[(\d\d)\]: ([0-9a-f]{16})")
+# `cpu_dump_state` 的 cfx 计数/掩码行（`m17-idl-025`）：
+# CFXnn ID:… VER:… TRAPN:… SYNCN:… ASYNCN:… ESCN:… SCRN:… GIM:…
+_CFX_RE = re.compile(
+    r"CFX(\d\d) ID:([0-9a-f]+) VER:([0-9a-f]+) TRAPN:([0-9a-f]+) "
+    r"SYNCN:([0-9a-f]+) ASYNCN:([0-9a-f]+) ESCN:([0-9a-f]+) "
+    r"SCRN:([0-9a-f]+) GIM:([0-9a-f]+)")
+_CFX_FIELDS = ("id", "ver", "trap_num", "sync_num", "async_num",
+               "escape_num", "scratch_num", "async_mask")
+
+
+def parse_cfx_regs(line):
+    """解析一条 `CFXnn …` 计数/掩码行；返回 `(cfxha, {field: value})` 或 None。
+
+    字段映射：cg4 rc0 id / rc1 ver / rc2 trap_num / rc3 sync_num / rc4 async_num /
+    rc5 escape_num / rc6 scratch_num；cg15 rc3 async_mask（GIM）。
+    """
+    m = _CFX_RE.match(line)
+    if m is None:
+        return None
+    return int(m.group(1)), {name: int(m.group(i + 2), 16)
+                             for i, name in enumerate(_CFX_FIELDS)}
 
 
 def elf_entry(path):
@@ -67,7 +90,8 @@ def parse_dumps(path, entry):
                 cur = {"ip": int(line.split()[1], 16), "mode": None,
                        "cfx": None,
                        "rd": [0] * 64, "rb": [0] * 64,
-                       "rf": [0] * 64, "ra": [0] * 64}
+                       "rf": [0] * 64, "ra": [0] * 64,
+                       "cfx_regs": {}}
                 continue
             if cur is None:
                 continue
@@ -78,6 +102,11 @@ def parse_dumps(path, entry):
             elif line[:2] in ("RD", "RB", "RF", "RA"):
                 for bank, idx, val in _BANK_RE.findall(line):
                     cur[bank.lower()][int(idx)] = int(val, 16)
+            elif line.startswith("CFX"):
+                hit = parse_cfx_regs(line)
+                if hit is not None:
+                    cfxha, regs = hit
+                    cur["cfx_regs"][cfxha] = regs
     finish(cur)
     return entry_state, last_state, n
 

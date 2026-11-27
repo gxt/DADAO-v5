@@ -48,6 +48,28 @@
   - 口径：`rd8_skip` 计**记录数**，随用例集变化，引用须用脚本当次输出、不得写死。**覆盖率偏大的直接含义**：`rd8` 值证据力弱，M20 复用本格式时不得把它当独立功能证明，`rd8` 相关指令的功能判据须另配签名槽/定向用例。
   - **E4 不再放宽**（`m17-idl-024`）：全 64 槽按值比，无 `ra_skip` 统计；窗口外残留槽由统一环形约定保证一致。2026-11-25 记录的旧 `ra_skip` 数据（E4 跳过集）已作废。
 
+### 2.2 入口态（QEMU 观测面，`m17-idl-025`）
+
+`idl_qemu_trace.py --entry-out` 与 `idl_qemu_state.py` 的 `entry` 在寄存器组之外还带
+`cfx_regs`：`{cfxha: {id, ver, trap_num, sync_num, async_num, escape_num,
+scratch_num, async_mask}}`。逐字段取自 dump 的**同一条** `CFXnn …` 行：
+`id/ver/trap_num/sync_num/async_num/escape_num/scratch_num` = `cg4 rc0–rc6`，
+`async_mask`（QEMU 的 `GIM`）= `cg15 rc3`。
+
+`load_state()` 只把这些值 **seed 进初态**（Tiny 观测面 = cfx3 hmon / cfx63 power；
+未实现的 cfx 不在本模型范围、跳过），运行期仍由执行器语义自行累加计数——**不得**用
+QEMU 值覆盖运行期状态，也不得据此跳过任何比较。入口态缺 `cfx_regs` 时显式失败
+（不静默按全 0 起算）。
+
+计数比较规则（用户 2026-11-27 口径）：
+
+- **确定性计数**（`cg4 rc2 trap_num` / `rc3 sync_num` / `rc5 escape_num` 等，由复位态 +
+  指令流唯一决定）⇒ **严格相等**，无阈值、无跳过；trace 中经 `cfx2*` 的 `dst/val`
+  按值比，异常判定用记录间计数增量。
+- **依赖时序/历史的计数**（例如异步进入数）才允许增量/阈值；当前 Tiny 单 hart 无
+  实例，不预造机制。
+- **平台不存在的寄存器**不在 trace 里跳过（归测试用例/DIV 处置，`m17-testcases-008`）。
+
 ## 3. QEMU 逐指令比对口径与文档化等价
 
 QEMU 侧命令固定为 `-accel tcg,one-insn-per-tb=on -d cpu -D <log>`（QEMU 11 system 模式无 `-singlestep`）。`-d cpu` 每条记录是该指令**执行前**的状态，所以第 i 条指令的效果 = `record[i+1] − record[i]`；入口 = 第一条 `PC == e_entry` 的记录。
