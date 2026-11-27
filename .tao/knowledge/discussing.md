@@ -734,9 +734,9 @@
 2. **共享环境已重放对齐（本会话做过，勿重复）**：qemu 源树 `a8d0796` + 安装根 `e470dc56…`（含 `m18-qemu-008/009/010`）、gem5 源树 `7db7553` + `gem5.opt` `ebb19d0b…`、chipyard `7b1d785` + Vast `0ead2519…` / Tiny `71cbed98…`、LLVM 11-26 07:23。若再合入组件补丁，按 `lessons.md` 的「重放+重建+`install-host`」执行。
 3. **musl 源树落后补丁集**：`.work/source/musl` 停在 11-24，`components/musl/patches/arch/dadao/bits/signal.h.patch` 已被 `m18-linux-010` 更新 ⇒ `check_patch_tree` 报 2 个 problem（`make check` 会红）。重放会让安装根 libc 变化，**必须在 LTP（`m18-linux-006`）等跑批的空窗做**，并与正在跑的任务串行。
 4. **M18 台账有 1 处机械违规**：`milestones-m18.md` 的 `m18-linux-027` 行预估写「—」，且 `.tao/tasks/linux/m18-linux-027-内核源接口ack迁移.md` 无头部 `**状态**` ⇒ `check-milestones-fresh` 红。该任务已「并入 026」，建议把该行改为说明性文本（移出「待开始」表）并补任务书状态。
-6. **worktree 清点**：`git worktree list` 仍见 4 个 `m18-*` 工作树（`m18-linux-024-2` 为 detached；`m18-linux-025`/`m18-testcases-001`/`m18-testcases-002` 分支已合入 master 但工作树有未提交改动）——请 M18 各自确认后提交或删除，本会话未动（避免误删在途改动）。
 5. **疑似回归（需与 M20 协同 bisect）**：`arch-power-001/002`、`arch-umon-012/013` 在 qemu/gem5 上挂死，11-26/11-23 有绿证据；M16 探针未改，指向 `m18-qemu-008/009/010`（gem5 侧 `m18-gem5-004/005`）。`arch-umon-011` 的 qemu 槽 1 期望 `0xffff…` 实际 `0x0123…`，同批线索。
 
+6. **worktree 清点**：`git worktree list` 仍见 4 个 `m18-*` 工作树（`m18-linux-024-2` 为 detached；`m18-linux-025`/`m18-testcases-001`/`m18-testcases-002` 分支已合入 master 但工作树有未提交改动）——请 M18 各自确认后提交或删除，本会话未动（避免误删在途改动）。
 ### 给 M20
 
 1. **差分接手顺序**：`m20-integ-001`（三方 cfx/cg/rc 覆盖矩阵与口径）→ 先修下面 4 个 `run_arch` 缺口 → `m20-integ-002`（实测与缺口关闭）。现场数据与红项清单见 **N40**。
