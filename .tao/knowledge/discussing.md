@@ -774,6 +774,7 @@
 
 - `ISS-m18-004`：2000 启中 1 次极早停摆（`workingset` 后、`M45 begin` 前），2048 启未复现。
 - `ISS-m18-005`：suite 随机 case `HOST_TIMEOUT`（`futex-wait-timeout`/`mm-pfnmap`），独立 suite 两轮 + 64 次启动 0 复现。
+- `ISS-m18-006`：`handle_softirqs` `die=0xe4`（`pf-va=0x10`）低频签名（025 修后 1/200），与 `ISS-m18-001` 的静默自旋根因不同，独立计数。
 - 判据纪律：命中即计数重跑（每轮 ≤3 次），**不得**放宽 `window_reds == 0`、不得把 `HOST_TIMEOUT` 吞掉。
 
 **易失与残留**
