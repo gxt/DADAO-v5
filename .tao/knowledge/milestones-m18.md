@@ -33,7 +33,6 @@
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
-| m18-linux-018 | 2–3 h | 套件环境补齐（TMPFS/MEMFD、非 root uid、`/proc/iomem`；SUITE_ENV） |
 
 > **已作废（2026-11-23，ADR-0060）**：`m18-qemu-002`（monitor-first QEMU）reviewer Accepted 但**不合入 master**，分支留参考；`m18-qemu-003`（旧探针迁 monitor-first）未开工、被 hart-first 取代。
 
@@ -42,6 +41,7 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m18-linux-006 | 2026-11-23 02:40（**2026-11-27 13:17 重派**） | 3–5 h | LTP 子集接入与两轮一致（源 tag `20260930`，commit `2279d708…`）；**在 0.8.1-rc 内核 + 新 QEMU 上重跑**，025 已闭 `ISS-m18-001` |
+| m18-linux-018 | 2026-11-27 15:16 | 2–3 h | 套件环境补齐（TMPFS/MEMFD、`/proc/iomem`、非 root uid + 006 新增 `PATH`/`/etc/passwd`）；先确认 `mlockall02 die-no-vma` 非内核缺陷 |
 
 ## 已验证
 
