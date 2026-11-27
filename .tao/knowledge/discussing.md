@@ -782,3 +782,11 @@
 - 026/qemu-007 的 worktree 已删，其运行期证据随之消失；关键数字已落各自任务书「完成区/审阅记录」。后续任务证据要落非易失位置。
 - 仍有 3 个旧 worktree 带未跟踪改动（`m18-linux-024-2`、`m18-testcases-001/002`，后两者已作废），`git worktree remove` 需 `--force`，未处理、待用户确认。
 - 会话教训：① 并发写者误判（同一 worktree 曾同时存在两个 engineer，接管方及时停手未写）；② `run.sh`「恒真断言」在 024/026 两次出现（`soak` 的 `ok=True`），修复后必须有「注入→FAIL→还原→回绿」。
+
+## N42. M20 指令批授权（2026-11-27 16:40）
+
+- **用户裁定**：`m20-testcases-007` 调研完成后，指令类移植**立即开始**，不必等 `m20-testcases-006`；不设条数上限，按缺口逐条立项。
+- **批次清单**：`m20-testcases-008`（A6 位操作）→ `009`（A8 单精浮点）→ `010`（A9 双精浮点）→ `011`（A4 乘除余 + A5 存取）→ `012`（A1–A3 + A10）；全链逐件串行。
+- **共享写者**：`tests/inst/**`、`tests/inst.yaml`、`tests/case-ledger.tsv`、`tests/data/inst-signature/*` 与 `m20-testcases-006`、`m20-infra-002` 互斥，不得并行；本链内部亦串行。
+- **验收**：每件 `check-inst-asm` + `check-idl`（四方签名槽）+ `inst-signature-data` 同步 + `check-tests-index`/`check-case-ledger`/`check-index-blobs`/`check-inst-macro-scope`/`check-knowledge-refs`；证据用「注入→FAIL→cp+md5 还原→回绿」。
+- **停止点**：不 push；不改 `spec/`/`.tao/contracts/`/`opcodes.yaml`/引擎。系统批（S1–S3）仍等 cfx W1–W3 + `m20-integ-002`，不在本批次。
