@@ -33,6 +33,7 @@
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
 | m18-linux-029 | 3–5 h | 异步精确点残余（忙等 7/20，疑 QEMU `cg15 rc2` 在 `ret` 上口径）；先诊断 `spec` vs 模型，未定不自行改 spec |
+| m18-linux-030 | 2–3 h | hart 全局 `trap_busy` 跨睡眠误报递归（`ISS-m18-012`，028 样本 1/20）；修后 20 启 0 + 真递归仍能判 |
 
 > **已作废（2026-11-23，ADR-0060）**：`m18-qemu-002`（monitor-first QEMU）reviewer Accepted 但**不合入 master**，分支留参考；`m18-qemu-003`（旧探针迁 monitor-first）未开工、被 hart-first 取代。
 
