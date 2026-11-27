@@ -790,3 +790,12 @@
 - **共享写者**：`tests/inst/**`、`tests/inst.yaml`、`tests/case-ledger.tsv`、`tests/data/inst-signature/*` 与 `m20-testcases-006`、`m20-infra-002` 互斥，不得并行；本链内部亦串行。
 - **验收**：每件 `check-inst-asm` + `check-idl`（四方签名槽）+ `inst-signature-data` 同步 + `check-tests-index`/`check-case-ledger`/`check-index-blobs`/`check-inst-macro-scope`/`check-knowledge-refs`；证据用「注入→FAIL→cp+md5 还原→回绿」。
 - **停止点**：不 push；不改 `spec/`/`.tao/contracts/`/`opcodes.yaml`/引擎。系统批（S1–S3）仍等 cfx W1–W3 + `m20-integ-002`，不在本批次。
+
+## 会话交接（2026-11-27，M17 收口后）
+
+- **M17 已归档**：`.tao/archive/M17/`（46 册，达成 2026-11-27）；活册只剩 M18/M19/M20。M17 任务面 0 遗留、`issues-m17` 0 open。
+- **跨平台 RAS 统一约定（用户 2026-11-27「都采用环形」）**：物理槽 `0` = `ra0` 元数据；`phys(i) = 1 + ((base + i) % 63)`（`i ∈ 1..63`）；`base` 6 位、0..62、复位 0、不可架构访问；`call` ⇒ `+1`、`ret` ⇒ `−1`（模 63）；所有架构访问经映射。四平台已实现（QEMU `ra_phys`、gem5 `ras::phys`、IDL `Machine._ra_phys`、RTL `WumingRegFile`）——**任何平台改布局必须四处同步**，否则 trace 的「全 64 槽按值比」会假红。
+- **trace 计数口径**：确定性计数（`cg4 rc2/rc3/rc5` 等）**严格相等**（入口态 seed `cg4`/`cg15`）；只有历史依赖计数才允许阈值/增量（当前无实例，不预造机制）。见 `idl/docs/trace-format.md`。
+- **`check-idl-full` 已支持 `expected-divergences` 逐槽例外**（`m17-idl-026`，见 `idl/docs/four-way.md §7`）；Tiny 缺 `cg4`/`cg15 rc3` 按 `DIV-18` `slots` 声明（真触发 CFXREG、不写常量、不跳过）。M20 不需重复实现该能力。
+- **已知基线红（非 M17，均已登记）**：`check-patch-tree` 52 problem（linux 51/musl 1，`ISS-left-004`）；L3 `stack-protector*.ll` 未归类（`ISS-left-005`）；`check-milestones-fresh` 的 `m18-linux-027` 未入表（M18 会话）；`check-manifests-guard` 的 M16 归档遗留 2 条登记。
+- **证据位置**：本轮门控/注入日志在运行期证据目录（不入库）；结论已写进归档 `README.md §3`、`m17-retrospective.md` 与各任务书完成区/审阅记录。
