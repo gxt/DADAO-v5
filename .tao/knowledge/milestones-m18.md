@@ -31,6 +31,7 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m18-linux-029 | 3–5 h | 异步精确点残余（忙等 7/20，疑 QEMU `cg15 rc2` 在 `ret` 上口径）；先诊断 `spec` vs 模型，未定不自行改 spec |
+| m18-integ-001 | 2–3 h | M18 收口评审：K6 busybox + kselftest 两轮 + LTP 两轮 + 非 PASS 全分诊 + L3 门控；只读复核 |
 
 > **已作废（2026-11-23，ADR-0060）**：`m18-qemu-002`（monitor-first QEMU）reviewer Accepted 但**不合入 master**，分支留参考；`m18-qemu-003`（旧探针迁 monitor-first）未开工、被 hart-first 取代。
 
