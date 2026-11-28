@@ -21,7 +21,7 @@
 	.include "tests/shared/asm/machine-vast.inc"
 	.include "tests/shared/asm/perm_hypv.inc"
 
-	.equ	EXITB, 0xffffff015800
+	.equ	EXITB, 0xffffff000030
 	.equ	ESC_RC11_PATTERN, 0x0123456789ABCDEF
 	.equ	ESC_BAD_MASK, 0xFFFFFFFF00000000
 	.equ	ESC_SMON_INFO, 0x000000007E080000	@@ (0x7E << 24) | (2 << 18)

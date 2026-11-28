@@ -4,7 +4,7 @@ QEMU/gem5 驱动（`m16-testcases-014`）。
 
 载体：`tests/arch/pmem/pmem_dma.S`（与 RTL 承载**同一份** case 源）。QEMU/gem5
 用 flat bin 从 `ENTRY=0x0010_0000` 装入；RTL 用 `pmem_dma.lds` 的
-`0xffff_ff01_0100`。两者都通过 `--defsym` 覆盖地址，槽序完全一致。
+`0xffff_ff00_2000`。两者都通过 `--defsym` 覆盖地址，槽序完全一致。
 
 判据（Independent oracle）：`pmem_oracle.py` 从 `spec/DADAO-12
 §4.6/§4.9/§5.1/§5.4`、`ADR-0061`、`contract-see`、`contracts/opcodes.yaml`

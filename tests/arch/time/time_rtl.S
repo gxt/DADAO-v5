@@ -39,10 +39,10 @@
 	.include "tests/shared/asm/signature.inc"
 	.include "tests/shared/asm/perm_hypv.inc"
 
-	.equ	ENTRY,   0xffffff010100
-	.equ	SIG_BUF, 0xffffff015000
+	.equ	ENTRY,   0xffffff002000
+	.equ	SIG_BUF, 0xffffff001000
 	.equ	SIG_N,   16			@@ 签名区容量（槽数 ≤ 16）
-	.equ	EXITB,   0xffffff015800
+	.equ	EXITB,   0xffffff000030
 	@@ RTL 的 hmon 是**共享的 Tiny 保存-跳转处理器**（`make build-bootrom` 的
 	@@ `--hmon-elf $(TINY_BOOTROM_DIR)/hmon.elf`，`m16-chipyard-025`）：它的
 	@@ cause_id 槽 = `hmon SRAM + 0xE0`、回落点 = `+0xF8`

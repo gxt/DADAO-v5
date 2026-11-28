@@ -9,8 +9,8 @@
  *
  *   ENTRY + 0x0000  .text        探针主体
  *   ENTRY + 0x4000  .faultpad    `abort` 之外不使用（宏层预留）
- *   ENTRY + 0x7000  结果缓冲（运行时写，不进镜像）
- *   ENTRY + 0x7800  SYS_EXIT 参数块（运行时写，不进镜像）
+ *   SIGNATURE      结果缓冲（`MAIN_SRAM_BASE + 0x1000`，运行期写，不进镜像）
+ *   EXIT_BLOCK     SYS_EXIT 参数块（`MAIN_SRAM_BASE + 0x0030`，运行期写）
  */
 
 ENTRY(_start)
@@ -22,7 +22,7 @@ PHDRS
 
 SECTIONS
 {
-  . = 0xffffff010100;
+  . = 0xffffff002000;
 
   .text : {
     *(.text)

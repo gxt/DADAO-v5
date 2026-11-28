@@ -3,12 +3,12 @@
  * （`m16-testcases-014`，chipyard `WumingVastConfig`）。
  *
  * 与 `tests/arch/hart/cfx15.lds` 同型（固定 BootROM 跳到 cfx63 SRAM 的
- * `0xffff_ff01_0100`，`+loadmem` 只装 PT_LOAD 段）：
+ * `0xffff_ff00_2000`（`spec/Kaiwu §6.2` 新几何），`+loadmem` 只装 PT_LOAD 段）：
  *
  *   ENTRY + 0x0000  .text   探针代码（≤ 16 KiB）
  *   ENTRY + 0x4000  .data   phase / sig_bytes
- *   ENTRY + 0x5000  签名缓冲（SIG_BUF；96 槽 = 768 B）
- *   ENTRY + 0x5800  SYS_EXIT 参数块（EXITB）
+ *   SIGNATURE       签名缓冲（`MAIN_SRAM_BASE + 0x1000`；SIG_BUF；96 槽 = 768 B）
+ *   EXIT_BLOCK      SYS_EXIT 参数块（`MAIN_SRAM_BASE + 0x0030`；EXITB）
  *   PA 0x0          首张页表（4 × 512 MiB 超页；VA = PA，HSJU = 0xC）
  *
  * PA 测试窗（0x20_0000 起）不用链接布局：CPU 经首张页表的 PTE0（VA = PA）
@@ -26,13 +26,13 @@ PHDRS
 
 SECTIONS
 {
-  . = 0xffffff010100;
+  . = 0xffffff002000;
 
   .text : {
     *(.text)
   } : image
 
-  . = 0xffffff014000;
+  . = 0xffffff006000;
   .data : {
     *(.data)
   } : image

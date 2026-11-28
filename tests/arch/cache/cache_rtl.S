@@ -34,9 +34,9 @@
 	.equ	TMODE, 3
 	.endif
 
-	.equ	ENTRY,   0xffffff010100
-	.equ	SIG_BUF, 0xffffff015000
-	.equ	EXITB,   0xffffff015800
+	.equ	ENTRY,   0xffffff002000
+	.equ	SIG_BUF, 0xffffff001000
+	.equ	EXITB,   0xffffff000030
 	.equ	HMON_BASE, 0x0fff00000000
 
 	.if	CCASE == 1

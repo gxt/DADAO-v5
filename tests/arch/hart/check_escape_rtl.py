@@ -3,7 +3,7 @@
 （`m18-chipyard-002`）。
 
 载体：`tests/arch/hart/escape_escalation.S` + `cfx15.lds`
-（`WumingVastConfig`，`+loadmem` 到 `0xffffff010100`）。探针以 `SYS_EXIT 0`
+（`WumingVastConfig`，`+loadmem` 到 `0xffffff002000`）。探针以 `SYS_EXIT 0`
 表示全部判据通过（rc11 整字恢复 / 升权 `CFXESC` / 未实现目标 `CFXESC` /
 `imms18 != 0 ⇒ ILLI`），非零退出码即失败的检查点（见 `.S` 头部）。
 

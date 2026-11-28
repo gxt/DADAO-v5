@@ -10,7 +10,7 @@
 | 文件 | 作用 |
 | --- | --- |
 | `cfx15.S` | **唯一** case 源：cg8（hart_id/cycle/insn/timer_cmp/timer_ctrl）读写与 RO/保留编码；cg15 捕获布局（`rc0`–`rc5` 入口记录 HW/RO、写忽略；`rc6`–`rc13` ⇒ `CFXREG`；`rc14` switch RW 复位 2、`rc15` vector RW 低 2 位写忽略）；`cg5 rc0`–`rc5` 入口记录写 ⇒ `CFXREG`、`rc8`–`rc11` 出口意图；屏蔽写在**当前运行模式 monitor** 的 `cg15 rc3`（bit15 = 源 cfxha 15）；TIMER 投 cfx_hart+supv、`src_frame`/`src_pending` 位 = `1 << 15`；屏蔽期只置 pending、解除后投递；源 ack 后 pending 落；**覆盖语义**；**正常异步返回** `escape cfx_hart`（`rc11` 整字写目标 monitor、在第一条返回指令前生效）；`imms18 = 3/4` ⇒ ILLI；**jump 目标精确点**；`rc14` 进入模式；**escape 判据**（升权 / 目标 cfx 未实现 / `cfxha` 不符 ⇒ CFXESC） |
-| `cfx15.lds` | RTL 布局：`ENTRY` = `0xffff_ff01_0100`、`.data` = `+0x4000`、签名区 `+0x5000`、`SYS_EXIT` 块 `+0x5800`；`--defsym TMODE=<0\|2\|3>` 在**汇编期**选运行模式 |
+| `cfx15.lds` | RTL 布局：`ENTRY` = `0xffff_ff00_2000`、`.data` = `+0x4000`、签名区 = `SIGNATURE`（`MAIN_SRAM_BASE+0x1000`）、`SYS_EXIT` 块 = `EXIT_BLOCK`（`+0x0030`）；`--defsym TMODE=<0\|2\|3>` 在**汇编期**选运行模式 |
 | `cfx15_qemu.lds` | QEMU 布局：`ENTRY` = `0x0010_0000`、`.data` = `+0x4000`；同一份 `.S` 由驱动用 `--defsym ENTRY/SIG_BUF/EXITB/HMON_BASE` 覆盖地址 |
 | `check_cfx15.py` | 独立判据：期望值现场取自 `spec/DADAO-12` §1/§3/§4.1–§4.7/§5.1/§5.4、`ADR-0061`、`contract-see` §3/§6.1 与 `contracts/opcodes.yaml`；`cause_ip` 用 ELF 符号精确断言；`--self-test` 对每条记录做可达 FAIL 证明 |
 | `check_hart.py` | QEMU/gem5 驱动（`run_arch.py` 的 `kind: driver`）：flat bin 从 `ENTRY` 装入，跑 QEMU（`-icount` 使 cycle 搜索确定）/gem5 shim；过 oracle 后写**归一化**签名（每槽 1） |

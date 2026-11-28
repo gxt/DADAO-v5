@@ -83,7 +83,7 @@ IMM = [0x1111, 0x3333, 0x5555, 0x7777, 0x9999, 0xBBBB, 0xDDDD, 0xEEEE,
 
 # Witnesses that a no-op / no-line command reached its successor (they are not
 # semantic expectations: they only prove the instruction did not fault).
-MMIO_LINE = 0x00FFFF_FF01_0100      # core-SRAM PA: no cache line can match
+MMIO_LINE = 0x00FFFF_FF00_2000      # core-SRAM PA (= ENTRY, 56-bit): no cache line can match
 W_NONE_SEL = 0xC0DE_0000_0000_0700
 W_MMIO = 0xC0DE_0000_0000_0701
 

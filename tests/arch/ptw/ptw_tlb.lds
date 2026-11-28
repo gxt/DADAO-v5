@@ -2,7 +2,7 @@
  * ptw_tlb.lds — `tests/arch/ptw/ptw_tlb.S` 的链接布局（`m16-chipyard-008`）。
  *
  * 两套地址：
- *   * 探针自身在核内 SRAM（`0xffffff010100`，`addr[47:42] ≠ 0`，不经翻译）；
+ *   * 探针自身在核内 SRAM（`0xffffff002000`，`addr[47:42] ≠ 0`，不经翻译）；
  *   * 页表与映射目标按 **PA** 落在 PA RAM（`+loadmem=` 按 `p_paddr` 装入）：
  *       L1 表 0 / L2 表 0x1_0000 / 普通页 0x10_0000.. / 新目标 0x20_0000.. /
  *       OR 页 0x40_0000 / PX 0x50_0000 / PI 0x60_0000 / PD 0x70_0000 /
@@ -36,7 +36,7 @@ PHDRS
 
 SECTIONS
 {
-  . = 0xffffff010100;
+  . = 0xffffff002000;
   .text : {
     *(.text)
   } : text
@@ -44,10 +44,10 @@ SECTIONS
   ASSERT(SIZEOF(.text) <= 0x4000, "ptw_tlb: .text 越过 16 KiB 窗口")
 
   /* 宏层固定地址（`inst_test.inc`：TEST_PAD / TEST_DATA）——都落在核内 SRAM 窗口。 */
-  . = 0xffffff014000;
+  . = 0xffffff006000;
   .faultpad : { *(.faultpad) } : text
 
-  . = 0xffffff015800;
+  . = 0xffffff007800;
   .testdata : { *(.testdata) } : text
 
   . = 0x0;

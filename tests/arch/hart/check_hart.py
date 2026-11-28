@@ -4,7 +4,7 @@
 
 载体：`tests/arch/hart/cfx15.S`（与 RTL 承载**同一份** case 源）。QEMU 用
 flat bin 从 `ENTRY=0x0010_0000` 装入；RTL 用 `cfx15.lds` 的
-`0xffff_ff01_0100`。两者都通过 `--defsym` 覆盖地址，槽序完全一致。
+`0xffff_ff00_2000`。两者都通过 `--defsym` 覆盖地址，槽序完全一致。
 
 判据（Independent oracle）：`check_cfx15.py` 从 `spec/DADAO-12 §4.7/§5.4`、
 `ADR-0061`、`contract-see`、`contracts/opcodes.yaml` 现场派生；`cause_ip`

@@ -43,14 +43,14 @@
 	.include "tests/shared/asm/perm_hypv.inc"
 
 	.ifndef	ENTRY
-	.equ	ENTRY,   0xffffff010100
+	.equ	ENTRY,   0xffffff002000
 	.endif
 	.ifndef	SIG_BUF
-	.equ	SIG_BUF, 0xffffff015000
+	.equ	SIG_BUF, 0xffffff001000
 	.endif
 	.equ	SIG_N,   96
 	.ifndef	EXITB
-	.equ	EXITB,   0xffffff015800
+	.equ	EXITB,   0xffffff000030
 	.endif
 
 	.ifndef	TMODE

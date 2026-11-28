@@ -328,9 +328,9 @@ def self_test() -> int:
           % len(cases))
 
     # trace 解析：合成一行 `+verbose` 输出，必须取出 (mode, data)。
-    synth = ("WumingCore: cfx2 ip=0xffffff010188 ha=34 cg=10 rc= 1 write=0 "
+    synth = ("WumingCore: cfx2 ip=0xffffff002188 ha=34 cg=10 rc= 1 write=0 "
              "ok=1 mode=2 data=0x0000000000001234 wdata=0x0 cycle= 1781\n"
-             "WumingCore: cfx2 ip=0xffffff010190 ha=15 cg= 8 rc= 2 write=0 "
+             "WumingCore: cfx2 ip=0xffffff002190 ha=15 cg= 8 rc= 2 write=0 "
              "ok=1 mode=2 data=0x0000000000001300 wdata=0x0 cycle= 1790\n")
     tmp = _REPO / ".work" / "evidence" / "m16-chipyard-023" / "work" \
         / "rtl" / "selftest-trace.log"

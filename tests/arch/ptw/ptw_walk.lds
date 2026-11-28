@@ -2,7 +2,7 @@
  * ptw_walk.lds — `tests/arch/ptw/ptw_walk.S` 的链接布局（`m16-chipyard-007`）。
  *
  * 两套地址：
- *   * 探针自身在核内 SRAM（`0xffffff010100`，`addr[47:42] ≠ 0`，不经翻译）；
+ *   * 探针自身在核内 SRAM（`0xffffff002000`，`addr[47:42] ≠ 0`，不经翻译）；
  *   * 页表与映射目标按 **PA** 落在 PA RAM（`+loadmem=` 按 `p_paddr` 装入）：
  *       L1 表 0x0 / L2 表 0x1_0000 / 数据页 0x1_1000 / 故障表 0x3_0000 /
  *       可执行桩 0x5_0000 / 超页 0x4000_0000 与 0x4400_0000。
@@ -30,7 +30,7 @@ PHDRS
 
 SECTIONS
 {
-  . = 0xffffff010100;
+  . = 0xffffff002000;
   .text : {
     *(.text)
   } : text
@@ -40,10 +40,10 @@ SECTIONS
   /* 宏层固定地址（`inst_test.inc`：TEST_PAD / TEST_DATA）——都落在核内 SRAM 窗口，
      不参与翻译；不显式放置的话链接器会把它们丢到 PA 段之后，`__pad` 的相对跳转
      就够不着 `.text`。 */
-  . = 0xffffff014000;
+  . = 0xffffff006000;
   .faultpad : { *(.faultpad) } : text
 
-  . = 0xffffff015800;
+  . = 0xffffff007800;
   .testdata : { *(.testdata) } : text
 
   . = 0x0;

@@ -36,10 +36,10 @@
 	.include "tests/shared/asm/signature.inc"
 	.include "tests/shared/asm/perm_hypv.inc"
 
-	.equ	ENTRY,   0xffffff010100
-	.equ	SIG_BUF, 0xffffff015000
+	.equ	ENTRY,   0xffffff002000
+	.equ	SIG_BUF, 0xffffff001000
 	.equ	SIG_N,   96
-	.equ	EXITB,   0xffffff015800
+	.equ	EXITB,   0xffffff000030
 
 	.ifndef	TMODE
 	.equ	TMODE, 3

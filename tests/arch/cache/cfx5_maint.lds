@@ -29,21 +29,21 @@ PHDRS
 
 SECTIONS
 {
-  . = 0xffffff010100;
+  . = 0xffffff002000;
   .text : {
     *(.text)
   } : text
 
   ASSERT(SIZEOF(.text) <= 0x4000, "cfx5_maint: .text 越过 16 KiB 窗口")
 
-  . = 0xffffff010100 + 0x4000;
+  . = 0xffffff002000 + 0x4000;
   .faultpad : {
     *(.faultpad)
   } : faultpad
 
   ASSERT(SIZEOF(.faultpad) <= 0x200, "cfx5_maint: 故障落点超过 512 B")
 
-  . = 0xffffff010100 + 0x5000;
+  . = 0xffffff002000 + 0x5000;
   .testdata : {
     *(.testdata)
   } : testdata

@@ -2,7 +2,7 @@
  * ptw_sig.lds — `tests/arch/ptw/ptw_sig.S` 的链接布局（`m16-chipyard-018`）。
  *
  * 两套地址：
- *   * 探针代码/签名区在测试 RAM 窗口（`ENTRY = 0xffffff010100`，
+ *   * 探针代码/签名区在测试 RAM 窗口（`ENTRY = 0xffff_ff00_2000`，
  *     VA[47:42] ≠ 0 ⇒ 不经 PTW；`+loadmem` 装入）；
  *   * 页表按 **PA** 预置（`p_paddr`）：L1 0x7FF0_0000、L1B 0x7FF4_0000、
  *     L2 0x7FF2_0000 —— 与 `ptw_carrier_tlb.py`（QEMU/gem5）的 QEMU 场景同一组
@@ -25,7 +25,7 @@ PHDRS
 
 SECTIONS
 {
-  . = 0xffffff010100;
+  . = 0xffffff002000;
   .text : {
     *(.text)
   } : text

@@ -3,8 +3,8 @@
  *
  *   ENTRY + 0x0000  .text   探针代码（≤ 16 KiB）
  *   ENTRY + 0x4000  .data   phase / sig_bytes
- *   ENTRY + 0x5000  签名缓冲（SIG_BUF；64 槽 = 512 B）
- *   ENTRY + 0x5800  SYS_EXIT 参数块（EXITB）
+ *   SIGNATURE      签名缓冲（`MAIN_SRAM_BASE + 0x1000`；SIG_BUF）
+ *   EXIT_BLOCK     SYS_EXIT 参数块（`MAIN_SRAM_BASE + 0x0030`；EXITB）
  *
  * `--defsym TMODE=<0|2|3>` 在链接期选目标运行模式（0 = umon/U、2 = smon/S、
  * 3 = hmon/H）；同一份 `.S` 链接出三个镜像，case 定义只有一份。
@@ -19,13 +19,13 @@ PHDRS
 
 SECTIONS
 {
-  . = 0xffffff010100;
+  . = 0xffffff002000;
 
   .text : {
     *(.text)
   } : image
 
-  . = 0xffffff014000;
+  . = 0xffffff006000;
   .data : {
     *(.data)
   } : image

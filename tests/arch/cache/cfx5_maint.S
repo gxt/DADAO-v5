@@ -289,7 +289,7 @@ e0:
 	__CHECK_RD 19, rd5, IMM7
 
 	@@ ================= F. 无行 / 不可缓存 PA：无效果、不报异常 =================
-	set.rd	rd7, 0x00FFFFFF010100		@@ 核内 SRAM 地址（PA RAM 无此行）
+	set.rd	rd7, 0x00FFFFFF002000		@@ 核内 SRAM 地址（= ENTRY 的 56 位 PA 形式；PA RAM 无此行）
 	cfx2rc	cfx_cache, cg8, rc10, rd7
 	set.rd	rd7, 64
 	cfx2rc	cfx_cache, cg8, rc11, rd7
