@@ -93,7 +93,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `call_iiii_ra` | `iiii` | `06-control-flow/call_iiii_ra.S` | ✓ | ✓ | ✓ | — | — |  |
 | `call_rrii_ra` | `rrii` | `06-control-flow/call_rrii_ra.S` | ✓ | ✓ | ✓ | — | — |  |
 | `ret_riii_ra` | `riii` | `06-control-flow/ret_riii_ra.S` | — | ✓ | ✓ | — | — | encoding 豁免：返回目标依赖 harness 布局、单指令不可构造（非恒 fault，见 `TESTCASES-006t`）；semantic 5 条已由 `TESTCASES-063t` 恢复 `active`（harness `build_ret_binary` 用向量自身 RA + 在 `expected_pc` 处放 landing pad；不再合成 call 覆盖 ra63） |
-| `swym_oiii_imm` | `oiii` | `12-misc/swym_oiii_imm.S` | ✓ | — | ✓ | — | — | 占位指令（§13.1），无 fault，legality 不适用 |
+| `swym_oiii_imm` | `oiii` | `12-misc/swym_oiii_imm.S` | ✓ | ✓ | ✓ | ✓ | — | legality `encode_sbz`：`immu18[17:12] != 0` ⇒ ILLI（4 例：H=0x1/0x20/0x3F/0x20+合法低位）；N = 0/1/42/7/4095；时延 1+N 属实现时序，见 gem5/chipyard 引擎 trace |
 | `and.o_orrr_rd` | `orrr` | `04-arith-logic-octa/and.o_orrr_rd.S` | ✓ | ✓ | ✓ | — | — |  |
 | `or.o_orrr_rd` | `orrr` | `04-arith-logic-octa/or.o_orrr_rd.S` | ✓ | ✓ | ✓ | — | — |  |
 | `xor.o_orrr_rd` | `orrr` | `04-arith-logic-octa/xor.o_orrr_rd.S` | ✓ | ✓ | ✓ | — | — |  |

@@ -5313,11 +5313,13 @@ asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.w.nr, lr.w.nn, r
 asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LOADED	4, sc.w.nr, lr.w.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
 asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_NORESV	15, sc.w.nr, lr.w.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_NORESV	2, sc.w.nr, lr.w.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/swym_oiii_imm.S	TEST_FAULT_ENC	12, ILLI, 0x47881000, rb3, TEST_DATA, rd6, 0x000	1
+asm	tests/inst/12-misc/swym_oiii_imm.S	TEST_FAULT_ENC	13, ILLI, 0x478A0000, rb3, TEST_DATA, rd6, 0x000	1
+asm	tests/inst/12-misc/swym_oiii_imm.S	TEST_FAULT_ENC	14, ILLI, 0x478BFFFF, rb3, TEST_DATA, rd6, 0x000	1
+asm	tests/inst/12-misc/swym_oiii_imm.S	TEST_FAULT_ENC	15, ILLI, 0x478A0007, rb3, TEST_DATA, rd6, 0x000	1
 asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	1, rd2, 0x0000000000000008	1
-asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	10, rd2, 0x0000000000000008	1
-asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	11, rd2, 0x0000000000000008	1
-asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	12, rd8, 0x00FF00FF00FF00FF	1
-asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	13, rd0, 0x0000000000000000	1
+asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	10, rd2, 0x000000000000000C	1
+asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	11, rd8, 0x00FF00FF00FF00FF	1
 asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	2, rd6, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	3, rd2, 0x0000000000000008	1
 asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	4, rd9, 0x0F1E2D3C4B5A6978	1
