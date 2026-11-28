@@ -21,24 +21,27 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 
 ## 地址图（`Kaiwu-Tiny`，`spec/Kaiwu §1.1`）
 
-- **BootROM** `0xffff_ffff_0000` / 64 KiB / 复位向量 = 起始；**SRAM** `0xffff_ff00_0000` / 8 MiB / 唯一可写主存。两者都是 **48 位核内地址**；核 `useVM=false`（无 MMU/TLB），无 cfx / PTW。
+- **BootROM** `0xffff_ffff_0000` / **8 KiB** / 复位向量 = 起始；**SRAM** `0xffff_ff00_0000` / **256 KiB** / 唯一可写主存；**hmon SRAM** `0x0fff_0000_0000` / **8 KiB**。三者都是 **48 位核内地址**；核 `useVM=false`（无 MMU/TLB），无 PTW。几何由 `m19-chipyard-004` 跟随 `m19-spec-002` 重冻结（旧值 64 KiB / 8 MiB / 64 KiB 作废）。
 - **实现方式 = 改 fragment 的既有字段，不新增 `AddressMap`**：chipyard 的地址图由 `BootROMLocated` + `BankedScratchpadKey` + 后备内存端口 `ExtMem`/`ExtTLMem` 三个来源拼出，`generators/chipyard/src/main/scala/config/DadaoConfigs.scala` 里的 `WithDadaoTinyAddressMap` 正好重定向这三处：
   - BootROM 几何/复位向量/镜像名经 `chipyard.config.WithBootROM`（`address`/`hang`/`contentFileName`）；该 fragment 另把 `appendDTB` 关掉（Tiny 的 BootROM 只有复位/启动 stub，无 DTB、无 image index table）。
-  - SRAM 用 testchipip 的 **banked scratchpad**（`BankedScratchpadParams`，`busWhere = MBUS`、`dtsEnabled = true`）替换 chipyard 默认的 64 KiB scratchpad（`0x0800_0000`）；它就是 TileLink 从端口，不再另设内存模型。
+  - SRAM 用 testchipip 的 **banked scratchpad**（`BankedScratchpadParams`，`busWhere = MBUS`、`dtsEnabled = true`）替换 chipyard 默认的 64 KiB scratchpad（`0x0800_0000`）；它就是 TileLink 从端口，不再另设内存模型。hmon SRAM 是同类的第二个 TL 从端口（8 KiB）。
   - `ExtMem` / `ExtTLMem` 都置 `None`：不开 AXI/TL 后备内存端口（Tiny 无 DRAM），harness 里的 `SimDRAM` 也随之消失。
-- **BootROM 镜像**：补丁集不能携带二进制，故 Tiny bootrom 以 `generators/dadao-wuming/src/main/resources/dadao/bootrom/bootrom.tiny.hex`（文本 hex）入库，`wuming` 项目的 `resourceGenerators`（根 `build.sbt`）在构建时解码成 classpath 资源 `/dadao/bootrom/bootrom.tiny.img`；镜像内容与 `loadmem` 闭环由 `m12-chipyard-003` 负责。`m12-chipyard-028` 起该 hex 由 `tools/testcases/arch/build_tiny_bootrom.py` 重生成；`m16-chipyard-015` 跟随 `m15-testcases-021`（`LD64`/`LOAD_ADDR` 宏改规范伪指令 `set.rd`/`set.rb`）再生成一次 ⇒ 解码镜像 md5 **`a5d78816…`**、power 段 292 B（旧 344 B，宏展开指令数减少）、hmon 段 44 B/对齐 48 B，与 QEMU/gem5 的 `bootrom_tiny.bin` 同版。
+- **BootROM 镜像**：补丁集不能携带二进制，故 Tiny bootrom 以 `generators/dadao-wuming/src/main/resources/dadao/bootrom/bootrom.tiny.hex`（文本 hex）入库，`wuming` 项目的 `resourceGenerators`（根 `build.sbt`）在构建时解码成 classpath 资源 `/dadao/bootrom/bootrom.tiny.img`；镜像内容与 `loadmem` 闭环由 `m12-chipyard-003` 负责。`m12-chipyard-028` 起该 hex 由 `tools/testcases/arch/build_tiny_bootrom.py` 重生成；`m16-chipyard-015` 跟随 `m15-testcases-021`（`LD64`/`LOAD_ADDR` 宏改规范伪指令 `set.rd`/`set.rb`）再生成一次 ⇒ power 段 292 B（旧 344 B，宏展开指令数减少）、hmon 段 44 B/对齐 48 B。
+  - **`m19-chipyard-004` 的 8 KiB 布局**（`spec/Kaiwu §6.2`）：power `0x0000–0x07FF`（本镜像 292 B）、hmon 源 `0x0800–0x13FF`（44 B/对齐 48 B）、保留 `0x1400–0x1EFF`、image index table `0x1F00`（`offset = 0x800`、`size = 0x30`、`flags = 0x3`）、保留尾 `0x1F30–0x1FFF`；power 跳 `ENTRY = 0xffff_ff00_2000`。`VERSION`/`MAILBOX` 放核握手**未实现**（`MAILBOX` magic 仍 `[OPEN]`，`spec/Kaiwu §6.2.1`）。`tools/testcases/arch/build_tiny_bootrom.py` 与 `tests/ee-tiny/cfx_power_tiny.S` 仍编码旧 64 KiB 布局（迁移归 testcases，见 `m19-chipyard-004` 任务书「待裁定」），故本版 hex 由本任务证据脚本从同一 `tests/ee-tiny` 固件源 + `spec/Kaiwu §6.2` 常量打包；该链迁完后应以新构建器的 `--hex-out` 重出并对账（字节应相同）。
   - **改 hex 后必须删 `.classpath_cache/chipyard.jar`**：仿真器只把 Scala/Verilog 源当依赖，资源变更不会让缓存 jar 失效 ⇒ 不删就会拿旧固件重新 elaborate（假绿）。
-- **实测**：`WumingTile` 的 elaboration 行打印协商值，`Generated Address Map` 打印全图。
+- **实测**：`WumingTile` 的 elaboration 行打印协商值，`Generated Address Map` 打印全图（`m19-chipyard-004` 后 Tiny 行：`ffffffff0000-ffffffff2000 R X rom`、`ffffff000000-ffffff040000` 与 `fff00000000-fff000002000` 两段 `memory`）。
+- **`+loadmem` 窗口**：`WumingLoadMem` 的 `MEM_SIZE` = 256 KiB、`ENTRY` = `0xffff_ff00_2000`（`e_entry` 不等即装载错误）；`image_window` = 128 KiB，从 entry 起算 `[0xffff_ff00_2000, 0xffff_ff02_2000)`（SRAM 偏移 `0x2000–0x21FFF`，`spec/Kaiwu §6.2.1`）；`+loadmem` 的 `PT_LOAD` 只允许落在整段可写窗口 `[0xffff_ff00_0000, 0xffff_ff04_0000)`。
 
 ## Kaiwu-Vast 的 4 MiB BootROM（`m16-chipyard-025`）
 
 - **几何**：`WumingVastAddressMap` 按 `spec/Kaiwu §3` 用 `0xffff_ffc0_0000` / `0x40_0000`，
   复位向量 `base + size − 64 KiB = 0xffff_ffff_0000`（镜像偏移 `0x3f_0000`）；
-  `WumingTinyAddressMap` 仍是 `0xffff_ffff_0000` / 64 KiB。
+  `WumingTinyAddressMap` 在 `m19-chipyard-004` 起是 `0xffff_ffff_0000` / 8 KiB（Vast 仍 4 MiB）。
 - **镜像**：`build_step5_bootrom.py --hex-out` 产 `bootrom.vast.hex`（稀疏文本：偏移 0
   索引表 + hmon/smon ELF，末 64 KiB power flat 段）；`build.sbt` 的
-  `resourceGenerators` 解码为 `/dadao/bootrom/bootrom.vast.img`（Tiny 的 64 KiB hex
-  同表处理）。RTL 的 `make build-bootrom` 另用 `POWER_RTL_BODY=1` 汇编 power 段：
+  `resourceGenerators` 解码为 `/dadao/bootrom/bootrom.vast.img`（Tiny 的 8 KiB hex
+  同表处理，`m19-chipyard-004` 起解码尺寸 8 KiB）。RTL 的 `make build-bootrom` 另用
+  `POWER_RTL_BODY=1` 汇编 power 段：
   同一份 `tests/ee-vast/power_vast.S` 额外把 smon ELF 装入 `0x0bff_0000_0000`，并把
   hmon 保存-跳转槽 `HMON_BASE+0xF8` 指向 `+loadmem` 的 `0xffffff010100`，于是共享的
   Tiny hmon handler 直接回到测试本体；QEMU/gem5 的 `POWER_RTL_BODY=0` power 字节不变。
@@ -46,7 +49,7 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
   模型生成不可接受（实测 5 h+ 未完成）。`dadao-wuming` 的 `SparseTLROM` 保留 4 MiB
   TileLink 地址范围，只把非零区段做成小 `Vec`（本镜像约 22 KiB），零间隙返回 0
   （与整镜像逐字节等价）；`System.scala` 仅对 `bootrom.vast` 资源走该路径。
-- **回归面**：Tiny 配置与 64 KiB 镜像不变；Vast 的 RTL 探针（hart/ptw/power）仍从
+- **回归面**：`m19-chipyard-004` 前 Tiny 配置与 64 KiB 镜像不变（该任务只改 Tiny 几何与镜像；Vast 的 `sramSize`/`hmonSize`/`appEntry` 显式固定，数值不变）；Vast 的 RTL 探针（hart/ptw/power）仍从
   `0xffff_ffff_0000` 启动、hmon/smon 由索引表装入各自 SRAM、测试体经 `+loadmem`
   进入。`arch-power-001` 的 `space0_start/size` 回到规范值，DIV-12 已删。
 

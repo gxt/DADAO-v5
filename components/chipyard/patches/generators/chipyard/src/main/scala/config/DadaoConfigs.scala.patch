@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..a006253
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
-@@ -0,0 +1,351 @@
+@@ -0,0 +1,368 @@
 +// See LICENSE for license details.
 +//
 +// DADAO SoC configurations.
@@ -12,11 +12,11 @@ index 0000000..a006253
 +// elaborate (one `wuming` tile, stock chipyard address map).
 +//
 +// m12-002: land the `Kaiwu-Tiny` core-internal address map from
-+// `spec/Kaiwu §1.1`:
++// `spec/Kaiwu §1.1` (sizes re-frozen by m19-chipyard-004 from `m19-spec-002`):
 +//
-+//   BootROM    0xffff_ffff_0000, 64 KiB, reset vector = base (executable)
-+//   SRAM       0xffff_ff00_0000, 8 MiB,  writable main memory  (TL slave port)
-+//   hmon SRAM  0x0fff_0000_0000, 64 KiB, hmon run segment      (TL slave port)
++//   BootROM    0xffff_ffff_0000, 8 KiB,  reset vector = base (executable)
++//   SRAM       0xffff_ff00_0000, 256 KiB, writable main memory (TL slave port)
++//   hmon SRAM  0x0fff_0000_0000, 8 KiB,  hmon run segment      (TL slave port)
 +//
 +// All three are 48-bit core-internal addresses.  The tile runs with
 +// `useVM=false` (no MMU/TLB) and there is no PTW in this machine; the only
@@ -44,26 +44,33 @@ index 0000000..a006253
 +import freechips.rocketchip.util.ClockGateModelFile
 +import testchipip.soc.{BankedScratchpadKey, BankedScratchpadParams}
 +
-+/** `spec/Kaiwu §1.1` — Kaiwu-Tiny core-internal address map. */
++/** `spec/Kaiwu §1.1` — Kaiwu-Tiny core-internal address map.
++  *
++  * Geometry frozen by `m19-spec-002` (m19-chipyard-004): 8 KiB BootROM,
++  * 256 KiB main SRAM, 8 KiB hmon SRAM; the application entry/raw base is
++  * `MAIN_SRAM_BASE + 0x2000` (`kernel_reserved = 0`). */
 +object WumingTinyAddressMap {
-+  /** BootROM: 0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB), reset vector = base. */
++  /** BootROM: 0xffff_ffff_0000 .. 0xffff_ffff_1fff (8 KiB), reset vector = base.
++    *
++    * Tiny's ROM is 8 KiB and its reset point is the ROM *start* (a profile-level
++    * deviation from the upstream >= 64 KiB / last-64-KiB rule, `spec/Kaiwu §1.1`). */
 +  val bootROMBase: BigInt = BigInt("ffffffff0000", 16)
-+  val bootROMSize: Int = 0x10000
++  val bootROMSize: Int = 0x2000
 +
-+  /** SRAM: 0xffff_ff00_0000 .. 0xffff_ff7f_ffff (8 MiB), the only writable memory. */
++  /** SRAM: 0xffff_ff00_0000 .. 0xffff_ff03_ffff (256 KiB), the only writable memory. */
 +  val sramBase: BigInt = BigInt("ffffff000000", 16)
-+  val sramSize: BigInt = 8 << 20
++  val sramSize: BigInt = 0x4_0000
 +
-+  /** hmon SRAM: 0x0fff_0000_0000, 64 KiB (`spec/DADAO-12 §2.1`). */
++  /** hmon SRAM: 0x0fff_0000_0000, 8 KiB (`spec/DADAO-12 §2.1`). */
 +  val hmonBase: BigInt = BigInt("fff00000000", 16)
-+  val hmonSize: BigInt = 0x10000
++  val hmonSize: BigInt = 0x2000
 +
 +  /**
-+   * Fixed application entry (`spec/Kaiwu §6`): `.text` starts here, the
-+   * ELF `e_entry` must equal it and the power stub jumps here after the
-+   * handoff.
++   * Fixed application entry (`spec/Kaiwu §6`): the raw image base, the ELF
++   * `e_entry` and the power stub's jump target are all this one address
++   * (`MAIN_SRAM_BASE + 0x2000`, `kernel_reserved = 0`).
 +   */
-+  val appEntry: BigInt = BigInt("ffffff010100", 16)
++  val appEntry: BigInt = BigInt("ffffff002000", 16)
 +
 +  /**
 +   * Classpath resource of the Tiny bootrom image.
@@ -72,7 +79,9 @@ index 0000000..a006253
 +   * the `wuming` generator) because a component patch set cannot carry binary
 +   * blobs; the `wuming` project's `resourceGenerators` decodes it into this
 +   * classpath resource at build time.  m12-007 owns the image content (the
-+   * 64 KiB fixed firmware packed by `tools/testcases/arch/build_tiny_bootrom.py`).
++   * fixed firmware packed by `tools/testcases/arch/build_tiny_bootrom.py`);
++   * `m19-chipyard-004` re-froze it to 8 KiB from `m19-spec-002`: power@0x0000,
++   * hmon source@0x0800, image index table@0x1F00.
 +   */
 +  val bootROMImage: String = "/dadao/bootrom/bootrom.tiny.img"
 +}
@@ -96,10 +105,10 @@ index 0000000..a006253
 +  case ExtMem => None
 +  case ExtTLMem => None
 +
-+  // SRAM as an 8 MiB TL slave port on the memory bus, at the spec address.
++  // SRAM as a 256 KiB TL slave port on the memory bus, at the spec address.
 +  // `dtsEnabled` keeps the `memory` node advertised in the generated DTS.
 +  //
-+  // m12-007: the hmon SRAM is a separate 64 KiB TL slave at 0x0fff_0000_0000.
++  // m12-007: the hmon SRAM is a separate 8 KiB TL slave at 0x0fff_0000_0000.
 +  // The power stub fills it from the BootROM image before the first `trap`
 +  // into hmon; the host loader never writes it (`WumingLoadMem` enforces that).
 +  case BankedScratchpadKey => Seq(
@@ -172,14 +181,20 @@ index 0000000..a006253
 +object WumingVastAddressMap {
 +  /** BootROM: 0xffff_ffc0_0000 .. 0xffff_ffff_ffff (4 MiB, `spec/Kaiwu §3`);
 +    * the reset vector is the last 64 KiB's start, 0xffff_ffff_0000
-+    * (image offset 0x3f_0000).  Tiny keeps its 64 KiB window. */
++    * (image offset 0x3f_0000).  Tiny's 8 KiB window (m19-chipyard-004) is
++    * deliberately *not* inherited: Vast keeps its own 4 MiB ROM. */
 +  val bootROMBase: BigInt = BigInt("ffffffc00000", 16)
 +  val bootROMSize: Int = 0x400000
 +  val bootROMReset: BigInt = bootROMBase + bootROMSize - 0x10000
 +  val sramBase: BigInt = WumingTinyAddressMap.sramBase
-+  val sramSize: BigInt = WumingTinyAddressMap.sramSize
++  /** Vast's writable core-internal window: 8 MiB, unchanged by the M19 Tiny
++    * re-freeze (`spec/Kaiwu §1.1` gives Vast no core-internal SRAM of its own —
++    * this window is the Vast regression load target and stays as it was). */
++  val sramSize: BigInt = 8 << 20
 +  val hmonBase: BigInt = WumingTinyAddressMap.hmonBase
-+  val hmonSize: BigInt = WumingTinyAddressMap.hmonSize
++  /** Vast's hmon SRAM is 64 KiB (`spec/Kaiwu §1.1` Vast table); Tiny's is 8 KiB
++    * since `m19-spec-002`, so this value is spelled out rather than inherited. */
++  val hmonSize: BigInt = 0x10000
 +  /** `cfx_smon`'s 64 KiB SRAM (`contract-see §3`; `m16-chipyard-019`). */
 +  val smonBase: BigInt = BigInt("bff00000000", 16)
 +  val smonSize: BigInt = BigInt(0x10000)
@@ -187,7 +202,9 @@ index 0000000..a006253
 +    * `(cfxha 32 << 42) | 0x3ff_0000_0000`. */
 +  val pmemBase: BigInt = BigInt("83ff00000000", 16)
 +  val pmemSize: BigInt = BigInt(0x10000)
-+  val appEntry: BigInt = WumingTinyAddressMap.appEntry
++  /** Vast's fixed application entry: `.text` at 0xffff_ff01_0100, unchanged by
++    * the M19 Tiny re-freeze (Tiny moved to `MAIN_SRAM_BASE + 0x2000`). */
++  val appEntry: BigInt = BigInt("ffffff010100", 16)
 +  /** Vast's 4 MiB image (image index table at offset 0, ELF payloads, power
 +    * flat segment at 0x3f_0000); decoded from the sparse text hex by the
 +    * `wuming` resource generator, exactly like Tiny's. */

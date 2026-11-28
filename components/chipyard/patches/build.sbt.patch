@@ -2,7 +2,7 @@ diff --git a/build.sbt b/build.sbt
 index f56621c..a7a2416 100644
 --- a/build.sbt
 +++ b/build.sbt
-@@ -163,6 +163,74 @@ lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
+@@ -163,6 +163,75 @@ lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
    )
  lazy val rocketLibDeps = (rocketchip / Keys.libraryDependencies)
  
@@ -32,17 +32,18 @@ index f56621c..a7a2416 100644
 +    // classpath resource that `WithBootROM` names; the resources ride the
 +    // wuming jar into the elaboration classpath.
 +    //
-+    // m12-007 made the Tiny image the 64 KiB fixed firmware (power stub + hmon
-+    // segment + reserved + image index table, spec/Kaiwu §6.2);
-+    // m16-chipyard-025 adds the Vast 4 MiB image (image index table at offset
-+    // 0, hmon/smon ELFs, power flat segment in the last 64 KiB, spec/Kaiwu
-+    // §6.1).  Both text forms are *sparse*: `@<offset>` lines set the write
-+    // offset and byte lines append, so the zero regions cost one line.
++    // m12-007 made the Tiny image the fixed firmware (power stub + hmon
++    // segment + reserved + image index table, spec/Kaiwu §6.2); m19-chipyard-004
++    // re-froze it to 8 KiB from `m19-spec-002` (power@0, hmon@0x800, image index
++    // table@0x1F00).  m16-chipyard-025 adds the Vast 4 MiB image (image index
++    // table at offset 0, hmon/smon ELFs, power flat segment in the last 64 KiB,
++    // spec/Kaiwu §6.1).  Both text forms are *sparse*: `@<offset>` lines set the
++    // write offset and byte lines append, so the zero regions cost one line.
 +    Compile / resourceGenerators += Def.task {
 +      val hexDir = (Compile / resourceDirectory).value / "dadao" / "bootrom"
 +      val imgDir = (Compile / resourceManaged).value / "dadao" / "bootrom"
 +      Seq(
-+        ("bootrom.tiny.hex", "bootrom.tiny.img", 64 * 1024),
++        ("bootrom.tiny.hex", "bootrom.tiny.img", 8 * 1024),
 +        ("bootrom.vast.hex", "bootrom.vast.img", 4 * 1024 * 1024)
 +      ).map { case (hexName, imgName, size) =>
 +        val hex = IO.read(hexDir / hexName)
@@ -77,7 +78,7 @@ index f56621c..a7a2416 100644
  
  // -- Chipyard-managed External Projects --
  
-@@ -180,6 +248,7 @@ lazy val chipyard = {
+@@ -180,6 +249,7 @@ lazy val chipyard = {
        testchipip, rocketchip, boom, rocketchip_blocks, rocketchip_inclusive_cache,
        icenet, tracegen,
        constellation, barf, shuttle, rerocc,

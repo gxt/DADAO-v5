@@ -3,13 +3,15 @@ new file mode 100644
 index 0000000..3dc735a
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala
-@@ -0,0 +1,146 @@
+@@ -0,0 +1,148 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" loadmem boot loader (m12-chipyard-003).
 +//
 +// `+loadmem=<elf>` on the Kaiwu-Tiny harness has to land the application
-+// in the on-chip SRAM (0xffff_ff00_0000, 8 MiB) before the core starts.
++// in the on-chip SRAM (0xffff_ff00_0000, 256 KiB since `m19-chipyard-004`;
++// the window itself always comes from the SoC configuration) before the core
++// starts.
 +// chipyard's stock `+loadmem=` path cannot do that here:
 +//
 +//   * this SoC has **no `SimDRAM` instance**: main memory is the on-chip

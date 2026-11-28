@@ -142,8 +142,8 @@ index 0000000..f45ea7e
 +  val masterNode: TLOutwardNode = TLIdentityNode() := visibilityNode := portXbar
 +
 +  /** Slave port: the tile exposes no memory of its own.  Kaiwu-Tiny main
-+    * memory (the 8 MiB SRAM) is a system-level TL slave on the memory bus, not
-+    * a tile-local port (m12-002, `spec/Kaiwu §1.1`). */
++    * memory (the 256 KiB SRAM, `m19-chipyard-004`) is a system-level TL slave on
++    * the memory bus, not a tile-local port (m12-002, `spec/Kaiwu §1.1`). */
 +  val slaveNode: TLInwardNode = TLIdentityNode()
 +
 +  override lazy val module = new WumingTileModuleImp(this)
