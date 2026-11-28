@@ -332,9 +332,9 @@
   scope:
   - linux
   milestone: null
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M18
+  resolved_by: "m18-linux-022（2026-11-25「内核异步新模型 R2」已把 `dadao_enter_user()` 改为放开用户态源位：读 `cfx_umon cg15 rc3` 后写 `mask & ~DADAO_IRQ_SOURCE_BITS`；实测 `K4 umon irq: user_mask=0xfffffffeffff7fff bits=0x100008000`；025/028/029 的 soak 每启 `irq_user>0`，green 判据即要求 >0）。本条目在 M18 收口时被误迁（按 issue 原文采信、未复核现码），原文描述的「写 `~0`、无第二处写回」是 022 之前的状态。"
   title: "[原 ISS-500] 【P2】K6 之后用户态不再接收任何异步中断（`dadao_enter_user()` 把 `cfx_umon` user 行写 `~0`，全仓无第二处写回）：长用户态窗口内同源事件按契约合并为一次补投 ⇒ `jiffies` 滞后；K6 无用户态可观测面（busybox 无 date/sleep/time、无 /proc），故当次可接受但属**行为变化待追认**。另 `dadao_user_entry_install()` 注释仍称「用户态投递」已成死代码；`dadao_user_fault_return` 在 `enter_from_user_mode()` 前开中断（与上游顺序相反，本配置无断言）。处置：K6 之后若需用户态抢占/时间可见（K7+ 或 SMP），改为「用户态可投递 + 入口安全栈」，或至少修正注释与顺序。另 F2/F3：changelog `12/12` 应为 `checks=11`、`2/150`/`4/150`/实测 `3/150` 数字不一致。"
 
 - id: ISS-left-014

@@ -823,5 +823,5 @@
 - **判据达成**：busybox/K6 **82/82**（含交互命令集与失败臂）；kselftest 两轮逐例一致（PASS 7 + `mm-pfnmap` SKIP）；LTP 两轮 **14/14** 一致；4 轮 44 case-run 中 `HOST_TIMEOUT`/`die`/`MALIGN`/`CFXESC` **0 命中**。
 - **台账**：72 册全部 `已验证`；待开始/进行中均为 0；M18 分支与 worktree 已全部清除。
 - **issues**：`issues-m18` open=**0**；关闭 3 条（`009`/`539`/`540`）；18 条迁 `issues-left-003/006–022`（字段逐字保留），新增 6 条（023–028）记录本轮暴露的工具/环境缺口。
-- **待追认**：`ISS-left-013`（原 `ISS-500`）——K6 之后用户态不再接收异步中断（`dadao_enter_user()` 把 `cfx_umon` user 行写 `~0`、全仓无第二处写回）。当前按长期模型处理；若要用户态可被 tick 打断，另立任务。
+- **`ISS-left-013`（原 `ISS-500`）是误迁，已关闭**：用户态异步中断自 `m18-linux-022`（2026-11-25「内核异步新模型 R2」）起就已放开——`dadao_enter_user()` 读 `cfx_umon cg15 rc3` 后写 `mask & ~DADAO_IRQ_SOURCE_BITS`，实测 `K4 umon irq: user_mask=0xfffffffeffff7fff bits=0x100008000`；025/028/029 的 soak 每启 `irq_user>0`（green 判据即要求 >0）。原文描述的「写 `~0`、无第二处写回」是 022 之前的状态。**教训：收口迁移/关闭 issue 必须复核现码，不能按 issue 原文采信。**
 - **非 M18 红**：L3 `unit:full` 红 = m19 Tiny 新几何（`ISS-left-025`）；`tset` 红 = `ISS-left-005`；`check-milestones-fresh` 的 M20 项由 M20 会话收口。
