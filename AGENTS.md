@@ -34,6 +34,7 @@
 ## 3. 并行与资源
 
 - **写者互斥**：同一 **worktree** 同一时刻一个写者；同一**组件**（`.work/source/<name>` 与 `components/<name>/`）同一时刻一个写者；**台账与 `master` 合并只有主会话写**。
+- **共享源树单写者**：`.work/source/<c>` 只由**合并**动作（主会话）或**节点引导**（单写者，`bootstrap_node.sh` 自证 token）写；任务在 `tools/infra/private_source.sh <c> <task-id>` 的私有树里 apply/导出/构建（尚无私有覆盖的构建脚本会显式拒绝，见 Process-01 §7.1），共享树只读。
 - **多会话并行**：同一主仓可能有别的会话在派单/合并。改共享文件（台账、`issues-*.yaml`、根 `README`、`Makefile`、`MEMORY`）前先 `git log --oneline -5` + `git worktree list`；发现非本会话 worktree ⇒ 这些文件串行、合并前 rebase、合并后重跑受影响门控。
 - **并发上限**：同时在跑的子代理 **≤ 8**；同改共享文件（`contracts/`、`Makefile`、`tests/inst/`、`spec/SimRISC-0x` 等）的任务**一律串行**。
 - **并行度**：**构建 `JOBS=32`**；**测试用「全量核 − 2」**（主控机 62 / 节点 38）；禁手写其它值；`free -g` 可用 < 8 GiB 才降档并记录次数。
@@ -57,7 +58,7 @@
 - **中间验证**：每子任务完成即验（产物存在、验证脚本、引用一致、完成区）；数据/期望值类须**独立全量重算**；validator 绿灯 ≠ 语义正确；只有能力缺口才登记遗留。
 - **复核分档**：小改（≤3 文件/单点语义）≤**20 min**、中改 ≤**40 min**、大改/组件/契约 ≤**60 min**；派单必须写档位与时限；超时主会话按档位收窄或改派，不得静默等待。
 - **重建成本**：仅「编译输入」变化才重建（组件补丁/源码变更）；改 MC（`.td`/InstrInfo）后**必须 `make install-host`**；禁只重建不装、禁手工 `cp` 进制安装根（例外须记理由+md5+补装）。
-- **组件补丁重建**：合入组件补丁后增量 `build-<c>` **不重放**补丁；须删源树 → `make fetch` → `apply_series.py --component <c>` → rebuild，判据 `check-patch-tree` 该组件段 0 problem。
+- **组件补丁重建**：合入组件补丁后增量 `build-<c>` **不重放**补丁；须 `tools/infra/replay_source.sh <c>`（重置源树到 manifest base → 应用 master 补丁集 → `--source-state <c>` 复核；该脚本自证单写者 token）→ rebuild，判据 `check-patch-tree` 该组件段 0 problem。
 - **大文件下载**：国外站较大软件先查教育网镜像、逐候选测速、给出建议，由**用户确定**下载源；有 release/tag 默认浅下载但仍先问。
 
 ## 5. 文档与知识

@@ -117,6 +117,13 @@ components/<name>/
 6. 由 `tools/infra/apply_series.py` 实现。
 7. **子模块补丁集**：同一套规则在子模块仓库内执行（base = `submodule_lock` 的 pin），组件随后把子模块新 HEAD 记为 gitlink 并随组件自己的 commit 落地；见 §14。
 
+### 7.1 写权：共享树只归合并，任务用私有树（m20-infra-003，用户 2026-11-28 裁定）
+
+- **不变量**：`.work/source/<c>` 由**合并**动作（主会话）写成且只写成 `master` 补丁集 ⇒ §8 的 ⑥⑨ 不会因任务而漂。
+- **任务侧**：先 `tools/infra/private_source.sh <component> <task-id>` 建私有树（`.work/private/<task>/source/<c>`，从 `.cache/<c>.git` 检出 manifest base 并应用补丁集），再以 `--source <私有树>` 或 `DADAO_SOURCE_ROOT=<私有 source 根>` 调 `apply_series.py` / `make_patch.py` / 构建；**不写共享树**（⑥⑨ 对共享树的红绿结论保持不变）。`make fetch` 只维护共享树，私有树一律由 `private_source.sh` 建。
+- **合并侧**：落地 `master` 后跑 `tools/infra/replay_source.sh <component>`（`reset --hard <base>` → 应用 master 补丁集 → `--source-state` 复核 E1）；这是主控机上唯一写共享树的入口。**节点引导**（`tools/infra/bootstrap_node.sh` step 5）由脚本自证 `DADAO_SHARED_SOURCE_OWNER=node-single-writer` 写本机共享树；节点整机单写者，主控机上的**任务**不得写。
+- **守卫**：`apply_series.py` / `make_patch.py` 的目标落在共享根且 `DADAO_SHARED_SOURCE_OWNER` 为空/空白 ⇒ **rc=2** 拒绝；非空 token 放行。token 只表示「调用者自证是本共享树的唯一写者」，**不是身份认证**（主会话用 `main-session`，节点引导用 `node-single-writer`；任务不设）。
+
 > **补注（E5 推论）：本地 commit 已存在后再改补丁时的恢复**
 >
 > 组件已按 E5 收敛（HEAD = base+1）**之后**若又改动了补丁集，`apply_series.py` 的前置校验会因 HEAD（base+1，其内容 ≠ 新补丁集）落在 `{base, base+1 且内容 == 补丁集}` 之外而**拒绝应用**（见步骤 1）。恢复步骤：
@@ -153,7 +160,7 @@ components/<name>/
 ### 8.1 模块自检（E7）
 
 - 修改某组件的模块，**改动前/改动后各查一次** E1：
-  `python3 tools/infra/check_patch_tree.py --source-state`（或 `make check-source-state`）。
+  `python3 tools/infra/check_patch_tree.py --source-state`（或 `make check-source-state`）；只看一个组件时可加组件名（`--source-state <component>`，m20-infra-003）。
 - 输出 HEAD、commit count 与干净状态；E1 成立 ⇒ exit 0，否则 ⇒ exit 非零。
 - 不干净 ⇒ **先排查自身**（本模块改动是否遗留未提交/未收敛），**不得**带脏树继续。
 - `--source-state` **复用断言 ⑦⑧ 的判定逻辑**，不另写一套。
@@ -238,4 +245,5 @@ components/<name>/
 - **rev. 2026-11-08（INFRA-140t）**：§14 拆出两个标记——`lite` 保持 chipyard 上游最小集原义，新增 `dadao_extra` 表示本仓库额外需要的子模块（`riscv-isa-sim` / fesvr）；取用条件统一为 `lite or dadao_extra`，`fetch` 与 `sync_cache` 用同一并集。属**新标记 + 派生实现**，不改 `ADR-0002 D4`。
 - **rev. 2026-11-09（m12-infra-003，用户裁定「我们当然需要给子模块打 patch，现在不做，以后也要做」）**：§14 由「子模块不参与补丁集」改为「子模块补丁集」——新增 manifest 声明 `[[component.submodule_patch]]`（`path`/`patch_dir`/`patch_series`，base 取 `submodule_lock` 的 pin）、目录落 `components/<component>/submodules/<path>/`、应用为「子模块内 base+1 + 组件 commit 记录 gitlink」、断言增至 ⑩（组件 HEAD 钉住子模块 HEAD）、`fetch` 的就绪判据放宽为「pin 或其后代且干净」；§7 增第 7 条、§8 增断言⑩。属**新增能力 + 派生实现**（E1/E5/E6 语义不变，各仓库各判一次），不改 `ADR-0002 D4`。
 - **rev. 2026-11-13（m14-linux-001，用户裁定「空 series 合法首篇」）**：新增**空补丁集首态**——组件可先声明 `patch_dir`/`patch_series` 而 `series` 零条目（合法条件三条见 §2），`patches/.gitkeep` 为其唯一例外（`series` 非空即 FAIL）；E1 期望条数随之为 `base+0`（非空仍 `base+1`），§2/§6.1/§8 口径同步，判定收敛到 `check_patch_tree.py::expected_commit_count` 单一函数（断言 ⑦⑧⑨ 与 `--source-state` 共用）。属**新增合法状态 + 同笔收紧**（非空集断言一字不放宽），不改 `ADR-0002 D4`。
+- **rev. 2026-11-28（m20-infra-003，用户裁定「共享源树写权收归合并」）**：新增 §7.1——共享 `.work/source/<c>` 只由合并动作（`tools/infra/replay_source.sh`）或节点引导（`bootstrap_node.sh` step 5，单写者自证）写，任务用 `tools/infra/private_source.sh` 的私有树；`apply_series.py`/`make_patch.py` 对共享根加 rc=2 写守卫（非空 `DADAO_SHARED_SOURCE_OWNER` token 放行，空值拒绝；token 是单写者自证，不是身份认证）；`DADAO_SOURCE_ROOT` 统一源树根（默认值不变）。断言 ①–⑩ 语义不变，⑥⑨ 的红绿结论不变。
 - 相关决策变更记录见 `.tao/adr/adr-0002-build-orchestration.md` 的 `## 修订`（rev. 2026-09-23）。

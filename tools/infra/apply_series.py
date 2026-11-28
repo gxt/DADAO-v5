@@ -40,6 +40,21 @@ touch **one** component (the K0 closure gate only re-applies ``linux``) without
 writing the other source trees.  Without the flag the traversal is exactly the
 one described above — same components, same order, same output.
 
+Source-tree write ownership (``m20-infra-003``, user ruling 2026-11-28)
+----------------------------------------------------------------------
+The shared checkout ``<work_root>/source/<name>`` is written **only** by the
+merge action (main session).  A task works in its own private tree instead
+(``tools/infra/private_source.sh <component> <task-id>``) and points this tool
+at it with ``--source <path>`` or ``DADAO_SOURCE_ROOT=<private source root>``.
+
+Guard: when the target is the shared tree (the default root, regardless of how
+it was reached) and ``DADAO_SHARED_SOURCE_OWNER`` is empty, the tool refuses
+with **rc=2** and names the private-tree tool.  A non-empty token is the
+caller's self-attestation that it is the sole writer of this checkout (the
+merge action uses ``main-session``; a single-writer node bootstrap uses
+``node-single-writer``); it is not an identity check.  Private targets are
+never guarded.
+
 Submodule patch sets (§14, rev. 2026-11-09)
 -------------------------------------------
 A component may declare ``[[component.submodule_patch]]`` entries (see
@@ -68,6 +83,7 @@ from __future__ import annotations
 import argparse
 import os
 import subprocess
+import sys
 import tempfile
 import tomllib
 from pathlib import Path
@@ -75,11 +91,61 @@ from pathlib import Path
 import submodule_patches
 
 ROOT = Path(__file__).resolve().parents[2]
+SHARED_OWNER_ENV = "DADAO_SHARED_SOURCE_OWNER"
 
 
 def load_manifest() -> dict:
     with (ROOT / "manifests/components.lock.toml").open("rb") as stream:
         return tomllib.load(stream)
+
+
+def shared_source_root(manifest: dict) -> Path:
+    """The one shared checkout root (``<work_root>/source``, default ``.work/source``)."""
+    return ROOT / manifest.get("work_root", ".work") / "source"
+
+
+def source_root(manifest: dict) -> Path:
+    """Root this run reads/writes: ``DADAO_SOURCE_ROOT`` override or the shared root.
+
+    A relative override is resolved against the repository root, so the value is
+    independent of the caller's cwd (Make always runs at the root).
+    """
+    override = os.environ.get("DADAO_SOURCE_ROOT")
+    if not override:
+        return shared_source_root(manifest)
+    path = Path(override)
+    return path if path.is_absolute() else ROOT / path
+
+
+def refuse_shared_write(label: str, source: Path, shared_root: Path) -> bool:
+    """True if writing *source* is allowed; print the refusal and return False otherwise.
+
+    Any **non-empty** ``DADAO_SHARED_SOURCE_OWNER`` token allows writing the
+    shared tree; the token is the caller's self-attestation "I am the only
+    writer of this checkout", not an identity check (the controller's merge
+    action uses ``main-session``; a single-writer node uses
+    ``node-single-writer``).  Empty/whitespace means "a task"-and is refused.
+    Comparison is by resolved path, so a symlinked private tree that happens to
+    land in the shared root is still refused.
+    """
+    if source.resolve() != (shared_root / label).resolve():
+        return True
+    if os.environ.get(SHARED_OWNER_ENV, "").strip():
+        return True
+    print(
+        f"apply-series: refusing to write the shared source tree {source}: "
+        "a task may not write it; set "
+        f"{SHARED_OWNER_ENV}=<non-empty token> only if this process is the "
+        "sole writer (merge action: main-session; node bootstrap: node-single-writer)",
+        file=sys.stderr,
+    )
+    print(
+        "apply-series: tasks must use a private tree — run "
+        f"`tools/infra/private_source.sh {label} <task-id>` and point this tool "
+        "at it with `--source <path>` (or DADAO_SOURCE_ROOT=<private source root>)",
+        file=sys.stderr,
+    )
+    return False
 
 
 def git(
@@ -238,6 +304,11 @@ def main() -> int:
         help="only process this component (repeatable); default = every enabled "
              "component, in manifest order",
     )
+    parser.add_argument(
+        "--source", metavar="PATH",
+        help="apply into this component worktree instead of the source root's "
+             "<component> (private replay; requires exactly one --component)",
+    )
     args = parser.parse_args()
 
     manifest = load_manifest()
@@ -256,8 +327,12 @@ def main() -> int:
                 f"(enabled: {known})")
         wanted = set(args.component)
         enabled = [c for c in enabled if c["name"] in wanted]
+    if args.source and len(enabled) != 1:
+        parser.error("--source requires exactly one --component")
 
-    source_root = ROOT / manifest.get("work_root", ".work") / "source"
+    shared_root = shared_source_root(manifest)
+    root = source_root(manifest)
+    single_source = Path(args.source).resolve() if args.source else None
     for component in enabled:
         name = component["name"]
         if component.get("patchless"):
@@ -269,7 +344,9 @@ def main() -> int:
             print(f"apply-series: component={name}: patchless, skip")
             continue
         base = component["commit"]
-        source = source_root / name
+        source = single_source if single_source is not None else root / name
+        if not refuse_shared_write(name, source, shared_root):
+            return 2
         if not (source / ".git").exists():
             raise SystemExit(f"apply-series: missing source {source}; run make fetch")
 

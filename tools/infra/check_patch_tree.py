@@ -68,7 +68,11 @@ exist in index").  The gitlink update lives only in the parent commit
 
 ``--source-state`` (E7) exposes assertions 7 and 8 alone as a module self-check
 to be run before and after touching a component: it prints HEAD / commit count /
-cleanliness and exits non-zero unless the E1 invariant holds.
+cleanliness and exits non-zero unless the E1 invariant holds.  It takes an
+optional component name (``--source-state <component>``, ``m20-infra-003``) so a
+merge replay can check just the component it touched.  ``DADAO_SOURCE_ROOT``
+overrides the source root (private-tree checks); without it the root is exactly
+``<work_root>/source``.
 """
 from __future__ import annotations
 
@@ -95,6 +99,16 @@ def load_manifest() -> dict:
 
 
 def source_root(manifest: dict) -> Path:
+    """Shared root (``<work_root>/source``) or the ``DADAO_SOURCE_ROOT`` override.
+
+    The override lets a private tree be checked with the same assertions as the
+    shared one (relative values resolve against the repository root).  With no
+    override the resolved path is byte-for-byte the pre-``m20-infra-003`` one.
+    """
+    override = os.environ.get("DADAO_SOURCE_ROOT")
+    if override:
+        path = Path(override)
+        return path if path.is_absolute() else ROOT / path
     return ROOT / manifest.get("work_root", ".work") / "source"
 
 
@@ -557,8 +571,12 @@ def main() -> int:
     )
     parser.add_argument(
         "--source-state",
-        action="store_true",
-        help="only report the E1 invariant (clean + base+1) for each component",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="COMPONENT",
+        help="only report the E1 invariant (clean + base+1) for each component; "
+             "with COMPONENT, only that component (and its submodules)",
     )
     args = parser.parse_args()
 
@@ -569,8 +587,16 @@ def main() -> int:
         return 0
 
     root = source_root(manifest)
-    if args.source_state:
-        return run_source_state(enabled, root)
+    if args.source_state is not None:
+        selected = enabled
+        if args.source_state:
+            selected = [c for c in enabled if c["name"] == args.source_state]
+            if not selected:
+                parser.error(
+                    f"unknown or disabled component {args.source_state!r} for "
+                    "--source-state"
+                )
+        return run_source_state(selected, root)
 
     errors: list[str] = []
     total = 0

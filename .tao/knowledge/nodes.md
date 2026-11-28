@@ -193,7 +193,8 @@
 3. 同步仓库（bundle 或内网 rsync）+ 本地 `.cache/*.git`。
    - **无外网节点还要带 QEMU 的 meson subprojects**：从主控机 `rsync` 整个 `.work/source/qemu/subprojects/`（约 6.5 MB）到节点同路径，否则 `install-host` 会逐个去 gitlab 拉（先 `keycodemapdb`、再 `berkeley-softfloat-3`），在无网环境必然失败。详见 §1.1「网络」末条。
 4. `tools/infra/bootstrap_node.sh`：`fetch → apply-series → compiler-rt configure → install-host → make check`。
-   - **补丁集变更后必须先 reset**：`apply-series` 只接受「base」或「base+1 且内容等于补丁集」；上游 v5 的补丁集更新后，节点源树仍是旧的 base+1 ⇒ 它会拒绝并退出非零。做法：`git -C .work/source/<组件> reset --hard <manifests 里的 commit>`，再 `make apply-series`。
+   - **单写者凭据（m20-infra-003）**：节点整机只有它一个写者，引导即为单写者、可写本机共享源树；`bootstrap_node.sh` 的 step 5 已自动带 `DADAO_SHARED_SOURCE_OWNER=node-single-writer`（token 只表示「本机共享树无第二个写者」，不是账号/权限语义）。手工 `make apply-series` 时同样先 `export DADAO_SHARED_SOURCE_OWNER=node-single-writer`。节点**不建**任务私有树；主控机上的**任务**不得写共享树。
+   - **补丁集变更后必须先 reset**：`apply-series` 只接受「base」或「base+1 且内容等于补丁集」；上游 v5 的补丁集更新后，节点源树仍是旧的 base+1 ⇒ 它会拒绝并退出非零。做法：`git -C .work/source/<组件> reset --hard <manifests 里的 commit>`，再 `make apply-series`（主控机侧同一动作已封装为 `tools/infra/replay_source.sh <组件>`）。
 5. 验收：`make -k -j14 check`（L1）与主控机**同 commit 同红集**（基线红按逐行同集判，不要求 rc=0）、`make check-inst-asm`/`check-idl` PASS（`check-inst`/`check-inst-sig` 已退役）；用 `tools/infra/remote.py status/preflight` 确认。
    - **先装系统 `clang`**：`check-linux-toolchain` 的报告含「宿主 x86 对照」一行，宿主没有 `clang` 时该行变成「不可用」而与仓内报告不符 ⇒ 门控红（`ISS-512`）。
    - 首次引导若 step 6 报 `Error 75`：是 `build-mc`/`build-lld` 并发抢 `gate.lock`（§6 第 5 条），重跑即补齐；脚本已改为顺序调用。

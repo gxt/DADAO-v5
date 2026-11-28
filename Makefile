@@ -25,9 +25,23 @@ $(foreach v,$(_install_dir_vars),$(if $($v),,$(error $v is empty — check manif
 
 # Component source/build trees (all under the disposable .work/ root). The
 # llvm source is the monorepo checkout with its `llvm/` project subdirectory.
-QEMU_SRC   ?= .work/source/qemu
+#
+# DADAO_SOURCE_ROOT is the shared component checkout root and has a single
+# write owner: the merge action (main session, AGENTS.md §3).  Every component
+# source path below derives from it; a task points it at its private tree
+# (`tools/infra/private_source.sh <c> <task-id>` prints the export line) rather
+# than writing the shared one.  The default value is unchanged.
+DADAO_SOURCE_ROOT ?= .work/source
+# Python tools read the same override; pass it only when it differs from the
+# default so the default command lines (and their output) stay byte-identical.
+SOURCE_ROOT_ENV = $(if $(filter .work/source,$(DADAO_SOURCE_ROOT)),,DADAO_SOURCE_ROOT=$(DADAO_SOURCE_ROOT) )
+# Components whose build scripts still hardcode the shared component path
+# (audited by m20-infra-003; the fix is a follow-up task): a private-root
+# override must fail loudly instead of silently building the shared tree.
+guard_private_source_root = $(if $(filter-out .work/source,$(DADAO_SOURCE_ROOT)),$(error $1: DADAO_SOURCE_ROOT=$(DADAO_SOURCE_ROOT) is not supported by this target yet — its script reads the shared component path; build from a private worktree (see m20-infra-003)))
+QEMU_SRC   ?= $(DADAO_SOURCE_ROOT)/qemu
 QEMU_BUILD ?= .work/build/qemu
-LLVM_SRC   ?= .work/source/llvm-project/llvm
+LLVM_SRC   ?= $(DADAO_SOURCE_ROOT)/llvm-project/llvm
 LLVM_BUILD ?= .work/build/llvm
 # cfx alias runtime table (LLVM-135t): *data*, not code.  llvm-mc/llvm-objdump
 # (and clang's inline assembler) read <exe-dir>/../share/dadao/cfx-aliases.txt,
@@ -38,7 +52,7 @@ LLVM_BUILD ?= .work/build/llvm
 CFX_ALIAS_TABLE_SRC     ?= contracts/cfx-aliases.txt
 CFX_ALIAS_TABLE_BUILD   ?= $(LLVM_BUILD)/share/dadao/cfx-aliases.txt
 CFX_ALIAS_TABLE_INSTALL ?= $(HOST_TOOLCHAIN_DIR)/share/dadao/cfx-aliases.txt
-GEM5_SRC   ?= .work/source/gem5
+GEM5_SRC   ?= $(DADAO_SOURCE_ROOT)/gem5
 GEM5_BUILD ?= .work/build/gem5
 # gem5 builds with SCons; no SCons is vendored in the repo.  Point this at a
 # venv/install if `scons` is not on PATH (build-gem5 then reports BLOCKED, not
@@ -368,7 +382,7 @@ fetch-refs: manifest-check
 # E5: after applying, apply_series.py commits locally (message
 # "dadao: <component> patch series") so the worktree ends clean at base+1.
 apply-series: manifest-check
-	@$(PYTHON) tools/infra/apply_series.py
+	@$(SOURCE_ROOT_ENV)$(PYTHON) tools/infra/apply_series.py
 
 # 节点仓库同步（用户 2026-11-09）：每次远程任务后把 master 推到节点并恢复干净工作树。
 # 节点清单来自 DADAO_NODES；仓库路径来自 REPO（默认 ~/DADAO-v5）。
@@ -898,7 +912,7 @@ _locked-build-bootrom:
 # Requires the install-root clang (run 'make install-host' first).
 _locked-build-picolibc:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-picolibc: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
-	@$(PYTHON) tools/infra/build_picolibc.py --jobs $(JOBS)
+	@$(call guard_private_source_root,build-picolibc)$(PYTHON) tools/infra/build_picolibc.py --jobs $(JOBS)
 
 # test-picolibc-smoke (INFRA-057t): minimal end-to-end check — a printf("hi")
 # program is compiled against the installed picolibc, linked with the project
@@ -937,7 +951,7 @@ TSET_GATE_JSON_DIR = .work/tests/gates
 _locked-check-tset-libc-smoke:
 	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-libc-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
-	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-libc-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@test -f $(DADAO_SOURCE_ROOT)/musl/lib/libc.a || { echo "check-tset-libc-smoke: ERROR: $(DADAO_SOURCE_ROOT)/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
 	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-user/run_libc_test_smoke_user.py --link-mode static \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-libc-smoke.json \
 	    > .work/log/testcases/check-tset-libc-smoke.log 2>&1; \
@@ -950,8 +964,8 @@ _locked-check-tset-libc-smoke:
 _locked-check-tset-llvm-smoke:
 	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-llvm-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
-	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-llvm-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
-	@test -d .work/source/llvm-test-suite || { echo "check-tset-llvm-smoke: ERROR: .work/source/llvm-test-suite not found — run 'make fetch'"; exit 1; }
+	@test -f $(DADAO_SOURCE_ROOT)/musl/lib/libc.a || { echo "check-tset-llvm-smoke: ERROR: $(DADAO_SOURCE_ROOT)/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@test -d $(DADAO_SOURCE_ROOT)/llvm-test-suite || { echo "check-tset-llvm-smoke: ERROR: $(DADAO_SOURCE_ROOT)/llvm-test-suite not found — run 'make fetch'"; exit 1; }
 	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-user/run_llvm_ts_smoke_user.py --link-mode static --jobs $(TEST_JOBS) \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-llvm-smoke.json \
 	    > .work/log/testcases/check-tset-llvm-smoke.log 2>&1; \
@@ -964,8 +978,8 @@ _locked-check-tset-llvm-smoke:
 _locked-check-tset-embench-smoke:
 	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-embench-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
-	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-embench-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
-	@test -d .work/source/embench-iot || { echo "check-tset-embench-smoke: ERROR: .work/source/embench-iot not found — run 'make fetch'"; exit 1; }
+	@test -f $(DADAO_SOURCE_ROOT)/musl/lib/libc.a || { echo "check-tset-embench-smoke: ERROR: $(DADAO_SOURCE_ROOT)/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@test -d $(DADAO_SOURCE_ROOT)/embench-iot || { echo "check-tset-embench-smoke: ERROR: $(DADAO_SOURCE_ROOT)/embench-iot not found — run 'make fetch'"; exit 1; }
 	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-user/run_embench_user.py --link-mode static \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-embench-smoke.json \
 	    > .work/log/testcases/check-tset-embench-smoke.log 2>&1; \
@@ -985,7 +999,7 @@ _locked-check-tset-libc-full:
 	@test -n "$(TSET_FULL_MODES)" || { echo "check-tset-libc-full: ERROR: TSET_FULL_MODES 为空（禁 vacuous 绿）"; exit 1; }
 	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-libc-full: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
-	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-libc-full: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@test -f $(DADAO_SOURCE_ROOT)/musl/lib/libc.a || { echo "check-tset-libc-full: ERROR: $(DADAO_SOURCE_ROOT)/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
 	@fail=0; for m in $(TSET_FULL_MODES); do \
 	  echo "check-tset-libc-full: [$$m] full suite"; \
 	  $(PYTHON) tests/ee-user/run_libc_test_user.py --link-mode $$m \
@@ -999,8 +1013,8 @@ _locked-check-tset-llvm-full:
 	@test -n "$(TSET_FULL_MODES)" || { echo "check-tset-llvm-full: ERROR: TSET_FULL_MODES 为空（禁 vacuous 绿）"; exit 1; }
 	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-llvm-full: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
-	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-llvm-full: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
-	@test -d .work/source/llvm-test-suite || { echo "check-tset-llvm-full: ERROR: .work/source/llvm-test-suite not found — run 'make fetch'"; exit 1; }
+	@test -f $(DADAO_SOURCE_ROOT)/musl/lib/libc.a || { echo "check-tset-llvm-full: ERROR: $(DADAO_SOURCE_ROOT)/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@test -d $(DADAO_SOURCE_ROOT)/llvm-test-suite || { echo "check-tset-llvm-full: ERROR: $(DADAO_SOURCE_ROOT)/llvm-test-suite not found — run 'make fetch'"; exit 1; }
 	@fail=0; for m in $(TSET_FULL_MODES); do \
 	  echo "check-tset-llvm-full: [$$m] full suite"; \
 	  $(PYTHON) tests/ee-user/run_llvm_ts_user.py --link-mode $$m --jobs $(TEST_JOBS) \
@@ -1014,8 +1028,8 @@ _locked-check-tset-embench-full:
 	@test -n "$(TSET_FULL_MODES)" || { echo "check-tset-embench-full: ERROR: TSET_FULL_MODES 为空（禁 vacuous 绿）"; exit 1; }
 	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-embench-full: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
-	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-embench-full: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
-	@test -d .work/source/embench-iot || { echo "check-tset-embench-full: ERROR: .work/source/embench-iot not found — run 'make fetch'"; exit 1; }
+	@test -f $(DADAO_SOURCE_ROOT)/musl/lib/libc.a || { echo "check-tset-embench-full: ERROR: $(DADAO_SOURCE_ROOT)/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
+	@test -d $(DADAO_SOURCE_ROOT)/embench-iot || { echo "check-tset-embench-full: ERROR: $(DADAO_SOURCE_ROOT)/embench-iot not found — run 'make fetch'"; exit 1; }
 	@fail=0; for m in $(TSET_FULL_MODES); do \
 	  echo "check-tset-embench-full: [$$m] full suite"; \
 	  $(PYTHON) tests/ee-user/run_embench_user.py --link-mode $$m \
@@ -1041,7 +1055,7 @@ _locked-check-tset-embench-full:
 # build-musl-shared too (same script, same in-tree build directory).
 _locked-build-musl:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-musl: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
-	@$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS)
+	@$(call guard_private_source_root,build-musl)$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS)
 
 # build-musl-shared (INFRA-085t stage A1): the SHARED/PIC counterpart -- same
 # source tree, configured *without* --disable-shared so musl links lib/libc.so
@@ -1058,7 +1072,7 @@ _locked-build-musl:
 # Running/loading it is P3 (qemu-user) and is not done here.
 _locked-build-musl-shared:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-musl-shared: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
-	@$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS) --shared
+	@$(call guard_private_source_root,build-musl-shared)$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS) --shared
 
 # ── Linux 内核（M14；目标名与脚本路径由 m14-linux-001 一次声明）─────────────────
 # 本块只声明目标，脚本随各任务落地（m14-linux-002..006 / m14-infra-00x）；以后
@@ -1100,7 +1114,7 @@ _locked-linux-initramfs:
 # crt1.o/libc.a + `make fetch`/`apply_series.py --component busybox` 的源树；
 # 缺任一条脚本显式报错（不静默退化）。产物 .work/build/busybox/busybox。
 _locked-build-busybox:
-	@JOBS=$(JOBS) $(PYTHON) tools/linux/build_busybox.py --jobs $(JOBS)
+	@$(call guard_private_source_root,build-busybox)JOBS=$(JOBS) $(PYTHON) tools/linux/build_busybox.py --jobs $(JOBS)
 
 _locked-check-linux-k0:
 	@JOBS=$(JOBS) $(PYTHON) tests/unit/linux/check_k0.py
@@ -1254,7 +1268,7 @@ check-spec-archive-verify:
 
 # 组件补丁集校验 (2026-09-23): 树形补丁集断言（现 9 条），见 docs/Process-01-组件补丁组织与构建编排.md。
 check-patch-tree:
-	@$(PYTHON) tools/infra/check_patch_tree.py
+	@$(SOURCE_ROOT_ENV)$(PYTHON) tools/infra/check_patch_tree.py
 
 # new-file 补丁 index blob hash 卫生 (INFRA-038t/ISS-119): 按补丁自身内容用
 # `git hash-object --stdin` 重算 new-file 补丁的 index 新 hash；失配 ⇒ FAIL。
@@ -1264,7 +1278,7 @@ check-index-blobs:
 
 # E7 模块自检 (2026-10-03): 报告每个源树的 E1 状态（worktree 干净 + base+1）。
 check-source-state:
-	@$(PYTHON) tools/infra/check_patch_tree.py --source-state
+	@$(SOURCE_ROOT_ENV)$(PYTHON) tools/infra/check_patch_tree.py --source-state
 
 # 组件源文件规模报告 (INFRA-028t): 仅报告（非强制），不进门控。
 # 规则见 docs/Process-01 §11「组件源文件规模约定」。
@@ -1861,7 +1875,7 @@ _locked-check-arch: check-arch-smoke
 # Process-05 §6), resolved via paths.py (D7) -- never hardcoded.
 DIFF_IR_LLI = tools/testcases/diff_ir_lli.py
 EMBENCH_E2E = tests/ee-tiny/run_embench_tiny.py
-EMBENCH_SRC = .work/source/embench-iot
+EMBENCH_SRC = $(DADAO_SOURCE_ROOT)/embench-iot
 IR_LLI_WORK = $(TEST_ARTIFACTS_DIR)/ir-lli-diff
 EMBENCH_E2E_WORK = $(TEST_ARTIFACTS_DIR)/m6-embench
 IR_LLI_LOG = .work/log/integ/test-m6-ir-lli.log

@@ -29,18 +29,32 @@ pinned for that path in the component's ``submodule_lock``.  The submodule
 gitlink path itself is **not** exported as a top-level patch: it is not a
 file change but the recorded submodule commit, and its content is the
 submodule's own patch set.
+
+Source-tree write ownership (``m20-infra-003``, user ruling 2026-11-28)
+----------------------------------------------------------------------
+The shared checkout ``<work_root>/source/<name>`` is written **only** by the
+merge action (main session) or a single-writer node bootstrap.  A task exports
+from its own private tree (``--source <path>`` or ``DADAO_SOURCE_ROOT``); the
+patches it writes still land in the task branch.  Reading the shared tree for
+export is refused with **rc=2** unless a non-empty
+``DADAO_SHARED_SOURCE_OWNER`` token is set (self-attestation of sole write
+ownership, not an identity check), because an export from a tree that another
+writer may move is exactly the drift this rule removes.
 """
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
 import submodule_patches
 
 ROOT = Path(__file__).resolve().parents[2]
+SHARED_OWNER_ENV = "DADAO_SHARED_SOURCE_OWNER"
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
 INDEX_RE = re.compile(r"^index [0-9a-f]+\.\.[0-9a-f]+.*$", re.MULTILINE)
 
@@ -48,6 +62,49 @@ INDEX_RE = re.compile(r"^index [0-9a-f]+\.\.[0-9a-f]+.*$", re.MULTILINE)
 def load_manifest() -> dict:
     with (ROOT / "manifests/components.lock.toml").open("rb") as stream:
         return tomllib.load(stream)
+
+
+def shared_source_root(manifest: dict) -> Path:
+    """The one shared checkout root (``<work_root>/source``, default ``.work/source``)."""
+    return ROOT / manifest.get("work_root", ".work") / "source"
+
+
+def source_root(manifest: dict) -> Path:
+    """Root this run reads: ``DADAO_SOURCE_ROOT`` override or the shared root."""
+    override = os.environ.get("DADAO_SOURCE_ROOT")
+    if not override:
+        return shared_source_root(manifest)
+    path = Path(override)
+    return path if path.is_absolute() else ROOT / path
+
+
+def refuse_shared_read(label: str, source: Path, shared_root: Path) -> bool:
+    """True if exporting from *source* is allowed; print the refusal otherwise.
+
+    A non-empty ``DADAO_SHARED_SOURCE_OWNER`` token means the caller attests to
+    being the sole writer of this checkout (``main-session`` on the controller,
+    ``node-single-writer`` in a node bootstrap); empty/whitespace means a task
+    and is refused, because exporting from a tree another writer is moving is
+    precisely how ``patch != worktree`` drift is introduced.
+    """
+    if source.resolve() != (shared_root / label).resolve():
+        return True
+    if os.environ.get(SHARED_OWNER_ENV, "").strip():
+        return True
+    print(
+        f"make-patch: refusing to export from the shared source tree {source}: "
+        "a task may not use it; set "
+        f"{SHARED_OWNER_ENV}=<non-empty token> only if this process is the sole "
+        "writer (merge action: main-session; node bootstrap: node-single-writer)",
+        file=sys.stderr,
+    )
+    print(
+        "make-patch: tasks must export from a private tree — run "
+        f"`tools/infra/private_source.sh {label} <task-id>` and point this tool "
+        "at it with `--source <path>` (or DADAO_SOURCE_ROOT=<private source root>)",
+        file=sys.stderr,
+    )
+    return False
 
 
 def git(*args: str, cwd: Path, check: bool = True) -> str:
@@ -198,6 +255,11 @@ def main() -> int:
         action="store_true",
         help="list the patches that would be written, without writing anything",
     )
+    parser.add_argument(
+        "--source", metavar="PATH",
+        help="export from this component worktree instead of the source root's "
+             "<component> (private tree; see tools/infra/private_source.sh)",
+    )
     args = parser.parse_args()
 
     manifest = load_manifest()
@@ -214,7 +276,12 @@ def main() -> int:
             "accept its baseline ADR first"
         )
 
-    source = ROOT / manifest.get("work_root", ".work") / "source" / args.component
+    if args.source:
+        source = Path(args.source).resolve()
+    else:
+        source = source_root(manifest) / args.component
+    if not refuse_shared_read(args.component, source, shared_source_root(manifest)):
+        return 2
     submodule_sets = submodule_patches.patch_sets(component)
     gitlinks = frozenset(entry["path"] for entry in submodule_sets)
 

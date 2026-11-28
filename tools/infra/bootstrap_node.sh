@@ -16,6 +16,11 @@
 # absent that step builds it with `make build-mc build-lld` first (install-host
 # cannot bootstrap its own compiler-rt dependency).  Both calls are idempotent.
 #
+# Step 5 is a single-writer action (m20-infra-003): the node owns its own
+# checkout, so it attests `DADAO_SHARED_SOURCE_OWNER=node-single-writer` to
+# apply_series.py.  The token only states "no second writer on this machine";
+# it is not an identity/authorization check.
+#
 # Every step prints `[step N] ...` and `rc=`.  A failing step stops the run and
 # shows the last 40 log lines.  `--dry-run` prints the commands only.
 #
@@ -49,6 +54,12 @@ GIT_EMAIL_ARG=""
 JOBS="${JOBS:-8}"
 DRY_RUN=0
 
+# A node is the single writer of its own checkout's shared source trees
+# (m20-infra-003).  Step 5 passes this self-attestation token to
+# apply_series.py; the token is not an identity check, it only says "there is
+# no second writer on this machine".  Tasks on the controller must NOT set it.
+SOURCE_OWNER_TOKEN="${DADAO_SHARED_SOURCE_OWNER:-node-single-writer}"
+
 usage() {
   awk 'NR > 1 && /^set -uo pipefail/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
 }
@@ -77,6 +88,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -n "$JOBS" ] || die "--jobs must not be empty"
+[ -n "${SOURCE_OWNER_TOKEN//[[:space:]]/}" ] || die "source-owner token must not be empty (DADAO_SHARED_SOURCE_OWNER)"
 
 # compiler-rt standalone configuration: all knobs live here (one place).
 # COMPILER_RT_TARGET must be passed as both *_COMPILER_TARGET and in the
@@ -157,7 +169,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   say "[step 4] make -C $REPO_DIR -j $JOBS fetch"
   say '[step 4] rc=0 (dry-run)'
   step_header 5 "apply the ordered patch series (must precede install-host)"
-  say "[step 5] make -C $REPO_DIR -j $JOBS apply-series"
+  say "[step 5] env DADAO_SHARED_SOURCE_OWNER=$SOURCE_OWNER_TOKEN make -C $REPO_DIR -j $JOBS apply-series"
   say '[step 5] rc=0 (dry-run)'
   step_header 6 "configure the compiler-rt builtins build tree when absent"
   say '[step 6] build-mc then build-lld (separate calls; both are gate-locked), configure compiler-rt when absent, then build-builtins'
@@ -303,7 +315,11 @@ run_logged 4 fetch make -C "$REPO_DIR" -j "$JOBS" fetch || exit $?
 
 # ---------------------------------------------------------------- step 5: apply-series
 step_header 5 "apply ordered patch series (must run before install-host)"
-run_logged 5 apply-series make -C "$REPO_DIR" -j "$JOBS" apply-series || exit $?
+# m20-infra-003: apply_series.py refuses to write the shared tree without a
+# non-empty owner token.  The node is the sole writer of its own checkout, so
+# it attests exactly that; this is not a credential for controller tasks.
+run_logged 5 apply-series env DADAO_SHARED_SOURCE_OWNER="$SOURCE_OWNER_TOKEN" \
+  make -C "$REPO_DIR" -j "$JOBS" apply-series || exit $?
 
 # ---------------------------------------------------------------- step 6: compiler-rt
 step_header 6 "compiler-rt builtins build tree"
