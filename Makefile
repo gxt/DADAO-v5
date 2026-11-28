@@ -96,6 +96,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-run-artifacts \
         check-test-reports \
         check-temp-dirs \
+        check-private-dirs \
         check-writer-guards \
         test-codegen test-elf test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
@@ -307,6 +308,7 @@ help:
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
 	@echo "  make check-test-reports  docs/TestReports/ naming/layout + no runtime paths + snapshot marker + header four items gate (L1; m13-testcases-004)"
 	@echo "  make check-temp-dirs  Stale task temp dirs (non-active worktree, in-use task exempt, mtime > 2 h) + stale large files (> 100 MiB) + /tmp usage > 70% gate; report only, never delete (L1; INFRA-145t/146t)"
+	@echo "  make check-private-dirs  Stale .work/private/<task-id>/ dirs (in-use task book exempt, verified/unknown/non-task + mtime > 2 h FAIL); report only, never delete (L1; m20-infra-005)"
 	@echo "  make check-writer-guards  Shared build-tree/install-root writer guard self-test: active writer refuses batch entries, replacement mid-batch FAILs, stale records cleaned, normal path unharmed + wiring assertions (L1; ISS-373)"
 	@echo "  make check-width-sizes  64-bit width + ELF64/rela/got + DWARF64 addr_size probe (L1; LLVM-130t)"
 	@echo "  make check-code-range  DADAO code-span gate: REL26 edge ≤ 32 MiB + exec_span < 30 MiB (L1; ADR-0036/INFRA-106t)"
@@ -1232,7 +1234,7 @@ _locked-clean-work:
 # 两条排在 `check-temp-dirs` **之前**：它们在 `$DADAO_TMP`（`check_toolchain.py`
 # 默认建任务临时目录）下跑探针，先跑可让该目录 mtime 保持新鲜，避免陈旧临时
 # 目录误报；`check_k0.py`（L2）另行把 DADAO_TMP 指到自己的 scratch。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-opcodes-repro check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-arch-self-test check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-idl-sync check-idl-parse check-idl-exec-anchor check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-config-pins check-writer-guards check-temp-dirs
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-opcodes-repro check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-arch-self-test check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-idl-sync check-idl-parse check-idl-exec-anchor check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-config-pins check-writer-guards check-temp-dirs check-private-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1379,6 +1381,16 @@ check-test-reports:
 # 只列前 5 大 / 只报告不删除。
 check-temp-dirs:
 	@$(PYTHON) tools/infra/check_temp_dirs.py
+
+# 任务私有目录陈旧门控 (m20-infra-005, L1): 扫 `.work/private/` 的**直接子目录**，目录名
+# 须为现行任务号 `mNN-<module>-<NNN[N]>`（允许 `-<后缀>`）；任务书 `**状态**` ∈
+# 待开始/待验收/待返工 ⇒ 在用豁免（不限时龄）；其余（非任务号 / 任务号无任务书 /
+# 已验证等非在用状态）**mtime > 2 h** ⇒ FAIL（`du` 体积前 5 大 + 陈旧总数/总体积）。
+# **只报告不删除**（用户 2026-11-28 裁定；清理由任务收尾执行）；无 `.work/private`
+# ⇒ PASS（不 vacuous 失败）。`--self-test` 覆盖：陈旧 FAIL / 在用豁免 / 已验证 FAIL /
+# 未知任务号 FAIL / 非任务号 FAIL / 缺根 PASS / 阈值注入 / 只列前 5 大 / 只报告不删除。
+check-private-dirs:
+	@$(PYTHON) tools/infra/check_private_dirs.py
 
 # 共享构建树/安装根写者护栏自测 (ISS-373, L1): 临时树里跑四类（写者活跃 ⇒ 真实
 # 跑批入口拒绝且不执行二进制 / 跑批中替换二进制 ⇒ FAIL / stale 可清理且不拦读方 /

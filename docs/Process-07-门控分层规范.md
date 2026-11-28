@@ -282,6 +282,7 @@ K6 门控 `check-linux-k6` 落地后，「用户态应用尚未跑通 / busybox 
 | `check-run-artifacts` | L1 | `tests/ee-user` 驱动 + `.work/tests/**` + `.work/log/**` | 命名规则（运行目录三件套 + log 新名） | —（meta 的 sha256 只核非空） | `tools/infra/check_run_artifacts.py:6-25,299-347` | 无 |
 | `check-test-reports` | L1 | `docs/TestReports/*.md` | 命名规则（`<M>-主题`；无二级子目录） | —（快照首行标记） | `tools/infra/check_test_reports.py:44-47` | 无 |
 | `check-temp-dirs` | L1 | `/tmp/opencode` + `$TMPDIR/opencode` | —（只报陈旧、不删） | — | `tools/infra/check_temp_dirs.py:11-26` | 只报告不删除；不扫仓库内 |
+| `check-private-dirs` | L1 | `.work/private/<任务号>/` 直接子目录 | 命名规则（现行任务号 `mNN-<module>-<NNN[N]>`，允许 `-<后缀>`）+ 覆盖（须有任务书） | —（只报陈旧、不删） | `tools/infra/check_private_dirs.py:1-30` | 只报告不删除；只扫 `.work/private` 一层 |
 | `check-writer-guards` | L1 | 临时树 stub 二进制 | — | 一致性（读方 md5 结束≠启动 FAIL） | `tools/infra/check_writer_guards.py:11-38` | 自测型，不扫真实 registry |
 | `check-disk` | 按需（运维） | 文件系统占用 | — | — | `tools/infra/check_disk.py:2-13` | 运维守卫，非门控 |
 | `check-milestone` | 里程碑 | 归档 + 台账 + L3 报告 + 同步异常 | 覆盖（台账任务号必须存在） | sha256 锁（归档内容）+ 一致性（报告） | `Makefile:1351` | 收尾专项 |
