@@ -17,6 +17,10 @@ builder to enforce is enforced here and makes the tool exit non-zero:
   * power/hmon segment size <= 2 KiB / 3 KiB (link-time asserts also guard this);
   * the segments are linked at the addresses the layout implies
     (power e_entry == BootROM base, hmon e_entry == hmon SRAM base);
+  * the hmon code matches the §6.2 data-page contract (0x0C00-0x0CFF outside the
+    copied segment): the handler addresses the page through one second base
+    register, whose bootstrap is the only rb0-relative 8-byte ld/st and reaches
+    the page; see ``hmon_layout_problems`` for the exact checks;
   * the hmon table entry is 8-byte aligned (`offset`/`size`) and points at the
     hmon segment; `flags` bit31:3 are zero and bit2 is clear (a flat segment has
     no ELF structure to check, §6.1);
@@ -73,43 +77,37 @@ TABLE_END = TABLE_OFF + TABLE_SIZE
 BOOTROM_BASE = 0xFFFF_FFFF_0000
 HMON_BASE = 0x0FFF_0000_0000
 
-# m13-integ-007 -- fixed hmon save-and-jump layout (m12-006 cycle design §11,
-# user ruling 2026-11-11, second revision).  The handler has exactly one
-# scratch register (rd63), so the cause stores use IP-relative offsets; the
-# layout is a build contract, not a comment:
+# hmon SRAM partitioning (spec/Kaiwu §6.2, M19 8 KiB geometry):
+#   code 0x0000-0x0BFF  (<= 3 KiB; occupied by the copied source segment)
+#   data 0x0C00-0x0CFF  (256 B, initial 0; *outside* the image segment --
+#                        power copies only `size` bytes, i.e. the code)
+#   stack 0x0D00-0x1FFF
+HMON_DATA_BASE = 0xC00          # data page start == code region limit
+HMON_DATA_SIZE = 0x100
 #
-#   0x00  code start (10 instructions, 44 B; code must stay below 0xD8)
-#   0xD8  saved rd63          0xE8 cause_ip    0xF8 return address
-#   0xE0  cause_id            0xF0 cause_info
-#
-# The data area is outside the image segment: power copies only `size` bytes
-# (the code), so the SRAM data slots keep their initial value.
-#
-# M19 note: `spec/Kaiwu §6.2` now puts the hmon SRAM data area at 0x0C00 with
-# the code region 0x0000-0x0BFF.  The firmware (`tests/ee-tiny/cfx_hmon_tiny.S`)
-# and every consumer still use 0xD8-0xF8; that migration is not part of this
-# builder's task (m19-testcases-002 待裁定 1), so the in-segment slots below
-# stay the enforced layout until the firmware moves.
-HMON_DATA_BASE = 0xD8
-HMON_SLOT_RD63 = 0xD8
-HMON_SLOT_CAUSE_ID = 0xE0
-HMON_SLOT_CAUSE_IP = 0xE8
-HMON_SLOT_CAUSE_INFO = 0xF0
-HMON_SLOT_RETURN = 0xF8
-HMON_CODE_MIN = 0x2C
-# Layout words whose encoding carries a data-slot offset.  They lock the
-# IP-relative offsets to the fixed layout; the cfx2rd/cfx2rc/escape words are
-# not fingerprinted (so a behavioural +4 injection still reaches the probe).
-# st.o rd63,[rb0,0xD8] = (0x21<<24)|(63<<18)|0xD8;
-# ld.o rd63,[rb0,0xDC]/[rb0,0xB4] = (0x20<<24)|(63<<18)|imm.
-HMON_LAYOUT_WORDS = {
-    0x00: 0x21FC00D8,
-    0x08: 0x21FC00D8,
-    0x10: 0x21FC00D8,
-    0x18: 0x21FC00D8,
-    0x1C: 0x20FC00DC,
-    0x24: 0x20FC00B4,
-}
+# Page layout inside the data area: the firmware/framework contract
+# (m19-testcases-005; `tests/ee-tiny/cfx_hmon_tiny.S` is the source of truth).
+# hmon writes the three cause slots and saves the two registers it clobbers;
+# power writes the default return address; the test framework may overwrite
+# the return slot to redirect `escape`.
+HMON_SLOT_CAUSE_ID = 0x00
+HMON_SLOT_CAUSE_IP = 0x08
+HMON_SLOT_CAUSE_INFO = 0x10
+HMON_SLOT_RETURN = 0x18
+HMON_SLOT_RD63 = 0x20
+HMON_SLOT_RB63 = 0x28
+# entry `jump` + 15-instruction body (0x500-0x53C).
+HMON_CODE_MIN = 0x40
+
+# 8-byte ld/st opcodes carrying a base register (contracts/opcodes.yaml:
+# fields rdha[23:18] / rbhb[17:12] / imms12[11:0]); 0x20/0x21 address an RD
+# register, 0x22/0x23 an RB register.
+LDO_RD, STO_RD, LDO_RB, STO_RB = 0x20, 0x21, 0x22, 0x23
+LDST_OPS = (LDO_RD, STO_RD, LDO_RB, STO_RB)
+JUMP_REL = 0x70
+ESCAPE = 0x7E
+RB0 = 0
+RB_BASE = 63            # the handler's data-page base register (rb63)
 
 FLAG_REQUIRED, FLAG_LOAD, FLAG_VERIFY = 1, 2, 4
 DEFAULT_HMON_FLAGS = FLAG_REQUIRED | FLAG_LOAD  # flat segment: no ELF verify
@@ -133,6 +131,126 @@ def be64(buf, off):
 
 def align8(x):
     return (x + 7) & ~7
+
+
+def sign_extend(value, bits):
+    sign = 1 << (bits - 1)
+    return (value & (sign - 1)) - (value & sign)
+
+
+def ldst_base(word):
+    return (word >> 12) & 0x3F
+
+
+def ldst_imm(word):
+    return sign_extend(word & 0xFFF, 12)
+
+
+def hmon_layout_problems(hmon):
+    """Static re-read of the hmon code against the §6.2 data-page contract.
+
+    The handler cannot address 0x0C00 with a single `rb0`-relative ld/st (the
+    immediate is a signed 12-bit field, spec/SimRISC-01) and `rb0` reads as the
+    current IP, so it keeps a second base register (rb63 = HMON_BASE + 0x0C00)
+    and reaches the page with small immediates.  The bootstrap therefore has to
+    be one *IP-relative* store of rb63's previous value into the page.  Checks:
+
+      * word 0 is a relative `jump [rb0, ...]` whose target lies inside the code;
+      * exactly one `rb0`-relative 8-byte ld/st: the bootstrap, and its
+        effective address (instruction address + imms12) is +0x28 (saved rb63);
+      * every other 8-byte ld/st is relative to rb63 and its immediate is one of
+        the contract offsets: cause_id/ip/info (stores), return (load),
+        saved rd63 (store + load), saved rb63 (load) -- exact multiset;
+      * the final instruction is `escape cfx_hmon`.
+    """
+    problems = []
+    words = [be32(hmon, off) for off in range(0, len(hmon) - 3, 4)]
+    # §6.1 `size` is 8-byte aligned: strip the zero padding the builder appends.
+    while words and words[-1] == 0:
+        words.pop()
+    if not words:
+        return ["hmon code is empty"]
+
+    def name(off):
+        return "%#06x" % off
+
+    entry = words[0]
+    entry_target = None
+    if (entry >> 24) != JUMP_REL:
+        problems.append("entry %s is %#010x, not `jump [rb0, ...]`"
+                        % (name(0), entry))
+    else:
+        # rb0 of the entry instruction is its own offset (0) ⇒ target = imms24<<2
+        entry_target = sign_extend(entry & 0xFFFFFF, 24) * 4
+        if not 0 < entry_target < len(hmon):
+            problems.append("entry jump target %#x is outside the code (%#x B)"
+                            % (entry_target, len(hmon)))
+
+    rb0_accesses, base_accesses = [], []
+    for off, word in enumerate(words):
+        if (word >> 24) not in LDST_OPS:
+            continue
+        base = ldst_base(word)
+        if base == RB0:
+            rb0_accesses.append((off * 4, word, (off * 4) + ldst_imm(word)))
+        elif base == RB_BASE:
+            base_accesses.append((off * 4, word, ldst_imm(word)))
+        else:
+            problems.append("8-byte ld/st at %s uses base rb%d (only rb0 for the "
+                            "bootstrap and rb%d for the data page are allowed)"
+                            % (name(off * 4), base, RB_BASE))
+
+    if len(rb0_accesses) != 1:
+        problems.append("%d rb0-relative 8-byte ld/st instructions, expected "
+                        "exactly 1 (the bootstrap saving rb63)"
+                        % len(rb0_accesses))
+    else:
+        off, word, eff = rb0_accesses[0]
+        if (word >> 24) != STO_RB:
+            problems.append("bootstrap at %s is not `st.o rb63, [rb0, ...]` "
+                            "(%#010x)" % (name(off), word))
+        elif (word >> 18) & 0x3F != RB_BASE:
+            problems.append("bootstrap at %s stores rb%d, expected rb%d"
+                            % (name(off), (word >> 18) & 0x3F, RB_BASE))
+        if entry_target is not None and entry_target != off:
+            problems.append("entry jump target %#x is not the bootstrap at %#x "
+                            "(the body must start with the rb63 save)"
+                            % (entry_target, off))
+        want = HMON_DATA_BASE + HMON_SLOT_RB63
+        if eff != want:
+            problems.append("bootstrap at %s reaches %#x, expected %#x "
+                            "(data page + rb63 slot)" % (name(off), eff, want))
+
+    want_words = [
+        (STO_RD, HMON_SLOT_RD63),        # save rd63
+        (STO_RD, HMON_SLOT_CAUSE_ID),
+        (STO_RD, HMON_SLOT_CAUSE_IP),
+        (STO_RD, HMON_SLOT_CAUSE_INFO),
+        (LDO_RD, HMON_SLOT_RETURN),      # escape ip <- return address
+        (LDO_RD, HMON_SLOT_RD63),        # restore rd63
+        (LDO_RB, HMON_SLOT_RB63),        # restore rb63 (must be last)
+    ]
+    got_words = [(w >> 24, imm) for _off, w, imm in base_accesses]
+    if sorted(got_words) != sorted(want_words):
+        problems.append("rb%d data-page accesses are %s, expected %s"
+                        % (RB_BASE,
+                           ", ".join("%s.o %+d" % (
+                               {LDO_RD: "ld", STO_RD: "st", LDO_RB: "ld",
+                                STO_RB: "st"}[op], imm)
+                               for op, imm in got_words) or "none",
+                           ", ".join("%s.o %+d" % (
+                               {LDO_RD: "ld", STO_RD: "st", LDO_RB: "ld",
+                                STO_RB: "st"}[op], imm)
+                               for op, imm in sorted(want_words))))
+    elif got_words[-1] != (LDO_RB, HMON_SLOT_RB63):
+        problems.append("the rb%d restore is not the last data-page access "
+                        "(rb%d must stay valid until it is restored)"
+                        % (RB_BASE, RB_BASE))
+
+    if words[-1] != ((ESCAPE << 24) | (3 << 18)):
+        problems.append("last word is %#010x, not `escape cfx_hmon`"
+                        % words[-1])
+    return problems
 
 
 class Elf:
@@ -250,36 +368,34 @@ def build(args, max_segment, boot_magic, hmon_flags, out_name):
     if len(power_bin) % 4 or len(hmon_bin) % 4:
         raise BuildError("power/hmon flat segment is not 4-byte aligned in size")
 
-    # m13-integ-007 (enforced unconditionally since m13-gem5-010): the fixed
-    # hmon save-and-jump layout.  There is no legacy opt-out any more.
-    if HMON_DATA_BASE % 8:
-        raise BuildError("internal: hmon data base %#x is not 8-byte aligned"
-                         % HMON_DATA_BASE)
+    # spec/Kaiwu §6.2: the hmon source segment is the *code* region only; the
+    # data page at 0x0C00 must stay outside it (power copies `size` bytes).
+    for slot_name, slot in (("cause_id", HMON_SLOT_CAUSE_ID),
+                            ("cause_ip", HMON_SLOT_CAUSE_IP),
+                            ("cause_info", HMON_SLOT_CAUSE_INFO),
+                            ("return", HMON_SLOT_RETURN),
+                            ("rd63", HMON_SLOT_RD63),
+                            ("rb63", HMON_SLOT_RB63)):
+        if slot % 8 or slot + 8 > HMON_DATA_SIZE:
+            raise BuildError("internal: data-page slot %s at +%#04x is not an "
+                             "8-byte slot inside the %#x-byte page"
+                             % (slot_name, slot, HMON_DATA_SIZE))
     if len(hmon_bin) < HMON_CODE_MIN:
         raise BuildError("hmon segment is %d bytes: code is shorter than %#x"
                          % (len(hmon_bin), HMON_CODE_MIN))
     if len(hmon_bin) > HMON_DATA_BASE:
-        raise BuildError("hmon code is %d bytes > data base %#x (spec/Kaiwu §6.2 "
-                         "moves the data slots to 0x0C00, but that is unreachable "
-                         "for an rb0-relative st.o with a signed 12-bit immediate "
-                         "and hmon has only rd63 as scratch — see m19-testcases-003 "
-                         "待裁定; this builder keeps the legacy in-segment slots)"
+        raise BuildError("hmon code is %d bytes > the data page at %#x "
+                         "(spec/Kaiwu §6.2: code 0x0000-0x0BFF, data 0x0C00)"
                          % (len(hmon_bin), HMON_DATA_BASE))
-    for off, want in HMON_LAYOUT_WORDS.items():
-        if off + 4 > len(hmon_bin):
-            raise BuildError("hmon code is too short for layout word at %#x" % off)
-        got = struct.unpack_from(">I", hmon_bin, off)[0]
-        if got != want:
-            raise BuildError("hmon layout word at %#x is %#010x, expected %#010x"
-                             % (off, got, want))
+    layout = hmon_layout_problems(hmon_bin)
+    if layout:
+        raise BuildError("hmon code does not match the §6.2 data-page contract: "
+                         + "; ".join(layout))
     if len(power_bin) > min(max_segment, POWER_SEG_MAX):
         raise BuildError("power segment is %d bytes > %d"
                          % (len(power_bin), min(max_segment, POWER_SEG_MAX)))
     hmon_raw = len(hmon_bin)
     hmon_size = align8(hmon_raw)  # §6.1 entry `size` is 8-byte aligned
-    if hmon_size > HMON_DATA_BASE:
-        raise BuildError("hmon aligned code size %#x reaches the data base %#x"
-                         % (hmon_size, HMON_DATA_BASE))
     if hmon_size > min(max_segment, HMON_SEG_MAX):
         raise BuildError("hmon segment is %d bytes > %d"
                          % (hmon_size, min(max_segment, HMON_SEG_MAX)))
@@ -352,19 +468,16 @@ def verify_image(image, boot_magic, hmon_flags):
         raise BuildError("verify: power segment is empty")
     if not any(image[HMON_SEG_OFF:HMON_SEG_OFF + size]):
         raise BuildError("verify: hmon segment is empty")
-    # m13-integ-007: re-read the fixed hmon layout from the produced image.
+    # spec/Kaiwu §6.2: re-read the data-page contract from the produced image.
     hmon = image[HMON_SEG_OFF:HMON_SEG_OFF + size]
     if len(hmon) < HMON_CODE_MIN:
         raise BuildError("verify: hmon code is shorter than %#x" % HMON_CODE_MIN)
     if len(hmon) > HMON_DATA_BASE:
-        raise BuildError("verify: hmon code reaches the data base %#x"
+        raise BuildError("verify: hmon code reaches the data page at %#x"
                          % HMON_DATA_BASE)
-    for off, want in HMON_LAYOUT_WORDS.items():
-        if off + 4 > len(hmon):
-            raise BuildError("verify: hmon code is too short for %#x" % off)
-        if be32(hmon, off) != want:
-            raise BuildError("verify: hmon layout word at %#x is %#010x, expected %#010x"
-                             % (off, be32(hmon, off), want))
+    layout = hmon_layout_problems(hmon)
+    if layout:
+        raise BuildError("verify: " + "; ".join(layout))
 
 
 def to_hex(image, comment_lines, ranges, width=32):

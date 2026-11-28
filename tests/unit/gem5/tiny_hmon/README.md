@@ -13,7 +13,7 @@ monitor).  Source: `spec/Kaiwu §1.1/§2/§3/§4.4/§5`, `spec/DADAO-12 §5`,
 
 | File | Purpose |
 |------|---------|
-| `tiny_hmon.S` | SRAM-only application (fixed entry `0xffff_ff01_0100`): before each fault it writes its landing address to hmon slot `0xF8`; at the landing it records the four hmon data slots |
+| `tiny_hmon.S` | SRAM-only application (fixed entry `0xffff_ff00_2000`): before each fault it writes its landing address to the return slot (data page +0x18); at the landing it records the four hmon data slots |
 | `tiny_hmon.lds` | Application layout: `.text` at `ENTRY`, `.rcheck` `ENTRY+0x2000`, `.data` `ENTRY+0x3100`, `.results` `ENTRY+0x4000` |
 | `tiny_hmon_layout.inc` | Application data-area offsets (slot pointer, fail counter, semihosting block) |
 | `tiny_hmon_min.S` | QEMU probe application (`tools/testcases/arch/min_rom_probe_integ007t.py`): same minimal-handler contract, 6 observation records |
@@ -21,7 +21,7 @@ monitor).  Source: `spec/Kaiwu §1.1/§2/§3/§4.4/§5`, `spec/DADAO-12 §5`,
 
 The BootROM firmware (power stub + hmon handler) is **not** in this directory:
 it is the *shared* `tests/ee-tiny/{power,hmon}.S` built by
-`build_tiny_bootrom.py` — the same 64 KiB image QEMU and chipyard boot.  The
+`build_tiny_bootrom.py` — the same 8 KiB image QEMU and chipyard boot.  The
 old gem5-only dispatch handler (`tiny_hmon_handler.{S,lds}`, 18 instructions /
 248 B, frame recording + IALIGN rewrite + `+4`) was removed by
 `m13-gem5-010`.
@@ -29,12 +29,12 @@ old gem5-only dispatch handler (`tiny_hmon_handler.{S,lds}`, 18 instructions /
 ## What the case proves
 
 1. `power → hmon` handover: power writes the default return address to slot
-   `0xF8` (= its trap + 4), traps into hmon; the shared minimal handler saves
-   `CFXTRAP` to `0xE0/0xE8/0xF0` and escapes through `0xF8`.  Record 0 is those
+   +0x18 (= its trap + 4), traps into hmon; the shared minimal handler saves
+   `CFXTRAP` to +0x00/+0x08/+0x10 of the 0xC00 page and escapes through +0x18.  Record 0 is those
    four slots read by the application.
 2. `cfx2rd`/`cfx2rc` register file: hmon/power ids, vector, `switch_run_mode`,
    `excp_prev_run_mode`, counters, scratch, `cfx_intr_mask`, both cg7 space
-   descriptors (records 1–16, plus 41 for the cg3 `rc10` low-bit masking).
+   descriptors (records 1–16, plus 41 for the cg3 `rc15` low-bit masking).
 3. Five synchronous fault classes × 3 cases each (records 17–31): `CFXMEM`,
    `ILLI`, `UNDI`, `MALIGN`, `IALIGN`.  The handler only saves the cause
    registers; the application-supplied return slot picks the landing, so a
@@ -45,7 +45,7 @@ old gem5-only dispatch handler (`tiny_hmon_handler.{S,lds}`, 18 instructions /
    (unimplemented cfx5 register) enter the current run-mode monitor hmon.
    `CFXESC` (escape frame error) is the exception (`m18-gem5-003`):
    `DADAO-12 §5.1/§5.2(一)` delivers it to the **current cfx** — cfx63 in
-   this body — so the case installs cfx63's hypv vector (`cg3 rc10`) at
+   this body — so the case installs cfx63's hypv vector (`cg3 rc15`) at
    `esc_land`, records cfx63's own `cg5` frame there (cause_id / cause_ip /
    cause_info / prev_cfx_code), and asserts the monitor was **not** written:
    a `monitor_unchanged` record reads the hmon SRAM data slots (they still
@@ -65,8 +65,8 @@ old gem5-only dispatch handler (`tiny_hmon_handler.{S,lds}`, 18 instructions /
 The dispatch fixture is retired: the case boots the shared firmware and
 derives every cause record from the hmon SRAM data slots — code at `0x00`
 (11 instructions, 44 B; table entry 48 B after 8-byte alignment), data at
-`0xD8` saved rd63 / `0xE0` cause_id / `0xE8` cause_ip / `0xF0` cause_info /
-`0xF8` framework return address.  The data area lies outside the image
++0x20 saved rd63 / +0x00 cause_id / +0x08 cause_ip / +0x10 cause_info /
++0x18 framework return address (page at hmon SRAM + 0xC00).  The data page lies outside the image
 segment (power copies only the table `size` bytes).  The QEMU oracle for the
 same contract is `tools/testcases/arch/min_rom_probe_integ007t.py` on
 `tiny_hmon_min.S`.
@@ -74,8 +74,11 @@ same contract is `tools/testcases/arch/min_rom_probe_integ007t.py` on
 ## Run
 
 ```sh
-# prerequisites: make build-gem5
-python3 tests/unit/gem5/check_tiny_hmon.py
+# prerequisites: make build-gem5 + make install-host
+make check-tiny-hmon
+# equivalent direct invocation:
+python3 tests/unit/gem5/check_tiny_hmon.py \
+    --work-dir .dadao/tests/tiny-hmon
 ```
 
 The runner assembles/links the shared firmware and the case, runs gem5 Tiny

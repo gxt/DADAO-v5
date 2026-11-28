@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """check_tiny_hmon — Kaiwu-Tiny cfx_power + cfx3 hmon acceptance runner.
 
-Builds the §6.2 two-piece load (fixed 64 KiB BootROM image + SRAM-only app ELF)
+Builds the §6.2 two-piece load (fixed 8 KiB BootROM image + SRAM-only app ELF)
 from `tests/unit/gem5/tiny_hmon/` and `tests/ee-tiny/`, runs the application
 on the gem5 Tiny FS profile, and compares the guest-exported result table
 against the independent oracle in `tests/unit/gem5/tiny_hmon/expected.yaml`
@@ -10,7 +10,8 @@ against the independent oracle in `tests/unit/gem5/tiny_hmon/expected.yaml`
 The BootROM is the *shared* firmware (power stub + the minimal save-and-jump
 hmon handler of m13-integ-007); the gem5 case carries no dispatch handler of
 its own.  Cause records are the four hmon SRAM data slots the application
-reads at its landing address (0xE0/0xE8/0xF0/0xF8) -- except the CFXESC
+reads at its landing address (page base 0xC00, page offsets
++0x00/+0x08/+0x10/+0x18) -- except the CFXESC
 record, which `spec/DADAO-12 §5.2(一)` delivers to the *current* cfx (cfx63):
 that frame is read from cfx63's own cg5 and the monitor's slots are asserted
 to be unchanged (`kind: monitor_unchanged`, the reverse assertion).  The
@@ -44,6 +45,14 @@ BUILDER = ROOT / "tools" / "testcases" / "arch" / "build_tiny_bootrom.py"
 DEFAULT_GEM5 = ROOT / ".work" / "source" / "gem5" / "build" / "DADAO" / "gem5.opt"
 DEFAULT_CONFIG = ROOT / ".work" / "source" / "gem5" / "configs" / "dadao" / "fs.py"
 PASS_EXIT = 0x21
+# Every Tiny geometry constant the case relies on, read back from the gem5
+# profile (`fs.py --dump-geometry`) and compared with expected.yaml.
+GEOMETRY_KEYS = (
+    "bootrom_base", "bootrom_size", "reset_pc",
+    "sram_base", "sram_size", "hmon_base", "hmon_size",
+    "entry", "image_window", "dump_base", "dump_size",
+    "signature_base", "signature_size", "exit_block",
+)
 
 sys.path.insert(0, str(ROOT / "tools" / "infra"))
 import paths  # noqa: E402
@@ -193,24 +202,53 @@ def elf_entry_and_loads(path: Path) -> tuple[int, list[dict]]:
     return entry, loads
 
 
-def patch_elf(src: Path, dst: Path, *, entry=None, paddr=None) -> None:
-    """Copy `src` and rewrite e_entry / the first PT_LOAD's vaddr+paddr."""
+def patch_elf(src: Path, dst: Path, *, entry=None, paddr=None,
+              mem_size=None) -> None:
+    """Copy `src` and rewrite e_entry / the first PT_LOAD's vaddr+paddr+size.
+
+    `mem_size` shrinks p_filesz/p_memsz too: a negative probe that moves a
+    segment into the BootROM/hmon SRAM must keep the segment small enough to
+    fit *inside* the target region, so the loader's target-specific rejection
+    (not the generic "outside the image window") is what fires.
+    """
     data = bytearray(src.read_bytes())
     if entry is not None:
         struct.pack_into(">Q", data, 24, entry)
-    if paddr is not None:
+    if paddr is not None or mem_size is not None:
         phoff = struct.unpack_from(">Q", data, 32)[0]
         phentsize, phnum = struct.unpack_from(">HH", data, 54)
         for i in range(phnum):
             off = phoff + i * phentsize
             if struct.unpack_from(">I", data, off)[0] != 1:
                 continue
-            struct.pack_into(">Q", data, off + 16, paddr)
-            struct.pack_into(">Q", data, off + 24, paddr)
+            if paddr is not None:
+                struct.pack_into(">Q", data, off + 16, paddr)
+                struct.pack_into(">Q", data, off + 24, paddr)
+            if mem_size is not None:
+                struct.pack_into(">Q", data, off + 32, mem_size)
+                struct.pack_into(">Q", data, off + 40, mem_size)
             break
         else:
             raise SystemExit("check_tiny_hmon: internal: no PT_LOAD to patch")
     dst.write_bytes(data)
+
+
+def dump_geometry(gem5: Path, config: Path, work: Path) -> dict[str, int]:
+    """Read the effective Tiny geometry from the gem5 profile itself."""
+    out_dir = work / "geometry"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    r = run([str(gem5.resolve()), "--outdir", str(out_dir.resolve()),
+             str(config.resolve()), "--profile", "tiny", "--dump-geometry"])
+    if r.returncode != 0:
+        print(r.stdout + r.stderr, file=sys.stderr)
+        raise SystemExit(2)
+    geo: dict[str, int] = {}
+    for line in r.stdout.splitlines():
+        if not line.startswith("GEM5_GEOMETRY "):
+            continue
+        key, _, value = line.split(" ", 1)[1].partition("=")
+        geo[key] = int(value, 0)
+    return geo
 
 
 def run_gem5(gem5: Path, config: Path, work: Path, tag: str, kernel: Path,
@@ -276,6 +314,17 @@ def main() -> int:
     oracle = yaml.safe_load((CASE_DIR / "expected.yaml").read_text())
     prof = oracle["profile"]
 
+    # ---- profile geometry: oracle == the gem5 Tiny profile in force ---------
+    geo = dump_geometry(gem5, config, work)
+    missing = [k for k in GEOMETRY_KEYS if k not in prof or k not in geo]
+    report(not missing, "profile geometry keys present", "none missing",
+           ", ".join(missing) if missing else "none")
+    for key in GEOMETRY_KEYS:
+        if key not in prof or key not in geo:
+            continue
+        report(geo[key] == prof[key], f"profile geometry {key}",
+               hex(prof[key]), hex(geo[key]))
+
     # ---- build inputs: shared firmware + application ------------------------
     power_elf = build_elf(tc, TINY_FW / "cfx_power_tiny.S", TINY_FW / "cfx_power_tiny.lds",
                           work, "power")
@@ -302,38 +351,61 @@ def main() -> int:
           f"power segment = {shared_meta['power_len']} B")
 
     # ---- image layout (spec/Kaiwu §6.1/§6.2) ---------------------------
+    # Every size/offset below comes from the builder (the single source for
+    # the 8 KiB geometry: bootrom size, table at 0x1F00, hmon at 0x800).
     img, meta, tag = shared_img, shared_meta, "shared"
-    report(len(img) == 65536, f"{tag} image size", 65536, len(img))
-    magic = struct.unpack_from(">I", img, bld.TABLE_OFF)[0]
-    version, count = struct.unpack_from(">HH", img, bld.TABLE_OFF + 4)
-    boot_magic = struct.unpack_from(">I", img, bld.TABLE_OFF + 8)[0]
+    report(len(img) == bld.BOOTROM_SIZE, f"{tag} image size",
+           bld.BOOTROM_SIZE, len(img))
+    table_off = bld.TABLE_OFF
+    table_fits = table_off + bld.TABLE_SIZE <= len(img)
+    report(table_fits, f"{tag} table inside image",
+           f"{table_off:#x}+{bld.TABLE_SIZE:#x} <= {len(img):#x}",
+           f"{table_off:#x}+{bld.TABLE_SIZE:#x} <= {len(img):#x}"
+           if table_fits else "outside")
+    if table_fits:
+        magic = struct.unpack_from(">I", img, table_off)[0]
+        version, count = struct.unpack_from(">HH", img, table_off + 4)
+        boot_magic = struct.unpack_from(">I", img, table_off + 8)[0]
+        typ, flags, off, size, resv = struct.unpack_from(
+            ">IIQQQ", img, table_off + bld.TABLE_HDR)
+        hdr_actual = (hex(magic), version, count, hex(boot_magic))
+        ent_actual = (typ, hex(flags), hex(off), resv)
+    else:
+        magic = version = count = boot_magic = None
+        typ = flags = off = size = resv = None
+        hdr_actual = ent_actual = (None, None, None, None)
     report((magic, version, count, boot_magic) ==
-           (bld.MAGIC, bld.VERSION, 1, 0x30001),
-           f"{tag} table header", (hex(bld.MAGIC), 1, 1, hex(0x30001)),
-           (hex(magic), version, count, hex(boot_magic)))
-    typ, flags, off, size, resv = struct.unpack_from(
-        ">IIQQQ", img, bld.TABLE_OFF + bld.TABLE_HDR)
+           (bld.MAGIC, bld.VERSION, bld.COUNT, bld.DEFAULT_BOOT_MAGIC),
+           f"{tag} table header",
+           (hex(bld.MAGIC), bld.VERSION, bld.COUNT,
+            hex(bld.DEFAULT_BOOT_MAGIC)),
+           hdr_actual)
     report((typ, flags, off, resv) ==
            (1, bld.DEFAULT_HMON_FLAGS, bld.HMON_SEG_OFF, 0),
            f"{tag} hmon entry", (1, hex(bld.DEFAULT_HMON_FLAGS),
                                  hex(bld.HMON_SEG_OFF), 0),
-           (typ, hex(flags), hex(off), resv))
+           ent_actual)
     report(size == meta["hmon_len"] and size % 8 == 0 and
            0 < size <= bld.HMON_SEG_MAX, f"{tag} hmon segment size",
-           f"{meta['hmon_len']} B (8-aligned, <= 8 KiB)", f"{size} B")
-    # m13-integ-007 layout contract: the segment carries only the code
-    # (bld.HMON_CODE_MIN = 44 B, 8-aligned to 48 B) and stops below the
-    # 0xD8 data base, so power never copies over the data slots.
-    report(len(hmon_code) == bld.HMON_CODE_MIN,
-           f"{tag} hmon code length", f"{bld.HMON_CODE_MIN} B",
-           f"{len(hmon_code)} B")
+           f"{meta['hmon_len']} B (8-aligned, <= {bld.HMON_SEG_MAX:#x})",
+           f"{size} B")
+    # m19-testcases-005 layout contract: the segment carries only the code
+    # (>= bld.HMON_CODE_MIN, 8-aligned by the builder) and stops below the
+    # 0xC00 data page, so power never copies over the data slots.
+    report(bld.HMON_CODE_MIN <= len(hmon_code) <= bld.HMON_DATA_BASE,
+           f"{tag} hmon code length",
+           f"[{bld.HMON_CODE_MIN:#x}, {bld.HMON_DATA_BASE:#x}]",
+           f"{len(hmon_code):#x} B")
+    report(meta["hmon_len"] == (len(hmon_code) + 7) & ~7,
+           f"{tag} hmon segment length == 8-aligned code length",
+           f"{(len(hmon_code) + 7) & ~7:#x}", f"{meta['hmon_len']:#x}")
     report(meta["hmon_len"] % 8 == 0 and
            meta["hmon_len"] <= bld.HMON_DATA_BASE,
            f"{tag} hmon segment stops below the data base",
            f"8-aligned, <= {bld.HMON_DATA_BASE:#x}",
            f"{meta['hmon_len']} B")
     report(not any(img[bld.RESERVED_OFF:bld.TABLE_OFF]),
-           f"{tag} reserved 40 KiB is zero", "all zero",
+           f"{tag} reserved region is zero", "all zero",
            "all zero" if not any(img[bld.RESERVED_OFF:bld.TABLE_OFF])
            else "non-zero")
 
@@ -388,18 +460,22 @@ def main() -> int:
                f"{hmon_len - len(hmon_code)} B", "identical"
                if sram[len(hmon_code):hmon_len] == segment[len(hmon_code):]
                else "differs")
-        # The data slots live above the segment end (power copies only the
-        # table `size` bytes), so they keep their SRAM value and are written
-        # at run time: power writes 0xF8, the handler writes 0xD8--0xF0.
+        # The data page lives above the segment end (power copies only the
+        # table `size` bytes), so it keeps its SRAM value and is written at
+        # run time: power writes +0x18, the handler writes +0x00..+0x28.
         report(not any(sram[hmon_len:bld.HMON_DATA_BASE]),
-               "hmon SRAM gap below the data base is untouched",
+               "hmon SRAM gap below the data page is untouched",
                f"{bld.HMON_DATA_BASE - hmon_len} B zero",
                "all zero" if not any(sram[hmon_len:bld.HMON_DATA_BASE])
                else "non-zero")
-        slot_offs = (bld.HMON_SLOT_CAUSE_ID, bld.HMON_SLOT_CAUSE_IP,
-                     bld.HMON_SLOT_CAUSE_INFO, bld.HMON_SLOT_RETURN)
-        last = next(r for r in oracle["records"]
-                    if r.get("kind") == "cause" and r.get("ip") == "f_hypv")
+        # Page offsets are builder constants; the absolute dump offsets are
+        # HMON_DATA_BASE + page offset (page at hmon SRAM + 0xC00).
+        slot_offs = tuple(
+            bld.HMON_DATA_BASE + off for off in
+            (bld.HMON_SLOT_CAUSE_ID, bld.HMON_SLOT_CAUSE_IP,
+             bld.HMON_SLOT_CAUSE_INFO, bld.HMON_SLOT_RETURN))
+        last = next(r for r in reversed(oracle["records"])
+                    if r.get("kind") == "cause")
         want_slots = tuple(evaluate(last[k], ns) for k in
                            ("cause_id", "ip", "info", "return_slot"))
         got_slots = tuple(int.from_bytes(sram[off:off + 8], "big")
@@ -407,11 +483,11 @@ def main() -> int:
         report(got_slots == want_slots, "hmon SRAM data slots (last fault)",
                tuple(hex(v) for v in want_slots),
                tuple(hex(v) for v in got_slots))
-        report(not any(sram[bld.HMON_SLOT_RETURN + 8:]),
-               "hmon SRAM tail above the data slots is zero",
-               f"{len(sram) - bld.HMON_SLOT_RETURN - 8} B zero",
-               "all zero" if not any(sram[bld.HMON_SLOT_RETURN + 8:])
-               else "non-zero")
+        tail_off = bld.HMON_DATA_BASE + bld.HMON_DATA_SIZE
+        report(not any(sram[tail_off:]),
+               "hmon SRAM stack above the data page is zero",
+               f"{len(sram) - tail_off} B zero",
+               "all zero" if not any(sram[tail_off:]) else "non-zero")
     else:
         report(False, "hmon SRAM dump", "dump file", "missing")
 
@@ -493,15 +569,17 @@ def main() -> int:
     r = run_gem5(gem5, config, work, "no-bootrom", app_elf, None, args.max_ticks)
     cases.append(("missing --bootrom", r, "requires --bootrom"))
     short = work / "bootrom_short.bin"
-    short.write_bytes(shared_img[:65535])
+    short.write_bytes(shared_img[:bld.BOOTROM_SIZE - 1])
     r = run_gem5(gem5, config, work, "bootrom-short", app_elf, short,
                  args.max_ticks)
-    cases.append(("BootROM not 64 KiB", r, "exactly 65536 bytes"))
+    cases.append((f"BootROM not {bld.BOOTROM_SIZE} bytes", r,
+                  f"exactly {bld.BOOTROM_SIZE} bytes"))
     for name, base, needle in (
             ("BootROM", prof["bootrom_base"], "targets the BootROM"),
             ("hmon SRAM", prof["hmon_base"], "targets the hmon SRAM")):
         elf = bad_dir / f"ptload_{name.split()[0].lower()}.elf"
-        patch_elf(app_elf, elf, paddr=base)
+        # A 4-byte segment entirely inside the target region.
+        patch_elf(app_elf, elf, paddr=base, mem_size=4)
         r = run_gem5(gem5, config, work, f"ptload-{name.split()[0].lower()}",
                      elf, shared_meta["path"], args.max_ticks)
         cases.append((f"PT_LOAD into {name}", r, needle))

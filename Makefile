@@ -59,7 +59,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare sync-node-repo \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
-        build-builtins build-qemu build-qemu-reconfig build-gem5 check-gem5-decode check-wuming-cycles build-bootrom build-picolibc \
+        build-builtins build-qemu build-qemu-reconfig build-gem5 check-gem5-decode check-wuming-cycles check-tiny-hmon build-bootrom build-picolibc \
         build-musl build-musl-shared test-picolibc-smoke install-host install-cfx-aliases docker-image docker-shell check \
         linux-defconfig linux-vmlinux linux-initramfs \
         check-linux-toolchain check-linux-boot-contract check-config-pins \
@@ -162,7 +162,7 @@ GATE_LOCK_TOOL      = $(PYTHON) tools/infra/gate_lock.py
 # 互斥面的**单一真源**（文档只指这里，不另列清单，避免漂移）。
 GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       build-mc build-mc-lite build-mc-reconfig build-lld build-qemu build-qemu-reconfig \
-                      build-gem5 check-gem5-decode \
+                      build-gem5 check-gem5-decode check-tiny-hmon \
                       build-builtins build-bootrom build-picolibc build-musl build-musl-shared \
                       build-busybox \
                       linux-defconfig linux-vmlinux linux-initramfs \
@@ -241,6 +241,7 @@ help:
 	@echo "  make build-gem5      Build gem5 with the DADAO arch skeleton (SCons; GEM5_SCONS=... if not on PATH; GEM5-004t)"
 	@echo "  make check-gem5-decode  Regenerate/compare the decode table and run the 264-row decode assertions (GEM5-004t)"
 	@echo "  make check-wuming-cycles Re-parse the cycle model doc and check the 264-id cycle table + generated C++ (m16-gem5-002; the timing model is consumed by 'gem5.opt configs/dadao/se.py --cpu-type timing --cycle-table contracts/wuming-cycles.yaml')"
+	@echo "  make check-tiny-hmon  Run the Tiny cfx_power + cfx3 hmon unit case on the gem5 FS profile (m19-gem5-003; needs build-gem5 + install-host; on-demand, not in L1-L3)"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
@@ -534,6 +535,20 @@ _locked-check-gem5-decode:
 # Read-only and build-free, so it stays outside $(GATE_LOCKED_TARGETS).
 check-wuming-cycles:
 	@$(PYTHON) tools/gem5/gen_wuming_cycles.py --check --source $(GEM5_SRC)
+
+# check-tiny-hmon (m19-gem5-003): the Tiny cfx_power + cfx3 hmon unit case on
+# the gem5 FS profile.  It builds the 8 KiB BootROM and the SRAM-only app with
+# the host toolchain, runs gem5, and compares against expected.yaml.  The
+# driver exits 2 when gem5/config/toolchain are missing (no fake PASS); this
+# is an on-demand case, not a member of L1/L2/L3 (see tests/unit/gem5/README.md).
+# It writes $(TEST_ARTIFACTS_DIR)/tiny-hmon, so it is serialized by gate.lock
+# like every other target that writes the shared artifacts root.
+_locked-check-tiny-hmon:
+	@$(PYTHON) tests/unit/gem5/check_tiny_hmon.py \
+	  --gem5 $(GEM5_SRC)/build/DADAO/gem5.opt \
+	  --config $(GEM5_SRC)/configs/dadao/fs.py \
+	  --toolchain-bin $(HOST_TOOLCHAIN_BIN) \
+	  --work-dir $(TEST_ARTIFACTS_DIR)/tiny-hmon
 
 # install-host (INFRA-047t, ADR-0016 D3/D4/D5/D11): stage only the needed host
 # tool set from the .work/ build trees into the install root's bin/, install the
