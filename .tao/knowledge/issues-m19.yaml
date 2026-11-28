@@ -68,3 +68,11 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`tests/inst/12-misc/swym_oiii_imm.S` 在 chipyard 手跑 **超时**：RTL 下高位非零的 `swym` 现在按新语义进 `ILLI`，hmon 默认返回后回到 BootROM 重启，用例等不到 `SYS_EXIT`。`m19-chipyard-003` 已如实披露并归 `m19-testcases-001`，但后者任务书未写明归属；QEMU 侧同文件的功能缺口另见 `m19-qemu-002`。处置：明确该用例在 chipyard 的 ILLI 期望路径（进入 hmon 后由框架返回/终止，而非重启），或由 hmon 默认返回策略承担并登记。
+- id: ISS-543
+  scope:
+  - idl
+  milestone: M19
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P3】`idl/tools/idl_qemu_trace.py` 的 BootROM 表偏移仍是旧值 `0xE000`（L201），未随 `m19-testcases-003` 的 8 KiB BootROM 迁移到 `0x1F00`（power 0x0000–0x07FF / hmon 0x0800–0x13FF / table 0x1F00）。影响：用该 trace 工具加载新 BootROM 镜像会读到错误偏移（与 `idl_exec.py` 修复前同源，后者已在 `m19-idl-001` 改为 0x1F00）。处置：同口径改 `0x1F00` 并跑一次 `idl_exec_trace`/`idl_four_way` 复验。'
