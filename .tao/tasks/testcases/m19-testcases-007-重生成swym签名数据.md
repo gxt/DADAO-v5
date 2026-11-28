@@ -6,7 +6,7 @@
 **可并行分片**：否
 **预估**：≤1 h
 **档位**：小改
-**状态**：待开始
+**状态**：已验证
 
 ## 背景
 
@@ -47,18 +47,56 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：证据脚本 12/12 项通过（含 3 路注入）；data-only / sha256sum / tests-index / case-ledger 全 rc=0；index-blobs 基线红；idl_four_way rc=1（IDL 腿环境红）。
+**修改文件**：`tests/data/inst-signature/expected.tsv`、`tests/data/inst-signature/inputs.sha256`（case-ledger 无 diff，未 `--write`；`.S`/spec/契约/引擎未动）。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- 盘点（改前）：`check_inst_sig.py --data-only` rc=1，仅 2 条 DATA-FAIL 均 swym（`expected.tsv:4682`、`inputs.sha256:283`）；`check_case_ledger.py` rc=0。
+- 生成：`make inst-signature-data` rc=0，输出「274 镜像 / 4687 槽（静态期望 4649 / 运行期关系 38）」。
+- diff（numstat 11/13 + 1/1，仅 swym）：expected.tsv swym 段 13→11 槽；`.S` 头注释 30→37 行 ⇒ 其余源行号整体 +7（`:39`→`:46` …）；用例替换：删旧 #10（bit17 编码 0x478A0000）、#11（低 17 位全 1）、#13（rd0），新增 #10（N=4095 与 N=0 相邻，期望 0xC）⇒ 净 −2；inputs.sha256:283 `599b13c6…`→`b3a13ccb…`（`m19-testcases-001` 重写 `.S`，现场 `sha256sum` 复核一致）；274 镜像无其它漂移。
+- 判据：data-only rc=0（274/4687）、`sha256sum -c` rc=0（286 行）、`check-tests-index` rc=0（503 条）、`check-case-ledger` rc=0（5884 条）。
+- `check-index-blobs` rc=1：4 处 chipyard patch index 不符，与 master 基线逐行相同（KNOWN-RED，非本任务引入）。
+- swym 单例：`idl_four_way.py --only swym_oiii_imm` rc=1；QEMU 腿 88 B/11 槽与重生成 expected.tsv 逐槽全等；IDL 腿 rc=1（`idl_exec.py` 按 0xE000 读 BootROM 表，8 KiB 镜像 `struct.error`，ISS-543 环境问题，非 swym 语义；`m19-idl-001` 未合入）。
+- 注入/还原（md5）：expected.tsv `bb7aadb6…` → 注入槽值 `8e858b11…`（data-only rc=1 点名 4682）→ 还原 `bb7aadb6…`；inputs.sha256 `d2f19951…` → 注入哈希 `f5779299…`（data-only + sha256sum 均 rc=1）→ 还原 `d2f19951…`；删末槽（槽数 10≠11）→ 还原；还原后两项 rc=0。
+**新发现/坑**：四方差分当前被 ISS-543（BootROM 表偏移 0xE000 vs 8 KiB 新布局）挡在 IDL 腿，重生成数据无法当场取得四方绿；master 的 check-index-blobs 4 处 chipyard 基线红。
+**遗留问题**：`check-idl` 全绿需 `m19-idl-001` / ISS-543 修复后复跑；index-blobs 基线红按既有 issue 处置，不在本任务范围。
 
 ## 审阅记录
 
 ### 第 1 轮 engineer 自审
 
-（待填）
+逐行审查生成物 diff、证据脚本与门控输出：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 注入是否只改目标行、是否真触发 FAIL | ✅已修 | 注入前后均 `md5sum` 回读并断言变化；data-only 输出点名 4682/283 | 证据运行日志三路 `md5 changed` + `expected=1 actual=1` |
+| 还原是否可靠（禁 git restore） | ✅已修 | 每路 `cp -p` 备份 + 还原后 md5 相等断言 | `restore-{value,hash,drop}: md5 match`，回绿 rc=0 |
+| 槽数断言是否写死 | ✅已修 | 从 expected.tsv 与 `.S` 两侧现场派生并互比（含首/末源行号） | `swym slots=11 first_src=46 last_src=132` |
+| index-blobs 基线红是否夹带新错 | ✅已修 | 在 master 独立临时树取基线错误集，与本树逐行 diff | 两侧均 4 条 chipyard、diff 为空 |
+| 是否夹带无关镜像漂移 | ✅已修 | numstat 仅 swym 两文件；data-only 改前仅 2 条 DATA-FAIL | `git diff --numstat` 11/13 + 1/1 |
+| 证据脚本退出码是否被吞 | ✅已修 | 全部用重定向 + `rc=$?`，末尾显式 `exit 1/0` | `bash -n` rc=0；`--inject` 运行 rc=0 |
+
+**判决**：全部 finding 已修，无未修项；状态 → 待验收。
 
 ### 第 1 轮 reviewer 验收
 
-（待填）
+**重跑记录**（审查者独立执行，均在任务 worktree 仓库根；不采信完成区转述）：
+1. 改前盘点复现：`git archive master` 干净临时树跑 `python3 tools/testcases/inst/check_inst_sig.py --data-only` ⇒ rc=1，恰好 2 条 DATA-FAIL（`expected.tsv:4682` 入库 `:39` vs 现场 `:46`；`inputs.sha256:283` `599b13c6…` vs 现场 `b3a13ccb…`），均 swym，与任务书预期（≥2 条）一致。
+2. 修复后同命令本树 ⇒ rc=0：`274 镜像 / 4687 槽（静态期望 4649 / 运行期关系 38）`；槽数现场统计 4689→4687（改前快照 `grep -c 'tests/'` = 4689）。
+3. `sha256sum -c tests/data/inst-signature/inputs.sha256` ⇒ rc=0（286 行 OK）；`sha256sum tests/inst/12-misc/swym_oiii_imm.S` = `b3a13ccb9235415a2d677b809287c05b551460f0eb81a2cf7f6b059d6eeb98a0`，与清单 283 行一致。
+4. `make check-tests-index` ⇒ rc=0（PASS 503 条）；`make check-case-ledger` ⇒ rc=0（5884 条）；`python3 tools/infra/check_index_blobs.py` ⇒ rc=1（4 处 chipyard patch index 不符）。
+5. 基线红独立判定（不 `|| true`）：同一命令在 `git archive master` 干净临时树 ⇒ rc=1，路径前缀规范化后与本树输出 `diff` 为空 ⇒ 错误集逐行相同，非本任务引入。
+6. `python3 idl/tools/idl_four_way.py --only swym_oiii_imm` ⇒ rc=1。QEMU 腿产出 88 B，用 `tests/shared/signature.py` 的 `parse(..., 11)` 解析得 11 槽，与 expected.tsv 逐槽比对 mismatch=0；IDL 腿 `idl_exec.py` 按 0xE000 读 BootROM 表、8 KiB 镜像 `struct.error`（已知前置 ISS-543）；另用 master 的 `idl_exec.py` 对同一镜像复跑仍同错 ⇒ 属安装根 bootrom 陈旧，非本任务引入。
+7. 证据脚本：仓库根执行运行期证据目录内的 `run.sh --inject` ⇒ rc=0，12/12 CHECK（6 主检 + 3 路注入 + 2 还原回绿）。逐条审计：均捕被检命令自身退出码、槽数两侧现场派生不写死、注入带 `cp -p` 备份 + md5 对账，无恒真/两支同写；其 index-blobs 基线文件我已用 master 独立复核（见 5）。
+
+**独立注入**（注入前 `expected.tsv` md5 `bb7aadb6…`、`inputs.sha256` `d2f19951…`，mtime 2026-11-28 11:05:52）：
+- 改 swym 第 1 槽期望 `0x…08 → 0x…77` ⇒ `--data-only` rc=1 且点名 `expected.tsv:4682`；`cp -p` 还原 ⇒ md5 相等、rc=0。
+- 改 `inputs.sha256:283` 哈希为 64 个 `0` ⇒ `sha256sum -c` rc=1（该行 FAILED）、`--data-only` rc=1 点名 283；还原 ⇒ md5 相等、双 rc=0。
+- 还原后 mtime 未变，`git status -uall` 仍为 3 个文件，与注入前快照逐行一致。
+
+**约束核验**：
+- 范围：`git status -uall` = 任务书 + `expected.tsv` + `inputs.sha256`；`git diff HEAD -- tests/inst spec .tao/contracts components idl tests/case-ledger.tsv Makefile` 为空 ⇒ `.S`/spec/契约/引擎/case-ledger 未动；未提交 git。
+- diff 全等：`expected.tsv` 24 条变更行 100% 属 swym（非 swym 0 条），`inputs.sha256` 仅 1 行 ⇒ 无夹带无关镜像；274 镜像无其它漂移（由 1 的 rc=0 反证）。
+- 逐条解释对上：头块 30→37 行 ⇒ 源行号整体 +7（`:39→:46 … :109→:116`）；新增 #10 期望 `0xC`（N=4095 与 N=0 相邻）、删旧 #10（`0x478A0000`）/#11（`0x4789FFFF`）/#13（rd0）——与 `m19-testcases-001` 合入提交的 `.S` diff 逐条一致 ⇒ 13→11 槽、4689→4687。
+- 完成区 15 行 ≤30、无运行期路径、文件清单与 `git status` 对齐；完成区数字（12/12、503、5884、286、274/4687、88 B/11 槽）与我方重跑逐项一致。
+
+**判决**：Accepted —— 验收命令在审查者重跑下全部达标；index-blobs 基线红与 IDL 腿环境红均经独立证实为已知前置、非本任务引入；约束无违反。

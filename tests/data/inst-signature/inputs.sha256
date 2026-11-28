@@ -280,7 +280,7 @@ d6e378e0d4d195eea0680506e26a949dbd0269e222c5c0d70258a7ad9acd9a68  tests/inst/12-
 e5f1630c372dde652aa6f404f3f6f6ee28ef1a777d878ebb127ffed433e35e1d  tests/inst/12-misc/sc.w.ar_orrr_rd.S
 8dcdb8133b1679f8df2b740b1014ecb94ff73643b07f489da0e206a630d975a9  tests/inst/12-misc/sc.w.nn_orrr_rd.S
 3895e7939ae42b4b419c43e3527aa0a50dac58f87d2c21f1e4ffa50ce8793651  tests/inst/12-misc/sc.w.nr_orrr_rd.S
-599b13c6a3b71589ccbef89c7532b888213b4eb5dc9f2c3570bfb2eb30e33968  tests/inst/12-misc/swym_oiii_imm.S
+b3a13ccb9235415a2d677b809287c05b551460f0eb81a2cf7f6b059d6eeb98a0  tests/inst/12-misc/swym_oiii_imm.S
 91798ce5d5eef265c720740110edd45d0e24d49ac1b401b96d4aa0de916119d0  tests/inst/macros/inst_test.inc
 ccfdac638f6aa14926bbc328b5ba668d740ac2ae933780fbc0ed39ae5a814891  tests/shared/asm/machine-tiny.inc
 8460203104a9199e2c2b89ebb8747037cbd14b019322e71aa422ace3bbdcf500  tests/shared/asm/signature.inc
