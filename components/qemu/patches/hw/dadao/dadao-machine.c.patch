@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..044a66d
+index 0000000..a2e6257
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,1410 @@
+@@ -0,0 +1,1451 @@
 +/*
 + * DADAO Kaiwu bare-metal test machines for QEMU
 + *
@@ -30,14 +30,18 @@ index 0000000..044a66d
 + *   PA RAM:     0 .. 2 GiB (RWX; reached through the PTW identity map)
 + *   hmon SRAM / smon SRAM / cfx_pmem SRAM + full cfx/PTW register file
 + *   `-bios` keeps the 64 KiB reset window; `bootrom-image` takes exactly 4 MiB.
-+ * `tiny` is Kaiwu-Tiny (spec/Kaiwu §1.1/§6):
-+ *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB, RO+X)
-+ *   SRAM:       0xffff_ff00_0000 .. 0xffff_ff7f_ffff (8 MiB, RWX)
-+ *   hmon SRAM:  0x0fff_0000_0000 (64 KiB, cfx3); written only by the power
++ * `tiny` is Kaiwu-Tiny (spec/Kaiwu §1.1/§6, m19-spec-002):
++ *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_1fff (8 KiB, RO+X)
++ *   SRAM:       0xffff_ff00_0000 .. 0xffff_ff03_ffff (256 KiB, RWX) with the
++ *               fixed layout of spec/Kaiwu §1.1/§6.2.1: header
++ *               (VERSION/MAILBOX/EXIT_BLOCK), DUMP 0x0800, SIGNATURE 0x1000,
++ *               ENTRY 0x2000, guard_lo 0x38000 (unmapped), STACK 0x39000,
++ *               MemRAS 0x3F000
++ *   hmon SRAM:  0x0fff_0000_0000 (8 KiB, cfx3); written only by the power
 + *               stub inside the fixed BootROM firmware (spec/Kaiwu §6.2)
-+ *   reset vec:  0xffff_ffff_0000; raw -kernel at 0xffff_ff01_0000
-+ *               (first 0x100 bytes zero, entry 0xffff_ff01_0100);
-+ *               ELF PT_LOAD is SRAM-only (e_entry must be 0xffff_ff01_0100).
++ *   reset vec:  0xffff_ffff_0000; raw -kernel at 0xffff_ff00_2000
++ *               (kernel_reserved = 0, entry = 0xffff_ff00_2000);
++ *               ELF PT_LOAD is SRAM-only (e_entry must be 0xffff_ff00_2000).
 + *   cfx_power (cfx63) + cfx3 hmon only; no PTW / smon / pmem / PA-0 alias.
 + *
 + * Loading paths per ADR-0004 D2.2/D2.3 (rev. 2026-10-06, SPEC-107t) and
@@ -64,13 +68,14 @@ index 0000000..044a66d
 + *                   legacy 64 KiB reset window (Vast only) + flat test binary
 + *                   whose entry is kernel_base + kernel_reserved.  Tiny has no
 + *                   free-form `-bios` window (spec/Kaiwu §6): its `-bios`
-+ *                   is the fixed BootROM firmware of path C, exactly 64 KiB,
-+ *                   and the legacy <= 4096-byte trampoline window is removed.
++ *                   is the fixed BootROM firmware of path C, exactly the
++ *                   profile ROM size (Tiny 8 KiB), and the legacy
++ *                   <= 4096-byte trampoline window is removed.
 + *
 + *   path C (BootROM image, ADR-0043 D1/D2):
 + *                   qemu-system-dadao -machine kaiwu-vast,bootrom-image=bootrom.bin
 + *                   the image must be exactly the profile ROM size (Vast
-+ *                   4 MiB, Tiny 64 KiB) and is loaded at the profile ROM
++ *                   4 MiB, Tiny 8 KiB) and is loaded at the profile ROM
 + *                   base; the CPU still resets to the profile reset PC.
 + *                   -kernel is optional (an ELF is preloaded into RAM without
 + *                   overriding the reset PC); -bios must not be given.
@@ -154,7 +159,15 @@ index 0000000..044a66d
 +{
 +    unsigned n = 0;
 +
-+    regions[n++] = (DadaoMappedRegion){ prof->ram_base, prof->ram_size };
++    if (prof->load_window_size) {
++        /* Tiny: the host loader may only use the application image window
++         * ENTRY .. ENTRY + image_window (spec/Kaiwu §6.2.1).  That window is
++         * also what keeps a segment out of the header area. */
++        regions[n++] = (DadaoMappedRegion){ prof->kernel_base,
++                                            prof->load_window_size };
++    } else {
++        regions[n++] = (DadaoMappedRegion){ prof->ram_base, prof->ram_size };
++    }
 +    if (prof->rom_elf_segments) {
 +        regions[n++] = (DadaoMappedRegion){ prof->rom_base, prof->rom_size };
 +    }
@@ -162,7 +175,7 @@ index 0000000..044a66d
 +        /* Opt-in profile hook only (no current profile sets it): the host
 +         * loader would install the hmon image straight into hmon SRAM. */
 +        regions[n++] = (DadaoMappedRegion){ DADAO_HMON_CFX_BASE,
-+                                            DADAO_MON_SRAM_SIZE };
++                                            prof->hmon_sram_size };
 +    }
 +    return n;
 +}
@@ -421,7 +434,23 @@ index 0000000..044a66d
 +        }
 +        if (!mapped) {
 +            /* Name the forbidden window when it is the Tiny contract that
-+             * rejected the segment (spec/Kaiwu §6/§6.2). */
++             * rejected the segment (spec/Kaiwu §6/§6.2/§6.2.1). */
++            if (prof->bootrom_required &&
++                p_vaddr < prof->kernel_base &&
++                end > prof->ram_base) {
++                error_report("dadao: ELF kernel '%s': PT_LOAD segment %u "
++                             "interval [%#" PRIx64 ", %#" PRIx64 ") targets "
++                             "the Kaiwu-Tiny main-SRAM header area "
++                             "[%#" PRIx64 ", %#" PRIx64 ") (VERSION/MAILBOX/"
++                             "EXIT_BLOCK/DUMP/SIGNATURE); the application "
++                             "image window starts at ENTRY %#" PRIx64,
++                             filename, i, p_vaddr, end,
++                             (uint64_t)prof->ram_base,
++                             (uint64_t)prof->kernel_base,
++                             (uint64_t)prof->kernel_entry);
++                close(fd);
++                exit(1);
++            }
 +            if (prof->bootrom_required &&
 +                p_vaddr < prof->rom_base + prof->rom_size &&
 +                end > prof->rom_base) {
@@ -435,7 +464,7 @@ index 0000000..044a66d
 +                exit(1);
 +            }
 +            if (prof->bootrom_required &&
-+                p_vaddr < DADAO_HMON_CFX_BASE + DADAO_MON_SRAM_SIZE &&
++                p_vaddr < DADAO_HMON_CFX_BASE + prof->hmon_sram_size &&
 +                end > DADAO_HMON_CFX_BASE) {
 +                error_report("dadao: ELF kernel '%s': PT_LOAD segment %u "
 +                             "interval [%#" PRIx64 ", %#" PRIx64 ") targets "
@@ -447,8 +476,12 @@ index 0000000..044a66d
 +            }
 +            error_report("dadao: ELF kernel '%s': PT_LOAD segment %u "
 +                         "interval [%#" PRIx64 ", %#" PRIx64 ") is outside the "
-+                         "mapped regions (RAM %#" PRIx64 " + %" PRIu64 " bytes%s%s)",
-+                         filename, i, p_vaddr, end, (uint64_t)prof->ram_base,
++                         "application load window [%#" PRIx64 ", %#" PRIx64
++                         ") (RAM %#" PRIx64 " + %" PRIu64 " bytes%s%s)",
++                         filename, i, p_vaddr, end,
++                         (uint64_t)regions[0].base,
++                         (uint64_t)(regions[0].base + regions[0].size),
++                         (uint64_t)prof->ram_base,
 +                         (uint64_t)prof->ram_size,
 +                         prof->rom_elf_segments
 +                             ? " or the BootROM"
@@ -619,7 +652,12 @@ index 0000000..044a66d
 +                                  const DadaoProfile *prof)
 +{
 +    Error *err = NULL;
-+    uint64_t limit = prof->ram_size - prof->kernel_reserved;
++    /* A raw image is placed at kernel_base.  Its limit is the application
++     * load window when the profile fixes one (Tiny: ENTRY + image_window,
++     * spec/Kaiwu §6.2.1), otherwise everything up to the RAM end. */
++    uint64_t limit = prof->load_window_size
++                         ? prof->load_window_size
++                         : prof->ram_base + prof->ram_size - prof->kernel_base;
 +    ssize_t kernel_size;
 +
 +    if (dadao_enforce_size_limits &&
@@ -812,7 +850,7 @@ index 0000000..044a66d
 +        *what = "the BootROM";
 +        return true;
 +    }
-+    if (base < DADAO_HMON_CFX_BASE + DADAO_MON_SRAM_SIZE &&
++    if (base < DADAO_HMON_CFX_BASE + prof->hmon_sram_size &&
 +        end > DADAO_HMON_CFX_BASE) {
 +        *what = "the hmon SRAM";
 +        return true;
@@ -1070,7 +1108,7 @@ index 0000000..044a66d
 +/*
 + * Kaiwu-Tiny `-bios` size rule (spec/Kaiwu §6): the option carries
 + * the fixed BootROM firmware -- the same image as `bootrom-image` -- and
-+ * nothing else.  The image must be exactly rom_size (64 KiB); the legacy
++ * nothing else.  The image must be exactly rom_size (Tiny 8 KiB); the legacy
 + * <= 4096-byte flat trampoline window is removed and no intermediate size is
 + * accepted, so a truncated firmware can never be mistaken for a trampoline.
 + *
@@ -1149,8 +1187,9 @@ index 0000000..044a66d
 +
 +    system_memory = get_system_memory();
 +
-+    /* RAM (profile geometry): Vast 2 GiB at PA 0, Tiny 8 MiB at
-+     * 0xffff_ff00_0000 (spec/Kaiwu §1.1). */
++    /* RAM (profile geometry): Vast 2 GiB at PA 0, Tiny 256 KiB at
++     * 0xffff_ff00_0000 (spec/Kaiwu §1.1).  The guest cannot reach the Tiny
++     * guard_lo hole; tlb_fill reports it as unmapped (spec/Kaiwu §6.2.1). */
 +    ram = g_new(MemoryRegion, 1);
 +    memory_region_init_ram(ram, NULL, "dadao-ram", prof->ram_size,
 +                           &error_fatal);
@@ -1186,7 +1225,7 @@ index 0000000..044a66d
 +                                    ram_alias);
 +    }
 +
-+    /* BootROM: Vast 4 MiB at 0xffff_ffc0_0000, Tiny 64 KiB at
++    /* BootROM: Vast 4 MiB at 0xffff_ffc0_0000, Tiny 8 KiB at
 +     * 0xffff_ffff_0000 (spec/Kaiwu §1.1/§6). */
 +    rom = g_new(MemoryRegion, 1);
 +    memory_region_init_rom(rom, NULL, "dadao-rom", prof->rom_size,
@@ -1204,16 +1243,16 @@ index 0000000..044a66d
 +                                    pmem_sram);
 +    }
 +
-+    /* hmon (cfx3) / smon (cfx2) SRAM, 64 KiB each (spec/Kaiwu §1.1:
-+     * Tiny implements hmon only, Vast implements both).  Like the cfx_pmem
-+     * SRAM they are backed at host addresses outside the 56-bit guest PA
-+     * space; the CPU reaches them through tlb_fill and the monitor's own
-+     * internal address, never through a guest PA. */
++    /* hmon (cfx3) / smon (cfx2) SRAM (spec/Kaiwu §1.1: Tiny implements hmon
++     * only and its hmon SRAM is 8 KiB; Vast implements both at 64 KiB).  Like
++     * the cfx_pmem SRAM they are backed at host addresses outside the 56-bit
++     * guest PA space; the CPU reaches them through tlb_fill and the monitor's
++     * own internal address, never through a guest PA. */
 +    if (prof->hmon_sram) {
 +        MemoryRegion *hmon_sram = g_new(MemoryRegion, 1);
 +
 +        memory_region_init_ram(hmon_sram, NULL, "dadao-hmon-sram",
-+                               DADAO_MON_SRAM_SIZE, &error_fatal);
++                               prof->hmon_sram_size, &error_fatal);
 +        memory_region_add_subregion(system_memory, DADAO_HMON_SRAM_HOST_BASE,
 +                                    hmon_sram);
 +        if (prof->mon_elf_segments) {
@@ -1224,7 +1263,7 @@ index 0000000..044a66d
 +            MemoryRegion *hmon_load = g_new(MemoryRegion, 1);
 +
 +            memory_region_init_alias(hmon_load, NULL, "dadao-hmon-load",
-+                                     hmon_sram, 0, DADAO_MON_SRAM_SIZE);
++                                     hmon_sram, 0, prof->hmon_sram_size);
 +            memory_region_add_subregion(system_memory, DADAO_HMON_CFX_BASE,
 +                                        hmon_load);
 +        }
@@ -1239,17 +1278,18 @@ index 0000000..044a66d
 +    }
 +
 +    /* Kaiwu-Tiny load contract (spec/Kaiwu §6/§6.2).  The contract
-+     * path is the fixed 64 KiB BootROM firmware plus the application: the
-+     * firmware is loaded verbatim (exactly 64 KiB) from `bootrom-image` or
-+     * from `-bios` (both accept the same image), only the application's SRAM
-+     * segments are loaded (never a PT_LOAD in the BootROM or hmon SRAM), the
-+     * ELF entry must be the fixed 0xffff_ff01_0100, and QEMU executes the real
-+     * power -> hmon -> escape -> entry chain.
++     * path is the fixed 8 KiB BootROM firmware plus the application: the
++     * firmware is loaded verbatim (exactly the profile ROM size) from
++     * `bootrom-image` or from `-bios` (both accept the same image), only the
++     * application's SRAM segments are loaded (never a PT_LOAD in the BootROM,
++     * hmon SRAM or the main-SRAM header area), the ELF entry must be the fixed
++     * 0xffff_ff00_2000, and QEMU executes the real power -> hmon -> escape ->
++     * entry chain.
 +     *
 +     * There is no free-form `-bios` window on Tiny any more: the legacy
 +     * <= 4096-byte flat trampoline window and its raw-kernel harness path are
 +     * removed (spec/Kaiwu §6).  `-bios` must be the fixed firmware,
-+     * exactly 64 KiB; any other size is a load-stage error naming the rule. */
++     * exactly 8 KiB; any other size is a load-stage error naming the rule. */
 +    if (prof->bootrom_required) {
 +        if (bootrom) {
 +            if (!kernel) {
@@ -1284,8 +1324,9 @@ index 0000000..044a66d
 +        if (kernel) {
 +            error_report("dadao: Kaiwu-Tiny application '%s' requires the "
 +                         "fixed BootROM firmware (bootrom-image=... or the same "
-+                         "64 KiB image through -bios); the legacy flat "
-+                         "trampoline -bios window was removed", kernel);
++                         "%" PRIu64 "-byte image through -bios); the legacy "
++                         "flat trampoline -bios window was removed",
++                         kernel, prof->rom_size);
 +            exit(1);
 +        }
 +    }
@@ -1387,7 +1428,7 @@ index 0000000..044a66d
 + */
 +static const DadaoMachineDesc dadao_tiny_machine = {
 +    .desc = "DADAO Kaiwu-Tiny bare-metal test machine "
-+            "(64 KiB BootROM + 8 MiB SRAM + 64 KiB hmon SRAM; "
++            "(8 KiB BootROM + 256 KiB SRAM + 8 KiB hmon SRAM; "
 +            "cfx_power + cfx3 hmon, no PTW)",
 +    .profile = &dadao_profile_tiny,
 +};

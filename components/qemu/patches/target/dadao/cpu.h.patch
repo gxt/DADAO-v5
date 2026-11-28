@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..918cb23
+index 0000000..de67259
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,843 @@
+@@ -0,0 +1,891 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -146,7 +146,7 @@ index 0000000..918cb23
 + * Runtime machine profiles (spec/Kaiwu §1, ADR-0043; QEMU-079t/080t)
 + *
 + * The machine type selects its geometry / capability set from a DadaoProfile,
-+ * so the Tiny (64 KiB BootROM + 8 MiB SRAM, no cfx) and Vast (4 MiB BootROM +
++ * so the Tiny (8 KiB BootROM + 256 KiB SRAM, no cfx) and Vast (4 MiB BootROM +
 + * 2 GiB PA RAM, full cfx/PTW) geometries never share compile-time constants.
 + * The canonical DADAO_RAM_BASE / DADAO_RAM_SIZE / DADAO_ROM_BASE /
 + * DADAO_ROM_SIZE / DADAO_RESET_PC macros above are the Vast values
@@ -163,14 +163,22 @@ index 0000000..918cb23
 +    uint64_t rom_base;          /* BootROM (non-volatile) */
 +    uint64_t rom_size;
 +    uint64_t reset_pc;          /* cfx_power_hypv_excp_vector */
-+    uint64_t bios_load_base;    /* legacy `-bios` 64 KiB reset window */
++    uint64_t bios_load_base;    /* `-bios` load base (profile ROM base) */
 +    uint64_t bios_window_size;
 +    uint64_t kernel_base;       /* raw `-kernel` load base */
 +    uint64_t kernel_entry;      /* raw application entry (base+reserved) */
 +    uint64_t kernel_reserved;   /* leading zero bytes of a raw image */
-+    /* Tiny: the fixed 64 KiB BootROM firmware is mandatory (spec/Kaiwu
++    /* Application load window right after kernel_base (spec/Kaiwu §6.2.1:
++     * Tiny ENTRY + image_window = 0x2000 + 0x2_0000).  A host loader segment
++     * or a raw image may not leave it.  0 => the rest of RAM (Vast). */
++    uint64_t load_window_size;
++    /* Unmapped hole inside the main SRAM, as an offset from ram_base
++     * (spec/Kaiwu §6.2.1: Tiny guard_lo at +0x38000, 4 KiB).  0 => none. */
++    uint64_t ram_guard_offset;
++    uint64_t ram_guard_size;
++    /* Tiny: the fixed 8 KiB BootROM firmware is mandatory (spec/Kaiwu
 +     * §6 "image = fixed firmware + application"); an ELF e_entry must also be
-+     * the fixed application entry (0xffff_ff01_0100). */
++     * the fixed application entry (MAIN_SRAM_BASE + 0x2000). */
 +    bool bootrom_required;
 +    bool fixed_kernel_entry;
 +    /* Tiny test-machine convention (spec/Kaiwu §2): switch_run_mode
@@ -182,9 +190,11 @@ index 0000000..918cb23
 +     * no silent stub), so the write branch is profile-gated. */
 +    bool power_ctrl;
 +    bool ram_alias;             /* add a PA-0 alias for the first page table */
-+    bool hmon_sram;             /* cfx3 hmon 64 KiB SRAM (both profiles) */
++    bool hmon_sram;             /* cfx3 hmon SRAM (both profiles) */
 +    bool smon_sram;             /* cfx2 smon 64 KiB SRAM (Vast only) */
 +    bool pmem_sram;             /* cfx_pmem (cfx32) 64 KiB SRAM */
++    /* cfx3 hmon SRAM size (spec/Kaiwu §1.1: Tiny 8 KiB, Vast 64 KiB). */
++    uint64_t hmon_sram_size;
 +    /* cfxha values this profile implements: bit N set => cfxN exists
 +     * (DADAO-12 §5.2(一); spec/Kaiwu §3 per-profile list).  Every other
 +     * cfxha is reserved (ILLI) or allocated-but-unimplemented (CFXREG for a
@@ -217,17 +227,53 @@ index 0000000..918cb23
 +    bool semihosting;
 +} DadaoProfile;
 +
-+/* Kaiwu-Tiny geometry (spec/Kaiwu §1.1/§6).  Address high 6 bits
-+ * are always 0x3F; the SRAM is the only writable memory and the BootROM is
-+ * exactly the 64 KiB reset window. */
++/* Kaiwu-Tiny geometry (spec/Kaiwu §1.1/§6, m19-spec-002).  Address high 6
++ * bits are always 0x3F; the SRAM is the only writable memory and the BootROM
++ * is 8 KiB, starting at its own reset vector. */
 +#define DADAO_TINY_RAM_BASE        0xFFFFFF000000ULL
-+#define DADAO_TINY_RAM_SIZE        (8 * 1024 * 1024)
++#define DADAO_TINY_RAM_SIZE        (256 * 1024)
 +#define DADAO_TINY_ROM_BASE        0xFFFFFFFF0000ULL
-+#define DADAO_TINY_ROM_SIZE        (64 * 1024)
++#define DADAO_TINY_ROM_SIZE        (8 * 1024)
 +#define DADAO_TINY_RESET_PC        0xFFFFFFFF0000ULL
-+#define DADAO_TINY_KERNEL_BASE     0xFFFFFF010000ULL
-+#define DADAO_TINY_KERNEL_ENTRY    0xFFFFFF010100ULL
-+#define DADAO_TINY_KERNEL_RESERVED 0x100ULL
++#define DADAO_TINY_KERNEL_BASE     0xFFFFFF002000ULL
++#define DADAO_TINY_KERNEL_ENTRY    0xFFFFFF002000ULL
++#define DADAO_TINY_KERNEL_RESERVED 0x0ULL
++
++/* Kaiwu-Tiny main SRAM fixed offsets (spec/Kaiwu §1.1 table / §6.2.1;
++ * MAIN_SRAM_BASE = DADAO_TINY_RAM_BASE).  The host loader may not place a
++ * segment in the header area or the guard hole; DUMP/SIGNATURE and the
++ * VERSION/MAILBOX/EXIT_BLOCK header words are ordinary RAM the guest and the
++ * host loader address through these offsets. */
++#define DADAO_TINY_HEADER_SIZE      0x2000ULL   /* VERSION .. ENTRY */
++#define DADAO_TINY_VERSION_OFF      0x0000ULL
++#define DADAO_TINY_MAILBOX_OFF      0x0020ULL
++#define DADAO_TINY_EXIT_BLOCK_OFF   0x0030ULL
++#define DADAO_TINY_EXIT_BLOCK_SIZE  0x10ULL
++#define DADAO_TINY_DUMP_OFF         0x0800ULL
++#define DADAO_TINY_DUMP_SIZE        0x800ULL
++#define DADAO_TINY_SIGNATURE_OFF    0x1000ULL
++#define DADAO_TINY_SIGNATURE_SIZE   0x800ULL
++#define DADAO_TINY_IMAGE_WINDOW     0x20000ULL  /* ENTRY .. +0x21FFF */
++#define DADAO_TINY_GUARD_LO_OFF     0x38000ULL
++#define DADAO_TINY_GUARD_LO_SIZE    0x1000ULL
++#define DADAO_TINY_STACK_OFF        0x39000ULL
++#define DADAO_TINY_STACK_SIZE       0x6000ULL
++#define DADAO_TINY_STACK_TOP        (DADAO_TINY_STACK_OFF + DADAO_TINY_STACK_SIZE)
++#define DADAO_TINY_MEMRAS_OFF       0x3F000ULL
++#define DADAO_TINY_MEMRAS_SIZE      0x1000ULL
++
++_Static_assert(DADAO_TINY_KERNEL_BASE - DADAO_TINY_RAM_BASE ==
++               DADAO_TINY_HEADER_SIZE, "Tiny ENTRY must end the header area");
++_Static_assert(DADAO_TINY_DUMP_OFF + DADAO_TINY_DUMP_SIZE ==
++               DADAO_TINY_SIGNATURE_OFF, "Tiny DUMP ends at SIGNATURE");
++_Static_assert(DADAO_TINY_SIGNATURE_OFF + DADAO_TINY_SIGNATURE_SIZE <=
++               DADAO_TINY_HEADER_SIZE, "Tiny SIGNATURE fits below ENTRY");
++_Static_assert(DADAO_TINY_GUARD_LO_OFF + DADAO_TINY_GUARD_LO_SIZE ==
++               DADAO_TINY_STACK_OFF, "Tiny guard_lo ends at STACK");
++_Static_assert(DADAO_TINY_STACK_TOP == DADAO_TINY_MEMRAS_OFF,
++               "Tiny STACK top is SP and the MemRAS start");
++_Static_assert(DADAO_TINY_MEMRAS_OFF + DADAO_TINY_MEMRAS_SIZE ==
++               DADAO_TINY_RAM_SIZE, "Tiny MemRAS ends at RAM end");
 +
 +/* Kaiwu-Vast geometry (spec/Kaiwu §1.1/§6; user ruling 2026-11-03):
 + * 4 MiB BootROM, reset at its last 64 KiB start, 2 GiB PA RAM at PA 0 reached
@@ -463,11 +509,13 @@ index 0000000..918cb23
 +#define DADAO_PMEM_SRAM_HOST_BASE  0x0100000000000000ULL
 +
 +/* ── hmon/smon SRAM (ADR-0043 D4/D5) ────────────────────────────────────
-+ * Each monitor owns a 64 KiB SRAM at internal offset 0x3ff_0000_0000 of its
-+ * own cfx (hmon = cfx3 at 0x0fff_0000_0000, smon = cfx2 at
-+ * 0x0bff_0000_0000).  Like the cfx_pmem SRAM they are backed by RAM regions
-+ * at host addresses outside the 56-bit guest PA space; tlb_fill routes the
-+ * cfx-internal window, an offset beyond 64 KiB is CFXMEM. */
++ * Each monitor owns an SRAM at internal offset 0x3ff_0000_0000 of its own cfx
++ * (hmon = cfx3 at 0x0fff_0000_0000, smon = cfx2 at 0x0bff_0000_0000).  Like
++ * the cfx_pmem SRAM they are backed by RAM regions at host addresses outside
++ * the 56-bit guest PA space; tlb_fill routes the cfx-internal window, an
++ * offset beyond the monitor's SRAM is CFXMEM.  Size per profile: cfx3 hmon is
++ * 8 KiB on Kaiwu-Tiny and 64 KiB on Kaiwu-Vast (spec/Kaiwu §1.1, m19-spec-002);
++ * cfx2 smon is Vast-only and 64 KiB (DADAO_MON_SRAM_SIZE). */
 +#define DADAO_MON_SRAM_SIZE        (64 * 1024)
 +#define DADAO_MON_SRAM_CFX_OFFSET  0x3FF00000000ULL
 +#define DADAO_HMON_CFX_BASE        ((3ULL << 42) | DADAO_MON_SRAM_CFX_OFFSET)

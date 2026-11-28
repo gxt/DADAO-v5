@@ -488,3 +488,9 @@
 - **2026-11-28 `m18-linux-016`**
   - 摘要：**linux-user `dadao_argmask` 补 `TARGET_NR_futex_waitv`(449) = 0x09**，与 musl C stub / 内核入口 / gem5 SE 表逐项一致（`check-syscall-abi` 86/86）。`series` 69 不变。
   - 执行者：engineer
+
+## M19
+
+- **2026-11-27 `m19-qemu-001`**
+  - 摘要：**`kaiwu-tiny` 迁移到新硬件几何与装载契约（`m19-spec-002`；`spec/Kaiwu §1.1/§6.2/§6.2.1`）**。`target/dadao/cpu.h`：Tiny 常量改 BootROM **8 KiB**（`0xffff_ffff_0000`–`0x1fff`）、RAM **256 KiB**（`0xffff_ff00_0000`–`0x3ffff`）、hmon SRAM **8 KiB**；`kernel_base = kernel_entry = 0xffff_ff00_2000`、`kernel_reserved = 0`；新增主 SRAM 固定偏移常量（`VERSION` 0x0000、`MAILBOX` 0x0020、`EXIT_BLOCK` 0x0030、`DUMP` 0x0800/0x800、`SIGNATURE` 0x1000/0x800、`ENTRY`/`image_window` 0x2000/0x2_0000、`guard_lo` 0x38000/0x1000、`STACK` 0x39000/0x6000（`SP = 0x3F000`）、`MemRAS` 0x3F000/0x1000（`MRPTR = 0x40000`））与 `_Static_assert` 一致性检查；`DadaoProfile` 增 `load_window_size`/`ram_guard_offset`/`ram_guard_size`/`hmon_sram_size`。`target/dadao/cpu.c`：profile 填新值（Vast hmon 仍 64 KiB）；debug/semihosting 视图按 `hmon_sram_size` 且 guard 不可访问；复位注释同步。`target/dadao/helper.c`：hmon/smon SRAM 窗口按 profile 尺寸（cfx3 Tiny 8 KiB）、cg7 cfx3 块尺寸取 `hmon_sram_size`；RAM 映射排除 `guard_lo`（guest 访存/取指 ⇒ `CFXMEM`，`spec/Kaiwu §6.2.1`），monitor 向量可达性同步。`hw/dadao/dadao-machine.c`：ELF 装载窗口改为 `[kernel_base, kernel_base+image_window)`，对头区/`guard_lo`/BootROM/hmon SRAM 给出具名拒绝；raw 镜像尺寸上限取窗口；bootrom-image/`-bios` 仍精确等于 profile ROM 尺寸（Tiny 8 KiB），复位 PC 不被应用 `e_entry` 改写；hmon SRAM 区域按 profile 尺寸建 8 KiB；机器描述串更新。补丁 4 份改（`hw/dadao/dadao-machine.c`、`target/dadao/{cpu.c,cpu.h,helper.c}`）。
+  - 执行者：engineer

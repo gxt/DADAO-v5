@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..dfa1d4a
+index 0000000..2331303
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,704 @@
+@@ -0,0 +1,722 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -44,8 +44,8 @@ index 0000000..dfa1d4a
 + * It backs `-machine kaiwu-vast`; the canonical DADAO_* macros carry the same
 + * geometry.
 + *
-+ * `tiny` is Kaiwu-Tiny: 64 KiB BootROM + 8 MiB SRAM, `cfx_power`
-+ * (cfx63) + `cfx3 hmon` only (spec/Kaiwu §1.1/§3, 0.4.2-rc), hmon SRAM
++ * `tiny` is Kaiwu-Tiny: 8 KiB BootROM + 256 KiB SRAM, `cfx_power`
++ * (cfx63) + `cfx3 hmon` only (spec/Kaiwu §1.1/§3), 8 KiB hmon SRAM
 + * at 0x0fff_0000_0000, no PTW, no smon, no pmem SRAM, no PA alias; the run
 + * mode is fixed at hypv and semihosting is the only host-I/O path.
 + * It backs `-machine kaiwu-tiny`.
@@ -73,6 +73,9 @@ index 0000000..dfa1d4a
 +    .kernel_base = DADAO_VAST_KERNEL_BASE,
 +    .kernel_entry = DADAO_VAST_KERNEL_ENTRY,
 +    .kernel_reserved = DADAO_VAST_KERNEL_RESERVED,
++    .load_window_size = 0,          /* no fixed window: the rest of RAM */
++    .ram_guard_offset = 0,          /* no unmapped hole in Vast RAM */
++    .ram_guard_size = 0,
 +    .bootrom_required = false,      /* legacy ELF path (M4) has no firmware */
 +    .fixed_kernel_entry = false,
 +    .switch_run_mode_write_ignored = false,
@@ -81,6 +84,7 @@ index 0000000..dfa1d4a
 +    .hmon_sram = true,
 +    .smon_sram = true,
 +    .pmem_sram = true,
++    .hmon_sram_size = DADAO_MON_SRAM_SIZE,
 +    .cfx_impl_mask = DADAO_CFX_IMPL_VAST,
 +    .unimpl_cfx_trap_illi = false,  /* allocated-but-unimplemented => CFXREG */
 +    .mon_elf_segments = false,      /* power loads hmon from the BootROM */
@@ -105,14 +109,18 @@ index 0000000..dfa1d4a
 +    .kernel_base = DADAO_TINY_KERNEL_BASE,
 +    .kernel_entry = DADAO_TINY_KERNEL_ENTRY,
 +    .kernel_reserved = DADAO_TINY_KERNEL_RESERVED,
++    .load_window_size = DADAO_TINY_IMAGE_WINDOW,   /* ENTRY + 128 KiB */
++    .ram_guard_offset = DADAO_TINY_GUARD_LO_OFF,
++    .ram_guard_size = DADAO_TINY_GUARD_LO_SIZE,
 +    .bootrom_required = true,       /* spec/Kaiwu §6: fixed firmware + app */
-+    .fixed_kernel_entry = true,     /* e_entry must be 0xffff_ff01_0100 */
++    .fixed_kernel_entry = true,     /* e_entry must be MAIN_SRAM_BASE+0x2000 */
 +    .switch_run_mode_write_ignored = true,
 +    .power_ctrl = false,        /* Tiny: cfx_power_ctrl not implemented => CFXREG */
 +    .ram_alias = false,
 +    .hmon_sram = true,          /* cfx3 hmon SRAM (spec/Kaiwu §1.1) */
 +    .smon_sram = false,         /* Tiny implements no smon */
 +    .pmem_sram = false,
++    .hmon_sram_size = 8 * 1024, /* cfx3: code <=3 KiB, data 256 B, stack */
 +    .cfx_impl_mask = DADAO_CFX_IMPL_TINY,
 +    .unimpl_cfx_trap_illi = true,   /* spec/Kaiwu §3 (Tiny) */
 +    .mon_elf_segments = false,      /* power copies hmon; host never loads it */
@@ -323,8 +331,9 @@ index 0000000..dfa1d4a
 +            if (m == DADAO_MODE_HYPV) {
 +                /* DADAO-13 §1 (cg3): switch_run_mode=3; excp_vector initial
 +                 * value = the cfx's internal SRAM start.  hmon/smon (cfx2,
-+                 * cfx3) and cfx_pmem own a 64 KiB SRAM at internal offset
-+                 * 0x3ff_0000_0000; a cfx without internal SRAM (e.g. power)
++                 * cfx3) and cfx_pmem own an SRAM at internal offset
++                 * 0x3ff_0000_0000 (cfx3 is 8 KiB on Tiny, 64 KiB on Vast);
++                 * a cfx without internal SRAM (e.g. power)
 +                 * is platform-defined and keeps its last-64-KiB window
 +                 * (2^42 - 64 KiB, the Tiny BootROM start for cfx63). */
 +                uint64_t vec_off = 0x3FFFFFF0000ULL;   /* 2^42 - 64 KiB */
@@ -562,6 +571,15 @@ index 0000000..dfa1d4a
 +
 +    if ((addr >= prof->ram_base && addr < prof->ram_base + prof->ram_size) ||
 +        (addr >= prof->rom_base && addr < prof->rom_base + prof->rom_size)) {
++        /* The main-SRAM guard hole is not mapped for the guest either
++         * (spec/Kaiwu §6.2.1: guard_lo => CFXMEM), so a debug/semihosting
++         * access there must fail like any other unmapped address. */
++        if (prof->ram_guard_size &&
++            addr >= prof->ram_base + prof->ram_guard_offset &&
++            addr < prof->ram_base + prof->ram_guard_offset +
++                  prof->ram_guard_size) {
++            return false;
++        }
 +        /* cache-model=on: the debug/semihosting view of RAM must be coherent
 +         * with the shadow D-cache, exactly like a real debug access would be
 +         * (a guest store may still be a dirty line only).  The RAM half is
@@ -582,7 +600,7 @@ index 0000000..dfa1d4a
 +     * Tiny implements only hmon (spec/Kaiwu §1.1). */
 +    if (prof->hmon_sram &&
 +        addr >= DADAO_HMON_CFX_BASE &&
-+        addr < DADAO_HMON_CFX_BASE + DADAO_MON_SRAM_SIZE) {
++        addr < DADAO_HMON_CFX_BASE + prof->hmon_sram_size) {
 +        result->physaddr = DADAO_HMON_SRAM_HOST_BASE +
 +                           (addr - DADAO_HMON_CFX_BASE);
 +        result->attrs = MEMTXATTRS_UNSPECIFIED;

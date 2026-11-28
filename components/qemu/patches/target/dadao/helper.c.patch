@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..6ac4e0c
+index 0000000..8ad03d2
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,4164 @@
+@@ -0,0 +1,4192 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -151,10 +151,12 @@ index 0000000..6ac4e0c
 +               (off = pc & DADAO_VA_MASK) >= DADAO_PMEM_SRAM_CFX_OFFSET &&
 +               off - DADAO_PMEM_SRAM_CFX_OFFSET < DADAO_PMEM_SRAM_SIZE) {
 +        pa = DADAO_PMEM_SRAM_HOST_BASE + (off - DADAO_PMEM_SRAM_CFX_OFFSET);
-+    } else if (((cfxha == DADAO_CFXHA_HMON && prof->hmon_sram) ||
-+                (cfxha == 2 && prof->smon_sram)) &&
-+               (off = pc & DADAO_VA_MASK) >= DADAO_MON_SRAM_CFX_OFFSET &&
-+               off - DADAO_MON_SRAM_CFX_OFFSET < DADAO_MON_SRAM_SIZE) {
++    } else if (((cfxha == DADAO_CFXHA_HMON && prof->hmon_sram &&
++                 (off = pc & DADAO_VA_MASK) >= DADAO_MON_SRAM_CFX_OFFSET &&
++                 off - DADAO_MON_SRAM_CFX_OFFSET < prof->hmon_sram_size) ||
++                (cfxha == 2 && prof->smon_sram &&
++                 (off = pc & DADAO_VA_MASK) >= DADAO_MON_SRAM_CFX_OFFSET &&
++                 off - DADAO_MON_SRAM_CFX_OFFSET < DADAO_MON_SRAM_SIZE))) {
 +        pa = (cfxha == DADAO_CFXHA_HMON ? DADAO_HMON_SRAM_HOST_BASE
 +                                        : DADAO_SMON_SRAM_HOST_BASE)
 +             + (off - DADAO_MON_SRAM_CFX_OFFSET);
@@ -315,6 +317,13 @@ index 0000000..6ac4e0c
 +        return prof->ptw_supported && (env->ptw_enable & 1);
 +    }
 +    if (vec >= prof->ram_base && vec - prof->ram_base < prof->ram_size) {
++        /* The main-SRAM guard hole cannot be a monitor vector. */
++        if (prof->ram_guard_size &&
++            vec - prof->ram_base >= prof->ram_guard_offset &&
++            vec - prof->ram_base < prof->ram_guard_offset +
++                                    prof->ram_guard_size) {
++            return false;
++        }
 +        return true;
 +    }
 +    if (vec >= prof->rom_base && vec - prof->rom_base < prof->rom_size) {
@@ -322,7 +331,7 @@ index 0000000..6ac4e0c
 +    }
 +    if (cfxha == DADAO_CFXHA_HMON && prof->hmon_sram &&
 +        (vec & DADAO_VA_MASK) >= DADAO_MON_SRAM_CFX_OFFSET &&
-+        (vec & DADAO_VA_MASK) - DADAO_MON_SRAM_CFX_OFFSET < DADAO_MON_SRAM_SIZE) {
++        (vec & DADAO_VA_MASK) - DADAO_MON_SRAM_CFX_OFFSET < prof->hmon_sram_size) {
 +        return true;
 +    }
 +    if (cfxha == 2 && prof->smon_sram &&
@@ -1327,19 +1336,22 @@ index 0000000..6ac4e0c
 +        return false;
 +    }
 +
-+    /* hmon (cfx3) / smon (cfx2) SRAM: 64 KiB at internal offset
-+     * 0x3ff_0000_0000 of the owning cfx (ADR-0043 D4/D5).  The test machine
-+     * backs each with a host RAM region outside the 56-bit PA space.  An
-+     * offset outside the SRAM is an illegal internal-space access => CFXMEM.
-+     * Kaiwu-Tiny implements hmon only (spec/Kaiwu §1.1). */
++    /* hmon (cfx3) / smon (cfx2) SRAM at internal offset 0x3ff_0000_0000 of
++     * the owning cfx (ADR-0043 D4/D5).  The test machine backs each with a
++     * host RAM region outside the 56-bit PA space.  An offset outside the
++     * monitor's SRAM is an illegal internal-space access => CFXMEM.
++     * Kaiwu-Tiny implements hmon only (spec/Kaiwu §1.1) and its hmon SRAM is
++     * 8 KiB (m19-spec-002); Vast has 64 KiB for both. */
 +    if ((cfxha == DADAO_CFXHA_HMON && prof->hmon_sram) ||
 +        (cfxha == 2 && prof->smon_sram)) {
 +        uint64_t off = addr & DADAO_VA_MASK;
++        uint64_t size = (cfxha == DADAO_CFXHA_HMON) ? prof->hmon_sram_size
++                                                    : DADAO_MON_SRAM_SIZE;
 +        uint64_t host = (cfxha == DADAO_CFXHA_HMON) ? DADAO_HMON_SRAM_HOST_BASE
 +                                                    : DADAO_SMON_SRAM_HOST_BASE;
 +
 +        if (off >= DADAO_MON_SRAM_CFX_OFFSET &&
-+            off - DADAO_MON_SRAM_CFX_OFFSET < DADAO_MON_SRAM_SIZE) {
++            off - DADAO_MON_SRAM_CFX_OFFSET < size) {
 +            paddr = host + (off - DADAO_MON_SRAM_CFX_OFFSET);
 +            prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
 +            goto map;
@@ -1354,9 +1366,15 @@ index 0000000..6ac4e0c
 +        return false;
 +    }
 +
-+    /* RAM (profile geometry): Node 2 GiB at PA 0, Tiny 8 MiB at
-+     * 0xffff_ff00_0000 (spec/Kaiwu §1.1). */
-+    if (addr >= prof->ram_base && addr < prof->ram_base + prof->ram_size) {
++    /* RAM (profile geometry): Vast 2 GiB at PA 0, Tiny 256 KiB at
++     * 0xffff_ff00_0000 (spec/Kaiwu §1.1).  Kaiwu-Tiny's guard_lo is a 4 KiB
++     * hole inside that range: it is not mapped, so an access/fetch there is
++     * an unmapped access (CFXMEM, spec/Kaiwu §6.2.1) like any other. */
++    if (addr >= prof->ram_base && addr < prof->ram_base + prof->ram_size &&
++        !(prof->ram_guard_size &&
++          addr - prof->ram_base >= prof->ram_guard_offset &&
++          addr - prof->ram_base < prof->ram_guard_offset +
++                                  prof->ram_guard_size)) {
 +        prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
 +        paddr = addr;
 +        goto map;
@@ -2216,10 +2234,12 @@ index 0000000..6ac4e0c
 + * SRAM/ROM/MMIO/DRAM/OTHER (one-hot when exists); attr bit0 = R, bit1 = W,
 + * bit2 = X, bit3 = cacheable, bit4 = shareable, bit5 = volatile.  cg7 carries
 + * no per-cfx state and is read-only.
-+ * Test-machine blocks: smon/hmon/pmem are the §2.1 64 KiB SRAM constants;
-+ * the power BootROM interval is derived from the active profile
-+ * (spec/Kaiwu §1.1: Node 4 MiB at cfx offset 0x3ff_ffc0_0000; Tiny has
-+ * no cfx at all, so this branch is unreachable there).  Every other block
++ * Test-machine blocks: smon is the §2.1 64 KiB SRAM constant, hmon is the
++ * profile's cfx3 SRAM (Tiny 8 KiB, Vast 64 KiB; spec/Kaiwu §1.1/§6.2),
++ * pmem is the 64 KiB SRAM constant; the power BootROM interval and its
++ * (possibly sub-64-KiB) size are derived from the active profile
++ * (spec/Kaiwu §1.1: Vast 4 MiB at cfx offset 0x3ff_ffc0_0000; Tiny 8 KiB
++ * whose start stays at 2^42 - 64 KiB, spec/Kaiwu §3 cg7).  Every other block
 + * (space[1..15] and cfx0/1/4/...) reads 0.
 + */
 +static uint64_t dadao_cg7_space_reg(const DadaoProfile *prof, int cfxha,
@@ -2229,6 +2249,12 @@ index 0000000..6ac4e0c
 +        0x3,                    /* desc: exists | SRAM */
 +        0x3FF00000000ULL,       /* start: 0x3ff_0000_0000 */
 +        0x10000ULL,             /* size:  64 KiB */
++        0x7,                    /* attr: R | W | X */
++    };
++    uint64_t hmon[4] = {
++        0x3,                    /* desc: exists | SRAM */
++        0x3FF00000000ULL,       /* start: 0x3ff_0000_0000 */
++        prof->hmon_sram_size,   /* size: 8 KiB (Tiny) / 64 KiB (Vast) */
 +        0x7,                    /* attr: R | W | X */
 +    };
 +    static const uint64_t pmem[4] = {
@@ -2250,8 +2276,10 @@ index 0000000..6ac4e0c
 +    }
 +    switch (cfxha) {
 +    case 2:                     /* cfx_smon */
-+    case 3:                     /* cfx_hmon */
 +        blk = smon;
++        break;
++    case 3:                     /* cfx_hmon */
++        blk = hmon;
 +        break;
 +    case 32:                    /* cfx_pmem */
 +        blk = pmem;

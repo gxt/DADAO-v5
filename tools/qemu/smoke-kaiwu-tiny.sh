@@ -1,76 +1,96 @@
 #!/bin/bash
-# Minimal smoke test for the DADAO Tiny machine.
-# Verifies: qemu-system-dadao exists, -M ? shows kaiwu-tiny / kaiwu-vast,
-# and boot triggers UNDI (exit code 0x89) because all-zero ROM
-# is a reserved encoding (op=0x00 is a blank QFC main-table cell; OPC-MISC
-# lives at op=0x47 since SPEC-164t, so 0x00000000 stays reserved → UNDI).
+# Minimal load-rule smoke test for the DADAO Kaiwu-Tiny machine
+# (m19-qemu-001; spec/Kaiwu §1.1/§6.2: 8 KiB BootROM + 256 KiB SRAM).
 #
-# NOTE: This script is NOT included in `make check`; it is a
-# standalone smoke test. Gate-blind: changes here do not block
-# `make check` green.
+# Verifies:
+#   * qemu-system-dadao exists and -M ? shows kaiwu-tiny / kaiwu-vast;
+#   * a bootrom image that is not exactly 8 KiB is rejected by name
+#     (load-stage error, non-zero exit);
+#   * an exactly 8 KiB bootrom image plus a raw -kernel is accepted: the
+#     machine starts (kept paused with -S, so no guest instruction runs and
+#     the check does not depend on firmware contents).
+#
+# NOTE: This script is NOT included in `make check`; it is a standalone smoke
+# test. Gate-blind: changes here do not block `make check` green.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 QEMU_BIN="${SCRIPT_DIR}/../../.work/build/qemu/qemu-system-dadao"
-TMPDIR=$(mktemp -d /tmp/opencode/QEMU-003t-smoke.XXXXXX)
+TMPDIR=$(mktemp -d /tmp/opencode/m19-qemu-001-smoke.XXXXXX)
 trap "rm -rf $TMPDIR" EXIT
 
-echo "=== DADAO Tiny Smoke Test ==="
+pass=0
+fail=0
+check() {
+    local name="$1" want="$2" got="$3"
+    if [ "$want" = "$got" ]; then
+        echo "PASS: $name (expected $want, got $got)"
+        pass=$((pass + 1))
+    else
+        echo "FAIL: $name (expected $want, got $got)"
+        fail=$((fail + 1))
+    fi
+}
 
-# Check binary exists
+echo "=== DADAO Tiny load-rule smoke test (8 KiB BootROM) ==="
+
 if [ ! -x "$QEMU_BIN" ]; then
     echo "FAIL: $QEMU_BIN not found or not executable"
     echo "      Run 'make build-qemu' first"
     exit 1
 fi
-echo "PASS: qemu-system-dadao found"
 
-# Check -M ? shows kaiwu-tiny / kaiwu-vast
-MACHINE_LIST=$("$QEMU_BIN" -M ? 2>&1)
+MACHINE_LIST=$("$QEMU_BIN" -M ? 2>&1 || true)
 for machine in kaiwu-tiny kaiwu-vast; do
     if echo "$MACHINE_LIST" | grep -q "$machine"; then
-        echo "PASS: $machine found in machine list"
+        check "machine $machine listed" "0" "0"
     else
-        echo "FAIL: $machine not in machine list"
-        echo "      Output: $MACHINE_LIST"
-        exit 1
+        check "machine $machine listed" "0" "1"
     fi
 done
 
-# Create minimal ROM and kernel binaries (zeroed, 8 bytes each)
-# ROM: all zeros at 0xffff_ffff_0000 → first instruction is 0x00000000
-#      = reserved encoding (op=0x00; OPC-MISC now at op=0x47)
-#      → UNDI (exit code 0x89 = 137)
-# Kernel: all zeros at 0xffff_0000_0000 (won't be reached, ROM UNDI happens first)
-dd if=/dev/zero of="$TMPDIR/rom.bin" bs=1 count=8 2>/dev/null
-dd if=/dev/zero of="$TMPDIR/test.bin" bs=1 count=8 2>/dev/null
+# Fixtures: an 8 KiB ROM, two wrong sizes, and an 8-byte raw application.
+dd if=/dev/zero of="$TMPDIR/rom8k.bin"  bs=8192 count=1 status=none
+dd if=/dev/zero of="$TMPDIR/rom8k1.bin" bs=8193 count=1 status=none
+dd if=/dev/zero of="$TMPDIR/rom64k.bin" bs=65536 count=1 status=none
+dd if=/dev/zero of="$TMPDIR/app.bin"    bs=8 count=1 status=none
+
+expect_reject() {
+    local name="$1" rom="$2"
+    set +e
+    "$QEMU_BIN" -machine kaiwu-tiny -bios "$rom" -kernel "$TMPDIR/app.bin" \
+        -display none -nographic >"$TMPDIR/$name.out" 2>&1
+    local rc=$?
+    set -e
+    check "$name rejected (rc)" "1" "$rc"
+    if grep -q "exceeds the ROM region size limit" "$TMPDIR/$name.out"; then
+        check "$name names the size rule" "0" "0"
+    else
+        check "$name names the size rule" "0" "1"
+    fi
+}
+
+expect_reject "rom-8193" "$TMPDIR/rom8k1.bin"
+expect_reject "rom-64KiB" "$TMPDIR/rom64k.bin"
+
+# Exactly 8 KiB is accepted: start paused (-S), confirm the process stays up,
+# then terminate it ourselves.
+"$QEMU_BIN" -machine "kaiwu-tiny,bootrom-image=$TMPDIR/rom8k.bin" \
+    -kernel "$TMPDIR/app.bin" -display none -nographic -S \
+    >"$TMPDIR/accept.out" 2>&1 &
+pid=$!
+sleep 1
+if kill -0 "$pid" 2>/dev/null; then
+    check "8 KiB bootrom + raw kernel accepted" "0" "0"
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+else
+    wait "$pid" 2>/dev/null || true
+    check "8 KiB bootrom + raw kernel accepted" "0" "1"
+    cat "$TMPDIR/accept.out"
+fi
 
 echo ""
-echo "=== Boot test: expect UNDI exit code (0x89 = 137) ==="
-echo "Command: $QEMU_BIN -machine kaiwu-tiny -bios $TMPDIR/rom.bin -kernel $TMPDIR/test.bin -display none -nographic"
-
-set +e
-"$QEMU_BIN" \
-    -machine kaiwu-tiny \
-    -bios "$TMPDIR/rom.bin" \
-    -kernel "$TMPDIR/test.bin" \
-    -display none \
-    -nographic \
-    2>"$TMPDIR/stderr.txt"
-EXIT_CODE=$?
-set -e
-
-echo "Exit code: $EXIT_CODE (expected: 137 = 0x89)"
-echo "stderr:"
-cat "$TMPDIR/stderr.txt" | head -20
-
-if [ "$EXIT_CODE" -eq 137 ]; then
-    echo ""
-    echo "=== PASS: UNDI exit code (0x89) confirmed ==="
-    exit 0
-else
-    echo ""
-    echo "=== FAIL: unexpected exit code $EXIT_CODE (expected 137) ==="
-    exit 1
-fi
+echo "=== summary: $pass passed, $fail failed ==="
+[ "$fail" -eq 0 ]
