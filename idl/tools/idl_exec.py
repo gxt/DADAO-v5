@@ -2506,11 +2506,13 @@ def _op_sc(m, insn):
 
 @sem("swym_oiii_imm")
 def _op_swym(m, insn):
-    """swym（SimRISC-12 §2）：除 IP 自增外无任何架构副作用。
+    """swym（SimRISC-12 §2）：`N = immu18[11:0]`（0..4095）为时延参数。
 
-    `immu18` 只是硬件时延参数（实现时序），散文本节未赋予它访存序/屏障语义，
-    故 IDL v0 只做 no-op（IP 自增属取指模型，`Machine.step` 负责）。
+    合法 N 除 IP 自增外无任何架构副作用（IP 自增属取指模型，`Machine.step` 负责）；
+    `immu18[17:12]` 为 SBZ，非零 ⇒ ILLI（encode_sbz）。
     """
+    if (insn["immu18"] >> 12) & 0x3F:     # immu18[17:12] 为 SBZ，非零 ⇒ ILLI（encode_sbz）
+        raise Fault("Illegal")
 
 
 # ---------------------------------------------------------------------------
@@ -2569,7 +2571,7 @@ def _install_bootrom(mem, image_path, profile):
         raise ExecError("bootrom image is %d bytes, profile expects %d"
                         % (len(image), profile["bootrom_size"]))
     mem.load(profile["bootrom_base"], image, force=True)
-    table_off = 0xE000
+    table_off = 0x1F00          # spec/Kaiwu §6.2：Tiny 8 KiB 镜像的表固定落在 0x1F00
     magic, version, count = struct.unpack_from(">IHH", image, table_off)
     if magic != 0x44424F54 or version != 1:
         raise ExecError("bootrom image index table: bad magic/version")
