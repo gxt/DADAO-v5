@@ -1,0 +1,121 @@
+diff --git a/arch/dadao/kernel/k2_selftest.c b/arch/dadao/kernel/k2_selftest.c
+index a1552f02f..b2b218f08 100644
+--- a/arch/dadao/kernel/k2_selftest.c
++++ b/arch/dadao/kernel/k2_selftest.c
+@@ -774,6 +774,108 @@ static void __init __noreturn k2_case_p11(void)
+ 	dadao_early_exit(0x7f);
+ }
+ 
++/*
++ * P13 (m18-linux-031 probe image only; NOT part of the delivered series):
++ * the supv return path must not trust the shared `cfx_smon cg5` exit intent.
++ *
++ * Another task's supv entry (a kernel fault or the user-fault hand-over) writes
++ * all four exit-intent words with *its* return address, mode, cfx and mask
++ * while this task sleeps in the C half.  This case reproduces that state
++ * deterministically: the probe's report callback — which runs in the C half —
++ * writes exactly those four words to values no return path may accept, then
++ * returns.  The return path has to rewrite rc8/rc9/rc10/rc11 from this task's
++ * frame and the live smon mask; a missing word shows up as a distinct terminal
++ * signature, so each of the four writes is individually testable:
++ *
++ *   rc8  = user        -> escaping to user at a kernel ip (CFXPERM landing)
++ *   rc9  = cfx 6       -> CFXESC (unimplemented target) before any switch
++ *   rc10 = landing     -> escapes to the wrong ip (the landing names it)
++ *   rc11 = 0           -> the target monitor's mask becomes 0, checked after
++ */
++static unsigned long k2_p13_saved_mask;
++
++static void __init __noreturn k2_p13_wrong_ip(void)
++{
++	dadao_early_printf("K2 probe P13: WRONG-IP escaped to the clobbered "
++			   "rc10=%#lx\n", (unsigned long)k2_p13_wrong_ip);
++	dadao_early_exit(0xee);
++}
++
++static void __init __noreturn k2_p13_user_landing(void)
++{
++	dadao_early_printf("K2 probe P13: USER-MODE escaped to the clobbered "
++			   "rc8 (CFXPERM landing)\n");
++	dadao_early_exit(0xed);
++}
++
++static void k2_p13_report(struct dadao_fault_probe *probe,
++			  struct pt_regs *regs, unsigned long info)
++{
++	(void)probe;
++	(void)regs;
++	(void)info;
++	/* The live supv gate: the escape must write this back, not the clobber. */
++	k2_p13_saved_mask = DADAO_CFX_READ(cfx_smon, 15, 3);
++	DADAO_CFX_WRITE(cfx_smon, CFX_CG_FRAME, CFX_RC_ESCAPE_RUN_MODE,
++			DADAO_MODE_USER);
++	DADAO_CFX_WRITE(cfx_smon, CFX_CG_FRAME, CFX_RC_ESCAPE_CFX_CODE, 6);
++	DADAO_CFX_WRITE(cfx_smon, CFX_CG_FRAME, CFX_RC_ESCAPE_IP,
++			(unsigned long)k2_p13_wrong_ip);
++	DADAO_CFX_WRITE(cfx_smon, CFX_CG_FRAME, CFX_RC_ESCAPE_INTR_MASK, 0);
++}
++
++/*
++ * The faulting access followed by a cfx read that is legal in supv and denied
++ * in user mode: with a wrong rc8 the escape lands on this read in user mode,
++ * where `cfx_ptw`'s user row masks source cfx smon (the reset mask keeps only
++ * bit 3 open) -> CFXPERM -> the umon user row lands in `k2_p13_user_landing`.
++ */
++static noinline unsigned long k2_p13_fault(unsigned long va)
++{
++	unsigned long v = *(volatile unsigned long *)va;
++
++	barrier();
++	(void)dadao_ptbr_read();
++	barrier();
++	return v;
++}
++
++static void __init k2_case_p13(void)
++{
++	unsigned long now;
++
++	/* The user-mode landing a wrong rc8 must reach (probe image only). */
++	DADAO_CFX_WRITE(cfx_umon, UMON_CG_USER, UMON_RC_SWITCH_RUN_MODE,
++			DADAO_MODE_SUPV);
++	DADAO_CFX_WRITE(cfx_umon, UMON_CG_USER, UMON_RC_EXCP_VECTOR,
++			(unsigned long)k2_p13_user_landing);
++
++	k2_snap_n = 0;
++	k2_probe.cause = 1UL << DADAO_SUB_DGPTRAP;
++	k2_probe.info = k2_probe_va;
++	k2_probe.retry = 0;		/* SKIP: frame.ip + 4 is the canary */
++	k2_probe.hits = 0;
++	k2_probe.max_hits = 4;
++	k2_probe.redirect = 0;
++	k2_probe.report = k2_p13_report;
++	if (dadao_trap_probe_register(&k2_probe)) {
++		dadao_early_printf("K2 probe P13: FAIL register\n");
++		return;
++	}
++	(void)k2_p13_fault(k2_probe_va);
++	k2_probe_stop();
++	k2_probe.report = k2_probe_report;
++
++	now = DADAO_CFX_READ(cfx_smon, 15, 3);
++	if (now != k2_p13_saved_mask) {
++		dadao_early_printf("K2 probe P13: FAIL mask expected=%#lx "
++				   "got=%#lx\n", k2_p13_saved_mask, now);
++		dadao_early_exit(0xef);
++	}
++	dadao_early_printf("K2 probe P13: exit-intent PASS mask=%#lx hits=%lu\n",
++			   now, k2_probe.hits);
++}
++
+ /* P3: no probe registered => the page fault is fatal and named.  Ends the boot. */
+ static void __init __noreturn k2_case_p3(void)
+ {
+@@ -812,6 +914,7 @@ void __init dadao_k2_selftest(void)
+ 	k2_case_p12();
+ 	k2_case_p6();
+ 	k2_case_p7();
++	k2_case_p13();
+ 	k2_case_p8();
+ 	/*
+ 	 * Reached when P8 resumed at the faulting ip+4 (no redirect).  When the

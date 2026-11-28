@@ -75,10 +75,10 @@
   scope:
   - linux
   milestone: M18
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P2】与 `ISS-m18-011` 同类的**对称**缺口：`cfx_smon cg5` 的 supv 返回路径同样**只重写 `rc10`**（`DADAO_TRAP_RESTORE_AND_ESCAPE` 之后直接 `escape cfx_smon`），其余三字（`rc8` 运行模式 / `rc9` cfx / `rc11` 掩码）依赖进入时快照。`m18-linux-029` 已证 umon 侧在「C 半睡眠时另一任务 `dadao_enter_user()` 覆盖四字出口意图」下会跑飞（用户代码在 supv 执行、陈旧向量进用户）；smom 侧因单帧 `cg5` 共享同样的覆盖路径，理论上同样可被覆盖，只是本轮未观测到签名（可能被 supv 侧快速 trap 掩盖）。处置：`m18-linux-031` 把 `DADAO_UMON_USER_EXIT_INTENT` 的同口径重写应用到 supv 返回路径；未观测到签名不等于不存在。"
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-031（supv 返回路径四字出口意图；rc9 取入口记录的 prev cfx，非硬编码）
+  title: "【P2】与 `ISS-m18-011` 同类的**对称**缺口：`cfx_smon cg5` 的 supv 返回路径同样**只重写 `rc10`**（`DADAO_TRAP_RESTORE_AND_ESCAPE` 之后直接 `escape cfx_smon`），其余三字（`rc8` 运行模式 / `rc9` cfx / `rc11` 掩码）依赖进入时快照。`m18-linux-029` 已证 umon 侧在「C 半睡眠时另一任务 `dadao_enter_user()` 覆盖四字出口意图」下会跑飞（用户代码在 supv 执行、陈旧向量进用户）；smom 侧因单帧 `cg5` 共享同样的覆盖路径，理论上同样可被覆盖，只是本轮未观测到签名（可能被 supv 侧快速 trap 掩盖）。处置：`m18-linux-031` 把 `DADAO_UMON_USER_EXIT_INTENT` 的同口径重写应用到 supv 返回路径；未观测到签名不等于不存在。**已修（m18-linux-031）**：`DADAO_TRAP_RESTORE_AND_ESCAPE` 在 `escape cfx_smon` 前重写四字——`rc8=supv`、`rc9=入口记录的 prev cfx`（入口存 callee-saved `rb33`；纯 supv 异常为 smon，post-syscall 内核缺页/`FROM_USER` 交接为 umon）、`rc10=任务帧 ip(+4 on SKIP)`、`rc11=现场 cfx_smon cg15 rc3`（整字回写目标 smon 行）。deviation 记录：任务书原文要求 `rc9=cfx_smon` 硬编码，实测该值**改变同步异常语义**——内核在 current cfx=umon 时缺页，返回后 current cfx 变 smon，用户入口的下一条 `trap cfx_umon` 被 cfx_umon 的 supv cfxtrap 掩码拒绝（只开源 0，掩码字 `0xffffffffffff7ff2` 的 bit2=1），K5 S 组停在首个 fill-file 后超时；故 rc9 必须恢复入口记录值。验证：新增 `m18_supv_exit_intent_probe.py`（K2 探针镜像 P13，handler 内按另一任务入口写四字：rc8=user/rc9=保留 cfx/rc10=landing/rc11=0）——修后 PASS；回退整段 ⇒ CFXESC `0x82`；删 `rc8` ⇒ 用户模式 landing `0xed`；删 `rc9` ⇒ `0x82`；删 `rc10` ⇒ K1 PTW 探针自旋命中上限 `0xf`；删 `rc11` ⇒ P13 `FAIL mask` `0xef`；均 cp+md5 还原后回绿。回归：K2 170/170、K5 285/285、K6 82/82、LTP 两轮逐例一致 14/14、amb 14/14、`--soak 300 --soak-strict` 窗口 0/300、029 忙等探针 20/20（SPIN=20M 口径）。"
 - id: ISS-m18-015
   scope:
   - linux
