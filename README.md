@@ -1,6 +1,6 @@
 # DADAO for SimRISC 0.5.7
 
-基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Kaiwu`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M17）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m18.md`–`milestones-m20.md`**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
+基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Kaiwu`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M18）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m19.md`–`milestones-m20.md`**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
 
 ## 当前版本号
 
@@ -17,7 +17,7 @@
 
 ## 项目里程碑
 
-> 已完成里程碑（M1–M17 已归档）；**进行中**：M18（Linux 测试集 + K6）、M19、M20（issue 清仓 + 四方差分基准）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
+> 已完成里程碑（M1–M18 已归档）；**进行中**：M19、M20（issue 清仓 + 四方差分基准）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
 
 | 里程碑 | 达成日 | 主题 |
 | --- | --- | --- |
@@ -38,6 +38,7 @@
 | M15 | 2026-11-22 | ISA 语义结构化：IDL v0 + 12 册 operation（263 条）+ 渲染/门控 + SimRISC 0.5.7 |
 | M16 | 2026-11-27 | gem5 Timing / chipyard wuming 与 `tests/arch` 三方载体对齐（Tiny + Vast；cfx 0/2/3/4/5/15/32/34/63） |
 | M17 | 2026-11-27 | IDL 可执行参考模型 + 四方差分（IDL/QEMU/gem5/RTL，golden = IDL）：274 镜像零红 |
+| M18 | 2026-11-28 | Linux 测试集（选择与修复）+ K6：busybox/K6 82/82、kselftest 两轮一致、LTP 两轮 14/14 |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -179,3 +180,12 @@
 - **终局证据**：`make check-idl-full` **274/274 rc=0**（全四方）；trace **274/274**（249995 条）；`check-idl` 进 L2、`check-idl-full` 为 nightly 成员；`check-idl-parse`/`check-idl-exec-anchor`/`check-opcodes-repro` 进 L1，`check-inst-sig` 退役。
 - **基线红（非 M17 面）**：L1 `check-patch-tree` 52 problem（linux 51/musl 1，`ISS-left-004`）；L3 `unit:full`/`tset:m6` 的 `stack-protector*.ll` 未归类（`ISS-left-005`）。
 - **归档**：`.tao/archive/M17/`（`README.md` 五节 / `m17-retrospective.md` / `issues-closed.md` 21 条；**46 册已迁入**，`check-archive` PASS）；`milestones-m17.md` 已合并进归档并删除。
+
+### M18（2026-11-28）Linux 测试集（选择与修复）+ K6
+
+- **定位**：Linux 测试集（选择与修复）；K6 从 M14 移入作为入口批次（busybox shell + 基础命令回归 → K6 收口门控）。运行环境 = QEMU system `kaiwu-vast`；两套件都跑（`kselftest` 先、`LTP` 子集后，共用运行骨架）；分诊四分类 `KERNEL_BUG`/`TEST_ADAPT`/`UNSUPPORTED`/`SUITE_ENV`，每条非 PASS 必须有在库记录，禁静默跳过。
+- **关键修复链（异步路径）**：`m18-linux-025` 用户态异步投递负载自旋（`ISS-m18-001`）→ `028` 异步返回主因 `CFXESC`（`ISS-m18-009`）→ `029` 异步精确点残余（umon 四字出口意图，`ISS-m18-011`）→ `030` `trap_busy` 跨睡眠误报（`ISS-m18-012`）→ `031` supv 返回路径出口意图对称补（`ISS-m18-014`）。
+- **交付**：busybox/K6 **82/82**；kselftest 两轮逐例一致（7 PASS + `mm-pfnmap` SKIP）；LTP 两轮 **14/14**；`check-syscall-abi` 86/86；musl `mallocng` 根因（`a_cas` 改 8 字节字 CAS）与 `ldso` 动态链接闭环（`m18-infra-001/002`）。
+- **终局证据**：`check-linux-k6` 82/82；`check-patch-tree` 12 patch set / 464 patches 0 problem；`issues-m18` open=0（关闭 3、迁 18 到 `issues-left`、新增 6）。
+- **基线红（非 M18 面）**：L1 `check-patch-tree` 52 problem（linux 51/musl 1，`ISS-left-004`）；L3 `unit:full`/`tset:m6` 的 `stack-protector*.ll` 未归类（`ISS-left-005`）。
+- **归档**：`.tao/archive/M18/`（`README.md` 五节 / `m18-retrospective.md` / `issues-closed.md` 21 条；**73 册已迁入**，`check-archive` PASS）；`milestones-m18.md` 已合并进归档并删除。

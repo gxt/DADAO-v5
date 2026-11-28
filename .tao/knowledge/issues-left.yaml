@@ -328,15 +328,6 @@
   resolved_by: null
   title: '[原 ISS-488] 【P3】`m14-linux-028` 复核的三条非阻断 finding：R1 `TASK_UNMAPPED_BASE` 页对齐这半个修复无断言覆盖（A2 用 `mm_alloc()` 的 mm、不经 exec，只覆盖 `mmap_min_addr` 那半）⇒ 应补「exec 后 `mm->mmap_base` 页对齐」断言；R2 完成区遗留①「18 条 musl」计数/归属不准（实为 musl 8 + 其它 11），且全局 `check-patch-tree` rc=1 属在途/基线；R3 证据脚本的补丁树判据只 grep `linux: assertion`、不打印问题总数 ⇒ 补一行现场统计。处置：随下次触碰这些门控/任务书时修。**m18-linux-008 处置（2026-11-24）**：R3 已落地（证据脚本从 `check_patch_tree.py` 的输出**现场派生**问题总数与逐组件归属，并校验 `total == Σrows`、`rc==0 ⇔ total==0`，另给「一致/不一致」两路解析自检）；R2 的计数口径同源（不再手写组件归属）；**R1 未落地**：`exec` 后 `mm->mmap_base` 在用户态不可观测（本端口走 `CONFIG_MMU && !HAVE_ARCH_PICK_MMAP_LAYOUT` 的 legazy 布局，`unmapped_area()` 的上取整把 mmap_base 的非对齐掩盖掉），只能由内核侧探针打印（`components/linux` 的 `k5_pagesz_selftest`），而本任务禁改组件补丁 ⇒ 待另立任务。'
 
-- id: ISS-left-013
-  scope:
-  - linux
-  milestone: null
-  status: closed
-  closed_in: M18
-  resolved_by: "m18-linux-022（2026-11-25「内核异步新模型 R2」已把 `dadao_enter_user()` 改为放开用户态源位：读 `cfx_umon cg15 rc3` 后写 `mask & ~DADAO_IRQ_SOURCE_BITS`；实测 `K4 umon irq: user_mask=0xfffffffeffff7fff bits=0x100008000`；025/028/029 的 soak 每启 `irq_user>0`，green 判据即要求 >0）。本条目在 M18 收口时被误迁（按 issue 原文采信、未复核现码），原文描述的「写 `~0`、无第二处写回」是 022 之前的状态。"
-  title: "[原 ISS-500] 【P2】K6 之后用户态不再接收任何异步中断（`dadao_enter_user()` 把 `cfx_umon` user 行写 `~0`，全仓无第二处写回）：长用户态窗口内同源事件按契约合并为一次补投 ⇒ `jiffies` 滞后；K6 无用户态可观测面（busybox 无 date/sleep/time、无 /proc），故当次可接受但属**行为变化待追认**。另 `dadao_user_entry_install()` 注释仍称「用户态投递」已成死代码；`dadao_user_fault_return` 在 `enter_from_user_mode()` 前开中断（与上游顺序相反，本配置无断言）。处置：K6 之后若需用户态抢占/时间可见（K7+ 或 SMP），改为「用户态可投递 + 入口安全栈」，或至少修正注释与顺序。另 F2/F3：changelog `12/12` 应为 `checks=11`、`2/150`/`4/150`/实测 `3/150` 数字不一致。"
-
 - id: ISS-left-014
   scope:
   - spec
