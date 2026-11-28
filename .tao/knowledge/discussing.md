@@ -16,7 +16,7 @@
 > - **未立册方向**：`N28`（Vast 地址图 ADR，待专门讨论）
 > - **backlog（暂无里程碑）**：`N11`、`N13`、`N15`、`N18`
 > - **已关闭**：`N17`、`N27`、`N30`/`N30 追加`、`N31`、`N32`、`N33`
-- **未定里程碑**：`N43`（`escape` 重编码提案，暂不讨论）
+- **未定里程碑**：`N43`（`escape` 重编码提案，暂不讨论）、`N49`（用户态 `ra0`/MemRAS 初始化与 hmon/smon 下的 RAS 溢出，待裁）
 
 ## N43. `escape` 重编码提案（用户 2026-11-24，暂不讨论；里程碑待定）
 
@@ -205,6 +205,26 @@
 - **两条候选（未裁）**：A = 核心保持 TL、桥放 FPGA harness（`TLToAXI4` + 位宽/burst 适配 → MIG），核与仿真同构；B = 核心改回 AXI4（与 007 结论冲突）。
 - **若选 A 还需定**：DDR 映射 PA `[0,1 GiB)`、MIG UI 位宽（32/64）与时钟比、outstanding 深度、DMA 是否共用端口、板上加载通道（UART/JTAG/Flash）。
 - **归属**：M16（接口契约，若需要）与 M21（FPGA-Vast，未立册）；重启讨论时先定接线，再谈桥的参数。
+
+## N49. 用户态 `ra0`/MemRAS 的初始化，与 hmon/smon 下的 RAS 溢出（**待裁**；用户 2026-11-28）
+
+**问题（用户原话）**：`user` 下的 `ra0` 是怎么设置的？换言之，MEMRAS 是否正确设置了。`hmon`/`smon` 下如果出现 RAS 溢出怎么办？
+
+**规范现状**（`spec/SimRISC-00 §2.4`）：
+- `ra0` = `[63:54]` SBZ / `[53:48]` `RACNT`（有效条目数，初值 0）/ `[47:0]` `MRPTR`（MemRAS 下一个待弹出条目的字节地址，8 B 对齐；**0 = 未启用 MemRAS**）；有效性只看 `RACNT`。
+- `MRPTR == 0` ⇒ 只有 RegRAS（≤63 条），调用深度超 63 ⇒ **RASOF**；`MRPTR != 0` ⇒ 同时启用 MemRAS；
+- **MemRAS 越界（容量耗尽）硬件不检测，交 OS**；MemRAS 访存遵循地址转换与访存规则、精确异常。
+
+**实现现状（已核）**：
+- `spec/Kaiwu §1.1`：MemRAS 区 = SRAM `+0x3F000`（4 KiB = 512 条），`MRPTR` 初值 0，**由 `crt`/测试框架按需置位**；
+- QEMU linux-user 补丁**自己 `target_mmap` 一块并把 `MRPTR` 指到顶端**（注释明言 "Nothing else initialises MRPTR on the kernel"），并用 `RACNT == 0` 兜住越界读 ⇒ 属**模拟器侧特例**；
+- 内核 `arch/dadao/**` 只把 `ra0` 当**任务状态保存/恢复**（`ptrace`/`processor.h`/`entry.h` 的 `ldm.o {ra0:ra62}`），**没有**在 exec / 首次进用户态时设置 `MRPTR` 的代码；
+- `tests/ee-tiny`（hmon/smon 固件）内 grep 不到 `MRPTR`/MemRAS 相关处理。
+
+**待裁定**：
+1. **用户态 `ra0` 由谁设**：内核 `exec`、`crt`（musl / picolibc）、还是动态 loader？若不设，则任何调用深度 >63 的程序都会吃 `RASOF`——这是有意的"兜底"还是缺口？若设，需要约定"何时设、指向哪段、多大、8 B 对齐与区界"。
+2. **"MemRAS 设置正确"的判据**：怎么验证（例如 >63 深度调用链不触发 `RASOF`、`MRPTR` 对齐与区界、越界后 OS 的处理路径）？目前没有对应用例与门控。
+3. **hmon/smon 下 RAS 溢出**：固件自身调用深度若超 63 且 `MRPTR == 0` ⇒ `RASOF` 发生时异常投到哪里、现场如何保存（`cg5` 帧是否含 RAS 现场，待核）；固件是否必须启用 MemRAS 或保证深度 ≤63；嵌套异常时 RAS 的保存/恢复责任（内核 `entry.h` 已存 `{ra0:ra62}`，固件是否有对应动作）。
 
 ## N44. TSI ↔ cfx_power 的交互（**待裁**）
 
