@@ -2,7 +2,7 @@
 
 **模块**：integ
 **项目里程碑**：M19
-**依赖**：`m19-qemu-001`、`m19-gem5-002`、`m19-chipyard-004`、`m19-testcases-002`、`m19-testcases-003`
+**依赖**：`m19-qemu-001`、`m19-gem5-002`、`m19-chipyard-004`、`m19-testcases-002`、`m19-testcases-003`、`m19-testcases-005`、`m19-testcases-006`
 **可并行分片**：否
 **预估**：4–8 h
 **档位**：中改
@@ -14,6 +14,7 @@ Tiny 的 ROM/SRAM/hmon/entry/DUMP/signature/stack/MemRAS 全部改了。各模�
 
 ## 目标
 
+0. **先对齐 BootROM 资产**：`m19-chipyard-004` 签入的 `bootrom.tiny.hex` 由旧固件（power 292 B / hmon 48 B）打包；`m19-testcases-005` 换了新固件（power 360 B / hmon 1344 B）后必须用 `m19-testcases-003` 的构建器重新生成并做入库 hex ↔ 镜像双向对账，否则 chipyard 腿跑的是旧固件。
 1. 用新几何跑 `tests/inst` 代表例（≥10）、ansibench 四件、embench（至少 O0/O2 代表集）；记录签名/退出码/周期来源。
 2. 三平台比对：签名流逐字节；退出码一致；地址类 `cause_info`（CFXMEM 边界）一致。
 3. 检查 `entry=0x2000`、signature 0x1000、EXIT 0x30、DUMP 0x800、SP=0x3F000、MemRAS 0x3F000–0x40000 在三平台的实际值一致。
