@@ -82,6 +82,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -222,6 +223,34 @@ def head_matches_patches(
     return head_tree == expected_tree(source, base, patch_paths, gitlinks)
 
 
+
+def _patch_added_paths(patches: list[Path]) -> list[str]:
+    """Paths the series **creates** (``--- /dev/null`` + ``+++ b/<path>``).
+
+    A failed earlier apply leaves these as untracked files; ``git apply`` then
+    refuses with ``already exists`` and ``git add -A`` folds them into the
+    commit, so the tree no longer equals the patch set.  We remove exactly
+    these paths (and only when they are untracked) before applying -- a blanket
+    ``git clean -fd`` would delete runtime build environments such as
+    ``.conda-env`` (measured: 3.5 G conda env lost on 2026-11-28).
+    """
+    added: list[str] = []
+    for patch in patches:
+        new_file = False
+        for line in patch.read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.startswith("diff --git "):
+                new_file = False
+            elif line.startswith("--- /dev/null"):
+                new_file = True
+            elif line.startswith("+++ b/"):
+                if new_file:
+                    path = line[6:].strip()
+                    if path and path not in added:
+                        added.append(path)
+                new_file = False
+    return added
+
+
 def apply_patch_set(
     label: str,
     source: Path,
@@ -257,6 +286,20 @@ def apply_patch_set(
     if not patches and not gitlinks:
         print(f"apply-series: {label} has an empty series")
         return
+
+    # 先清掉「本补丁集新增、但上一次失败 apply 留下的」未跟踪文件。
+    for rel in _patch_added_paths(patches):
+        target = source / rel
+        if not target.exists():
+            continue
+        tracked = git("ls-files", "--error-unmatch", "--", rel, cwd=source, check=False)
+        if tracked.returncode == 0:
+            continue  # 已被跟踪（base 里就有）⇒ 交给 reset/apply，不删
+        print(f"apply-series: {label}: removing stale untracked {rel}")
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
 
     # §7.x: per-patch idempotence
     skipped = 0

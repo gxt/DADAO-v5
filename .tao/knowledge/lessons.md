@@ -17,3 +17,5 @@
 - `ISS-m16-011`（`cfx15`「偶发挂死」实为 `+max-cycles` 截断）→ 判「挂死」先看日志有无 `FAILED (timeout)`；`+max-cycles` 按 harness 时钟计数（= 2× core + 786 经验截距），`200000` 的截断点可能落在签名 dump 内，看起来像卡死。
 - M16 收口（9 册任务书停在「待验收」而台账已「已验证」）→ 收尾提交必须**同时**把任务书 `**状态**` 改为终态；`check-milestones-fresh` 的 A1（表位置 == 任务书状态映射）会抓，别只改台账。
 - M16 收口（`run_arch --platforms chipyard` 全腿 rc=127/0 槽）→ 跨平台跑批先确认仿真器运行时库可达（chipyard 需 `LD_LIBRARY_PATH` 指向 `.conda-env/riscv-tools/lib`）；「0 槽 + rc=127」是实现红之外的**环境红**，不要按实现缺陷归因。
+
+- **组件源树禁止无差别 `git clean -fd`**（2026-11-28 实测损失 3.5 G chipyard `.conda-env`）：失败过的 `apply` 会留下补丁新增的未跟踪文件，清理必须**只针对补丁集新增路径**（`apply_series.py` 现从 `+++ b/` + `--- /dev/null` 提取后仅删未跟踪项）；`reset --hard` 不会删未跟踪文件，`clean -fd -e <dir>` 也不能假定一定保住目标目录。
