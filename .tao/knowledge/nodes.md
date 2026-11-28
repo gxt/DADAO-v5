@@ -266,7 +266,8 @@
 ### 11.1 装了什么、在哪
 
 - `conda`（Miniforge）在 `~/miniforge3`；conda-forge 走清华镜像，`ucb-bar`/`litex-hub` 走官方。
-- 环境在 `<repo>/.work/source/chipyard/.conda-env`（**repo 相对路径**，与 chipyard 默认一致）：约 **6.1 GiB**（含 riscv-tools 626 MiB）。
+- 环境在 `<repo>/.work/conda/chipyard`（**源码树外**；用户 2026-11-28 裁定迁出，避免 3.5–6 GiB 运行期目录落在组件源树里、被 `git add -A`/`clean` 误伤）：**3.5 GiB**（含 riscv-tools）。激活：`source .work/conda/chipyard/bin/activate`（会同时导出 `RISCV`）。
+  - chipyard 默认是 `build-setup.sh` 的 `CONDA_ENV_PATH=$CYDIR/.conda-env`（树内）；迁出后**不要**再建树内软链：`.gitignore` 的 `.conda-env/`（带尾斜杠）**不匹配符号链接** ⇒ 会被 `git status` 当未跟踪，进而被 `git add -A` 带入补丁提交。
 - 版本：`verilator 5.022`、`openjdk 20.0.2`、`sbt`（conda 包）、`riscv64-unknown-elf-gcc 13.2.0`、`riscv64-unknown-linux-gnu-gcc 13.2.0`、`firtool`（CIRCT 1.75.0 / LLVM 19.0.0git）。
 - riscv 工具在 `<env>/riscv-tools/bin`，由 `activate.d/activate-riscv-tools.sh` 注入 PATH；`sims/` 的构建还需要 `RISCV=<env>/riscv-tools`。
 - chipyard 源码 + 最小子模块约 **2.9 GiB**。最小子模块集由 `scripts/init-submodules-no-riscv-tools.sh` 决定（两台实测 **30/55**，其余 25 个均在脚本 blocklist 内：可选加速器/核 + `riscv-pk`/`riscv-tests`/`libgloss`/`riscv-spike-devices`）。**现行口径**以 `manifests/chipyard-submodules.lock.toml` 的 `lite = true`（29 条）∪ `dadao_extra = true`（1 条）为准（共 30 条，见 §11.5）。
@@ -296,7 +297,7 @@
 
 ### 11.6 离线节点建 chipyard 环境（2026-11-13 实测，四台无国际网）
 
-- **conda env 用 `conda-pack` 搬运**：主控机 `conda-pack -p .work/source/chipyard/.conda-env -o <tgz> --ignore-missing-files`（3.5 GiB → 1.3 GiB），节点解包到同路径后跑 `<env>/bin/conda-unpack` 修正前缀（**该脚本执行后自删**，缺失不等于失败）。
+- **conda env 用 `conda-pack` 搬运**：主控机 `conda-pack -p .work/conda/chipyard -o <tgz> --ignore-missing-files`（3.5 GiB → 1.3 GiB），节点解包到自己的 `<repo>/.work/conda/chipyard` 后跑 `<env>/bin/conda-unpack` 修正前缀（该脚本**通常**执行后自删，缺失不等于失败）。
 - **sbt 必须带缓存**：离线节点上 `make CONFIG=...` 会先重建 `chipyard.jar`，sbt 去 maven 拉 `sbt 1.8.2` 超时 ⇒ 需从主控机同步 `~/.sbt`、`~/.cache/coursier`、`~/.ivy2` **和** `<repo>/.work/source/chipyard/.sbt`（约 430 + 61 MB）；缺一项即 `unresolved dependency: org.scala-sbt#sbt;1.8.2`。
 - **`generated-src/**/sim_files*.f` 含绝对路径**：直接 rsync 主控机的 gen-collateral 会带上 `/mnt/tao/DADAO-v5/...` ⇒ Verilator 报 `Cannot find file containing module .../TestDriver.v`；须在节点 `sed -i "s|/mnt/tao/DADAO-v5|$HOME/DADAO-v5|g"` 后再构建。
 - **`conda-unpack` 未完成会暴露 conda 构建占位路径**：verilator 报 `Cannot find ... /home/conda/feedstock_root/build_artifacts/verilator-packages_..._h_env_placehold.../share/verilator/include/verilated_std.sv` ⇒ 说明 `conda-unpack` 没跑完（或 env 是半残解包），须整包重解并确认 `UNPACK_OK` 后再构建。
