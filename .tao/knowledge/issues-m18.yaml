@@ -59,10 +59,10 @@
   scope:
   - linux
   milestone: M18
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P1】用户缺页 supv 通道的递归保护是 **hart 全局** `dadao_trap_busy`，跨 `schedule()` 误报：一个任务在 `dadao_user_fault_from_umon()`/`dadao_do_page_fault()` 内睡眠（缺页分配/mmap 锁竞争）时该位仍为 1，另一任务的 user 缺页交接 `trap cfx_smon, DADAO_SMON_FROM_USER` 到达即 `K2_FAIL_RECURSIVE` → `dadao_die`。现场（`m18-linux-028` 20 启样本 1 次，boot 19）：`dadao: recursive supv exception cause=CFXTRAP(0x1) ip=dadao_umon_excp+0x224 info=0x7f0802f5 ptbr=0x205e0000 sp=0x2002010f800` → `dadao: die mode=2 code=0xe`；紧邻前一行是该 worker 的 `K4 umon->smon ... ip=0x22110 info=0x8eb90`（`done[]` 数据页缺页），说明其 handler 仍在睡眠。与 `ISS-m18-011` 同**类**（supv 通道状态按 hart 而非按任务）但不同变量/签名（011 是 `inner_cfx_code` 静默挂起；本条是 `dadao_trap_busy` 具名 die），与 029 的异步精确点残余**不同源**；`m18-linux-028` 未改 `dadao_trap_busy`/`dadao_user_fault_from_umon`（其 traps.c 补丁只删 FROM_ASYNC 分支），故非 028 引入。频率：028 20 启样本 1/20；reviewer 还原后 3 启样本 1/3。复现条件：≥2 任务、一方在 user 缺页通道睡眠（分配/锁竞争）时另一方 user 缺页交接。处置：递归保护改按任务（thread_info/task_struct）或在可睡眠点前清位，并与 supv 静态帧 per-task 化（011 备注）一并评估。"
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-030（守卫改按任务 + supv 帧按任务落内核栈；真重入仍按 0x0e 拒绝；与 ISS-m18-011 不同源、011 保持 open）
+  title: "【P1】用户缺页 supv 通道的递归保护是 **hart 全局** `dadao_trap_busy`，跨 `schedule()` 误报：一个任务在 `dadao_user_fault_from_umon()`/`dadao_do_page_fault()` 内睡眠（缺页分配/mmap 锁竞争）时该位仍为 1，另一任务的 user 缺页交接 `trap cfx_smon, DADAO_SMON_FROM_USER` 到达即 `K2_FAIL_RECURSIVE` → `dadao_die`。现场（`m18-linux-028` 20 启样本 1 次，boot 19）：`dadao: recursive supv exception cause=CFXTRAP(0x1) ip=dadao_umon_excp+0x224 info=0x7f0802f5 ptbr=0x205e0000 sp=0x2002010f800` → `dadao: die mode=2 code=0xe`；紧邻前一行是该 worker 的 `K4 umon->smon ... ip=0x22110 info=0x8eb90`（`done[]` 数据页缺页），说明其 handler 仍在睡眠。与 `ISS-m18-011` 同**类**（supv 通道状态按 hart 而非按任务）但不同变量/签名（011 是 `inner_cfx_code` 静默挂起；本条是 `dadao_trap_busy` 具名 die），与 029 的异步精确点残余**不同源**；`m18-linux-028` 未改 `dadao_trap_busy`/`dadao_user_fault_from_umon`（其 traps.c 补丁只删 FROM_ASYNC 分支），故非 028 引入。频率：028 20 启样本 1/20；reviewer 还原后 3 启样本 1/3。复现条件：≥2 任务、一方在 user 缺页通道睡眠（分配/锁竞争）时另一方 user 缺页交接。处置：递归保护改按任务（thread_info/task_struct）或在可睡眠点前清位，并与 supv 静态帧 per-task 化（011 备注）一并评估。**已修（`m18-linux-030`）**：①守卫改按任务（`thread_struct.trap_depth`，按帧地址区分任务切换前的单引导上下文——那里仍用 hart 全局标志且无第二上下文）；②supv 入口在任务上下文把帧放在 `align_down(SP,16)-PT_REGS_SIZE`（第二个任务不再覆盖睡眠任务的帧），`dadao_excp_save` 只保留给第一个任务切换前的窗口；③真重入判据不变（K2 P9 + 显式嵌套注入仍死 `code=0xe`）；修后忙等探针 20 启 0 次本签名。与 `ISS-m18-011` 仍**不同源**（011 是异步精确返回的帧丢失、本任务未触碰；011 保持 open，由 `m18-linux-029` 承接）。"
 - id: ISS-m18-013
   scope:
   - infra

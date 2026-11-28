@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/processor.h b/arch/dadao/include/asm/processor.h
 new file mode 100644
-index 000000000..ccea1ca21
+index 000000000..dc85f2b40
 --- /dev/null
 +++ b/arch/dadao/include/asm/processor.h
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,125 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PROCESSOR_H
 +#define __ASM_PROCESSOR_H
@@ -78,6 +78,13 @@ index 000000000..ccea1ca21
 +	unsigned long rb[32];		/* rb32-rb63 */
 +	unsigned long rf[32];		/* rf32-rf63 (frame-owned, not switched) */
 +	unsigned long ras[64];		/* ra0 = {RACNT, MRPTR}, then ra1-ra63 */
++	/*
++	 * The supv channel's re-entrancy depth (ISS-m18-012).  Per task, not
++	 * per hart: the user-fault hand-over may sleep with the channel live,
++	 * and another task's trap must not look like recursion.  Zeroed by
++	 * `copy_thread()` for every new task.
++	 */
++	unsigned long trap_depth;
 +};
 +
 +#define INIT_THREAD  { }

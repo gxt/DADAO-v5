@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..a7ef45baa
+index 000000000..1a54426c1
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,722 @@
+@@ -0,0 +1,767 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -258,7 +258,33 @@ index 000000000..a7ef45baa
 + * Fatal path
 + * ------------------------------------------------------------------------- */
 +
-+/* Re-entrancy guard: a second exception inside the handler is not supported. */
++/*
++ * Re-entrancy guard: a second *synchronous* exception taken inside the handler
++ * by the same task is a kernel bug and is refused by name.
++ *
++ * The depth is **per task** (ISS-m18-012).  It used to be one per-hart `int`
++ * (`static volatile int dadao_trap_busy`), but the user-fault hand-over keeps
++ * the channel live while it sleeps: a page fault takes `mmap_read_lock()` and
++ * allocates with `GFP_KERNEL`, and the entry may be preempted, so the handler
++ * can be off the hart with its frame on its own kernel stack.  Another task
++ * then runs `trap cfx_smon, DADAO_SMON_FROM_USER` for *its* user fault, saw
++ * the hart-wide flag still set and `dadao_die()` ended the boot with
++ * `K2_FAIL_RECURSIVE` (measured 1/20 busy-wait boots: `ip=dadao_umon_excp
++ * +0x224`, `info=0x7f0802f5`, the previous line the sleeping task's
++ * `K4 umon->smon`).  A task that is inside the channel now only excludes
++ * itself; kernel/trap.S keeps the frame per task as well, so the second task
++ * can be served without touching the first one's frame.
++ *
++ * `copy_thread()` `memset()`s `struct thread_struct`, so a new task starts at
++ * 0; a nested entry by the same task sees 1 and dies exactly as before
++ * (K2 probe P9, `K2_FAIL_RECURSIVE` = 0x0e).  The acquire/release pair is in
++ * `dadao_trap_handler()` below, after the self-check it reports through.
++ *
++ * Before the first task switch there is a single boot context (`current` is
++ * not even derivable from the early stack), so that channel keeps this one
++ * per-hart flag; it is the only hart-wide state left, and no second context
++ * exists to race with it.
++ */
 +static volatile int dadao_trap_busy;
 +
 +/*
@@ -484,11 +510,6 @@ index 000000000..a7ef45baa
 +	raw_cause = cause;
 +	cause = DADAO_CAUSE_CLASS(cause);
 +
-+	if (dadao_trap_busy)
-+		dadao_selfcheck(K2_FAIL_RECURSIVE, "recursive supv exception",
-+				regs, raw_cause, info);
-+	dadao_trap_busy = 1;
-+
 +	/*
 +	 * K4: the user entry's hand-over (kernel/trap.S, `.Lumon_delegate`).
 +	 * Checked before the cause table because the *carried* cause is what
@@ -501,7 +522,6 @@ index 000000000..a7ef45baa
 +						   (struct pt_regs *)regs->rb[16],
 +						   regs->rd[16], regs->rd[18]);
 +
-+		dadao_trap_busy = 0;
 +		dadao_in_frame = 0;
 +		return policy;
 +	}
@@ -555,7 +575,6 @@ index 000000000..a7ef45baa
 +		}
 +		if (probe->report)
 +			probe->report(probe, regs, info);
-+		dadao_trap_busy = 0;
 +		dadao_in_frame = 0;
 +		return policy;
 +	}
@@ -579,10 +598,8 @@ index 000000000..a7ef45baa
 +		unsigned long policy = dadao_do_page_fault(regs, raw_cause,
 +							  info, false);
 +
-+		if (policy == DADAO_PF_RETRY) {
-+			dadao_trap_busy = 0;
++		if (policy == DADAO_PF_RETRY)
 +			return DADAO_TRAP_RESUME_RETRY;
-+		}
 +
 +		/*
 +		 * The access came from the kernel: a user's own page fault was
@@ -605,7 +622,6 @@ index 000000000..a7ef45baa
 +			 */
 +			DADAO_CFX_WRITE(cfx_smon, SMON_CG_FRAME,
 +					SMON_RC_ESCAPE_IP, regs->ip);
-+			dadao_trap_busy = 0;
 +			return DADAO_TRAP_RESUME_RETRY;
 +		}
 +	}
@@ -628,9 +644,38 @@ index 000000000..a7ef45baa
 +				 unsigned long info)
 +{
 +	unsigned long policy;
++	bool boot;
 +
 +	dadao_in_frame = 1;
++	/*
++	 * Re-entrancy guard (see the comment at the top of the fatal path).
++	 *
++	 * The frame tells the context apart without reading `current`: the boot
++	 * channel's frame is `dadao_excp_save`, and before the first task switch
++	 * `current` is not even derivable (the early stack is not a task stack,
++	 * `asm/thread_info.h`), which is why the pre-task channel keeps the old
++	 * one-context flag.  Any other frame is this task's own, below its kernel
++	 * SP: a second entry by *this* task is refused by name, another task's
++	 * entry is not recursion, and the counter — released after a possible
++	 * sleep in the page-fault channel — belongs to the task's own
++	 * `thread_struct`, not to the hart.
++	 */
++	boot = regs == (struct pt_regs *)dadao_excp_save;
++	if (boot) {
++		if (dadao_trap_busy)
++			dadao_selfcheck(K2_FAIL_RECURSIVE,
++					"recursive supv exception",
++					regs, cause, info);
++		dadao_trap_busy = 1;
++	} else if (current->thread.trap_depth++) {
++		dadao_selfcheck(K2_FAIL_RECURSIVE, "recursive supv exception",
++				regs, cause, info);
++	}
 +	policy = dadao_trap_dispatch(regs, cause, info);
++	if (boot)
++		dadao_trap_busy = 0;
++	else
++		current->thread.trap_depth--;
 +	dadao_in_frame = 0;
 +	return policy;
 +}

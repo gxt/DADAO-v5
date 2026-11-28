@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
 new file mode 100644
-index 000000000..733cb4095
+index 000000000..9d9067380
 --- /dev/null
 +++ b/arch/dadao/kernel/trap.S
-@@ -0,0 +1,1755 @@
+@@ -0,0 +1,1816 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception vector (K2).
@@ -68,14 +68,21 @@ index 000000000..733cb4095
 +	.endm
 +
 +/*
-+ * Restore the whole register file from the static frame and escape to the
-+ * handler's chosen return address.  @skip is 0 (retry the faulting
-+ * instruction) or 1 (continue after it): the exit intent `cg5 rc10` is the
-+ * only return address `escape cfxHA` consumes, so it is written here before
-+ * the register restore (the restore itself needs no register afterwards).
++ * Restore the whole register file from the frame the entry captured into and
++ * escape to the handler's chosen return address.  @skip is 0 (retry the
++ * faulting instruction) or 1 (continue after it): the exit intent `cg5 rc10`
++ * is the only return address `escape cfxHA` consumes, so it is written here
++ * before the register restore (the restore itself needs no register
++ * afterwards).
++ *
++ * The frame base is *not* a fixed symbol any more (ISS-m18-012): the entry
++ * captures into a frame below the interrupted SP once tasks exist, so it parks
++ * that address in `rb32` — callee-saved (contract-abi §4.1), dead until the
++ * restore reloads it from the frame — before calling the C half.
 + */
 +
 +	.macro	DADAO_TRAP_RESTORE_AND_ESCAPE skip
++	rb2rb	{rb3}, {rb32}			/* the frame the entry captured */
 +#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
 +	/*
 +	 * Diagnostic (m14-linux-017 only): record the cg5 frame the escape is
@@ -102,7 +109,6 @@ index 000000000..733cb4095
 +	 * (traps.c redirect/fixup) and returns RETRY.  SKIP is the only case
 +	 * the stub has to move, and it moves it exactly one instruction.
 +	 */
-+	set.rb	rb3, dadao_excp_save
 +	.if \skip
 +	ld.o	rd2, [rb3, PT_IP]
 +	add.si	rd2, DADAO_INSN_BYTES
@@ -132,8 +138,47 @@ index 000000000..733cb4095
 +	rb2rd	rd2, rb3, 1			/* rd2 = interrupted rbtp */
 +	cfx2rc	cfx_smon, cg6, rc2, rd2		/* scratch[2] = interrupted rb3 */
 +
++	/*
++	 * 0. Where the frame goes (ISS-m18-012).  From the first task switch on,
++	 *    each task gets its own frame just below the interrupted SP: the
++	 *    user-fault hand-over runs the page-fault channel with the frame
++	 *    live, and that path may sleep (`mmap_read_lock()`, GFP_KERNEL
++	 *    allocation, a preemption point).  While this task sleeps another
++	 *    task takes *its* supv exception; a hart-wide frame would be
++	 *    overwritten by the second entry and the sleeping task would return
++	 *    through it.  Before the first switch there is a single boot context
++	 *    and the static `dadao_excp_save` is both sufficient and safe — that
++	 *    is the only hart-wide frame left.
++	 *
++	 *    Only the staged registers may be touched here (`rd2`/`rd3` and
++	 *    `rb3`; their interrupted values are in cg6 rc0-rc2 and the capture
++	 *    re-reads them): every other GPR still has to be captured as it is.
++	 *    cg6 rc3 carries the one bit the C half needs, "the base is a stack
++	 *    frame", because `rd2`/`rd3` themselves are the capture's index.
++	 *
++	 *    The base is 16-byte aligned because the C half is entered with SP at
++	 *    the frame (contract-abi §2.2: `call` requires SP % 16 == 0), and the
++	 *    interrupted SP itself is only guaranteed aligned at *its* call sites.
++	 */
++	set.rb	rb3, dadao_user_stack_top
++	ld.o	rd3, [rb3, 0]			/* 0 = no switch has run yet */
++	br.z	{rd3}?, [rb0, .Lsupv_boot_frame]
++	rb2rd	rd3, rb1, 1			/* rd3 = interrupted SP */
++	set.rd	rd2, -16
++	and.o	rd3, rd3, rd2			/* align_down(SP, 16) */
++	add.si	rd3, -PT_REGS_SIZE		/* the frame lives below it */
++	rd2rb	rb3, rd3, 1			/* base = the per-task frame */
++	set.rd	rd3, 1
++	cfx2rc	cfx_smon, cg6, rc3, rd3		/* ... and it is a stack frame */
++	jump	[rb0, .Lsupv_frame_ready]
++.Lsupv_boot_frame:
++	set.rb	rb3, dadao_excp_save
++	set.rd	rd3, 0
++	cfx2rc	cfx_smon, cg6, rc3, rd3
++.Lsupv_frame_ready:
++
 +	/* 1.-3. Capture the register file (asm/entry.h, cfx_smon's scratch). */
-+	DADAO_GPR_SAVE_STAGED cfx_smon, dadao_excp_save
++	DADAO_GPR_SAVE_STAGED_AT cfx_smon
 +	set.rb	rb4, dadao_supv_saved_mask
 +	cfx2rd	cfx_smon, cg15, rc3, rd2
 +	st.o	rd2, [rb4, 0]
@@ -149,7 +194,19 @@ index 000000000..733cb4095
 +	st.o	rd17, [rb3, PT_IP]		/* frame.ip = cause_ip */
 +	DADAO_SAVE_STATUS cfx_smon, rb3, .Lstatus_supv	/* frame.status = mode */
 +	cfx2rd	cfx_smon, cg5, rc5, rd17	/* info -> 2nd argument */
-+	set.rb	rb16, dadao_excp_save
++	/*
++	 * The frame base survives the C half in `rb32`: callee-saved
++	 * (contract-abi §4.1), and the restore reloads it from the frame.  A
++	 * per-task frame also becomes the C stack (SP points at it), so a
++	 * sleeping handler keeps its frame on its own kernel stack; the boot
++	 * frame stays where it is and the boot stack is used as before.
++	 */
++	rb2rb	{rb32}, {rb3}
++	rb2rb	{rb16}, {rb3}
++	cfx2rd	cfx_smon, cg6, rc3, rd6
++	br.z	{rd6}?, [rb0, .Lsupv_do_call]
++	rb2rb	{rb1}, {rb3}
++.Lsupv_do_call:
 +	set.rb	rb5, dadao_trap_handler
 +	call	[rb5, rd0, 0]			/* policy -> rd8 */
 +
@@ -179,10 +236,14 @@ index 000000000..733cb4095
 +	jump	[rb0, .Lstuck]			/* unreachable: escape never returns */
 +
 +	/*
-+	 * The frame: one `struct pt_regs`, 8-byte aligned for the block
-+	 * transfers.  Static because the faulting SP may be unusable (above); a
-+	 * single hart takes one exception at a time, so one frame is enough
-+	 * until K4 needs re-entrancy.
++	 * The frame of the *pre-task* channel: one `struct pt_regs`, 8-byte
++	 * aligned for the block transfers.  Static because the faulting SP may be
++	 * unusable (above), and because before the first task switch there is a
++	 * single boot context — one frame is enough and no second context exists
++	 * to collide with it.  From the first switch on, each task captures into
++	 * its own frame below the interrupted SP (ISS-m18-012: the user-fault
++	 * hand-over may sleep with the frame live, so a hart-wide frame would be
++	 * overwritten by another task's entry); this symbol is then unused.
 +	 */
 +	.section .bss,"aw",%nobits
 +	.p2align 3

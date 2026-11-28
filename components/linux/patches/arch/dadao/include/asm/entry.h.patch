@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/entry.h b/arch/dadao/include/asm/entry.h
 new file mode 100644
-index 000000000..10ab0d94d
+index 000000000..b225950a7
 --- /dev/null
 +++ b/arch/dadao/include/asm/entry.h
-@@ -0,0 +1,238 @@
+@@ -0,0 +1,250 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO exception-entry register-file save/restore (assembly only).
@@ -156,6 +156,18 @@ index 000000000..10ab0d94d
 + */
 +	.macro	DADAO_GPR_SAVE_STAGED cfx, frame
 +	set.rb	rb3, \frame			/* base: the frame */
++	DADAO_GPR_SAVE_STAGED_AT \cfx
++	.endm
++
++/*
++ * The same capture with the frame's address already in `rb3`.  kernel/trap.S
++ * uses it for the per-task frame it places below the interrupted SP
++ * (ISS-m18-012): the base is a stack address, not a symbol, so the stub
++ * computes it before the capture and this variant must not overwrite it.
++ * `stm`/`stm.o` still saves the interrupted `rb1` (SP) from the register, so
++ * the frame records the pre-exception stack pointer, not the frame's own.
++ */
++	.macro	DADAO_GPR_SAVE_STAGED_AT cfx
 +	cfx2rd	\cfx, cg6, rc2, rd2		/* the interrupted rbtp */
 +	st.o	rd2, [rb3, PT_RB_BASE + 3 * 8]
 +	DADAO_GPR_SAVE_FROM_STAGE \cfx
