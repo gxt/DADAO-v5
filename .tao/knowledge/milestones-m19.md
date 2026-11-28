@@ -28,15 +28,15 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m19-gem5-003 | 2026-11-28 08:56 | 2–4 h | `check_tiny_hmon` 迁新几何/hmon 数据区 0xC00 |
 | m19-testcases-006 | 2026-11-28 08:56 | 4–8 h | hmon 数据槽消费者迁移到 0xC00 页 |
-| m19-testcases-005 | 2026-11-28 08:40 | 4–8 h | 启动固件 power/hmon 迁移：8 KiB ROM 可启动、hmon 数据槽定案 |
 | m19-testcases-001 | 2026-11-28 08:39 | 2–4 h | `swym N` 测试程序：1/2/4096 拍、高位 ILLI、原子中断 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m19-gem5-003 | 2026-11-28 09:46 | `check_tiny_hmon` 新几何/`0xC00` 槽 + 门控锁；reviewer Accepted |
+| m19-testcases-005 | 2026-11-28 09:46 | 启动固件 power/hmon 迁移：表 0x1F00、hmon 源 0x800、跳 0x2000、数据页 0xC00 |
 | m19-chipyard-003 | 2026-11-28 09:21 | chipyard `swym N` RTL：sSwym 数 N 拍、高位 ILLI、不取中断；周期模型同步 1+N |
 | m19-chipyard-004 | 2026-11-28 09:14 | chipyard Tiny 几何/BootROM 8 KiB、解码尺寸 8 KiB、Vast 冻结；reviewer Accepted |
 | m19-gem5-001 | 2026-11-28 08:52 | gem5 `swym N`：12 位、1+N、高位 ILLI、原子；reviewer Accepted |
