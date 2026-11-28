@@ -825,3 +825,11 @@
 - **issues**：`issues-m18` open=**0**；关闭 3 条（`009`/`539`/`540`）；18 条迁 `issues-left-003/006–022`（字段逐字保留），新增 6 条（023–028）记录本轮暴露的工具/环境缺口。
 - **`ISS-left-013`（原 `ISS-500`）是误迁，已关闭**：用户态异步中断自 `m18-linux-022`（2026-11-25「内核异步新模型 R2」）起就已放开——`dadao_enter_user()` 读 `cfx_umon cg15 rc3` 后写 `mask & ~DADAO_IRQ_SOURCE_BITS`，实测 `K4 umon irq: user_mask=0xfffffffeffff7fff bits=0x100008000`；025/028/029 的 soak 每启 `irq_user>0`（green 判据即要求 >0）。原文描述的「写 `~0`、无第二处写回」是 022 之前的状态。**教训：收口迁移/关闭 issue 必须复核现码，不能按 issue 原文采信。**
 - **非 M18 红**：L3 `unit:full` 红 = m19 Tiny 新几何（`ISS-left-025`）；`tset` 红 = `ISS-left-005`；`check-milestones-fresh` 的 M20 项由 M20 会话收口。
+
+## N43. M18 关闭后的交接（2026-11-28）
+
+- **M18 已归档**：`73` 册在 `.tao/archive/M18/`（含 `README.md` 冻结流水、`issues-closed.md`、`m18-retrospective.md`）；活册 `milestones-m18.md`/`issues-m18.yaml` 已删；M19/M20 台账正常。
+- **待 M20 判断的两条**（用户 2026-11-28 指定，M18 不处置）：`ISS-left-007`（原 `ISS-m18-010`，`fetch.py` 无 `--component`；影响已被“任务走私有树 + 合并走 `replay_source.sh`”削弱）、`ISS-left-016`（原 `ISS-538`，`run_suite.py` 不取写者锁；竞态已被私有树从设计上消掉，但脚本仍无锁）。
+- **仍 open 的低频内核残余**（`issues-left`）：`ISS-left-020`（极早停摆 1/2000）、`021`（随机 `HOST_TIMEOUT`）、`022`（`die=0xe4 pf-va=0x10`，1/200）、`009`（`pf-va=0`，1/300）。收口轮 44 例 0 命中，不作回归判据。
+- **`ISS-left-013`（原 `ISS-500`）已关闭**：用户态异步投递自 `m18-linux-022` 起即放开（`mask & ~DADAO_IRQ_SOURCE_BITS`，soak 每启 `irq_user>0`）；教训=收口禁止按 issue 原文采信。
+- **push 状态**：master 领先 `origin/master` 38 个提交（M18 全程 + M19/M20 并行推进），**未 push**，是否推送待用户决定。
