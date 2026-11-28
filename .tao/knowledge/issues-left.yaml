@@ -253,3 +253,235 @@
   closed_in: null
   resolved_by: null
   title: 【P3】L3 `check-unit-full` / `test-m6` 同一根因红：`diff_ir_lli` structural 报 `tests/unit/llvm/lit/CodeGen/DADAO/stack-protector.ll` 与 `stack-protector-guard-tls.ll` 未归类（include/exclude 皆无）。两文件自 2026-11-14（`m14-llvm-002`）存在，`tests/unit/llvm/ir-lli/manifest.yaml` 最后更新 2026-10-29 ⇒ **收口窗口前既有的基线红**，非 M17 引入。处置：LLVM 侧把两文件按实际价值归入 include 或 exclude。
+
+- id: ISS-left-003
+  scope:
+  - arch
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-m18-003] 【P3】`check_power_rtl.py` 的 argparse 不接受 `run_arch.py --platforms chipyard` 传入的 `--signature-out`/`--mode`，`arch-power-001`/`arch-power-002` 在 host 侧即 rc=2（未进 RTL）。2026-11-27 `m18-chipyard-002/003` 复核时实测；两任务均未改 `run_arch.py`/`check_power_rtl.py`，判基线既有。影响：power 两项无法通过 `run_arch` 聚合跑，只能单跑。处置：二选一——`check_power_rtl.py` 接受并忽略/使用两个参数，或 `run_arch.py` 对 power 探测能力后不传。"
+
+- id: ISS-left-006
+  scope:
+  - linux
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-m18-007] 【P2】内核无系统调用重启语义：`dadao_user_syscall_post()` 把 `-ERESTARTSYS` 一律改写成 `-EINTR`（`contract-syscall` §9 允许返回 `-errno`），因此被信号打断的 `wait4`/`futex`/`read` 在 musl 侧看不到自动重启，需 libc/harness 自行重试。`m18-linux-006` 的 LTP 子集为此加了一条 harness 级 `TEST_ADAPT`（`safe_waitpid` EINTR 重试），但该缺口此前无 ISS 记录。影响：LTP/kselftest 中依赖 `SA_RESTART` 的用例会出现非内核错误的 EINTR；用户态需永久自行重试。复评条件：若后续引入内核侧重启（或 contract-syscall 明确要求重启），删除该 TEST_ADAPT 并回退其注释。`m18-linux-006` 已按「接受适配 + 登记缺口」处置。"
+
+- id: ISS-left-007
+  scope:
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-m18-010] 【P3】`tools/infra/fetch.py` 没有 `--component`，只能整取全部 enabled 组件；一旦某个组件源树是「存在但不是 git worktree」的残留（实测：`m18-linux-007` worktree 的 `.work/source/qemu` 只剩 K5 遗留的 `linux-user/riscv/syscall.tbl`、无 `.git`），`make fetch` 直接 raise 退出，单个 linux 组件的源树重建被整仓状态阻塞。当前处置是手工复刻 `sync_component`（clone 本地 `.cache` + `checkout --detach` pinned base），可复现但不在工具里。建议：给 `fetch.py` 加 `--component`（可重复），并对「目标存在但非 git worktree」给出明确的重建/`--force` 选项。"
+
+- id: ISS-left-008
+  scope:
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-m18-013] 【P3】`check_patch_tree.py` 只验「补丁 ↔ 源树一致」，不验「源树本身正确」：`m18-linux-016` 重导 gem5 补丁时，`.work/source/gem5` 自身缺 `} // namespace gem5` 闭合行，`make_patch.py gem5` 如实导出了缺行补丁，而 `check-patch-tree` **rc=0**（补丁与坏源树一致）⇒ 括号 544:543 不平衡被漏过，靠 architect 的提交前 diff 才抓到。影响：任何会话重导补丁都可能把「源树本来就坏」的尾巴固化进补丁；这类错误在编译前不可见。建议：`check_patch_tree` 对每个导出补丁加廉价自检——① C/C++ 类补丁的文件尾完整性（与上一版补丁 tail 比对或括号平衡）；② 新增文件的 namespace/brace 平衡；③ 补丁 `index` blob 与源树 `git hash-object` 一致（`check-index-blobs` 已覆盖部分）。"
+
+- id: ISS-left-009
+  scope:
+  - linux
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-m18-015] 【P3】`handle_softirqs` `die=0xe4`（`PTWMEM`，坏指针取数）的 `pf-va=0x0` 变体：`m18-linux-029` 修后 `--soak 300 --soak-strict` 轮1 出现 1/300（`soak boot 94: RED (die=0xe4,pf-va=0x0,rc=228,no-exit-row,no probe-cases-done,no-irq-row, kind=other)`），与 `ISS-m18-006` 记录的 `pf-va=0x10`/`0x204002130f4` 同 `die 0xe4` cause、坏指针不同；另 1 例 `pf-va=0x10` 归 006。该启 console 未归档（轮1 落共享 scratch 被并发会话覆盖），仅存分类行；`m18-linux-029` 起逐启 console 已归档进运行期证据目录。复现时抓 `ip`/`rb4`/`va` 与 `handle_softirqs` 的 percpu 基址，归后续任务。"
+
+- id: ISS-left-010
+  scope:
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-m18-002] 【P3】`issues-*.yaml` 删掉一条 open 条目不会触发任何常驻门控（`m18-infra-004` 船后补验实测：删一条 open 分册条目，`check_issues`/`check-knowledge-refs`/`check-milestones-fresh` 全 rc=0）。`check_issues` 只校验形状/重复/文件-里程碑一致与计数行，无「条目总数/各册 open 数」基线。处置：在 `check_issues` 增总条数与分册计数期望（或 `issues.yaml` 侧加 `--expect` 计数文件），删除/迁移条目必须同步计数；由后续 infra 任务承接。"
+
+- id: ISS-left-011
+  scope:
+  - linux
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-444] 【P3】K1 门控的「阶段顺序」证据是**间接**的：共享 BootROM 固件的 power/hmon/smon **不打印任何东西**，而 K1 任务禁 `-d` 逐指令日志，故 `check-linux-k1` 只能用「镜像索引表（hmon<smon 各 1 条）+ 各阶段唯一产物」（boot info 15 字段 = hmon；`ptw_enable`/传入 PTBR/预建表 1 超页/`rb16+rb17` = smon）证明**三阶段都跑过**，**不能直接观测三阶段的相对顺序**（`m14-linux-005` 复核 §4 判定：够用但非直接观测、不阻断）。处置：给共享固件三阶段各加 1 行 semihosting 标记（改 `tests/shared/bootrom/**`，同时影响 `check-linux-k0` 与 `k0_boot_probe`），另立任务；补强后门控改为直接断言顺序。**m18-linux-008 复核（未落地，待另立任务）**：① 该任务硬约束的 `tests/shared/bootrom/**` **不存在**，共享固件实际在 `tests/ee-vast/{power,hmon_k0_vast,smon_k0_vast}.S`，BootROM 构建器在 `tools/qemu/k0_boot_probe.py`（`build_firmware()` 现无 power 阶段 defsym 入口，需新增 `power_defs`）；② `check-linux-k0` **不启动 QEMU**，K0 侧只能对 BootROM 镜像做静态断言（三阶段标记字符串各在自己的窗口内），运行期顺序只能由 `check-linux-k1` 判；③ 交叉影响：chipyard 侧同源 `power_vast.S`（`POWER_RTL_BODY=1`）与签入的 bootrom hex 必须逐字节不变 ⇒ 标记须用 `--defsym`（默认 0）门控，仅 K0/K1 打开。"
+
+- id: ISS-left-012
+  scope:
+  - linux
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '[原 ISS-488] 【P3】`m14-linux-028` 复核的三条非阻断 finding：R1 `TASK_UNMAPPED_BASE` 页对齐这半个修复无断言覆盖（A2 用 `mm_alloc()` 的 mm、不经 exec，只覆盖 `mmap_min_addr` 那半）⇒ 应补「exec 后 `mm->mmap_base` 页对齐」断言；R2 完成区遗留①「18 条 musl」计数/归属不准（实为 musl 8 + 其它 11），且全局 `check-patch-tree` rc=1 属在途/基线；R3 证据脚本的补丁树判据只 grep `linux: assertion`、不打印问题总数 ⇒ 补一行现场统计。处置：随下次触碰这些门控/任务书时修。**m18-linux-008 处置（2026-11-24）**：R3 已落地（证据脚本从 `check_patch_tree.py` 的输出**现场派生**问题总数与逐组件归属，并校验 `total == Σrows`、`rc==0 ⇔ total==0`，另给「一致/不一致」两路解析自检）；R2 的计数口径同源（不再手写组件归属）；**R1 未落地**：`exec` 后 `mm->mmap_base` 在用户态不可观测（本端口走 `CONFIG_MMU && !HAVE_ARCH_PICK_MMAP_LAYOUT` 的 legazy 布局，`unmapped_area()` 的上取整把 mmap_base 的非对齐掩盖掉），只能由内核侧探针打印（`components/linux` 的 `k5_pagesz_selftest`），而本任务禁改组件补丁 ⇒ 待另立任务。'
+
+- id: ISS-left-013
+  scope:
+  - linux
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-500] 【P2】K6 之后用户态不再接收任何异步中断（`dadao_enter_user()` 把 `cfx_umon` user 行写 `~0`，全仓无第二处写回）：长用户态窗口内同源事件按契约合并为一次补投 ⇒ `jiffies` 滞后；K6 无用户态可观测面（busybox 无 date/sleep/time、无 /proc），故当次可接受但属**行为变化待追认**。另 `dadao_user_entry_install()` 注释仍称「用户态投递」已成死代码；`dadao_user_fault_return` 在 `enter_from_user_mode()` 前开中断（与上游顺序相反，本配置无断言）。处置：K6 之后若需用户态抢占/时间可见（K7+ 或 SMP），改为「用户态可投递 + 入口安全栈」，或至少修正注释与顺序。另 F2/F3：changelog `12/12` 应为 `checks=11`、`2/150`/`4/150`/实测 `3/150` 数字不一致。"
+
+- id: ISS-left-014
+  scope:
+  - spec
+  - docs
+  - idl
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-530] 【P3】`m18-spec-005`（ADR-0061 R2）收尾后仍存在的活文档残留：① `spec/SimRISC-11 §3.1` 的 `escape_ciii_cfx` IDL 块由 `idl/SimRISC-11.idl` 渲染（禁手改），仍按「cg9 有效帧 + 返回」建模，须随 `m18-idl-002` 改语义源并重渲染（同笔更新 `idl/data/exec_anchor.toml` 与 `idl/.manifests.toml`，避免只改锁造成假绿）；② `docs/DDLN/C-资源管理` DD-C008 L9/L47、DD-C009 L66 仍写「低编号 cfx 优先」「两层掩码」，本任务白名单未列；③ `DADAO-12`/`DADAO-22`/`Kaiwu`/`IDL-ISA` 变更记录内旧模型条目按「历史记录不改」保留，另需 architect 决定是否补一条互斥说明。"
+
+- id: ISS-left-015
+  scope:
+  - qemu
+  - testcases
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '[原 ISS-536] 【P2】**回归**：`check-tset-libc-smoke` 单例 `regression/pthread_cond_wait-cancel_ignored` 稳定红——`exit=1 … did not act on cancellation`；`TESTCASES-104t` 基线记为 `qemu_status: pass, exit=0`。复现：`m18-qemu-001` 3/3 + reviewer 独立 1 次 + 换修前 `a_cas` 的 musl 同样红（共 5 次）；`qemu-dadao` md5 前后同为 `7dcf3811`、本任务未改 QEMU 补丁 ⇒ 非窄 CAS / 非本任务引入。待定位归属（QEMU 取消/信号路径 vs musl 侧 vs 测试自身），定位后修并补可达 FAIL。'
+
+- id: ISS-left-016
+  scope:
+  - linux
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-538] 【P2】`run_suite.py` 跑内核套件时**不取写者锁**：内核写者（如 `m18-linux-023` 重放/重建共享 `.work/source/linux`）与套件跑批可并发 ⇒ 跑批落在半改写内核上产生**假红**（`m18-linux-006` 实测：`cause=CFXMEM(0x10000000000002)`、随机 `die 0xe1/0xec`、`MALIGN`）。临时绕行 = 私人重放树 + `DADAO_LINUX_SOURCE`/`DADAO_LINUX_BUILD` 覆盖。建议：`run_suite.py` 进入与 `gate.lock`/writer 登记一致的互斥，或在检测到源树有写者时拒绝启动。"
+
+- id: ISS-left-017
+  scope:
+  - infra
+  - qemu
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '[原 ISS-427] 【P2】节点组件树（`.work/source/<name>`）的 `dadao: <name> patch series` 提交会随主控机补丁集演进而**无法重放**：`apply_series --component <name>` 报 `HEAD is neither base nor base+1 matching the patch set; refusing`（实测 server207 的 qemu `cd44d5f`，主控机 `e916acb`）。`sync_node_repo.sh` 只同步仓库、不重置 `.work/source`。可复现处置：节点 `git -C .work/source/<name> fetch origin && git checkout -f <base>`，再 `apply_series --component <name>` 重放。建议在 `sync_node_repo.sh` 加一个 `--reset-components` 选项（按 `components.lock.toml` 的 base 重置，需重建），或至少在文档里固化该处置。'
+
+- id: ISS-left-018
+  scope:
+  - qemu
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-428] 【P2】节点（server207）上 `tools/qemu/k0_boot_probe.py` 复跑失败（`main` 段 guest exit 1、`-d cpu` dump 0 字节、`rd*` 全 -1），主控机同源同探针 101/101 全绿。节点二进制含 K1 新串（`strings | grep -c ELF-VA-TO-PA` = 1），说明补丁在；差异点在运行期（疑 `bootrom-image`+`-kernel` 路径在节点触发 loader 拒绝后 exit 1，或 semihosting 退出未被接管）。影响：M14 K1 的节点侧验证与后续节点三平台对比暂不可信。需在节点侧抓 stderr 与 QEMU 退出路径定位（探针正例目前丢弃 stderr）。"
+
+- id: ISS-left-019
+  scope:
+  - infra
+  - linux
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-456] 【P2】证据脚本按**脚本自身路径**推仓库根，在任务 worktree 里会经 `.work` 软链解析到**主工作树**，从而把产物误写进 `master`：`m14-linux-008` 的 `run.sh` 初版实测误写 6 个文件（已按 HEAD blob 逐文件复原、`git status` 干净、md5 与 HEAD 一致）。与 `ISS-389`（worktree `.work` 未软链导致从零编）是同一软链机制的两个反向踩坑。处置：证据脚本一律**按 cwd 推仓库根**（`git rev-parse --show-toplevel`）并在解析结果等于 `master` 工作树时**拒绝运行**；或把该约束写进 engineer/reviewer 的「一键证据脚本」规范并加一条自检。（2026-11-17 复发：`m16-gem5-010` 复核以证据目录为 cwd ⇒ `make_patch` 写脏主工作树 6 个 patch，已 `cp`+md5 还原）"
+
+- id: ISS-left-020
+  scope:
+  - linux
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-m18-004] 【P3】`m18-linux-025` 2000 启样本中 1 次极早停摆（`--soak-strict` 计数 1/2000，窗口签名仍 0/2000）：console 停在 `workingset（timestamp_bits）…` 之后、`M45 selftest begin` 之前，`rc=124`，与用户态异步返回窗口（`ISS-m18-001` 已修）签名不同；同一镜像复跑未复现（025 验收累计样本 ≥6000 启 0 红；原「2048 启」无存档，按累计口径登记），故按 ≤1/2000 区间登记。复现条件未知（load≈5–8、`/tmp` 85% 时段）；下次复现须抓 QEMU monitor `info registers` 与 `cfx_smon/hart` 快照，归后续任务。**m18-linux-029 修后 soak 轮1 另见 1 例同形**：`soak boot 100 → RED (rc=124,no-exit-row,no probe-cases-done,no-irq-row, kind=iss)`；该启 console 未归档（轮1 落共享 scratch 被并发会话覆盖），故仅按本 issue 先例登记为**同形未证实**，不作归因；029 起逐启 console 已归档进运行期证据目录。"
+
+- id: ISS-left-021
+  scope:
+  - linux
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-m18-005] 【P3】`m18-linux-025` 全量 `run.sh` 中随机 case 的 `HOST_TIMEOUT`（已见 mm-pfnmap / mm-map-populate / futex-wait-timeout，用例名随机、形状一致；guest 无 `SUITE DONE`、`rc=None`、宿主 idle 120 s 才杀）。频率约每 2 次全量 1 次。未改判据/未重试；复现时须抓 QEMU monitor `info registers`、`cfx_smon cg15 rc3`、`cg16 rc17` 与 `dadao_ticks`，归后续任务。"
+
+- id: ISS-left-022
+  scope:
+  - linux
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "[原 ISS-m18-006] 【P3】`handle_softirqs` 内 `die=0xe4`/`pf-va=0x10`（`PTWMEM`，坏指针取数）仍是 `ISS-m18-001` 的独立签名：`m18-linux-025` 的注入回绿样本（200 启、32 并发）出现 1 次，`--soak-strict` 只判静默自旋后按 1/200 单独计数；修前 024/026 已登记同签名（`va=0x10`/`0x204002130f4`），本任务未改该路径。复现时抓 `ip`/`rb4`/`va` 与 `handle_softirqs` 的 percpu 基址，归后续任务。**m18-linux-029 修后 soak 轮1 另见 `pf-va=0x0` 变体 1/300**（`soak boot 94`，同 `die=0xe4` cause、不同坏指针），单列 `ISS-m18-015`。"
+
+- id: ISS-left-023
+  scope:
+  - infra
+  - linux
+  - musl
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】共享 musl 静态产物在补丁集重放后未重建时无门控发现：`m18-integ-001` 在 master 上跑 kselftest 两次，`futex-wait-timeout` 稳定 FAIL rc=1（`not ok 1 futex_waitv monotonic returned 22`）；根因是 `.work/source/musl/lib/{libc.a,crt1.o}` 构建于 2026-11-24 11:13，早于 `m18-linux-016`（11-28 04:14 合入的 `__dadao_argmask` 449=0x09），`syscall()` 仍把全部实参放 RD 组 ⇒ 内核读 `nr_futexes=0` 返 EINVAL。私有重放 + `make build-musl`（14:34 重建）后同一 master 两轮 14/14 与 8/8 全绿。建议：给静态 libc.a/crt1.o 加「补丁集/源树摘要」戳，由既有 `check-musl-freshness`（或套件跑批入口）校验，落后即红而不是静默用旧库；并在合并动作的组件补丁重放清单里强制重建。"
+
+- id: ISS-left-024
+  scope:
+  - linux
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`check-linux-k6` 不派生 `CONFIG_INITRAMFS_SOURCE`：它重建 K6 initramfs 后只应用 `CONFIG_PINS + CONFIG_DADAO_K6_SHELL=y`，镜像选择依赖构建树里的环境值；若 `.config` 仍指向别的 cpio（实测：切成 `/proc` 探针镜像后），门控会静默启动**错误的 /init**，表现为 4 条 S/C/E 失败（启动行/提示符/exit 缺失）而镜像与 busybox 检查全 PASS，误导性强。建议：K6 门控在 build_kernel 里显式 `apply_config_lines(CONFIG_INITRAMFS_SOURCE=linux_initramfs_dir()/initramfs.cpio)`，与 `run_suite.restore_default_initramfs()` 同口径。"
+
+- id: ISS-left-025
+  scope:
+  - chipyard
+  - testcases
+  - llvm
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2·跨册】`m19-chipyard-004`（2026-11-28 09:10 合入）的 Tiny 新几何 BootROM 使 4 个 `DADAO-E2E` lit 用例超时（`smoke_add/arith/fp/jump`，exit 124，30 s 无 guest 输出）：`build_tiny_bootrom.py` 现产出 8192 B、hmon@0x0800、table@0x1f00（基线 2026-11-27 为 65536 B、hmon@0x2000、table@0xe000）。`m18-integ-001` 在 master 内容上跑 L3，`check-unit-full` 的 lit 从基线 186/186 变为 183/187（4 红）。以共享安装 qemu（`c5a46ef7`）与自建 qemu（`dab08747`）对同一 raw/bootrom 均 30 s 超时 ⇒ 不是 QEMU 差异，归属 m19 侧的 BootROM/lit 载体同步。复评条件：m19 更新 E2E 载体/加载地址或恢复兼容布局后，`make check-unit-full` 的 lit 回 186+/186+。"
+
+- id: ISS-left-026
+  scope:
+  - chipyard
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3·跨册】`m19-chipyard-004`（2026-11-28 09:10 合入）后 L1 `check-index-blobs` 红 4 条，均为 chipyard 补丁的 `index new-hash` 与内容 blob 不符：`DadaoConfigs.scala.patch`（a006253 vs 55ff199）、`bootrom.tiny.hex.patch`（0000000 vs c5aa34f）、`WumingLoadMem.scala.patch`（3dc735e vs 9ed5fcf）、`WumingTile.scala.patch`（f45ea7e vs d02c660）。`m18-integ-001` 在 master 工作树复跑同 4 条（非本任务引入）。处置：m19 侧按 `make_patch.py chipyard --source <private>` 重导补丁，或按 `check-index-blobs` 的 `index` 规则重算。"
+
+- id: ISS-left-027
+  scope:
+  - linux
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】kselftest `mm-pfnmap` 在 DADAO 上只能 SKIP（`SUITE_ENV`）：套件镜像无 `/dev/mem` 节点；`/proc/iomem` 的 RAM 窗口已由 `arch/dadao/kernel/setup.c` 导出，但补 1:1 `/dev/mem` 节点后 guest 在用例 mmap 物理范围时卡死（无 console 进展，宿主 idle 超时）⇒ devmem mmap 路径（`devmem_is_allowed`/pfn remap）尚不可用。复评条件：该路径落地并在镜像中加 `/dev/mem` 节点后，删除 `tests/unit/linux/suite/triage.yaml` 的 SUITE_ENV 行并把 `suite.yaml` 的 expect 改回 PASS（`check_suite` S3c 会抓 stale 行）。承接方：后续 linux devmem 任务。"
+
+- id: ISS-left-028
+  scope:
+  - linux
+  - busybox
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】K6 镜像没有 `/proc` 与 `mount` applet：`config.min`/应用集包含 `ps`，但 `/proc` 未挂载、镜像也不含 `mount`，`ps` 只能 `can't open '/proc'`（rc=1），K6 交互面无法观察进程。`m18-integ-001` 用一次性 `/procinit` 探针镜像（同 busybox/initramfs，加一个 mount procfs 后 exec sh 的静态 ELF）验证 `ps` 输出正常（`29 … R ps`），未改交付镜像。处置：K6 镜像若需 `ps`，在 `/init` 挂 procfs 或把 `mount` 编入 applet 集；否则从 `APPLETS`/`config.min` 移除 `ps`，避免“有 applet 不可用”。复评条件：K6 镜像挂 `/proc` 后，交互集直接用交付镜像跑 `ps` 并删本探针。"
