@@ -33,7 +33,7 @@
 | m20-integ-002 | 4–8 h | 三方 cfx/cg/rc 一致性实测与缺口关闭（W3 后，006 前） |
 | m20-linux-001 | 4–8 h | Linux/SEE cfx 访问、cause、PTW、UART/time（W4） |
 | m20-testcases-006 | 4–8 h | cfx 测试向量/签名/四方迁移（W5） |
-| m20-infra-005 | 1–2 h | `.work/private` 清理门控（只报警；004 之后串行） |
+| m20-infra-005 | 1–2 h | 私有目录清理门控（`.work/private/<任务号>/`；只报警；004 之后串行） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
