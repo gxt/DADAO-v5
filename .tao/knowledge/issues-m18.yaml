@@ -71,6 +71,14 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`check_patch_tree.py` 只验「补丁 ↔ 源树一致」，不验「源树本身正确」：`m18-linux-016` 重导 gem5 补丁时，`.work/source/gem5` 自身缺 `} // namespace gem5` 闭合行，`make_patch.py gem5` 如实导出了缺行补丁，而 `check-patch-tree` **rc=0**（补丁与坏源树一致）⇒ 括号 544:543 不平衡被漏过，靠 architect 的提交前 diff 才抓到。影响：任何会话重导补丁都可能把「源树本来就坏」的尾巴固化进补丁；这类错误在编译前不可见。建议：`check_patch_tree` 对每个导出补丁加廉价自检——① C/C++ 类补丁的文件尾完整性（与上一版补丁 tail 比对或括号平衡）；② 新增文件的 namespace/brace 平衡；③ 补丁 `index` blob 与源树 `git hash-object` 一致（`check-index-blobs` 已覆盖部分）。"
+- id: ISS-m18-014
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】与 `ISS-m18-011` 同类的**对称**缺口：`cfx_smon cg5` 的 supv 返回路径同样**只重写 `rc10`**（`DADAO_TRAP_RESTORE_AND_ESCAPE` 之后直接 `escape cfx_smon`），其余三字（`rc8` 运行模式 / `rc9` cfx / `rc11` 掩码）依赖进入时快照。`m18-linux-029` 已证 umon 侧在「C 半睡眠时另一任务 `dadao_enter_user()` 覆盖四字出口意图」下会跑飞（用户代码在 supv 执行、陈旧向量进用户）；smom 侧因单帧 `cg5` 共享同样的覆盖路径，理论上同样可被覆盖，只是本轮未观测到签名（可能被 supv 侧快速 trap 掩盖）。处置：`m18-linux-031` 把 `DADAO_UMON_USER_EXIT_INTENT` 的同口径重写应用到 supv 返回路径；未观测到签名不等于不存在。"
 - id: ISS-m18-002
   scope:
   - infra

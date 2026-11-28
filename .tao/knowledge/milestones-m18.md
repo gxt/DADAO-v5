@@ -31,6 +31,7 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m18-integ-001 | 2–3 h | M18 收口评审：K6 busybox + kselftest 两轮 + LTP 两轮 + 非 PASS 全分诊 + L3 门控；只读复核 |
+| m18-linux-031 | 1–2 h | supv 返回路径四字出口意图重写（`ISS-m18-014`，029 的对称缺口）；未观测签名≠不存在 |
 
 > **已作废（2026-11-23，ADR-0060）**：`m18-qemu-002`（monitor-first QEMU）reviewer Accepted 但**不合入 master**，分支留参考；`m18-qemu-003`（旧探针迁 monitor-first）未开工、被 hart-first 取代。
 
