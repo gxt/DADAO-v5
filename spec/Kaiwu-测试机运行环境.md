@@ -16,7 +16,7 @@
 
 CPU 地址固定为 48 位；高 6 位 `addr[47:42]` 为分区键：`0` 为内存窗口（受 `ptw_enable` 控制），`1..63` 为 cfx 1–63 的核内地址空间（`cfx0` 没有内部空间）。[DADAO-12 §2.1 核内地址空间][DADAO-12 §2.2 虚实地址转换]
 
-v5 测试机分 **`Kaiwu-Tiny`**（宿主装载的精简 FS 平台）与 **`Kaiwu-Vast`**（完整系统节点；当前单核，可扩展多核/NUMA）两个 **profile**，由机器属性选择。两 profile 的**复位地址相同**，均为 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（cfxha 63 / `power`，位于各自 BootROM 的末 64 KiB），该地址可由 CPU 直接取指并执行。[DADAO-12 §2.1 核内地址空间]
+v5 测试机分 **`Kaiwu-Tiny`**（宿主装载的精简 FS 平台）与 **`Kaiwu-Vast`**（完整系统节点；当前单核，可扩展多核/NUMA）两个 **profile**，由机器属性选择。两 profile 的**复位地址相同**，均为 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（cfxha 63 / `power`；`Kaiwu-Tiny` 位于其 8 KiB BootROM 的**起始**，`Kaiwu-Vast` 位于其 4 MiB BootROM 的**末 64 KiB 起点**），该地址可由 CPU 直接取指并执行。[DADAO-12 §2.1 核内地址空间]
 
 - **Tiny**：实现 **`cfx_power`（cfx63，启动移交）** 与 **`cfx3 hmon`（同步异常向量）**；`addr[47:42]` 由两个 cfxha 段构成——`0x3F`（cfxha 63：BootROM/SRAM）与 `0x03`（cfxha 3：hmon SRAM）。不设 PTW/页表、不实现 smon，**不能进入 `user`/`jail`/`supv`**，运行期固定在名义 `hypv`；只承担非 cfx 指令测试、Embench 与 picolibc 测试集。semihosting 的 `trap` 判定只依赖 `immu18`（见 `§5.1`），一般 `trap cfx_hmon` 进入 hmon 向量（见 `§4.4`）。
 - **Vast**：内存窗口 `addr[47:42] = 0` 由 PTW 按页表转换到 56 位 PA；核内空间含 hmon/smon/pmem SRAM；启动链 `power → hmon → 测试本体（hypv）`，`power → hmon → smon` 路径保留给内核/smon 测试。
@@ -29,12 +29,32 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
 
 | 区域 | 起始 | 大小 | cfxha / cfxname | 说明 |
 |------|------|------|-----------------|------|
-| **BootROM** | `0xffff_ffff_0000` | 64 KiB | 63 / `power` | 唯一非易失启动源；复位向量 = 起始 = `0xffff_ffff_0000`（镜像偏移 0）；内容是**固定启动固件镜像**（power stub + hmon 运行段 + image index table，见 `§6.2`），**hmon 代码/数据编入该镜像** |
-| **SRAM** | `0xffff_ff00_0000` | 8 MiB | 63 / `power` | 可写主存；应用 `.text/.rodata/.data/.bss` 由宿主 loader 装入，**不塞 BootROM** |
-| **hmon SRAM** | `0x0fff_0000_0000` | 64 KiB | 3 / `hmon` | hmon 运行段目标；由 power 从 BootROM 复制（`§6.2`），宿主不下发；异常向量初值 = 起始地址（`DADAO-12 §3.4`）；内部偏移 `0x3ff_0000_0000`，越界 ⇒ `CFXMEM`；与 BootROM/SRAM 分属不同 cfxha 段，互不重叠 |
+| **BootROM** | `0xffff_ffff_0000` | 8 KiB | 63 / `power` | 唯一非易失启动源；复位向量 = 起始 = `0xffff_ffff_0000`（镜像偏移 0）；内容是**固定启动固件镜像**（power stub + hmon 源段 + image index table，见 `§6.2`），**hmon 代码/数据编入该镜像**；`0xffff_ffff_2000`–`0xffff_ffff_ffff` 不映射 |
+| **SRAM** | `0xffff_ff00_0000` | 256 KiB | 63 / `power` | 可写主存；应用 `.text/.rodata/.data/.bss` 由宿主 loader 装入，**不塞 BootROM**；内部固定偏移（头区 / DUMP / signature / 入口 / guard / 栈 / MemRAS）见下表与 `§6.2.1` |
+| **hmon SRAM** | `0x0fff_0000_0000` | 8 KiB | 3 / `hmon` | hmon 运行段目标；由 power 从 BootROM 复制（`§6.2`），宿主不下发；异常向量初值 = 起始地址（`DADAO-12 §3.4`）；内部偏移 `0x3ff_0000_0000`，偏移 `0x2000` 及以上不映射、越界 ⇒ `CFXMEM`；与 BootROM/SRAM 分属不同 cfxha 段，互不重叠 |
+
+**`Kaiwu-Tiny` 主 SRAM 固定偏移（测试机约定；`MAIN_SRAM_BASE = 0xffff_ff00_0000`）**
+
+| 偏移 | 大小 | 名称 | 角色摘要（详规见 `§6.2.1`） |
+|------|------|------|------------------------------|
+| `0x0000` | 8 B | `VERSION` | loader 写 `1`；power 放核前检查 |
+| `0x0008`–`0x001F` | 24 B | 保留 | 全零 |
+| `0x0020` | 8 B | `MAILBOX` | 宿主 ↔ power 握手字；放核前检查 magic |
+| `0x0028`–`0x002F` | 8 B | 保留 | 全零 |
+| `0x0030` | 16 B | `EXIT_BLOCK` | semihosting `SYS_EXIT` 参数块；退出码在 `+0x38` |
+| `0x0040`–`0x07FF` | 1984 B | 保留 | 全零 |
+| `0x0800` | 0x800 | `DUMP_BASE` | 寄存器现场转储（`pt_regs` 顺序） |
+| `0x1000` | 0x800 | `SIGNATURE` | 测试签名区 |
+| `0x1800`–`0x1FFF` | 0x800 | 保留 | 全零 |
+| `0x2000` | 0x2_0000 | `ENTRY` / raw 基址 / image window | 应用入口与镜像窗口（`kernel_reserved = 0`） |
+| `0x22000`–`0x37FFF` | 0x16000 | 未分配 | 本册不定义 |
+| `0x38000` | 0x1000 | `guard_lo` | 栈下溢保护；不映射 ⇒ `CFXMEM` |
+| `0x39000` | 0x6000 | `STACK` | 24 KiB；`SP = 0x3F000` |
+| `0x3F000` | 0x1000 | `MemRAS` | 4 KiB；`MRPTR = 0x40000` |
 
 - Tiny 实现 `cfx_power`（cfx63）的启动移交与 `cfx3 hmon` 的异常向量/寄存器；`smon`（cfx2）与其它 cfx 不实现。
-- BootROM 与 SRAM 之间的 `0xffff_ff80_0000`–`0xffff_fffe_ffff` 不映射；cfxha 63 段内 BootROM/SRAM 之外、cfxha 3 段内 hmon SRAM 之外、以及其它 cfxha 段 ⇒ `CFXMEM`。
+- BootROM 与 SRAM 之间的 `0xffff_ff04_0000`–`0xffff_fffe_ffff` 不映射；cfxha 63 段内 BootROM/SRAM 之外、cfxha 3 段内 hmon SRAM 之外、以及其它 cfxha 段 ⇒ `CFXMEM`。
+- **BootROM 尺寸与复位点偏离上游下限**：上游 `DADAO-12 §2.1` 规定 `cfx_power` BootROM **≥64 KiB** 且复位向量在**末 64 KiB 起点**；`Kaiwu-Tiny` 按平台约定取 **8 KiB、复位点 = 起始**（`§6.2`）。此为 profile 级偏离，本册只记录 Tiny 的实际几何，不改变其它 profile。[DADAO-12 §2.1 核内地址空间][spec-decision]
 
 **`Kaiwu-Vast`**
 
@@ -46,10 +66,10 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
 | **smon SRAM** | `0x0bff_0000_0000` | 64 KiB | 2 / `smon` | S-mode 异常向量默认等于起始地址；内部偏移 `0x3ff_0000_0000`，越界 ⇒ `CFXMEM`；M11 保留不使用 |
 | **cfx_pmem SRAM** | `0x83ff_0000_0000` | 64 KiB | 32 / `pmem` | cfx_pmem 内部偏移 `0x3ff_0000_0000`；CPU 用 `ld/st` 访问，越界 ⇒ `CFXMEM` |
 
-- **BootROM 尺寸**：上游 `DADAO-12` 只要求 `cfx_power` BootROM **≥64 KiB**，实际大小由本册按 profile 规定（Tiny 64 KiB、Vast 4 MiB）；复位向量两 profile 均为 `0xffff_ffff_0000`（末 64 KiB 起点，镜像内偏移 = 大小 − 64 KiB）。
+- **BootROM 尺寸**：上游 `DADAO-12` 只要求 `cfx_power` BootROM **≥64 KiB**，实际大小由本册按 profile 规定（Tiny 8 KiB、Vast 4 MiB）；复位向量两 profile 均为 `0xffff_ffff_0000`——Tiny 在其 BootROM 起始（镜像内偏移 0）、Vast 在末 64 KiB 起点（镜像内偏移 = 大小 − 64 KiB）。Tiny 的 8 KiB 低于上游下限，见 `§1.1` 的偏离说明。
 - **不做双映射**：Tiny 的 SRAM 只在 cfxha 63 段的 `0xffff_ff00_0000`、hmon SRAM 只在 cfxha 3 段的 `0x0fff_0000_0000`；Vast 的 PA RAM 只在 `[0, 2 GiB)` 并仅经页表 VA 映射。两 profile 都不设「同一存储的多地址别名」。
 - **`power` 不设 SRAM**：两 profile 的 `power` 分区都不设 SRAM；这是**本机约定**，不构成对上游 `DADAO-12` 的架构限制。
-- **legacy `-bios` 复位窗口**：`-bios` 路径仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变；Tiny 的 BootROM 恰为该窗口。
+- **legacy `-bios` 复位窗口**：`-bios` 路径按各 profile 的 BootROM 大小装载（Tiny 8 KiB、Vast 64 KiB 复位窗口），起点均为 `0xffff_ffff_0000`；既有探针/e2e 语义不变。
 
 ### 1.2 越界访问与越界取指异常（含取指路径）
 
@@ -80,8 +100,8 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 - **运行模式范围（按 profile）**：`Kaiwu-Tiny` 不提供模式切换路径——复位后即在特权态（名义 `hypv`；复位时 cfxha 63 / `power`，移交后 cfxha 3 / `hmon`）执行，运行模式恒 `hypv`，**不能进入 `user`/`jail`/`supv`**，不实现 smon；`Kaiwu-Vast` 启用 `hypv`、`supv` 与 `user`，`jail` 不启用。
 - **`switch_run_mode`（按 profile）**：`Kaiwu-Vast` 取 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 的值作为异常进入后的运行模式（上段步骤 6）；`Kaiwu-Tiny`（**测试机约定**）该寄存器的**写入被忽略**（寄存器保存值保持 `3`，`hypv`），**读回为寄存器保存值**；异常进入一律强制 `hypv`（`inner_run_mode ← 3`），运行模式不变。[DADAO-12 §5.2 异常进入流程][DADAO-12 §3.4 cg3 - hypv mode 寄存器]
 - **异常承载（按 profile）**：`Kaiwu-Vast` 由 `hmon`（cfx3）承载 hypv 异常、`smon`（cfx2）承载 supv 异常；`Kaiwu-Tiny` 由 `hmon`（cfx3）承载唯一的 hypv 同步异常（无 smon），异常经 hmon 向量处理（见 `§4.4`）。
-- **启动链（按 profile）**：`Kaiwu-Tiny` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）：BootROM 内的 power stub 把编入同一镜像的 hmon 运行段复制到 hmon SRAM（`§6.2`），以 `trap cfx_hmon` 按 `DADAO-12 §5.2` 的 `CFXTRAP` 移交 hmon；hmon 入口校验 magic、按需配置权限后 `escape cfx_hmon` 返回 power stub（返回前把 `cg5 rc10` 写为 `excp_cause_ip + 4`），power 跳固定应用入口 `0xffff_ff01_0100`（`§6`）。hmon 异常向量初值即 hmon SRAM 起始（`DADAO-12 §3.4`），入口内显式写入同值属幂等、不是向量可用的前提。全程运行模式为 `hypv`，不做模式切换。`Kaiwu-Vast` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）；`power → hmon → smon`（supv/cfx2）路径保留：power 从 BootROM 装载 hmon 并 `trap` 移交；hmon 配置 smon 的 S-mode 向量/权限后 `trap` 移交；smon 建立第一张页表、开启 PTW 并接管运行期。M11 测试不覆盖 smon。
-- **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。
+- **启动链（按 profile）**：`Kaiwu-Tiny` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）：BootROM 内的 power stub 把编入同一镜像的 hmon 源段（镜像偏移 `0x0800`）复制到 hmon SRAM（`§6.2`），以 `trap cfx_hmon` 按 `DADAO-12 §5.2` 的 `CFXTRAP` 移交 hmon；hmon 入口校验 magic、按需配置权限后 `escape cfx_hmon` 返回 power stub（返回前把 `cg5 rc10` 写为 `excp_cause_ip + 4`），power 跳固定应用入口 `0xffff_ff00_2000`（`§6.2`）。hmon 异常向量初值即 hmon SRAM 起始（`DADAO-12 §3.4`），入口内显式写入同值属幂等、不是向量可用的前提。全程运行模式为 `hypv`，不做模式切换。`Kaiwu-Vast` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）；`power → hmon → smon`（supv/cfx2）路径保留：power 从 BootROM 装载 hmon 并 `trap` 移交；hmon 配置 smon 的 S-mode 向量/权限后 `trap` 移交；smon 建立第一张页表、开启 PTW 并接管运行期。M11 测试不覆盖 smon。
+- **legacy `-bios` 路径**：按各 profile 的 BootROM 大小装载（Tiny 8 KiB、Vast 64 KiB 复位窗口），既有探针/e2e 语义不变。
 
 ---
 
@@ -109,7 +129,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 - 对**不存在**的核芯功能扩展（其 cfx 寄存器）的访问触发 **`CFXREG`**；reserved cfxha（集见 `§1.2`）的 `trap`/`escape`/`cfx2rd`/`cfx2rc` 仍按 `§1.2`/`§5` 触发当前运行模式 monitor 的 `ILLI`（口径见本节「两条互斥口径」）。[DADAO-22 §3. 系统信息（smon）][DADAO-12 §5. 异常进入与异常退出]
 
 - **`cfx_power`（cfx63）的 `cg7` 与 `cg8`/`rc1`（测试机约定）**：
-  - **`cg7` 空间块 0 = BootROM**：`desc` = `exists|ROM`（`0x5`）、`start = BootROM 起始地址 − (63 << 42)`、`size` = BootROM 字节数、`attr` = `R|X`（`0x5`）；其余空间块 `exists = 0`（`start`/`size`/`attr` 读 0）。按 profile：`Kaiwu-Tiny` ⇒ `start = 0x3ff_ffff_0000`、`size = 0x1_0000`（64 KiB）；`Kaiwu-Vast` ⇒ `start = 0x3ff_ffc0_0000`、`size = 0x40_0000`（4 MiB）。两者均满足 `start + size = 2^42`。[DADAO-12 §3.8 cg7][DADAO-12 §2.1 核内地址空间]
+  - **`cg7` 空间块 0 = BootROM**：`desc` = `exists|ROM`（`0x5`）、`start = BootROM 起始地址 − (63 << 42)`、`size` = BootROM 字节数、`attr` = `R|X`（`0x5`）；其余空间块 `exists = 0`（`start`/`size`/`attr` 读 0）。按 profile：`Kaiwu-Tiny` ⇒ `start = 0x3ff_ffff_0000`、`size = 0x2000`（8 KiB）；`Kaiwu-Vast` ⇒ `start = 0x3ff_ffc0_0000`、`size = 0x40_0000`（4 MiB）。Tiny 的 `start` = `2^42 − 64 KiB`（保持上游的复位窗口起点，而 ROM 只实现 8 KiB），故 `start + size = 2^42 − 56 KiB`，其上的 `0xffff_ffff_2000`–`0xffff_ffff_ffff` 不映射；Vast 的 `start` = `2^42 − 4 MiB`，`start + size = 2^42`。[DADAO-12 §3.8 cg7][DADAO-12 §2.1 核内地址空间]
   - **`cg8`/`rc1`（`cfx_power_ctrl`，WO；`bit0`=关机、`bit1`=硬复位、`bit2`=软复位）**：`Kaiwu-Tiny` **未实现**该寄存器，访问 ⇒ `CFXREG`（显式失败，不设静默成功的桩）。[DADAO-12 §4.12 cfx_power]
 
 ### 3.1 TLB 的测试机约定
@@ -269,10 +289,10 @@ semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 
 
 M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配置**；bootrom 用**自有工具链**编译（LLVM 新指令的首个真实用户）。
 
-- **BootROM（按 profile）**：`Kaiwu-Tiny` 为 64 KiB（`0xffff_ffff_0000`–`0xffff_ffff_ffff`），内容是**固定启动固件镜像**——power 启动 stub、hmon 运行段、image index table 三段（布局与容量见 `§6.2`）；**hmon 的代码/数据编入该镜像**，宿主不下发 hmon 段。`Kaiwu-Vast` 为 4 MiB（`0xffff_ffc0_0000`–`0xffff_ffff_ffff`），偏移 0 放 image index table、其后放 ELF 镜像，末 64 KiB（`0xffff_ffff_0000` 起）留给复位/启动代码。复位向量两 profile 均为 `0xffff_ffff_0000`。[DADAO-12 §2.1 核内地址空间]
-- **装载语义 — `Kaiwu-Tiny`**：镜像 = **固定 BootROM 固件 + 应用**两件。固件经 `bootrom-image`（或 legacy `-bios`）原样装入 `0xffff_ffff_0000`，**恰好 64 KiB**；应用（raw 或 ELF）**只装 SRAM**：`.text` 起 `0xffff_ff01_0100`，raw 镜像基址 `0xffff_ff01_0000`（镜像前 `0x100` 字节须全零，保留区），`.bss` 由 picolibc `__start` 在 SRAM 清零。**`crt`（启动代码）与测试程序一起链接成同一个应用 ELF，整体落在 SRAM**（BootROM 内不含 crt）；入口 **raw 与 ELF 统一 `0xffff_ff01_0100`**（即 crt 入口）、`SP = 0xffff_ff7e_ff00`（由 crt 在入口设置）；power stub 在 hmon 移交返回后跳到该固定入口（`§6.2`）。**宿主 loader 不得向 BootROM 或 hmon SRAM 下发 `PT_LOAD`**（前者会覆盖固件、后者会预置 hmon），`e_entry` 不等于固定入口亦属装载错误；两者均须**显式失败**，不得静默忽略。Tiny 无 PTW/页表。
+- **BootROM（按 profile）**：`Kaiwu-Tiny` 为 8 KiB（`0xffff_ffff_0000`–`0xffff_ffff_1fff`），内容是**固定启动固件镜像**——power 启动 stub、hmon 源段、image index table 三段（布局与容量见 `§6.2`）；**hmon 的代码/数据编入该镜像**，宿主不下发 hmon 段。`Kaiwu-Vast` 为 4 MiB（`0xffff_ffc0_0000`–`0xffff_ffff_ffff`），偏移 0 放 image index table、其后放 ELF 镜像，末 64 KiB（`0xffff_ffff_0000` 起）留给复位/启动代码。复位向量两 profile 均为 `0xffff_ffff_0000`；Tiny 的复位点是 ROM 起始（镜像偏移 0）、Vast 在末 64 KiB 起点（镜像内偏移 `0x3f_0000`）。[DADAO-12 §2.1 核内地址空间]
+- **装载语义 — `Kaiwu-Tiny`**：镜像 = **固定 BootROM 固件 + 应用**两件。固件经 `bootrom-image`（或 legacy `-bios`）原样装入 `0xffff_ffff_0000`，**恰好 8 KiB**；应用（raw 或 ELF）**只装 SRAM**：入口与 raw 镜像基址统一为 `0xffff_ff00_2000`（= `MAIN_SRAM_BASE + 0x2000`，`kernel_reserved = 0`，镜像前无保留字节），`.bss` 由 picolibc `__start` 在 SRAM 清零。**`crt`（启动代码）与测试程序一起链接成同一个应用 ELF，整体落在 SRAM**（BootROM 内不含 crt）；入口 **raw 与 ELF 统一 `0xffff_ff00_2000`**（即 crt 入口）、`SP = 0xffff_ff03_f000`（由 crt 在入口设置）；power stub 在 hmon 移交返回后跳到该固定入口（`§6.2`）。**宿主 loader 不得向 BootROM 或 hmon SRAM 下发 `PT_LOAD`**（前者会覆盖固件、后者会预置 hmon），`e_entry` 不等于 `0xffff_ff00_2000` 亦属装载错误；两者均须**显式失败**，不得静默忽略。主 SRAM 的头区 / DUMP / SIGNATURE / 栈 / MemRAS 固定布局见 `§1.1` 与 `§6.2.1`。Tiny 无 PTW/页表。
 - **装载语义 — `Kaiwu-Vast`**：4 MiB BootROM 经 bootrom 镜像装载路径（机器属性 `bootrom-image`）装入；`power` 从 BootROM 把 hmon 装入 hmon SRAM，`power → hmon → smon` 交接后由 smon 建立**首张页表**并开启 PTW（`PTBR` = 页表页 PA、`ptw_enable = 1`）：该表覆盖内核窗口基址起的前 512 MiB（`VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`，`VA = PA + 2 TiB`，含 `§6.3` 所需的前 96 MiB），窗口内其余区间不映射、由内核按需扩展。页表格式与地址转换按 `DADAO-12 §2.2`。本册只规定该首张页表，不规定**测试镜像**的段布局、起始执行位置或 SP；**内核镜像**的装载路径（VA）、内存窗口分区、boot info 与进入时状态见 `§6.3`。
-- **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载；Tiny 下它与 `bootrom-image` 装载的是**同一固定固件镜像**（应用走 `-kernel` 的 SRAM 段），不再携带应用专用 ROM trampoline。
+- **legacy `-bios` 路径**：按各 profile 的 BootROM 大小装载（起点 `0xffff_ffff_0000`；Tiny 8 KiB、Vast 64 KiB 复位窗口）；Tiny 下它与 `bootrom-image` 装载的是**同一固定固件镜像**（应用走 `-kernel` 的 SRAM 段），不再携带应用专用 ROM trampoline。
 - **模式移交**：`Kaiwu-Tiny` 运行模式始终为 `hypv`，但存在 `power → hmon → 测试本体` 的 cfx/启动移交（同 `§2`）；`Kaiwu-Vast` 为 power → hmon → 测试本体（hypv），`power → hmon → smon` 路径保留（同 `§2`）。
 - **并存关系**：`-bios`/`bootrom-image` 固件启动路径与 ELF 单镜像路径**并存、非替代**——两条启动路径各自可自动化（Tiny 的 ELF 路径同样需要固件镜像，见上）。
 
@@ -303,39 +323,68 @@ BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）�
 - **payload 形态与目标地址**：`Kaiwu-Vast` 的表项是 **ELF 镜像**（power 校验 ELF 头并按 `PT_LOAD` 装入、BSS 清零，目标地址由 ELF 给出）；`Kaiwu-Tiny` 的表项是**扁平分段**（无 ELF 头，按 `offset`/`size` 整段复制到固定目标，见 `§6.2`）。
 - **失败语义**：表头/表项校验失败（`magic`/`version`/`count`/`reserved` 不符、`type`/`flags` 非法、`offset`/`size` 越界或未对齐）⇒ power **停在 BootROM 的 park 循环**（不进入 hmon、不静默继续）；构建器对同一条件报错并以**非零**退出。
 
-### 6.2 `Kaiwu-Tiny` 的 hmon 装载契约
+### 6.2 `Kaiwu-Tiny` 的 BootROM 布局与 hmon 装载契约
 
-**镜像布局（64 KiB，偏移 0 即复位向量）**
+**镜像布局（8 KiB，偏移 0 即复位向量）**
 
 | 镜像偏移 | 内容 | 规定 |
 |----------|------|------|
-| `0x0000`–`0x1FFF` | power 启动 stub（扁平分段，链接在复位向量 `0xffff_ffff_0000`） | **上限 8 KiB**；偏移 0 即复位指令 |
-| `0x2000`–`0x3FFF` | hmon 运行段（扁平分段，链接在 `0x0fff_0000_0000`） | **上限 8 KiB**；段首即 hmon 入口（= hmon SRAM 起始） |
-| `0x4000`–`0xDFFF` | **保留区** | 必须全零；不装入、不执行 |
-| `0xE000`–`0xFFFF` | image index table（`§6.1` 格式，`count = 1`、`type = 1`） | **8 KiB**；表项指向 hmon 段；未用字节为 0 |
+| `0x0000`–`0x07FF` | power 启动 stub（扁平分段，链接在复位向量 `0xffff_ffff_0000`） | **上限 2 KiB**；偏移 0 即复位指令 |
+| `0x0800`–`0x13FF` | hmon 源段（扁平分段，链接在 `0x0fff_0000_0000`） | **上限 3 KiB**；段首即 hmon 入口（= hmon SRAM 起始） |
+| `0x1400`–`0x1EFF` | **保留区** | 必须全零；不装入、不执行 |
+| `0x1F00`–`0x1F2F` | image index table（`§6.1` 格式，`count = 1`、`type = 1`） | **48 B** = 表头 16 B + 表项 32 B；表项指向 hmon 源段（`offset = 0x800`、`size ≤ 0x0C00`、`flags = 0x3`）；未用字节为 0 |
+| `0x1F30`–`0x1FFF` | **保留区** | 必须全零；不装入、不执行 |
 
 **power 的装载与移交顺序**
 
 1. 校验表头与 hmon 表项（`§6.1` 失败语义），取 `offset`/`size`/`flags`；
-2. **逐 8 字节**把 hmon 段从 BootROM 复制到 hmon SRAM：目标 `0x0fff_0000_0000`，长度 = `size`；`offset`、`size` 均 8 字节对齐（构建器补零），复制使用 8 字节对齐的 `ld`/`st`（不做非对齐访问）；
-3. **写后取指的可见性（实现义务，不新增指令语义）**：power 须保证该批写入在 hmon 首次取指前对同一 hart 可见——Tiny 无 cache 时自然满足；有 I-cache 的实现须在跳转前自行处理（本机约定：这是启动期一次性写入，不属自修改代码路径）；
-4. 写 `cfx_hmon_hypv_excp_vector = 0x0fff_0000_0000`；该寄存器初值已等于 hmon SRAM 起始（`DADAO-12 §3.4`），此步幂等、可省；
-5. 写 `cfx_hmon_hypv_switch_run_mode`（Tiny 下写入被忽略、保存值保持 `3`，见 `§2`）；
-6. `trap cfx_hmon, <boot_magic>`（= 表头 `boot_magic`）按 `DADAO-12 §5.2` 的 `CFXTRAP` 进入 hmon 向量；
-7. hmon 入口校验 `CFXTRAP` 与 magic、按需配置权限，`escape cfx_hmon` 返回 power stub（`§4.2`；返回前把 `cg5 rc10` 写为 `excp_cause_ip + 4`；`escape` 退出后 `inner_cfx_code` 恢复为异常进入前的值，即 `cfx_power`）；
-8. power 跳固定应用入口 `0xffff_ff01_0100`，不返回。
+2. 检查主 SRAM 的放核条件：`VERSION == 1` **且** `MAILBOX == magic`（`§6.2.1`）；未满足则停在检查循环，**不复制、不进入 hmon、不跳应用**；
+3. **逐 8 字节**把 hmon 源段从 BootROM 复制到 hmon SRAM：源 `0xffff_ffff_0800`、目标 `0x0fff_0000_0000`，长度 = `size`；`size` 8 字节对齐（构建器补零），复制使用 8 字节对齐的 `ld`/`st`（不做非对齐访问）；
+4. **写后取指的可见性（实现义务，不新增指令语义）**：power 须保证该批写入在 hmon 首次取指前对同一 hart 可见——Tiny 无 cache 时自然满足；有 I-cache 的实现须在跳转前自行处理（这是启动期一次性写入，不属自修改代码路径）；
+5. 写 `cfx_hmon_hypv_excp_vector = 0x0fff_0000_0000`；该寄存器初值已等于 hmon SRAM 起始（`DADAO-12 §3.4`），此步幂等、可省；
+6. 写 `cfx_hmon_hypv_switch_run_mode`（Tiny 下写入被忽略、保存值保持 `3`，见 `§2`）；
+7. `trap cfx_hmon, <boot_magic>`（= 表头 `boot_magic`）按 `DADAO-12 §5.2` 的 `CFXTRAP` 进入 hmon 向量；
+8. hmon 入口校验 `CFXTRAP` 与 magic、按需配置权限，`escape cfx_hmon` 返回 power stub（`§4.2`；返回前把 `cg5 rc10` 写为 `excp_cause_ip + 4`；`escape` 退出后 `inner_cfx_code` 恢复为异常进入前的值，即 `cfx_power`）；
+9. power 跳固定应用入口 `0xffff_ff00_2000`，不返回。
 
-**复制目标与长度上限**：目标固定为 hmon SRAM 起始 `0x0fff_0000_0000`；单段长度上限 = **8 KiB**（镜像预算；hmon SRAM 本身 64 KiB，故 SRAM 不是约束）。表项须满足 `size ≤ 56 KiB`、`offset + size` 落在 BootROM 内且两值 8 字节对齐，否则**构建期失败**、power 运行时按 `§6.1` 失败语义 park（不截断、不静默继续）。hmon SRAM 未被表项覆盖的字节为 0（宿主不预置）。
+**hmon SRAM 内部分区（8 KiB，`0x0fff_0000_0000`–`0x0fff_0000_1FFF`）**：代码 `0x0000`–`0x0BFF`（≤3 KiB，由 power 复制的源段占用，段首即入口）、数据 `0x0C00`–`0x0CFF`（256 B，初值 0，宿主与 power 都不装入）、栈 `0x0D00`–`0x1FFF`（`SP = 0x0fff_0000_2000`，向下增长；硬件进入异常不改通用寄存器，hmon 入口须在首次用栈前自行设置 `SP`）。数据区与栈不得被复制的源段覆盖（`size ≤ 0x0C00`）。
 
-**容量结论（64 KiB 是否够用）**：够用——预算为 power ≤ 8 KiB + hmon ≤ 8 KiB + 保留区 40 KiB + 表 8 KiB = 64 KiB；**hmon 上限 8 KiB 是校验阈值（超限即构建失败），不是目标尺寸**——最小 handler 预计 1–3 KiB。超限的处置顺序：① 把 hmon 拆成多个表项（逐段复制，消除段间空洞）；② 仍不足则增大 BootROM 尺寸——这会改动 profile 几何、`cg7` BootROM 块与 64 KiB `-bios` 复位窗口惯例，属**平台决策**，本册不单方面改。构建器须以链接断言/构建期检查强制上述上限，超限即构建失败。
+**复制目标与长度上限**：目标固定为 hmon SRAM 起始 `0x0fff_0000_0000`；单段长度上限 = **3 KiB**（`0x0C00`，即源段区容量；也是 hmon SRAM 的代码区容量）。表项须满足 `size ≤ 0x0C00`、`offset = 0x800`、`offset + size ≤ 0x1400` 且 `size` 8 字节对齐，否则**构建期失败**、power 运行时按 `§6.1` 失败语义 park（不截断、不静默继续）。hmon SRAM 未被复制覆盖的字节（数据区、栈）为 0（宿主不预置）。
+
+**容量结论（8 KiB 是否够用）**：够用——预算为 power ≤ 2 KiB（`0x0000`–`0x07FF`）+ hmon 源 ≤ 3 KiB（`0x0800`–`0x13FF`）+ 保留区 2.75 KiB（`0x1400`–`0x1EFF`）+ 表 48 B（`0x1F00`–`0x1F2F`）+ 保留尾 208 B（`0x1F30`–`0x1FFF`）= 8 KiB。**两段上限都是校验阈值（超限即构建失败），不是目标尺寸**。超限的处置属**平台决策**（改 BootROM 尺寸或装载契约），本册不单方面改；构建器须以链接断言/构建期检查强制 power ≤2 KiB、hmon 源 ≤3 KiB 与表固定落在 `0x1F00`。
 
 **QEMU 先行验证接口（实现顺序约定）**：先在 QEMU 落地并用同一镜像跑通 `power → hmon → 应用`，gem5 / chipyard 复用**同一 BootROM 镜像与同一张表**（不各写一套）。QEMU 侧需要先具备的行为与字段：
 
-1. `bootrom-image` 机器属性对 **Tiny 也生效**：镜像恰好 64 KiB、原样装入 `0xffff_ffff_0000`，复位 `IP` 保持 `0xffff_ffff_0000`（不按应用 `e_entry` 改写）；
-2. `-kernel`（raw 或 ELF）只接受 SRAM 段：`PT_LOAD` 落在 BootROM 或 hmon SRAM ⇒ 报错退出；raw 基址 `0xffff_ff01_0000`、前 `0x100` 字节保留；
-3. `e_entry` 必须等于 `0xffff_ff01_0100`，否则报错退出；
+1. `bootrom-image` 机器属性对 **Tiny 也生效**：镜像恰好 8 KiB、原样装入 `0xffff_ffff_0000`，复位 `IP` 保持 `0xffff_ffff_0000`（不按应用 `e_entry` 改写）；
+2. `-kernel`（raw 或 ELF）只接受 SRAM 段：`PT_LOAD` 落在 BootROM 或 hmon SRAM ⇒ 报错退出；raw 基址 `0xffff_ff00_2000`、无前置保留字节；
+3. `e_entry` 必须等于 `0xffff_ff00_2000`，否则报错退出；
 4. hmon SRAM 复位为 0 且**对 CPU 可写**（power 复制路径可用），宿主不向该段装任何内容；
 5. **不需要**解析段表——表由 BootROM 内的 power 固件解析；QEMU 只负责原样装入固件与上述装载检查。
+
+#### 6.2.1 `Kaiwu-Tiny` 的主 SRAM 布局与放核握手
+
+各区的固定偏移以 `§1.1` 的表为准；本节规定各区角色与启动握手（**测试机约定**）。所有多字节字段按机器端序（大端）、自然对齐；`MAIN_SRAM_BASE = 0xffff_ff00_0000`。
+
+- **`VERSION`（`MAIN_SRAM_BASE + 0x0000`，8 B）**：loader 在镜像与头区写完后写 `1`；power 仅在读回 `1` 时继续，其它值（含复位全零）一律视为「未就绪」。字段宽度按 8 字节字推定（与 `MAILBOX`/`EXIT_BLOCK` 的 8 字节对齐一致），确认后冻结。
+- **`MAILBOX`（`+0x0020`，8 B）**：宿主 → power 的握手字；loader 写入 magic，power 校验通过才放核（与 `VERSION` 同时满足）。**magic 取值与写入顺序仍属未决协议**（`[OPEN]`），未定前实现不得以其它约定替代；本册只固定地址、宽度与「必须同时检查 `VERSION` 与 magic」这一判据。
+- **`EXIT_BLOCK`（`+0x0030`，16 B）**：semihosting `SYS_EXIT`/`SYS_EXIT_EXTENDED` 的参数块——`+0x30` = 原因码（常规退出 `0x20026` = `ADP_Stopped_ApplicationExit`）、`+0x38` = 退出码；由应用 `crt` 在 `trap` 前写入，宿主在停机后读回。块末 `+0x40`，其后至 `DUMP_BASE` 为保留区。
+- **`DUMP_BASE`（`+0x0800`，`DUMP_SIZE = 0x800`）**：寄存器现场转储区，按 `pt_regs` 的四组顺序与组内编号存放，每项 8 B：
+
+| 区段 | 区内偏移 | 内容 |
+|------|----------|------|
+| `rd` | `+0x000`（绝对 `+0x0800`） | `rd[0]`–`rd[63]`，`rd0` = status |
+| `rb` | `+0x200`（绝对 `+0x0A00`） | `rb[0]`–`rb[63]`，`rb0` = ip |
+| `ra` | `+0x400`（绝对 `+0x0C00`） | `ra[0]`–`ra[63]` |
+| `rf` | `+0x600`（绝对 `+0x0E00`） | `rf[0]`–`rf[63]` |
+
+  四段合计 `4 × 64 × 8 = 0x800`，故 `DUMP_BASE + 0x800 = +0x1000` = `SIGNATURE` 起始。写入方与写入时机属实现/测试框架，本册只固定区域、大小与组序。
+
+- **`SIGNATURE`（`+0x1000`，0x800）**：测试签名区——测试程序按固定格式写入签名记录，宿主读回用于跨平台逐字节比对；记录格式属测试资产，本册只固定地址与容量。`SIGNATURE + 0x800 = +0x1800`，其后至 `ENTRY` 为保留区。
+- **`guard_lo`（`+0x38000`，4 KiB）**：SRAM 内**不映射**的 4 KiB 子区间，访问/取指 ⇒ `CFXMEM`；只挡栈向下溢出。栈区与 `MemRAS` 之间**不设 `guard_hi`**。
+- **`STACK`（`+0x39000`，24 KiB）**：应用栈，向下增长；`SP = MAIN_SRAM_BASE + 0x3F000`（栈区上界，由 `crt` 在入口设置）。栈区下界 `+0x39000` 紧邻 `guard_lo`。
+- **`MemRAS`（`+0x3F000`，4 KiB）**：返回地址栈的存储溢出区（`SimRISC-00 §2.4`），4 KiB = 512 个 8 B 条目；`ra0` 的 `MRPTR` = `MAIN_SRAM_BASE + 0x40000`（区上界，条目向下占用，首个溢出条目落在 `+0x3FFF8`）。`MRPTR` 初值为 0 表示未启用 MemRAS，由 `crt`/测试框架按需置位。
+- **`ENTRY` / raw 基址 / image window（`+0x2000`，`0x2_0000`）**：应用入口与镜像窗口——`kernel_base = MAIN_SRAM_BASE + 0x2000`、`kernel_reserved = 0`、`image_window = 0x2_0000`（128 KiB），窗口覆盖 `+0x2000`–`+0x21FFF`；raw 与 ELF 入口统一为 `+0x2000`。窗口之外的 SRAM（`+0x22000`–`+0x37FFF`）本册不定义，不属固定布局。
+- **放核握手（`VERSION` + `MAILBOX`）**：宿主 loader 先写应用镜像与头区，再写 `VERSION = 1` 与 `MAILBOX = magic`；power 在复制 hmon 与跳转应用前必须同时读到 `VERSION == 1` 与 `MAILBOX == magic`，否则停在检查循环（不放核、不进入 hmon/应用、不静默继续）。Tiny 无异步中断，等待只能是轮询。[spec-decision]
 
 ### 6.3 `Kaiwu-Vast` 内核装载与启动 ABI
 
@@ -349,7 +398,7 @@ BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）�
 
 **硬约束（为何必须 PTW 已开）**：DADAO 在 `ptw_enable = 0` 时对内存窗口（`addr[47:42] = 0`）的取指/访存**直接报 `CFXMEM`**（`§1.2`）——内核不可能在 MMU 关的状态下从 RAM 取指或访存。因此进入内核时 `ptw_enable` 必须为 `1`。[spec-decision]
 
-`Kaiwu-Tiny` 不适用本节（其装载规则见 `§6.2`）。本节与 `§1.1`/`§2`/`§6` 的既有 profile 几何与启动链条款**并存**（`§6` 的 Vast 首张页表按本节的 `+2 TiB` 偏置同步，不改变「`smon` 建表、`PTBR = 0`」归属），其它语义不变。
+`Kaiwu-Tiny` 不适用本节（其装载规则与主 SRAM 布局见 `§6.2`/`§6.2.1`）。本节与 `§1.1`/`§2`/`§6` 的既有 profile 几何与启动链条款**并存**（`§6` 的 Vast 首张页表按本节的 `+2 TiB` 偏置同步，不改变「`smon` 建表、`PTBR = 0`」归属），其它语义不变。
 
 #### 6.3.1 内存窗口分区
 
@@ -505,6 +554,8 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
 
 ### 0.4.7-rc（未发布）
+
+- **`Kaiwu-Tiny` 硬件几何与启动 ABI 重定**（内容改，版本仍 0.4.7-rc）：BootROM **8 KiB**（`0xffff_ffff_0000`–`0xffff_ffff_1fff`；power ≤2 KiB@`0x0000`、hmon 源 ≤3 KiB@`0x0800`、保留区 `0x1400`–`0x1EFF`、表 48 B@`0x1F00`、保留尾 `0x1F30`–`0x1FFF`），hmon SRAM **8 KiB**（code ≤3 KiB@`0x0000`、data 256 B@`0x0C00`、stack@`0x0D00`–`0x1FFF`、`SP = 0x0fff_0000_2000`），主 SRAM **256 KiB**（`VERSION`@`0x0000`、`MAILBOX`@`0x0020`、`EXIT_BLOCK`@`0x0030`（退出码 `+0x38`）、`DUMP`@`0x0800`（`0x800`，四组 `rd/rb/ra/rf`，`rd0` = status、`rb0` = ip）、`SIGNATURE`@`0x1000`（`0x800`）、`ENTRY`/raw@`0x2000`、`guard_lo`@`0x38000`、`STACK`@`0x39000`（24 KiB，`SP = 0x3F000`）、`MemRAS`@`0x3F000`（4 KiB，`MRPTR = 0x40000`））。应用入口与 raw 基址由 `0xffff_ff01_0100`/`0xffff_ff01_0000` 改为 `0xffff_ff00_2000`（`kernel_reserved = 0`），`SP` 由 `0xffff_ff7e_ff00` 改为 `0xffff_ff03_f000`，`image_window = 0x2_0000`；power 放核前须同时检查 `VERSION == 1` 与 `MAILBOX` magic。`§1.1`/`§2`/`§3` 的 `cg7` BootROM 块/`§6`/`§6.2` 同步；Tiny 的 8 KiB ROM 与「复位点在 ROM 起始」偏离上游 `DADAO-12 §2.1` 的 ≥64 KiB 下限与末 64 KiB 复位点，属平台约定，偏离处置不在本册。
 
 - **页表权限/缺失故障改为扁平位图**（内容改，版本仍 0.4.7-rc）：按 `DADAO-12 §3.6`，PTW 权限拒绝只置 `[32]`–`[38]` 之一、PTW 缺失只置 `[48]`–`[55]` 之一、A/D 回写失败只置 `[56]`，低位 cause = 0、`CFXPERM`/`CFXMEM` 均为 0；`cfx` 来源掩码拒绝仍只置 `CFXPERM`。`§1.2`/`§3`/`§3.1` 同步；`§7.1` 增「适用范围（PTW 故障）」——monitor 退出码按低位 cause 索引编码，不承载 PTW 故障，`Kaiwu-Vast` 直接读 `excp_cause_id` 判因，`Kaiwu-Tiny` 无 PTW 不受影响。
 

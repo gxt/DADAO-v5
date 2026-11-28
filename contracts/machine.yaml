@@ -9,11 +9,11 @@ profiles:
     name: kaiwu-tiny
     bootrom:
       base: 0xFFFF_FFFF_0000
-      size: 0x1_0000
+      size: 0x2000
       reset_pc: 0xFFFF_FFFF_0000
     ram:
       base: 0xFFFF_FF00_0000
-      size: 0x80_0000
+      size: 0x4_0000
     capabilities:
       ptw: false
       hmon: true
