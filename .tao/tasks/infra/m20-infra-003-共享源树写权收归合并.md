@@ -94,3 +94,12 @@
 
 1. 是否新立任务把 `DADAO_SOURCE_ROOT`/`--source` 覆盖补到 `tools/infra/build_musl.py`、`build_picolibc.py`、`tools/linux/build_busybox.py`、chipyard harness（`tools/testcases/lib/chipyard_engine.py`、`tests/ee-tiny/run_inst_tiny.py`）？本任务书允许改动的文件不含它们，故只做了 `$(error)` 显式失败。
 2. （已按用户 2026-11-28 指示落地）`tools/infra/bootstrap_node.sh` step 5 已自动 `DADAO_SHARED_SOURCE_OWNER=node-single-writer`，无需操作者手工 export；token 语义 = 单写者自证。
+
+## 合并后修补（2026-11-28，主会话）
+
+1. **`replay_source.sh` 子模块判定**：`[ -d .../.git ]` 对子模块恒假（子模块 `.git` 是**文件**）⇒ 误报 not checked out；改 `-e`（提交见 `git log -- tools/infra/replay_source.sh`）。
+2. **禁止无差别 `clean`**：初版在 replay 里用 `git clean -fd -e .conda-env`，**实测仍删除了 chipyard 的 3.5 G `.conda-env`**；已从 `server207` rsync 回并 `conda-unpack`（verilator 5.022 / riscv-gcc 13.2 验证）。
+3. **改为定向清理**：`apply_series.py` 从补丁集提取「新增文件」路径（`--- /dev/null` + `+++ b/`），仅删除其中**未跟踪**的残留学；`replay_source.sh` 移除无差别 clean。
+   - 验证：构造未跟踪残留 ⇒ `removing stale untracked …` ⇒ 31 补丁 rc=0、tree clean、`.conda-env` 仍在。
+4. **合并后对真共享树执行重放**：linux / musl / picolibc / chipyard（qemu、gem5 已由其它会话对齐）⇒ `check-patch-tree` 由 63 条断言降为 **0（12 集 464 补丁 OK）**。
+5. 教训入 `.tao/knowledge/lessons.md`：组件源树禁止无差别 `git clean -fd`。

@@ -104,7 +104,7 @@
   status: closed
   closed_in: M20
   resolved_by: m20-llvm-002（2026-11-25：AsmParser 按组文本 bank + 组内编码判 count；跨 bank 5/5 rc≠0、合法组零 diff、check-lit 184/184、encoding oracle 124/124）
-  title: '【P2】LLVM 汇编器仍接受跨 bank 的文本寄存器组：`ra2rd {rd63:rf61}, {ra63:rb61}` 被接受并编码为 `0x40BBFFFF`（immu6=63，起始 63+63>64 应 ILLI），AsmParser 的 count 推导按寄存器枚举 id 差值跨了 bank，`mreg_range_overflow` 未拦住；`m20-llvm-001` 已在 MC 反汇编层拒绝该字（`<unknown>`），但汇编期仍可生成非法编码。证据：`m20-llvm-001` 复核，`llvm-mc` rc=0、`llvm-objdump` 显示 `<unknown>`。处置：AsmParser 按组文本的 bank 与起始/个数判 `mreg_zero`/`mreg_range_overflow`（不得用跨 bank 的枚举差值），补 lit 负例。'
+  title: 【P2】LLVM 汇编器仍接受跨 bank 的文本寄存器组：`ra2rd {rd63:rf61}, {ra63:rb61}` 被接受并编码为 `0x40BBFFFF`（immu6=63，起始 63+63>64 应 ILLI），AsmParser 的 count 推导按寄存器枚举 id 差值跨了 bank，`mreg_range_overflow` 未拦住；`m20-llvm-001` 已在 MC 反汇编层拒绝该字（`<unknown>`），但汇编期仍可生成非法编码。证据：`m20-llvm-001` 复核，`llvm-mc` rc=0、`llvm-objdump` 显示 `<unknown>`。处置：AsmParser 按组文本的 bank 与起始/个数判 `mreg_zero`/`mreg_range_overflow`（不得用跨 bank 的枚举差值），补 lit 负例。
 - id: ISS-m20-002
   scope:
   - testcases
@@ -112,7 +112,7 @@
   status: closed
   closed_in: M20
   resolved_by: m20-testcases-003（2026-11-25：stm.t rd/rf 与 stm.w rd 各补 63 例，rf0 源注释明确完整 64 位；check-inst-asm 274/274、check-idl 274/274、check-case-ledger rc=0）
-  title: '【P3】`stm.t`/`stm.w` 缺 `immu6=63` 边界用例：`stm.b_rrri_rd` 与 `stm.o_rrri_{rd,rf,ra,rb}` 已由 `m17-testcases-006` 补齐 63 例，但 `stm.t_rrri_rd`/`stm.t_rrri_rf`/`stm.w_rrri_rd` 仍无 `immu6=63`；同时 `stm.t_rrri_rf` 的 rf0 源注释只说 FCSR 字段、未明确“读出完整 64 位（本指令只存低 32 位）”。现场 `git blame` 显示相关行由 `b69347fc` 更新，RD 注释已为“读出 0”，不再有“0/当前指令地址”。处置：三个文件各补 1 个 63 链例（首/中/尾 + 下一单元未写），并明确 rf0 源读出宽度；同步 case-ledger/signature 生成物。'
+  title: 【P3】`stm.t`/`stm.w` 缺 `immu6=63` 边界用例：`stm.b_rrri_rd` 与 `stm.o_rrri_{rd,rf,ra,rb}` 已由 `m17-testcases-006` 补齐 63 例，但 `stm.t_rrri_rd`/`stm.t_rrri_rf`/`stm.w_rrri_rd` 仍无 `immu6=63`；同时 `stm.t_rrri_rf` 的 rf0 源注释只说 FCSR 字段、未明确“读出完整 64 位（本指令只存低 32 位）”。现场 `git blame` 显示相关行由 `b69347fc` 更新，RD 注释已为“读出 0”，不再有“0/当前指令地址”。处置：三个文件各补 1 个 63 链例（首/中/尾 + 下一单元未写），并明确 rf0 源读出宽度；同步 case-ledger/signature 生成物。
 - id: ISS-430
   scope:
   - llvm
@@ -120,7 +120,7 @@
   status: closed
   closed_in: M20
   resolved_by: m20-llvm-003（2026-11-26：ABS48 症状已由 m14-llvm-006 修；本任务修 PC 相对操作数：`.set` equate 折成绝对常量后放行，写出的 A-B/未定义/跨段仍拒；check-lit 186/186）
-  title: '【P2】`m14-llvm-005` 后 `.set VD, L1-L0` 再 `set.zw rbX, wpN, VD` 由「静默 0」变为**报错**（`VD` 是 Absolute 符号、本可编码 4）。禁静默是对的，但把「已由 `.set` 固化为绝对符号」的操作数也一并拒了，属表达能力回退；诊断文案还把它称作 symbol difference（其实是单符号操作数）。建议：对 `.set` 定义的 Absolute 符号放行，或至少改文案 + lit 固化。'
+  title: 【P2】`m14-llvm-005` 后 `.set VD, L1-L0` 再 `set.zw rbX, wpN, VD` 由「静默 0」变为**报错**（`VD` 是 Absolute 符号、本可编码 4）。禁静默是对的，但把「已由 `.set` 固化为绝对符号」的操作数也一并拒了，属表达能力回退；诊断文案还把它称作 symbol difference（其实是单符号操作数）。建议：对 `.set` 定义的 Absolute 符号放行，或至少改文案 + lit 固化。
 - id: ISS-504
   scope:
   - testcases
@@ -129,7 +129,7 @@
   status: closed
   closed_in: M20
   resolved_by: m20-testcases-005（2026-11-25：`.done` 键改为输入指纹；旧 .done 失效、同输入复用、异输入/--force 重跑；runner 独立验证 3 轮 ALL PASS/FAIL/回绿）
-  title: '【P2】picolibc 自测 harness `run_picolibc_tests_tiny.py` 的 `.done` 复用键在 qemu 引擎下 `sim_md5` 恒为 `None`（`obs` 只在 chipyard 分支产生），`info.get("sim_md5") == sim_md5` 退化为 `None == None` ⇒ **换库/换 lds 后仍复用旧判决**（`m15-infra-009` 报 `pass=6` 即此因）。处置：把被测输入指纹（`libc.a` + 安装版 lds + 工具链）纳入 key，或给 harness 加 `--force`/`--no-reuse`；在此之前证据脚本须先删运行期 `run/` 目录。'
+  title: 【P2】picolibc 自测 harness `run_picolibc_tests_tiny.py` 的 `.done` 复用键在 qemu 引擎下 `sim_md5` 恒为 `None`（`obs` 只在 chipyard 分支产生），`info.get("sim_md5") == sim_md5` 退化为 `None == None` ⇒ **换库/换 lds 后仍复用旧判决**（`m15-infra-009` 报 `pass=6` 即此因）。处置：把被测输入指纹（`libc.a` + 安装版 lds + 工具链）纳入 key，或给 harness 加 `--force`/`--no-reuse`；在此之前证据脚本须先删运行期 `run/` 目录。
 - id: ISS-510
   scope:
   - infra
@@ -137,7 +137,7 @@
   status: closed
   closed_in: M20
   resolved_by: N/A（2026-11-25 主会话：主仓 `.git/hooks/pre-commit` 是 prek 生成的 stray hook，指向 `.cache/refs/riscv-unified-db` 且 DADAO 仓无配置；已删除（备份仅运行期保留），`git hook run pre-commit` 不再存在，worktree 提交不再被该钩子拦截）
-  title: '【P3】主仓 `.git/hooks/pre-commit`（prek 生成）把 `--cd=".cache/refs/riscv-unified-db"` 写成**相对路径**，而该缓存只存在于主工作树、fresh worktree 没有 ⇒ 在独立 worktree 里任何 commit 都被钩子以 `No such file or directory` 拒绝（`m18-linux-013` 的 ADR 提交实测）。处置：改为绝对路径、去掉 `--cd`（该 hook 本应在 DADAO 仓内跑）、或在工作树创建时提供 `.cache/refs` 符号链接；临时绕行 = `git commit --no-verify` 并在审阅记录披露（ADR 为 markdown 规划件，真门控在 `make check`/`check-knowledge-refs`）。'
+  title: 【P3】主仓 `.git/hooks/pre-commit`（prek 生成）把 `--cd=".cache/refs/riscv-unified-db"` 写成**相对路径**，而该缓存只存在于主工作树、fresh worktree 没有 ⇒ 在独立 worktree 里任何 commit 都被钩子以 `No such file or directory` 拒绝（`m18-linux-013` 的 ADR 提交实测）。处置：改为绝对路径、去掉 `--cd`（该 hook 本应在 DADAO 仓内跑）、或在工作树创建时提供 `.cache/refs` 符号链接；临时绕行 = `git commit --no-verify` 并在审阅记录披露（ADR 为 markdown 规划件，真门控在 `make check`/`check-knowledge-refs`）。
 - id: ISS-m20-003
   scope:
   - gem5
@@ -146,7 +146,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: '【P1】gem5 SE 72/72 全量长尾仍未全绿（m20-gem5-003 重分诊后剩余项）：原 ISS-361 的「挂死」前提不成立——`clocale_mbfuncs` 单核 2,992,041,018 inst / 2514 s 正常退出，修复后 1933 s pass；3 个抽样（ffbench 1667 s、backprop 2174 s、sieve 3363 s）pass。剩余：72/72 全量未重跑；最大 `JM/lencod` 历史 18132 s@32 并发仍可能超 3600 s；`regression/raise-race`（fork/信号，48 h）未验证；M13 预算/并发口径（archive 写 `--jobs 48 --gem5-timeout 3600`，任务书曾写 32+120 s）需重新裁定。处置：先定「夜跑/长尾预算与并发」口径，再按该口径跑 72/72；最大例与 raise-race 单列诊断。'
+  title: 【P1】gem5 SE 72/72 全量长尾仍未全绿（m20-gem5-003 重分诊后剩余项）：原 ISS-361 的「挂死」前提不成立——`clocale_mbfuncs` 单核 2,992,041,018 inst / 2514 s 正常退出，修复后 1933 s pass；3 个抽样（ffbench 1667 s、backprop 2174 s、sieve 3363 s）pass。剩余：72/72 全量未重跑；最大 `JM/lencod` 历史 18132 s@32 并发仍可能超 3600 s；`regression/raise-race`（fork/信号，48 h）未验证；M13 预算/并发口径（archive 写 `--jobs 48 --gem5-timeout 3600`，任务书曾写 32+120 s）需重新裁定。处置：先定「夜跑/长尾预算与并发」口径，再按该口径跑 72/72；最大例与 raise-race 单列诊断。
 - id: ISS-m20-004
   scope:
   - gem5
@@ -155,7 +155,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: '【P3】gem5 SE futex 剩余项（m20-gem5-002 复核）：① `FUTEX_WAKE`/`FUTEX_REQUEUE` 对未映射 `uaddr`/`uaddr2` 不返回 `EFAULT`（Linux `get_futex_key` 会）；② 跨引擎探针 `requeue.neg-wake-woken` 依赖 100 ms 停靠窗，高负载下偶发 `want=2 got=1`（空载 5/5 全绿，只假红不假绿）。处置：补 futex key 地址校验；探针改用确定性的唤醒/停靠同步，不复用时间窗。'
+  title: 【P3】gem5 SE futex 剩余项（m20-gem5-002 复核）：① `FUTEX_WAKE`/`FUTEX_REQUEUE` 对未映射 `uaddr`/`uaddr2` 不返回 `EFAULT`（Linux `get_futex_key` 会）；② 跨引擎探针 `requeue.neg-wake-woken` 依赖 100 ms 停靠窗，高负载下偶发 `want=2 got=1`（空载 5/5 全绿，只假红不假绿）。处置：补 futex key 地址校验；探针改用确定性的唤醒/停靠同步，不复用时间窗。
 - id: ISS-m20-005
   scope:
   - chipyard
@@ -164,7 +164,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: '【P2】chipyard 腿在 62 并发全量 `check-idl-full` 下偶发对单个镜像输出 **0 字节签名流**且进程 rc=0（`m20-testcases-009`：首次 273/274，失败项 `ftadd_orrr_rf`；原样重试 1 次 274/274 四方一致，槽值无差异）。影响：并发下会产生假红，且 0 字节签名不会触发位移/槽数校验，可能反向掩盖真红（若 runner 只看 rc）。处置：runner/驱动对 <预期槽数或空签名做显式报错（非 rc=0 静默跳过），并查 RTL 侧签名 dump 的 flush/竞争窗口；定位前 `check-idl-full` 结论一律按「失败即重试 1 次 + 保留两次日志」记录。'
+  title: 【P2】chipyard 腿在 62 并发全量 `check-idl-full` 下偶发对单个镜像输出 **0 字节签名流**且进程 rc=0（`m20-testcases-009`：首次 273/274，失败项 `ftadd_orrr_rf`；原样重试 1 次 274/274 四方一致，槽值无差异）。影响：并发下会产生假红，且 0 字节签名不会触发位移/槽数校验，可能反向掩盖真红（若 runner 只看 rc）。处置：runner/驱动对 <预期槽数或空签名做显式报错（非 rc=0 静默跳过），并查 RTL 侧签名 dump 的 flush/竞争窗口；定位前 `check-idl-full` 结论一律按「失败即重试 1 次 + 保留两次日志」记录。
 - id: ISS-m20-006
   scope:
   - testcases
@@ -173,7 +173,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: '【P2】`run_inst_tiny.scan_source` 的 `faults` 正则不识别自定义副作用故障宏（`TEST_FAULT_*_MALIGN_KEEP*` 等 `TEST_FAULT_{LD,ST}_*` 变体）⇒ 这类故障例不进 `case-ledger` 身份清单、不进 `check-inst-asm` 的「635 例」计数，删除整例时 `inst-signature-data --write` + `check_case_ledger.py --write` 后 `case-ledger.tsv`/`expected.tsv` 逐字节不变、全部门控仍绿（`m20-testcases-011` 实测）。影响：故障例可被静默删除；执行期本身仍可达 FAIL（改错对齐地址 ⇒ `__EXIT 点号` 判红，已实测），故不是假绿而是哨兵盲区。处置：`scan_source` 增加 `TEST_FAULT_(LD|ST)_[A-Z0-9_]+` 族识别并纳入 faults/ledger；在此之前新增此类宏须在任务书登记并人工核对点号。'
+  title: 【P2】`run_inst_tiny.scan_source` 的 `faults` 正则不识别自定义副作用故障宏（`TEST_FAULT_*_MALIGN_KEEP*` 等 `TEST_FAULT_{LD,ST}_*` 变体）⇒ 这类故障例不进 `case-ledger` 身份清单、不进 `check-inst-asm` 的「635 例」计数，删除整例时 `inst-signature-data --write` + `check_case_ledger.py --write` 后 `case-ledger.tsv`/`expected.tsv` 逐字节不变、全部门控仍绿（`m20-testcases-011` 实测）。影响：故障例可被静默删除；执行期本身仍可达 FAIL（改错对齐地址 ⇒ `__EXIT 点号` 判红，已实测），故不是假绿而是哨兵盲区。处置：`scan_source` 增加 `TEST_FAULT_(LD|ST)_[A-Z0-9_]+` 族识别并纳入 faults/ledger；在此之前新增此类宏须在任务书登记并人工核对点号。
 - id: ISS-m20-007
   scope:
   - llvm
@@ -198,7 +198,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: '【P2】`tests/unit/llvm/e2e` 的 4 个 smoke（`DADAO-E2E::smoke_{arith,add,fp,jump}.test`）仍用旧几何（`+0x100` 前缀、旧 `EXIT_BLOCK`），M19 新几何合入后**基线红**：`make check-lit` 183/187、4 例 Exit Code 124；`m20-llvm-005` 复核已用 pre-fix 布局独立复跑，失败块归一化后与本轮 4/4 逐行相同 ⇒ 非 swym 改动引入。处置：把这 4 例迁到新几何（entry/EXIT_BLOCK/前缀按 `tests/ee-*` 真源），迁完 `check-lit` 应 187/187；在此之前 `check-lit` 判据按「与基线逐行相同」。'
+  title: 【P2】`tests/unit/llvm/e2e` 的 4 个 smoke（`DADAO-E2E::smoke_{arith,add,fp,jump}.test`）仍用旧几何（`+0x100` 前缀、旧 `EXIT_BLOCK`），M19 新几何合入后**基线红**：`make check-lit` 183/187、4 例 Exit Code 124；`m20-llvm-005` 复核已用 pre-fix 布局独立复跑，失败块归一化后与本轮 4/4 逐行相同 ⇒ 非 swym 改动引入。处置：把这 4 例迁到新几何（entry/EXIT_BLOCK/前缀按 `tests/ee-*` 真源），迁完 `check-lit` 应 187/187；在此之前 `check-lit` 判据按「与基线逐行相同」。
 - id: ISS-m20-010
   scope:
   - qemu
@@ -207,4 +207,21 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: '【P2】`swym` 的 `immu18[17:12]` SBZ 在 **QEMU 与 IDL 参考模型未落实**（非 0 应 ILLI）：`components/qemu/patches/target/dadao/insn_trans/trans_ctrl.c.inc.patch` 的 `trans_swym_oiii_imm` 是裸 `return true`（纯 NOP），`insn.decode` 的 `swym_oiii_imm` 模式覆盖全部 `immu18`；`idl/tools/idl_exec.py` 的 `_op_swym` 也只做 no-op，无合法性检查。对照：gem5 已在 `decode_assertions.inc` 落实（`m19-gem5-001`，0x47881000 ⇒ ILLI 负例），chipyard 已在 `WumingDecoder.scala` 判 `imm18(17,12) =/= 0`（`m19-chipyard-003`），LLVM 已由 `m20-llvm-005` 补上（汇编拒绝 + 反汇编判非法）。后果：同一 `0x47881000` 字在 LLVM/gem5/chipyard 是非法、在 QEMU/IDL 被当 NOP 静默执行，四方差分在“非法编码”维度上不可信。处置（2026-11-28 更新）：QEMU 侧由 `m19-qemu-002` 负责（进行中）；IDL 侧另立 `m19-idl-001`（`_op_swym` 前加 `immu18[17:12] != 0 ⇒ Illegal`）。两者合入后本 issue 关闭。'
+  title: 【P2】`swym` 的 `immu18[17:12]` SBZ 在 **QEMU 与 IDL 参考模型未落实**（非 0 应 ILLI）：`components/qemu/patches/target/dadao/insn_trans/trans_ctrl.c.inc.patch` 的 `trans_swym_oiii_imm` 是裸 `return true`（纯 NOP），`insn.decode` 的 `swym_oiii_imm` 模式覆盖全部 `immu18`；`idl/tools/idl_exec.py` 的 `_op_swym` 也只做 no-op，无合法性检查。对照：gem5 已在 `decode_assertions.inc` 落实（`m19-gem5-001`，0x47881000 ⇒ ILLI 负例），chipyard 已在 `WumingDecoder.scala` 判 `imm18(17,12) =/= 0`（`m19-chipyard-003`），LLVM 已由 `m20-llvm-005` 补上（汇编拒绝 + 反汇编判非法）。后果：同一 `0x47881000` 字在 LLVM/gem5/chipyard 是非法、在 QEMU/IDL 被当 NOP 静默执行，四方差分在“非法编码”维度上不可信。处置（2026-11-28 更新）：QEMU 侧由 `m19-qemu-002` 负责（进行中）；IDL 侧另立 `m19-idl-001`（`_op_swym` 前加 `immu18[17:12] != 0 ⇒ Illegal`）。两者合入后本 issue 关闭。
+- id: ISS-m20-011
+  scope:
+  - infra
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】共享树写守卫的**归属判定偏窄**（`m20-infra-003` reviewer F-a）：`refuse_shared_write` 只比对「共享根/<本组件>」，故 `--source <共享根>/<另一组件>` 或共享根本身被判为非共享而放行（实测放行）。因 token 本就是「自证非认证」，绕过代价与直接设 token 等价 ⇒ 不阻断；建议改为 `source == shared_root or shared_root in source.resolve().parents`。
+- id: ISS-m20-012
+  scope:
+  - infra
+  - testcases
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`check-tset-*` 已改用 `$(DADAO_SOURCE_ROOT)` 却**未加 `guard_private_source_root`**（`m20-infra-003` reviewer F-c）：私有 root 下报「not found」而不是「not supported」，误导使用者以为是缺产物。建议与 `build-musl/picolibc/busybox` 的 `$(error)` 口径统一。
