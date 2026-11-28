@@ -21,13 +21,14 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m19-gem5-003 | 2–4 h | `check_tiny_hmon` 迁新几何/hmon 数据区 0xC00 |
 | m19-integ-001 | 4–8 h | 新几何下 QEMU/gem5/chipyard 三平台签名/退出一致性 |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m19-gem5-003 | 2026-11-28 08:56 | 2–4 h | `check_tiny_hmon` 迁新几何/hmon 数据区 0xC00 |
+| m19-testcases-006 | 2026-11-28 08:56 | 4–8 h | hmon 数据槽消费者迁移到 0xC00 页 |
 | m19-chipyard-004 | 2026-11-27 22:59 | 4–8 h | chipyard Tiny 配置迁移到新几何与 8K BootROM |
 | m19-chipyard-003 | 2026-11-27 23:02 | 4–8 h | chipyard RTL 实现 `swym N`（12 位、1+N、原子）并补 Verilator 用例 |
 | m19-testcases-005 | 2026-11-28 08:40 | 4–8 h | 启动固件 power/hmon 迁移：8 KiB ROM 可启动、hmon 数据槽定案 |
