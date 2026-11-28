@@ -487,7 +487,8 @@ def legality_cases(entries: list[Entry]) -> list[tuple[str, int, bool, str]]:
     """(id, inst, expect_illegal, reason) cases for the static legality data.
 
     GEM5-005t scope: the 12 ``sc.*`` destination-rd0 rule plus the scaleB
-    exponent operand.  B0 still does not raise ILLI (B1-B6 execute), so these
+    exponent operand; m19-gem5-001 adds ``swym``'s immu18[17:12] SBZ rule.
+    B0 still does not raise ILLI (B1-B6 execute), so these
     cases assert the legality metadata that those batches enforce.  ``rf2rf``
     is not listed here: its five legality expressions are asserted verbatim by
     its row assertion (``kAssertLegality``) and its ILLI behaviour by B5, while
@@ -507,6 +508,13 @@ def legality_cases(entries: list[Entry]) -> list[tuple[str, int, bool, str]]:
                       "scaleB exponent rdHD=rd0 means exponent 0 (legal)"))
         cases.append((entry_id, entry.inst_with({"rfhb": 0}), True,
                       "scaleB dst rfHB=rf0 => ILLI (dst_rf0)"))
+    # m19-gem5-001: swym N = immu18[11:0]; immu18[17:12] is SBZ
+    # (encode_sbz, SimRISC-12 §2).  N at its 12-bit maximum stays legal.
+    swym = by_id["swym_oiii_imm"]
+    cases.append(("swym_oiii_imm", swym.inst_with({"immu18": 0xFFF}), False,
+                  "swym N=4095: immu18[17:12]=0 stays legal"))
+    cases.append(("swym_oiii_imm", swym.inst_with({"immu18": 0x1000}), True,
+                  "swym immu18[17:12] != 0 => ILLI (encode_sbz)"))
     return cases
 
 

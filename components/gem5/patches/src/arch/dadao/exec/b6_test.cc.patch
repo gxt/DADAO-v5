@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b6_test.cc b/src/arch/dadao/exec/b6_test.cc
 new file mode 100644
-index 0000000..3fd07f9
+index 0000000..d3d618c
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6_test.cc
-@@ -0,0 +1,1878 @@
+@@ -0,0 +1,1903 @@
 +/*
 + * DADAO gem5 B6 execution assertions (GEM5-011t).
 + *
@@ -710,13 +710,13 @@ index 0000000..3fd07f9
 +    MockContext ctx;
 +    initContext(ctx);
 +    WordSpec w;
-+    w.immu18 = 0x12345;
++    w.immu18 = 0x645;   // N = 0x645, immu18[17:12] = 0 (legal)
 +    resetCounters(ctx);
 +    const exec::Fault fault = runWord(ctx, o.id, w);
 +    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
 +          faultName(fault));
-+    check(ctx.swymCalls == 1 && ctx.swymValue == 0x12345,
-+          "%s positive: swymHint gets the raw immu18", o.id);
++    check(ctx.swymCalls == 1 && ctx.swymValue == 0x645,
++          "%s positive: swymHint gets N = immu18[11:0]", o.id);
 +    check(ctx.writes.empty() && ctx.badWrites == 0 && ctx.memReads == 0 &&
 +              ctx.memWrites == 0,
 +          "%s positive: no architectural side effect", o.id);
@@ -1040,7 +1040,9 @@ index 0000000..3fd07f9
 +void
 +checkSwym()
 +{
-+    const uint64_t values[] = {0, 1, 0x3FFFF};
++    // N = immu18[11:0] is the whole legal range (0, 1, a mid value and the
++    // 4095 all-ones endpoint).  The hint carries N, not the raw field.
++    const uint64_t values[] = {0, 1, 0x7FF, 4095};
 +    for (uint64_t value : values) {
 +        MockContext ctx;
 +        initContext(ctx);
@@ -1051,13 +1053,36 @@ index 0000000..3fd07f9
 +        const exec::Fault fault = runWord(ctx, "swym_oiii_imm", w);
 +        check(fault == exec::Fault::None,
 +              "swym %" PRIu64 ": fault %s", value, faultName(fault));
-+        check(ctx.swymCalls == 1 && ctx.swymValue == value,
-+              "swym %" PRIu64 ": hint carries the raw immu18", value);
++        check(ctx.swymCalls == 1 && ctx.swymValue == (value & 0xFFF),
++              "swym %" PRIu64 ": hint carries N == immu18[11:0]", value);
 +        check(ctx.writes.empty() && ctx.badWrites == 0 &&
 +                  ctx.memReads == 0 && ctx.memWrites == 0,
 +              "swym %" PRIu64 ": zero register/memory writes", value);
 +        check(ctx.ip == before + 4,
 +              "swym %" PRIu64 ": IP advances by 4 only", value);
++    }
++
++    // immu18[17:12] is SBZ: every non-zero high bit is a static ILLI, before
++    // the hint and before IP advances (encode_sbz, SimRISC-12 §2).
++    const uint64_t bad[] = {0x1000, 0x2000, 0x20000, 0x3F000, 0x3FFFF};
++    for (uint64_t value : bad) {
++        MockContext ctx;
++        initContext(ctx);
++        const uint64_t before = ctx.ip;
++        resetCounters(ctx);
++        WordSpec w;
++        w.immu18 = value;
++        const exec::Fault fault = runWord(ctx, "swym_oiii_imm", w);
++        check(fault == exec::Fault::Illegal,
++              "swym immu18=0x%" PRIx64 " high bits: fault %s, expected "
++              "Illegal", value, faultName(fault));
++        check(ctx.swymCalls == 0 && ctx.swymValue == 0,
++              "swym immu18=0x%" PRIx64 " high bits: no delay hint", value);
++        check(ctx.writes.empty() && ctx.badWrites == 0 &&
++                  ctx.memReads == 0 && ctx.memWrites == 0,
++              "swym immu18=0x%" PRIx64 " high bits: no side effect", value);
++        check(ctx.ip == before,
++              "swym immu18=0x%" PRIx64 " high bits: precise fault (IP)", value);
 +    }
 +}
 +

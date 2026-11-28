@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b6.cc b/src/arch/dadao/exec/b6.cc
 new file mode 100644
-index 0000000..6d8dfce
+index 0000000..6510598
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6.cc
-@@ -0,0 +1,419 @@
+@@ -0,0 +1,424 @@
 +// DADAO gem5 B6 execution core -- implementation.
 +//
 +// The 30 B6 ids are dispatched through the table below, by `entry->id` (never
@@ -352,9 +352,14 @@ index 0000000..6d8dfce
 +
 +    switch (spec->op) {
 +      case B6Op::Swym: {
-+        // No architectural side effect; immu18 is only a delay hint.
++        // No architectural side effect.  N = immu18[11:0] is the delay
++        // parameter (total 1 + N cycles, ISA-timing side); immu18[17:12] is
++        // SBZ and a non-zero value is a static ILLI before any side effect
++        // (encode_sbz, spec/SimRISC-12 §2, m19-spec-001).
 +        const uint64_t immu18 = field(inst, spec->immField);
-+        ctx.swymHint(static_cast<uint32_t>(immu18));
++        if ((immu18 & 0x3F000u) != 0)
++            return Fault::Illegal;
++        ctx.swymHint(static_cast<uint32_t>(immu18 & 0xFFFu));
 +        return Fault::None;
 +      }
 +

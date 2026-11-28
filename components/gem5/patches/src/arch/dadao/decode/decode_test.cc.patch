@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/decode/decode_test.cc b/src/arch/dadao/decode/decode_test.cc
 new file mode 100644
-index 0000000..cb94209
+index 0000000..c57e26f
 --- /dev/null
 +++ b/src/arch/dadao/decode/decode_test.cc
-@@ -0,0 +1,426 @@
+@@ -0,0 +1,467 @@
 +/*
 + * DADAO gem5 decode assertions (B0).
 + *
@@ -18,8 +18,9 @@ index 0000000..cb94209
 + *   * identity regressions (same-encoding-different-meaning, new, deleted,
 + *     mnemonic-only-same) from GEM5-002t §3;
 + *   * static legality cases (GEM5-005t) -- `sc` destination rd0 => ILLI while
-+ *     the rdHC source reading rd0 stays legal, and the scaleB exponent rdHD=0
-+ *     is legal.  B0 only publishes the legality data; B1-B6 raise the fault,
++ *     the rdHC source reading rd0 stays legal, the scaleB exponent rdHD=0
++ *     is legal, and `swym` immu18[17:12] != 0 => ILLI (m19-gem5-001).
++ *     B0 only publishes the legality data; B1-B6 raise the fault,
 + *     so this harness evaluates the published expressions against the decoded
 + *     fields instead of expecting decodeWord() to reject the word;
 + *   * the retired scaleB `rfhd`/`rf` third operand (SPEC-181t F5.2 C1) must
@@ -28,6 +29,7 @@ index 0000000..cb94209
 + */
 +#include <cinttypes>
 +#include <cstdarg>
++#include <cstdint>
 +#include <cstdio>
 +#include <cstring>
 +#include <map>
@@ -244,8 +246,12 @@ index 0000000..cb94209
 +}
 +
 +// Evaluate one published legality expression against the decoded fields.
-+// Only the "<field> != <bank>0" form (e.g. "rdhb != rd0") is defined here;
-+// anything else is reported as Unsupported so a new rule shape cannot pass
++// Two shapes are defined:
++//   * "<field> != <bank>0" (e.g. "rdhb != rd0") -- a register field must not
++//     name the zero register;
++//   * "<field>[hi:lo] == 0" (e.g. "immu18[17:12] == 0") -- an SBZ bit slice
++//     of a field must be zero (encode_sbz; m19-gem5-001 swym).
++// Anything else is reported as Unsupported so a new rule shape cannot pass
 +// silently.  B0 publishes legality as data (B1-B6 raise the fault), so this is
 +// where the data itself is exercised.
 +enum class Verdict { Legal, Illegal, Unsupported };
@@ -254,6 +260,41 @@ index 0000000..cb94209
 +evalLegality(const decode::DecodeEntry &entry,
 +             const decode::DecodedInst &decoded, const char *expr)
 +{
++    const std::string text(expr);
++    static const std::string zero_suffix = " == 0";
++    if (text.size() > zero_suffix.size() &&
++        text.compare(text.size() - zero_suffix.size(), zero_suffix.size(),
++                     zero_suffix) == 0) {
++        // "<field>[hi:lo] == 0": indices are relative to the field value.
++        const std::string lhs = text.substr(0, text.size() - zero_suffix.size());
++        const size_t open = lhs.find('[');
++        const size_t colon = lhs.find(':');
++        const size_t close = lhs.find(']');
++        if (open == std::string::npos || colon == std::string::npos ||
++            close == std::string::npos || open > colon || colon > close ||
++            close != lhs.size() - 1)
++            return Verdict::Unsupported;
++        const std::string name = lhs.substr(0, open);
++        unsigned hi = 0;
++        unsigned lo = 0;
++        if (std::sscanf(lhs.c_str() + open + 1, "%u:%u", &hi, &lo) != 2 ||
++            hi < lo)
++            return Verdict::Unsupported;
++        const unsigned width = hi - lo + 1;
++        const uint64_t mask = width >= 64 ? ~uint64_t(0)
++                                          : ((uint64_t(1) << width) - 1);
++        for (unsigned i = 0; i < entry.numFields; ++i) {
++            const decode::FieldDesc &field = decode::fieldDesc(entry, i);
++            if (name != field.name)
++                continue;
++            if (hi >= field.width())
++                return Verdict::Unsupported;
++            const uint64_t slice = (decoded.fieldValues[i] >> lo) & mask;
++            return slice == 0 ? Verdict::Legal : Verdict::Illegal;
++        }
++        return Verdict::Unsupported;
++    }
++
 +    static const char *const sep = " != ";
 +    const char *at = std::strstr(expr, sep);
 +    if (at == nullptr)

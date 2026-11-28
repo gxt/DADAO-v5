@@ -46,7 +46,8 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   RegRAS/MemRAS 状态机 C1/C2/C3a/C3b 与 D1/D2/D3/D4a/D4b（`RACNT`/
   `MRPTR`、递归折叠、MemRAS 大端换出/读回、RASOF/RASUF 与访存异常精确）。
 - **B6 执行语义**（`exec/b6.{hh,cc}`，30 条系统/原子/屏障）：
-  `swym`（no-op + `swymHint` 时延提示，`immu18` 非功能操作数）；`trap`/
+  `swym`（架构 no-op；`N = immu18[11:0]` 为时延参数，总时延 1 + N 拍、执行期间不取中断，
+  `immu18[17:12]` SBZ 非零 ⇒ ILLI，`swymHint` 只带 N）；`trap`/
   `escape`/`cfx2rd`/`cfx2rc`（cfxha 保留 6–14/16–31/35–61 ⇒ ILLI；`escape`
   合法 `imms18 ∈ {0,1,2}`（bit1 = 帧选择位：0 = `cg5`、1 = `cg9`）、`imms18[17:2]` SBZ、
   `imms18 = 3` ⇒ ILLI；汇编层 `imms20 ∈ {0,4,8}`，`cg5` 偏移 0/4、`cg9` 偏移恒 0；
@@ -102,9 +103,11 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   B5 执行断言 `exec/b5_test.cc`（29/29、non-B5 234/234、块搬移范围/重叠/
   `rf0`/`ra0`、条件边界、64 位地址、RAS C1–C3b/D1–D4b、精确异常）由
   `tools/gem5/check_b5.py`、B6 执行断言 `exec/b6_test.cc`（30/30、non-B6
-  233/233、`rule_refs` 5/14/12、swym/fence 掩码 4096×2/`lr` 窄写高位保持+MALIGN+
+  233/233、`rule_refs` 5/15/12、swym/fence 掩码 4096×2/`lr` 窄写高位保持+MALIGN+
   hb、`sc` 成功失败+宽度截断+精确 fault、CFXREG/CFXESC、保留单槽覆盖与消费）
-  由 `tools/gem5/check_b6.py` 编译运行；B7 执行断言 `exec/b7_test.cc`
+  由 `tools/gem5/check_b6.py` 编译运行；swym 的 `1 + N` 策略由
+  `tools/gem5/check_swym.py`、Vast FS timing 下的周期差与「1+N 期间不取中断」
+  由 `tools/gem5/check_swym_atomic.py` 断言；B7 执行断言 `exec/b7_test.cc`
   （53/53、non-B7 210/210、静态 ILLI 零读写、各族边界/标志/舍入/NaN/Inf/±0/rem/
   sclb/f2i/fma/minmax/compare、FCSR sticky、ft 高 32 位、`rdHD` 字段陷阱）由
   `tools/gem5/check_b7.py` 编译运行，并由 `tools/gem5/b7_ref.py`（独立

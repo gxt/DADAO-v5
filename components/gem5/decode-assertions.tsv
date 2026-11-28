@@ -87,7 +87,7 @@ row	id	batch	scope	mnemonic	format	opc	ha	mask	value	inst	fields	legality	rules	
 86	escape_ciii_cfx	B6	m1	escape	ciii	0x7e	—	0xff000000	0x7e000000	0x7ea80035	cfxha[23:18]cfxcode/imm=0x2a;imms18[17:0]imm/imm/s=0x35	imms18 == 0;cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62	encode_sbz;encode_cfx_reserved	contract-isa §13.6	Decoded
 87	trap_ciii_cfx	B6	m1	trap	ciii	0x7f	—	0xff000000	0x7f000000	0x7fa80035	cfxha[23:18]cfxcode/imm=0x2a;immu18[17:0]imm/imm=0x35	cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62	encode_cfx_reserved	contract-isa §13.6	Decoded
 88	fence_ciii_cfx	B6	m9	fence	ciii	0x79	—	0xff000000	0x79000000	0x79a80035	cfxha[23:18]cfxcode/imm=0x2a;immu18[17:0]imm/imm=0x35	immu18[17:12] == 0;cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62	encode_sbz;encode_cfx_reserved	contract-isa §14.1	Decoded
-89	swym_oiii_imm	B6	m1	swym	oiii	0x47	ha=0x22	0xfffc0000	0x47880000	0x4788002a	immu18[17:0]imm/imm=0x2a			contract-isa §13.1	Decoded
+89	swym_oiii_imm	B6	m1	swym	oiii	0x47	ha=0x22	0xfffc0000	0x47880000	0x4788002a	immu18[17:0]imm/imm=0x2a	immu18[17:12] == 0	encode_sbz	contract-isa §13.1	Decoded
 90	lr.o.nn_orrr_rd	B6	m9	lr.o.nn	orrr	0x47	ha=0x00	0xfffc0000	0x47000000	0x4702ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
 91	lr.t.nn_orrr_rd	B6	m9	lr.t.nn	orrr	0x47	ha=0x01	0xfffc0000	0x47040000	0x4706ad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded
 92	lr.w.nn_orrr_rd	B6	m9	lr.w.nn	orrr	0x47	ha=0x02	0xfffc0000	0x47080000	0x470aad41	rdhb[17:12]dst/rd=0x2a;rdhc[11:6]src/rd=0x35;rbhd[5:0]src/rb=0x1	rdhb == rd0	encode_sbz	contract-isa §14.2	Decoded

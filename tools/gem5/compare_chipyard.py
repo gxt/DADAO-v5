@@ -228,6 +228,10 @@ def model_total_cycles(entry, ctx):
     """
     if is_provisional(entry):
         return 0
+    # m19-gem5-001: swym total = 1 + N, N = immu18[11:0] (12 bits, no cap).
+    # As before m19, a caller that cannot observe the immediate counts N = 0.
+    if entry["mnemonic"] == "swym":
+        return 1 + ((ctx.get("immu18") or 0) & 0xFFF)
     klasses = entry["klass"]
     dyn = entry.get("dynamic")
     if "D" in klasses:
@@ -289,8 +293,6 @@ def model_total_cycles(entry, ctx):
     value = entry.get("value")
     if value is None:
         return None
-    if entry["mnemonic"] == "swym":
-        return value + (ctx.get("immu18") or 0)
     return value
 
 

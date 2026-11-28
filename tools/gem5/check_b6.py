@@ -9,7 +9,7 @@ The B6 id set printed by the harness (an explicit list, one id per line) is
 cross-checked here against the *live* `batch_of()` set derived from
 `contracts/opcodes.yaml` + the GEM5-002t matrix, so a batch boundary change can
 never silently pass.  The per-id rule_refs/legality/format and the contract-wide
-rule counts (encode_cfx_reserved 5, encode_sbz 14, dst_rd0 12) are validated
+rule counts (encode_cfx_reserved 5, encode_sbz 15, dst_rd0 12) are validated
 against the contract.  The 12 `lr.*` rows are additionally cross-checked against
 the semantic matrix (`exceptions` must mention hb + ILLI): SPEC-182t F1 is
 closed in the contract (`rdhb == rd0` + `encode_sbz`), and this script fails on
@@ -34,12 +34,14 @@ MATRIX = ROOT / "tests/data/GEM5-002t-semantic-matrix.tsv"
 # three LR/SC families (width x order) have distinct rows.
 _RULE_CFX = ("encode_cfx_reserved",)
 _RULE_CFX_SBZ = ("encode_sbz", "encode_cfx_reserved")
-_RULE_LR = ("encode_sbz",)
+_RULE_SBZ = ("encode_sbz",)
+_RULE_LR = _RULE_SBZ
 _RULE_SC = ("dst_rd0",)
 
 EXPECTED_RULES = {
     # system / cfx (contract-isa §13.1/§13.6)
-    "swym_oiii_imm": (),
+    # m19-spec-001: swym immu18[17:12] is SBZ => encode_sbz.
+    "swym_oiii_imm": _RULE_SBZ,
     "trap_ciii_cfx": _RULE_CFX,
     "escape_ciii_cfx": _RULE_CFX_SBZ,
     "cfx2rd_crrr_cfx": _RULE_CFX,
@@ -75,17 +77,17 @@ EXPECTED_RULES = {
 }
 
 _CFX = "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"
-_SBZ_FENCE = "immu18[17:12] == 0"
+_SBZ_IMMU18_HIGH = "immu18[17:12] == 0"
 
 EXPECTED_LEGALITY = {
-    "swym_oiii_imm": (),
+    "swym_oiii_imm": (_SBZ_IMMU18_HIGH,),
     "trap_ciii_cfx": (_CFX,),
     # m18-spec-007: `escape cfxHA` has no frame selector any more; imms18 is
     # entirely SBZ (non-zero => ILLI).
     "escape_ciii_cfx": ("imms18 == 0", _CFX),
     "cfx2rd_crrr_cfx": (_CFX,),
     "cfx2rc_crrr_cfx": (_CFX,),
-    "fence_ciii_cfx": (_SBZ_FENCE, _CFX),
+    "fence_ciii_cfx": (_SBZ_IMMU18_HIGH, _CFX),
 }
 for _id in EXPECTED_RULES:
     if _id.startswith("lr."):
@@ -105,10 +107,10 @@ for _id in EXPECTED_RULES:
         EXPECTED_FORMATS[_id] = "ciii"
 
 # Contract-wide rule_refs counts over the 30 B6 rows (SPEC-182t F1: the 12 lr
-# rows added encode_sbz, so the count is 14 and not 2).
+# rows added encode_sbz; m19-spec-001 adds swym, so the count is 15).
 EXPECTED_RULE_COUNTS = {
     "encode_cfx_reserved": 5,
-    "encode_sbz": 14,
+    "encode_sbz": 15,
     "dst_rd0": 12,
 }
 

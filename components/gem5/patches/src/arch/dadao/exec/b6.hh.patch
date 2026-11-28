@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b6.hh b/src/arch/dadao/exec/b6.hh
 new file mode 100644
-index 0000000..da2bb96
+index 0000000..1b47ed9
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6.hh
-@@ -0,0 +1,148 @@
+@@ -0,0 +1,149 @@
 +// DADAO gem5 B6 execution core: system/cfx, fence, LR/SC and swym (30 ids).
 +//
 +// Plain C++ (no gem5 headers), like the B0 decode core, so the *same* code is
@@ -130,11 +130,12 @@ index 0000000..da2bb96
 +        return writeMem(addr, in, bytes);
 +    }
 +
-+    // swym delay hint; architecturally a no-op.
++    // swym delay hint: N = immu18[11:0] (total 1 + N cycles); architecturally
++    // a no-op.  The SBZ high bits were already rejected as ILLI by executeB6.
 +    virtual void
-+    swymHint(uint32_t immu18)
++    swymHint(uint32_t N)
 +    {
-+        (void)immu18;
++        (void)N;
 +    }
 +};
 +

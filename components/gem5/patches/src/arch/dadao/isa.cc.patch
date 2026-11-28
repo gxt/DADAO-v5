@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..541168a
+index 0000000..ece76b2
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,543 @@
+@@ -0,0 +1,547 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -324,6 +324,10 @@ index 0000000..541168a
 +        TimingExprEvalContext context(self, tc, nullptr);
 +        total = static_cast<unsigned>(wumingMulExpr->eval(context));
 +    } else if (mnemonic == "swym") {
++        // swym N: total = 1 + N with N = immu18[11:0] (SimRISC-12 §2).  The
++        // whole figure is charged once, after execute(); timing.cc reschedules
++        // the next fetch by that amount, so no instruction-boundary interrupt
++        // point exists inside the 1 + N window (swym is atomic).
 +        uint64_t immu18 = 0;
 +        if (dadao->fieldValue("immu18", immu18))
 +            total = wuming::swymCycles(*row, immu18);

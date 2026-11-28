@@ -44,9 +44,12 @@ OPCODES = ROOT / "contracts/opcodes.yaml"
 # B7).  b3/b6 were already stale before that change (the baselines were never
 # re-frozen after m13-gem5-012 added B3 assertions and INTEG-053t renumbered
 # B6's cfxha cases); they are re-measured here instead of being left red.
-PASS_BASELINE = {1: 2156, 2: 1160, 3: 4318, 4: 3696, 5: 1292, 6: 1384,
-                 7: 2955}
-DECODE_BASELINE = {"positive": 263, "negative": 391, "legality": 28,
+# m19-gem5-001 (2026-11-27) re-froze all of them against the live harnesses:
+# b1/b5/b7 had drifted again (2196/1316/2960), and the swym cases added B6
+# assertions (1436) plus two B0 legality cases (30).
+PASS_BASELINE = {1: 2196, 2: 1160, 3: 4318, 4: 3696, 5: 1316, 6: 1436,
+                 7: 2960}
+DECODE_BASELINE = {"positive": 263, "negative": 391, "legality": 30,
                    "legacy": 2}
 
 CONVERGE_ID = re.compile(r"^\[PASS\] converge-id (\S+)$", re.MULTILINE)

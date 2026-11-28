@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/wuming_latency.hh b/src/arch/dadao/wuming_latency.hh
 new file mode 100644
-index 0000000..b8e5cb9
+index 0000000..f37dcfc
 --- /dev/null
 +++ b/src/arch/dadao/wuming_latency.hh
-@@ -0,0 +1,307 @@
+@@ -0,0 +1,312 @@
 +// Wuming per-instruction latency policy (M16).
 +//
 +// The table itself (``wuming_cycles.hh``) is generated from
@@ -30,9 +30,12 @@ index 0000000..b8e5cb9
 +//   m16-gem5-018  the D beats are counted from the group's start address
 +//                 (``ceil((addr%8 + N*w)/8)``), so an off-phase `ldm`/`stm`
 +//                 pays the extra bus beat the chipyard core shows
++//   m19-gem5-001  ``swym N`` total = 1 + N with N = immu18[11:0] (12 bits, no
++//                 cap); the figure comes from the ISA contract, not from the
++//                 generated row (see |swymCycles|)
 +//
-+// Every figure used here comes from a field of the generated row; there is no
-+// hand-copied cycle count in this file.
++// Every other figure used here comes from a field of the generated row; there
++// is no hand-copied cycle count in this file.
 +#ifndef __ARCH_DADAO_WUMING_LATENCY_HH__
 +#define __ARCH_DADAO_WUMING_LATENCY_HH__
 +
@@ -270,18 +273,20 @@ index 0000000..b8e5cb9
 +    return 0;
 +}
 +
-+/** ``swym N``: the document's event is one cycle; SimRISC-12 makes N a delay
-+ *  parameter, "about N+1 times swym 0", so the table's one-cycle figure for
-+ *  ``swym`` is scaled by N here.  The table never carries an N-specific
-+ *  number, and 015 is free to cap it once the core measurement exists. */
++/** ``swym N``: total = 1 + N cycles, N = ``immu18[11:0]`` (12 bits, no cap;
++ *  0 <= N <= 4095, longest 4096 cycles).  ``spec/SimRISC-12 §2`` /
++ *  ``.tao/contracts/contract-isa §13.1`` fix the figure (m19-spec-001); the
++ *  high 6 bits are SBZ and B6 already rejected them as ILLI, so the mask here
++ *  only keeps a malformed hint from widening the figure.  The generated row
++ *  still carries the pre-m19 one-cycle event figure; this function is the
++ *  single place where the contract's ``1 + N`` supersedes it (the cycle-model
++ *  doc has not been re-synced yet, so the generated table is left alone). */
 +inline unsigned
 +swymCycles(const CycleRow &row, uint64_t immu18)
 +{
 +    if (provisional(row))
 +        return 0;
-+    if (row.cycles < 1)
-+        return 0;
-+    return static_cast<unsigned>(row.cycles) + static_cast<unsigned>(immu18);
++    return 1u + static_cast<unsigned>(immu18 & 0xFFFu);
 +}
 +
 +/** Extra cycles after the instruction: the document counts EXEC-to-writeback,
