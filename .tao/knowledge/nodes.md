@@ -302,6 +302,9 @@
 - **`generated-src/**/sim_files*.f` 含绝对路径**：直接 rsync 主控机的 gen-collateral 会带上 `/mnt/tao/DADAO-v5/...` ⇒ Verilator 报 `Cannot find file containing module .../TestDriver.v`；须在节点 `sed -i "s|/mnt/tao/DADAO-v5|$HOME/DADAO-v5|g"` 后再构建。
 - **`conda-unpack` 未完成会暴露 conda 构建占位路径**：verilator 报 `Cannot find ... /home/conda/feedstock_root/build_artifacts/verilator-packages_..._h_env_placehold.../share/verilator/include/verilated_std.sv` ⇒ 说明 `conda-unpack` 没跑完（或 env 是半残解包），须整包重解并确认 `UNPACK_OK` 后再构建。
 - **同一节点不要并发起两轮解包**：`rm -rf` 与 `tar` 竞态会留下半残 env（实测缺 `verilator`），只能整包重解。
+- **`conda-unpack` 不修「编译期烧进二进制」的前缀**（2026-11-28 实测，跨机搬环境时最容易踩）：env 搬到新路径、`conda-unpack` rc=0 之后，`bin/verilator_bin` 里仍烧着旧前缀 ⇒ `verilator -V` 打印旧 `VERILATOR_ROOT`，chipyard 构建把 include 拼成 `<gen-dir>//home/ubuntu/.../verilated_std.sv` 并报 `%Error`。
+  - **判据**：搬完必须 `verilator -V | grep VERILATOR_ROOT` 复核（不能只看 `conda-unpack` 的 rc）。
+  - **修法**：① 文本文件批量替换旧前缀（`grep -rlI <旧前缀> <env> | xargs sed -i 's|<旧>|<新>|g'`，本次 1280 个文件）；② 二进制内嵌串用**等长 NUL 填充**替换（`verilator_bin` 70→54 字节 + 16 个 `\0`），改后 `verilator -V` 应显示新根。
 - **六台环境就绪（2026-11-13 实测）**：`gem5`（`.work/source/gem5/build/DADAO/gem5.opt`）、`musl`（`.work/source/musl/lib/libc.a`）、chipyard conda env + `simulator-chipyard.harness-WumingTinyConfig` 六台齐全；`+loadmem` 冒烟六台输出与主控机逐字一致；`server207` 上 `tests/inst/02-reg-copy` 三平台 **58/58** 与主控机相同 ⇒ 节点可承担 chipyard/qemu/gem5 评测。
 
 ### 11.7 Vivado 2025.1（源：`zzx-NF5280`；`server207`/`server208` 已复制安装）
