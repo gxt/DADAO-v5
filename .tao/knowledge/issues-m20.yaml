@@ -174,3 +174,11 @@
   closed_in: null
   resolved_by: null
   title: '【P2】`run_inst_tiny.scan_source` 的 `faults` 正则不识别自定义副作用故障宏（`TEST_FAULT_*_MALIGN_KEEP*` 等 `TEST_FAULT_{LD,ST}_*` 变体）⇒ 这类故障例不进 `case-ledger` 身份清单、不进 `check-inst-asm` 的「635 例」计数，删除整例时 `inst-signature-data --write` + `check_case_ledger.py --write` 后 `case-ledger.tsv`/`expected.tsv` 逐字节不变、全部门控仍绿（`m20-testcases-011` 实测）。影响：故障例可被静默删除；执行期本身仍可达 FAIL（改错对齐地址 ⇒ `__EXIT 点号` 判红，已实测），故不是假绿而是哨兵盲区。处置：`scan_source` 增加 `TEST_FAULT_(LD|ST)_[A-Z0-9_]+` 族识别并纳入 faults/ledger；在此之前新增此类宏须在任务书登记并人工核对点号。'
+- id: ISS-m20-007
+  scope:
+  - llvm
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P3】`fence` 的 `immu18[17:12]` SBZ 只在汇编器有检查（`DADAOAsmParser.cpp` 诊断 `fence: reserved encoding (hb = immu18[17:12] must be zero)`），**反汇编器无对应检查**（`DADAODisassembler.cpp` 全文无 fence/SBZ 分支），而 `contracts/opcodes.yaml` 的 fence 条目同带该合法性 ⇒ 手工构造的 `hb != 0` 字会被反汇编成合法 `fence`，按 spec 应为 ILLI 字。与 `swym` 同类（`m20-llvm-005` 修 swym 时发现；swym 两方向都缺，已在 005 一并修）。处置：给反汇编器加 fence 的 `hb` 非零判非法，补 `0x47Axxxxx` 负例 lit；可与 swym 的实现风格共用判据。'
