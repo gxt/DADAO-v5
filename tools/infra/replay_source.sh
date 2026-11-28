@@ -105,7 +105,8 @@ PY
 while IFS=$'\t' read -r SUB_PATH SUB_BASE; do
   [ -n "$SUB_PATH" ] || continue
   SUB_SRC="$SOURCE/$SUB_PATH"
-  if [ ! -d "$SUB_SRC/.git" ]; then
+  # 子模块的 .git 是**文件**（gitlink），不是目录 ⇒ 用 -e 判存在。
+  if [ ! -e "$SUB_SRC/.git" ]; then
     echo "replay-source: $COMPONENT submodule $SUB_PATH is not checked out — run 'make fetch' first" >&2
     exit 1
   fi
