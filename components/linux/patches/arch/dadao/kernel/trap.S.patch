@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
 new file mode 100644
-index 000000000..9d9067380
+index 000000000..4f0ecdffe
 --- /dev/null
 +++ b/arch/dadao/kernel/trap.S
-@@ -0,0 +1,1816 @@
+@@ -0,0 +1,1842 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception vector (K2).
@@ -65,6 +65,31 @@ index 000000000..9d9067380
 +	cfx2rd	cfx_smon, cg15, rc3, rd3
 +	or.o	rd2, rd2, rd3
 +	cfx2rc	cfx_smon, cg15, rc3, rd2
++	.endm
++
++/*
++ * Rewrite the *whole* user-mode exit intent of a cfx_umon return, not just
++ * `rc10`.  `cfx_umon cg5` holds one frame; a task that slept in the C half
++ * (a blocking syscall, a fault that allocated) can find it overwritten by the
++ * next entry — in particular by `dadao_enter_user()`'s supv->user `trap`,
++ * whose entry record puts `rc8 = supv`, `rc9 = smon` and `rc11 = smon mask`
++ * into the same frame.  Escaping with that stale intent returns the task to
++ * *supv* at a user IP: it then runs user code with kernel privileges and the
++ * next `trap cfx_umon` uses the (stale) supv vector, resuming the task in the
++ * middle of another function (ISS-m18-011).  This stub only ever returns a
++ * *user* exception to user mode, so the intent is fixed here:
++ *   rc8 = user, rc9 = cfx_umon, rc10 = @ipreg, rc11 = the live umon mask.
++ * The live mask is the running-mode gate the user context runs against and
++ * the handler never changes it, so reading it back is exact.
++ */
++	.macro	DADAO_UMON_USER_EXIT_INTENT ipreg
++	set.rd	rd2, DADAO_MODE_USER
++	cfx2rc	cfx_umon, cg5, rc8, rd2
++	set.rd	rd2, DADAO_CFX_UMON
++	cfx2rc	cfx_umon, cg5, rc9, rd2
++	cfx2rc	cfx_umon, cg5, rc10, \ipreg
++	cfx2rd	cfx_umon, cg15, rc3, rd2
++	cfx2rc	cfx_umon, cg5, rc11, rd2
 +	.endm
 +
 +/*
@@ -362,9 +387,10 @@ index 000000000..9d9067380
 +	 * from `cg5 rc10`, so it is rewritten from *this* task's frame first:
 +	 * the frame's `ip` is the address this task resumes at (the stub wrote
 +	 * it before any C code ran, and it is per-task because the frame lives
-+	 * on this task's kernel stack).  Only `rc10` needs restoring — the
-+	 * other exit-intent fields are the same for every user trap, and the
-+	 * source mask is restored atomically by the escape's `rc11` write.
++	 * on this task's kernel stack).  `rc8`-`rc11` are all rewritten below
++	 * (`DADAO_UMON_USER_EXIT_INTENT`): the exit intent is one shared frame,
++	 * so a task that slept in the C half must not inherit another task's
++	 * `enter_user` snapshot (supv/smon mode and its mask).
 +	 */
 +	br.z	{rd8}?, [rb0, .Lumon_retry]
 +	set.rb	rb5, dadao_umon_frame
@@ -372,7 +398,7 @@ index 000000000..9d9067380
 +	rb2rb	{rb3}, {rb8}
 +	ld.o	rd4, [rb3, PT_IP]		/* this task's resume address */
 +	add.si	rd4, DADAO_INSN_BYTES
-+	cfx2rc	cfx_umon, cg5, rc10, rd4
++	DADAO_UMON_USER_EXIT_INTENT rd4
 +	DADAO_CLOSE_SUPV_ASYNC
 +	DADAO_GPR_RESTORE_AT
 +	escape	cfx_umon
@@ -381,7 +407,7 @@ index 000000000..9d9067380
 +	call	[rb5, rd0, 0]
 +	rb2rb	{rb3}, {rb8}
 +	ld.o	rd4, [rb3, PT_IP]
-+	cfx2rc	cfx_umon, cg5, rc10, rd4
++	DADAO_UMON_USER_EXIT_INTENT rd4
 +	DADAO_CLOSE_SUPV_ASYNC
 +	DADAO_GPR_RESTORE_AT
 +	escape	cfx_umon

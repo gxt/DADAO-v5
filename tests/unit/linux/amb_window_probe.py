@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 import subprocess
 import sys
@@ -61,7 +62,10 @@ import m45_entry_probe as m45                                  # noqa: E402
 
 #: The image is m45's (a user task that traps and returns), so the build/boot
 #: helpers and the config slice are its; only the scratch directory differs.
-m45.SCRATCH = Path("/tmp/opencode/m18-linux-026/check-linux-amb")
+#: ARCH_SCRATCH lets a task archive every boot console in its own runtime
+#: evidence directory (the shared default is overwritten by concurrent runs).
+m45.SCRATCH = Path(os.environ.get("AMB_SCRATCH",
+                                 "/tmp/opencode/m18-linux-026/check-linux-amb"))
 
 ASYNC_S = "arch/dadao/kernel/async_trap.S"
 TRAP_S = "arch/dadao/kernel/trap.S"

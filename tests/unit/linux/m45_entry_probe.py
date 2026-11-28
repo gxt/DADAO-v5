@@ -216,7 +216,10 @@ def boot(tag: str, rom: str) -> tuple[int, str]:
     kernel = kernel_path()
     if not kernel.is_file():
         raise SystemExit(f"m45_entry_probe: {kernel} missing")
-    qemu = str(linux_paths.toolchain_bin() / "qemu-system-dadao")
+    #: A task may pin its own worktree build (M45_QEMU) so the shared install
+    #: root is never written and the binary under test is recorded by md5.
+    qemu = os.environ.get("M45_QEMU") or str(
+        linux_paths.toolchain_bin() / "qemu-system-dadao")
     if not os.access(qemu, os.X_OK):
         raise SystemExit("m45_entry_probe: qemu-system-dadao missing "
                          "(make install-host)")
