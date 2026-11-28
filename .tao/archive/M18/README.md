@@ -112,7 +112,7 @@
 | `check-syscall-abi` | **86/86**（`m18-linux-016`） |
 | `check-patch-tree` | **12 patch set / 464 patches、0 problem、无 skipped**（linux/musl/busybox 私有树 + 其余共享只读；`m18-integ-001`） |
 | 收尾门控（本任务现跑） | `make check-archive` **rc=0**（M18 册 73 / 流水 73）；`check_issues` **rc=0**（68 open / 17 closed / 85 entries / 3 ledgers）；`check-knowledge-refs` **rc=0**（0 具体 `.work/**`、0 悬空）；`check-milestones-fresh` **rc=0**（活册只剩 M19/M20）；`check-tasks` **rc=0** |
-| 基线红（非 M18 面，归档不修） | L1 `check-patch-tree` **52 problem**（linux 51/musl 1，`ISS-left-004`）；L3 `unit:full`/`tset:m6` 的 `stack-protector*.ll` 未归类（`ISS-left-005`）；`check-index-blobs` **rc=2**（4 条 chipyard 补丁 index 不符，`ISS-left-026`，m19 面）；`check-manifests-guard` 红 2 处 = M16 归档遗留（`issues-m16.yaml`/`milestones-m16.md` 登记） |
+| 基线红（非 M18 面，归档不修） | L1 `check-patch-tree` **52 problem**（linux 51/musl 1，`ISS-left-004`）；L3 `unit:full`/`tset:m6` 的 `stack-protector*.ll` 未归类（`ISS-left-005`）；`check-index-blobs` **rc=2**（4 条 chipyard 补丁 index 不符，`ISS-left-026`，m19 面）；`check-manifests-guard` 已 rc=0（M16 遗留登记随归档清理） |
 
 ## 4 MEMORY 摘录（M18 时期）
 

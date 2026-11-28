@@ -10,7 +10,7 @@
   - **已归档**：M14（76 册）、M15（66 册）、**M16（95 册，2026-11-27）**、**M17（46 册，2026-11-27）**、**M18（73 册，2026-11-28；Linux 测试集 + K6）** → `.tao/archive/M14/`、`M15/`、`M16/`、`M17/`、`M18/`；M19（2 件，需硬件在场）、M20 未开工。
   - **三方差分收口归 M20**（用户 2026-11-27）：现场红项（`arch-power-001/002`、`arch-umon-012/013` 回归挂死；`arch-cache-003/004` 既有红）与 `run_arch` 的 4 处工具链缺口（chipyard 腿缺 `LD_LIBRARY_PATH`、不识别 `expected-divergences`、单 case 缺承载中止整腿、power RTL 参数不通）见 `discussing.md` N40。
   - **环境（2026-11-27 重放对齐）**：qemu `e470dc56…`（源树 `a8d0796`）、gem5.opt `ebb19d0b…`（`7db7553`）、chipyard Vast `0ead2519…` / Tiny `71cbed98…`（`7b1d785`）、LLVM 11-26 07:23。组件补丁合入后必须「删源树→`make fetch`→`apply_series`→重建→`install-host`」，否则 L2/L3 的绿红都不算证据。
-  - **已知基线红**：`check-patch-tree` **52 problem**（linux 51 / musl 1，`ISS-left-004`）；L3 `unit:full`/`tset:m6` 的 `stack-protector*.ll` 未归类（`ISS-left-005`）；picolibc harness `.done` 无库指纹（`ISS-504`）；`check-manifests-guard` 红 2 处 = M16 归档遗留的 `issues-m16.yaml`/`milestones-m16.md` 登记（M17/M18 条目已随归档删除）。
+  - **已知基线红**：`check-patch-tree` **52 problem**（linux 51 / musl 1，`ISS-left-004`）；L3 `unit:full`/`tset:m6` 的 `stack-protector*.ll` 未归类（`ISS-left-005`）；picolibc harness `.done` 无库指纹（`ISS-504`）；`check-manifests-guard` 已 rc=0（M16 遗留登记随归档清理）。
   - **队列**：M20 先 `m20-integ-001`（三方 cfx/cg/rc 覆盖矩阵）/`m20-integ-002`（实测与缺口关闭），再接 `spec-002`/`idl-001`/`llvm-004`/`infra-002`/`qemu-001`/`gem5-005`/`chipyard-002`/`linux-001`/`testcases-006`；M17/M18 已收口归档（0 open）。
   - **open issue**：68（left 51 / m19 7 / m20 10）。
 
