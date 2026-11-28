@@ -30,6 +30,7 @@
 | m19-gem5-004 | 2026-11-28 10:36 | 2–4 h | 重派生 gem5 `wuming_cycles.cc`（swym 1+N，消 ISS-541） |
 | m19-qemu-002 | 2026-11-28 10:13 | 2–4 h | QEMU `swym` 高位 SBZ/ILLI（功能维度，时延仍 NOP） |
 | m19-idl-001 | 2026-11-28 10:52 | 1–2 h | IDL `swym` 高位 SBZ/ILLI（`immu18[17:12] != 0 ⇒ Illegal`）|
+| m19-testcases-007 | 2026-11-28 11:05 | ≤1 h | 重生成 swym 镜像签名数据（m19-testcases-001 漏项：expected.tsv 13→11 槽、inputs.sha256 旧哈希）|
 
 ## 已验证
 
