@@ -1,0 +1,51 @@
+# Component -> module-level gate mapping (m20-infra-004).
+#
+# Single source of truth for `make check-module COMPONENT=<c> TASK_ID=<id>`.
+# `tools/infra/check_module.py validate` (target `check-module-gates`) asserts
+# every target named here is really defined in the Makefile; a typo is rc=2.
+#
+# Basis (task book §目标 4):
+#   llvm  — the four gates that exercise the installed LLVM artifacts:
+#           check-lit (MC+CodeGen+E2E, reads install-root llvm-mc/llc/objcopy),
+#           test-codegen (llc->llvm-mc->objcopy->qemu), check-instrinfo
+#           (DADAOInstrInfo*.td <-> opcodes.yaml), check-cfx-alias-table
+#           (contracts/cfx-aliases.txt == spec projection).
+#   qemu  — check-inst-asm (inst .S, single-platform QEMU via llvm-mc+qemu) and
+#           check-idl (IDL+QEMU, reads $(QEMU_BIN)).
+#   gem5  — the three on-demand gem5 gates (decode 264-line assert, wuming
+#           cycle table, Tiny FS hmon).
+#   chipyard — no standalone per-platform target.  The four-way IDL gem5/
+#           chipyard legs are an hour-long nightly whole (`check-idl-full`), so
+#           they are NOT mapped data; run them on demand:
+#             python3 idl/tools/idl_four_way.py --platforms chipyard
+#           The empty list is deliberate; check-module refuses it (rc=2) rather
+#           than reporting a vacuous PASS.
+#
+# `prereqs` are run before the gates in the same private environment;
+# build-bootrom is needed because the Tiny firmware is resolved through
+# test_artifacts_dir (private, so a fresh private root has none yet).
+format = 1
+
+[component.llvm]
+source_component = "llvm-project"
+build_var = "LLVM_BUILD"
+gates = ["check-lit", "test-codegen", "check-instrinfo", "check-cfx-alias-table"]
+prereqs = ["build-bootrom"]
+
+[component.qemu]
+source_component = "qemu"
+build_var = "QEMU_BUILD"
+gates = ["check-inst-asm", "check-idl"]
+prereqs = ["build-bootrom"]
+
+[component.gem5]
+source_component = "gem5"
+build_var = "GEM5_BUILD"
+gates = ["check-gem5-decode", "check-wuming-cycles", "check-tiny-hmon"]
+prereqs = []
+
+[component.chipyard]
+source_component = "chipyard"
+build_var = ""
+gates = []
+prereqs = []

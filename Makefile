@@ -74,7 +74,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare sync-node-repo \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-builtins build-qemu build-qemu-reconfig build-gem5 check-gem5-decode check-wuming-cycles check-tiny-hmon build-bootrom build-picolibc \
-        build-musl build-musl-shared test-picolibc-smoke install-host install-cfx-aliases docker-image docker-shell check \
+        build-musl build-musl-shared test-picolibc-smoke install-host install-cfx-aliases \
+        install-host-private check-module check-module-gates docker-image docker-shell check \
         linux-defconfig linux-vmlinux linux-initramfs \
         check-linux-toolchain check-linux-boot-contract check-config-pins \
         check-linux-k0 check-linux-k1 \
@@ -282,6 +283,9 @@ help:
 	@echo "  make check-tset-{libc,llvm,embench}-full  tset full set, both link modes (night only; TESTCASES-076t)"
 	@echo "  make check-builtins-freshness  compiler-rt builtins archive must be the one the current clang built (build-id sidecar), in every consumer copy (L1; ISS-293/INFRA-101t)"
 	@echo "  make install-host    Install needed tools: cross toolchain (clang/llc/ld.lld …) into \$$(HOST_TOOLCHAIN_BIN) + host lli into \$$(HOST_TOOLS_BIN); adr-0016 D3/D4/D5/D11"
+	@echo "  make install-host-private COMPONENT=<llvm|qemu> TASK_ID=<id>  Install that component into the task's private install root (symlink mirror; no shared gate lock); m20-infra-004"
+	@echo "  make check-module COMPONENT=<c> TASK_ID=<id>  Run that component's module gates against the task's private source/build/install (mapping: tools/infra/module_gates.toml); m20-infra-004"
+	@echo "  make check-module-gates  Validate module_gates.toml targets exist in the Makefile; m20-infra-004"
 	@echo "  make install-cfx-aliases  Copy contracts/cfx-aliases.txt to the build tree + install root only (no rebuild; LLVM-135t)"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
@@ -760,6 +764,19 @@ _locked-build-builtins: manifest-check build-mc
 # to llvm-readobj, so it must not be copied as a 319 MB standalone file.
 # All three aliases are enumerated in $(HOST_LLVM_TOOL_SYMLINKS) (one variable,
 # consumed by the recipe below and by tools/infra/check_install_tools.py).
+# Module run (m20-infra-004): check-module exports DADAO_MODULE_INSTALL_ROOT =
+# the private install root it already prepared with install-host-private.  Then
+# install-host must NOT run its build-* prerequisites (they write the shared
+# build trees) and has nothing left to install.  The value must name the
+# resolved install root, so a stray export cannot skip a real install; a module
+# run always checks the private tools exist before it starts (`check_module.py`).
+ifneq ($(strip $(DADAO_MODULE_INSTALL_ROOT)),)
+ifneq ($(abspath $(DADAO_MODULE_INSTALL_ROOT)),$(abspath $(SDK_DIR)))
+$(error DADAO_MODULE_INSTALL_ROOT=$(DADAO_MODULE_INSTALL_ROOT) does not match the resolved install root $(SDK_DIR); refusing to skip install-host)
+endif
+endif
+
+ifeq ($(strip $(DADAO_MODULE_INSTALL_ROOT)),)
 _locked-install-host: install-cfx-aliases build-mc build-lld build-qemu build-builtins
 	@mkdir -p $(HOST_TOOLCHAIN_BIN) $(HOST_TOOLS_BIN)
 	@for t in $(HOST_LLVM_TOOLS); do \
@@ -790,6 +807,10 @@ _locked-install-host: install-cfx-aliases build-mc build-lld build-qemu build-bu
 	@mkdir -p $(TARGET_SYSROOT_DIR)/include $(TARGET_SYSROOT_DIR)/lib
 	@printf '%s\n' '# DADAO target sysroot (dadao-unknown-elf)' '' 'Layout per ADR-0016 D5 (.tao/adr/adr-0016-dadao-install-layout.md):' '' '- include/ — target C headers (populated when a target libc/toolchain lands)' '- lib/     — target libraries' '' 'Placeholder only: there is no header/library consumer yet, so no content is' 'fabricated here. Consumers must resolve this path from' 'manifests/install-dirs.lock.toml via tools/infra/paths.py' '(target_sysroot_dir()), never hardcode it.' > $(TARGET_SYSROOT_DIR)/README.md
 	@echo "install-host: PASS"
+else
+_locked-install-host:
+	@echo "install-host: skipped — private install root $(SDK_DIR) was prepared by install-host-private (module run)"
+endif
 
 # install-cfx-aliases (LLVM-135t): stage the data-only cfx alias table into the
 # build tree and the install root.  Deliberately **only copies** -- after an
@@ -802,6 +823,40 @@ _locked-install-cfx-aliases:
 	@$(call atomic-install,$(CFX_ALIAS_TABLE_SRC),$(CFX_ALIAS_TABLE_BUILD))
 	@$(call atomic-install,$(CFX_ALIAS_TABLE_SRC),$(CFX_ALIAS_TABLE_INSTALL))
 	@echo "install-cfx-aliases: PASS"
+
+# ── 私有安装根 + 模块级门控 (m20-infra-004) ───────────────────────────────────
+# 一个任务只测一个组件时，门控必须读**它自己的**源码/构建树/安装根：既有消费者
+# 全是单绝对路径（$(HOST_TOOLCHAIN_BIN)/llvm-mc），所以私有安装根做成共享根的
+# symlink 镜像（未拥有的条目 ln -s 回共享根，拥有的产物真实落盘），不改任何消费者。
+#
+# install-host-private：装指定组件到 .work/private/<id>/install；**不进**
+# $(GATE_LOCKED_TARGETS)（不拿共享 gate.lock；只读共享根、只写私有根）。共享根写
+# 守卫在 tools/infra/private_install.py（目标是共享根且 DADAO_SHARED_INSTALL_OWNER
+# 为空 ⇒ rc=2，同 m20-infra-003 的 token 风格）。
+# check-module：解析私有源/构建/安装根 + 私有 gate.lock，按数据映射
+# tools/infra/module_gates.toml 跑该组件门控；映射里每个 target 必须真实存在
+# （check-module-gates 机械校验，缺失 rc=2）。
+COMPONENT ?=
+TASK_ID   ?=
+_private_usage = { echo "usage: make $@ COMPONENT=<llvm|qemu> TASK_ID=<id>"; exit 2; }
+
+install-host-private:
+	@test -n "$(COMPONENT)" || $(call _private_usage)
+	@test -n "$(TASK_ID)" || $(call _private_usage)
+	+@$(PYTHON) tools/infra/private_install.py --component "$(COMPONENT)" --task-id "$(TASK_ID)" \
+	  --llvm-build "$(LLVM_BUILD)" --qemu-build "$(QEMU_BUILD)" \
+	  --llvm-tools "$(HOST_LLVM_TOOLS)" --llvm-symlinks "$(HOST_LLVM_TOOL_SYMLINKS)" \
+	  --clang-ver "$(CLANG_RESOURCE_VER)" --clang-headers "$(CLANG_HEADERS_SRC)" \
+	  --builtins-src "$(BUILTINS_ARCHIVE_SRC)" --builtins-rel "$(BUILTINS_RESOURCE_PATH)" \
+	  --lit-src "$(LLVM_SRC)/utils/lit/lit" --cfx-src "$(CFX_ALIAS_TABLE_SRC)"
+
+check-module:
+	@test -n "$(COMPONENT)" || $(call _private_usage)
+	@test -n "$(TASK_ID)" || $(call _private_usage)
+	+@$(PYTHON) tools/infra/check_module.py run --component "$(COMPONENT)" --task-id "$(TASK_ID)"
+
+check-module-gates:
+	@$(PYTHON) tools/infra/check_module.py validate
 
 # build-bootrom (QEMU-047t / ADR-0020 D12): assemble and link the SEE bootrom
 # firmware with the project toolchain (llvm-mc + ld.lld + tests/ee-tiny/ sources;
