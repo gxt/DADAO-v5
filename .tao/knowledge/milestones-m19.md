@@ -27,15 +27,15 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m19-gem5-004 | 2026-11-28 10:36 | 2–4 h | 重派生 gem5 `wuming_cycles.cc`（swym 1+N，消 ISS-541） |
 | m19-qemu-002 | 2026-11-28 10:13 | 2–4 h | QEMU `swym` 高位 SBZ/ILLI（功能维度，时延仍 NOP） |
 | m19-idl-001 | 2026-11-28 10:52 | 1–2 h | IDL `swym` 高位 SBZ/ILLI（`immu18[17:12] != 0 ⇒ Illegal`）|
-| m19-testcases-007 | 2026-11-28 11:05 | ≤1 h | 重生成 swym 镜像签名数据（m19-testcases-001 漏项：expected.tsv 13→11 槽、inputs.sha256 旧哈希）|
+| m19-testcases-007 | 2026-11-28 11:05 | 1 h | 重生成 swym 镜像签名数据（m19-testcases-001 漏项：expected.tsv 13→11 槽、inputs.sha256 旧哈希）|
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m19-gem5-004 | 2026-11-28 11:22 | 重派生 `wuming_cycles.cc`（swym 1+N/dynamic N）；ISS-541 闭合 |
 | m19-testcases-006 | 2026-11-28 10:13 | hmon 槽消费者迁 0xC00（226 处/27 文件→0）；integ007t 由红转绿 |
 | m19-testcases-001 | 2026-11-28 10:04 | `swym N` 载体：N=0/1/42/7/4095、4 条高位 ILLI；三平台功能/周期；QEMU ILLI 归 qemu-002 |
 | m19-gem5-003 | 2026-11-28 09:46 | `check_tiny_hmon` 新几何/`0xC00` 槽 + 门控锁；reviewer Accepted |
