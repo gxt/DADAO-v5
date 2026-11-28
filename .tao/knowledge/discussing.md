@@ -534,6 +534,7 @@
   - **主 SRAM 256 KiB**（`0xFFFF_FF00_0000`）：VERSION@0x00、MAILBOX@0x20、EXIT_BLOCK@0x30、DUMP@0x800（0x800，pt_regs）、SIGNATURE@0x1000（0x800）、**ENTRY/raw@0x2000**；
   - guard_lo 0x38000–0x39000、**STACK 0x39000–0x3F000（24 KiB，SP=0x3F000）**、**MemRAS 0x3F000–0x40000（4 KiB，MRPTR=0x40000）**；MemRAS 与栈之间不设 guard_hi；
   - BRAM：主 SRAM 64 + ROM 2 + hmon 2 = **68 / 445（15.3%）**，余 **377** 留作后续使用（本册不展开）。
+- **已定（用户 2026-11-28，VERSION 写者）**：`VERSION=1` 由**宿主测试工具**（`tools/testcases` 的镜像构建/运行脚本，在交付模拟器前写平坦镜像）写入；QEMU/gem5/chipyard 的装载语义不变，三平台天然一致。`MAILBOX` magic 取值与写入顺序仍 `[OPEN]`（`N44`）。
 - **批次授权 M19-A（2026-11-27 22:52）**：swym 4 件 + 新几何 7 件；今晚连续派发，不停；停止点按 `AGENTS.md §1`（push/硬件/版本号/破坏性 git 等才停）。
 - **初步方向 / 建议（未裁，见 `N44`–`N48`）**：
   - TSI ↔ power 优先 **SRAM mailbox**（不新增 cfx 桥）；

@@ -21,7 +21,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m19-testcases-001 | 2–4 h | `swym N` 测试程序：1/2/4096 拍、高位 ILLI、原子中断 |
 | m19-testcases-005 | 4–8 h | 启动固件 power/hmon 迁移：8 KiB ROM 可启动、hmon 数据槽定案 |
 | m19-integ-001 | 4–8 h | 新几何下 QEMU/gem5/chipyard 三平台签名/退出一致性 |
 
@@ -39,6 +38,7 @@
 | m19-testcases-003 | 2026-11-27 23:15 | 4–8 h | 宿主工具 DUMP 0x800（pt_regs）与 BootROM 8 KiB 构建器 |
 | m19-infra-002 | 2026-11-27 23:18 | 4–8 h | picolibc Tiny 地址图迁移（组件补丁，版本号待确认） |
 | m19-testcases-004 | 2026-11-27 23:29 | 4–8 h | tests/arch Tiny 探针迁移到 entry 0x2000/SP/EXIT/DUMP |
+| m19-testcases-001 | 2026-11-28 08:39 | 2–4 h | `swym N` 测试程序：1/2/4096 拍、高位 ILLI、原子中断 |
 
 ## 已验证
 
