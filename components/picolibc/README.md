@@ -11,6 +11,7 @@ DADAO 的 C 库组件（**M7 test 重心**：picolibc 自带 test 套件）。�
 ### 移植要点
 
 - **cross file**：`scripts/cross-dadao.txt`（meson `--cross-file`）。目标 `dadao-unknown-elf`，大端，`long double`=f64（clang 预定义 `__SIZEOF_LONG_DOUBLE__=8`）。
+- **Tiny 地址图（M19 新几何）**：BootROM `0xffff_ffff_0000`/8 KiB；主 SRAM `0xffff_ff00_0000`/256 KiB，应用窗口 `0x2000`–`0x3F000` ⇒ 安装版 lds 的 entry `0xffff_ff00_2000`、`__stack=0xffff_ff03_f000`、`__heap_end=0xffff_ff03_8000`（guard_lo 下界，堆不进入未映射 guard）、`__exit_block=0xffff_ff00_0030`；MemRAS `0x3F000`–`0x40000` 在应用窗口外。`__exit_block` 由 `picolibc.ld.in` 以绝对符号提供。
 - **machine 目录**：`libc/machine/dadao/`（meson 以 `cpu_family` 选择；`machine/` 头目录；`setjmp.S`）。`setjmp/longjmp` 是**真实现**（`INFRA-068t`，`INFRA-068t` 返工 1 补 RF）：DADAO 可由软件读写返回地址栈（`ra0`–`ra63`，见 `contract-isa.md §1.3.4`），故 `setjmp` 保存 `ra0..ra63` + `rsp` + callee-saved 三个块（`rd32–rd63`/`rb32–rb63`/`rf32–rf63`，后二者见 `contract-abi.md §4.5` CSR），`longjmp` 反向恢复后执行 `ret` 完成 `setjmp` 返回。FP 块（`rf32–rf63`）用 `stm.o`/`ldm.o` 的 RF 形态一指令搬运。唯一限制：仅 `MRPTR == 0`（纯 RegRAS，≤63 深度）路径（`MRPTR != 0` 时 MemRAS 内容未随 `jmp_buf` 保存）。
 - **syscall stub**：`libos/semihost/machine/dadao/semihost-dadao.S` 提供 `sys_semihost(op,param)`（`rd2rb` 把参数块指针送入 `rb16`，`trap cfx_umon, 0x3FF00`，结果在 `rd8`）；picolibc 通用半托管客户端据此实现 `write`→`SYS_WRITE(0x05)`、`_exit`→`SYS_EXIT(0x18)`、`sbrk`→`__heap_*`（`libos/fallback/sbrk.c`）。服务号口径见 `.tao/contracts/contract-semihosting.md`。
 - **大端**：clang 不为 `dadao` 预定义 `__FLOAT_WORD_ORDER__`，故在 `libc/include/machine/ieeefp.h` 显式 `__IEEE_BIG_ENDIAN`。

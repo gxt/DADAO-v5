@@ -64,3 +64,9 @@
 - **2026-11-22 `m15-infra-010`**
   - 摘要：**`times()` 按 `SYS_TICKFREQ` 缩放到 `CLOCKS_PER_SEC`（`ISS-502`）**：`libos/semihost/common/times.c` 原把 `sys_semihost_elapsed()` 的 ticks 直接当 `clock_t` 返回，而 QEMU 的 tick 是宿主纳秒（`SYS_TICKFREQ=1e9`）与 `CLOCKS_PER_SEC=1e6` 不一致 ⇒ `clock()/CLOCKS_PER_SEC` 大 1000×。改为 `elapsed * CLOCKS_PER_SEC / freq`（`unsigned __int128` 中间量保证乘积不溢出），`freq` 取 `sys_semihost_tickfreq()`；`freq == 0`/`-1` 或换算结果超出 `clock_t` 时返回 `(clock_t)-1`；`tms_stime/cstime/cutime = 0`、`tms_utime = ticks` 的既有形状不变，`gettimeofday()` 与 `CLOCKS_PER_SEC` 不动。`series` **16 → 17**（新增 `libos/semihost/common/times.c.patch`）。同批补 `picolibc.ld.in` 的 `.text` 首段 `KEEP(*(.text.start))`（`m15-infra-009` 删仓库 lds 副本时漏带，`.text.unlikely.*` 抢到段首 ⇒ 固定入口 `e_entry` 偏移、`check-picolibc-tests` 18/20 在加载期报错；该修复恢复旧副本 lds 的等价布局，`e_entry` 回到 `0xffffff010100`）。真值：同一忙等探针修前 `clock()/CLOCKS_PER_SEC` = **1000.017×** `gettimeofday` 秒数（`clock_us=1073617554` vs `tod_us=1073599`），修后 **1.000×**（`clock_us=3565354` vs `tod_us=3564836`，差 518 µs / 3.565 s）。
   - 执行者：engineer
+
+## M19
+
+- **2026-11-27 `m19-infra-002`**
+  - 摘要：**Tiny 新几何地址图迁移（内容改，版本号未升）**：`cross-dadao.txt` 默认值由旧 Tiny（flash `0xffffffff0000`/64 KiB、ram `0xffffff010100`/`0x7dfe00` ⇒ `__stack=0xffffff7eff00`）改为新几何——flash `0xffffffff0000`/8 KiB、ram `0xffffff002000`/`0x3d000`（应用窗口 = `MAIN_SRAM_BASE+0x2000` 至栈顶 `0x3F000`，MemRAS 4 KiB 在窗口外）⇒ `__stack=0xffffff03f000`、entry `0xffffff002000`；新增 `default_stack_size=0x7000`（guard_lo 4 KiB + STACK 24 KiB）⇒ `__heap_end=0xffffff038000`（堆不进入未映射 guard），`__stack_bottom=0xffffff038000`；`picolibc.ld.in` 增 `__exit_block=0xffffff000030` 绝对符号（EXIT 参数块，退出码 `+0x38`）。`series` **17 不变**（两份既有补丁改）。上游版本/组件锁未改（版本号升级待用户确认）。
+  - 执行者：engineer
