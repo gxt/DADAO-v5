@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_workload.cc b/src/arch/dadao/fs_workload.cc
 new file mode 100644
-index 0000000..b9c199a
+index 0000000..7eca54e
 --- /dev/null
 +++ b/src/arch/dadao/fs_workload.cc
-@@ -0,0 +1,353 @@
+@@ -0,0 +1,399 @@
 +// DADAO FS workload implementation.
 +#include "arch/dadao/fs_workload.hh"
 +
@@ -85,7 +85,8 @@ index 0000000..b9c199a
 +    p_hmon_base(p.hmon_base), p_hmon_size(p.hmon_size),
 +    p_ram_base(p.ram_base), p_ram_size(p.ram_size),
 +    p_pmem_base(p.pmem_base), p_kernel_base(p.kernel_base),
-+    p_kernel_reserved(p.kernel_reserved), p_reset_pc(p.reset_pc),
++    p_kernel_reserved(p.kernel_reserved), p_image_window(p.image_window),
++    p_reset_pc(p.reset_pc),
 +    p_entry(p.entry),
 +    kernelPath(p.kernel), traceCpu(p.trace_cpu), semihosting(p.semihosting)
 +{
@@ -97,6 +98,28 @@ index 0000000..b9c199a
 +             "DADAO FS: the Tiny profile requires a non-empty hmon SRAM");
 +    fatal_if(isNode && p_ram_size == 0,
 +             "DADAO FS: Node profile requires a PA RAM size");
++    if (!isNode) {
++        // The application window starts at ENTRY = kernel_base + reserved
++        // (spec/Kaiwu §6.2.1: MAIN_SRAM_BASE + 0x2000, reserved = 0) and must
++        // stay inside the SRAM.
++        fatal_if(p_kernel_base < p_sram_base ||
++                 p_kernel_base - p_sram_base > p_sram_size ||
++                 p_kernel_reserved > p_sram_size - (p_kernel_base - p_sram_base),
++                 "DADAO FS: Tiny kernel_base %#llx + %llu reserved bytes is "
++                 "outside the %llu-byte SRAM",
++                 static_cast<unsigned long long>(p_kernel_base),
++                 static_cast<unsigned long long>(p_kernel_reserved),
++                 static_cast<unsigned long long>(p_sram_size));
++        fatal_if(p_entry != p_kernel_base + p_kernel_reserved,
++                 "DADAO FS: Tiny entry %#llx is not kernel_base + reserved "
++                 "(%#llx)", static_cast<unsigned long long>(p_entry),
++                 static_cast<unsigned long long>(p_kernel_base +
++                                                 p_kernel_reserved));
++        fatal_if(p_image_window != 0 &&
++                 p_image_window > p_sram_size - (p_kernel_base - p_sram_base),
++                 "DADAO FS: Tiny image window %#llx exceeds the SRAM above "
++                 "kernel_base", static_cast<unsigned long long>(p_image_window));
++    }
 +
 +    const bool hasKernel = !kernelPath.empty();
 +    fatal_if(!isNode && !hasKernel, "DADAO FS: --kernel is required");
@@ -113,7 +136,7 @@ index 0000000..b9c199a
 +        fatal("DADAO FS: the Node profile requires --bootrom (4 MiB flat "
 +              "BootROM image)");
 +    } else {
-+        fatal("DADAO FS: the Tiny profile requires --bootrom (the fixed 64 KiB "
++        fatal("DADAO FS: the Tiny profile requires --bootrom (the fixed 8 KiB "
 +              "BootROM firmware: power stub + hmon segment + image index "
 +              "table, spec/Kaiwu §6.2)");
 +    }
@@ -150,6 +173,13 @@ index 0000000..b9c199a
 +    if (off >= size)
 +        return false;
 +    return len <= size - off;
++}
++
++Addr
++FsWorkload::appWindow() const
++{
++    const Addr avail = p_sram_size - (p_kernel_base - p_sram_base);
++    return (p_image_window == 0) ? avail : p_image_window;
 +}
 +
 +void
@@ -255,12 +285,27 @@ index 0000000..b9c199a
 +                     kernelPath, i,
 +                     static_cast<unsigned long long>(ppaddr),
 +                     static_cast<unsigned long long>(ppaddr + pmemsz));
-+            fatal_if(!inRange(p_sram_base, p_sram_size, ppaddr, pmemsz),
-+                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) is outside "
-+                     "the SRAM: the Tiny application is SRAM-only "
-+                     "(spec/Kaiwu §6.2)", kernelPath, i,
++            // The loader owns the application window above ENTRY only.  The
++            // SRAM header (VERSION/MAILBOX/EXIT_BLOCK), the DUMP and the
++            // SIGNATURE areas below it, and the stack/MemRAS area above the
++            // window are guest-owned (spec/Kaiwu §6.2.1): never written here.
++            fatal_if(ppaddr < p_kernel_base,
++                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) is below the "
++                     "Tiny application entry %#llx: the host loader must not "
++                     "install the SRAM header/DUMP/SIGNATURE (spec/Kaiwu "
++                     "§6.2.1)", kernelPath, i,
 +                     static_cast<unsigned long long>(ppaddr),
-+                     static_cast<unsigned long long>(ppaddr + pmemsz));
++                     static_cast<unsigned long long>(ppaddr + pmemsz),
++                     static_cast<unsigned long long>(p_kernel_base));
++            fatal_if(!inRange(p_kernel_base, appWindow(), ppaddr, pmemsz),
++                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) is outside "
++                     "the Tiny image window [%#llx, %#llx) (spec/Kaiwu §6.2)",
++                     kernelPath, i,
++                     static_cast<unsigned long long>(ppaddr),
++                     static_cast<unsigned long long>(ppaddr + pmemsz),
++                     static_cast<unsigned long long>(p_kernel_base),
++                     static_cast<unsigned long long>(p_kernel_base +
++                                                     appWindow()));
 +            entryCovered |= inRange(ppaddr, pmemsz, p_entry, 4);
 +        }
 +    }
@@ -315,11 +360,11 @@ index 0000000..b9c199a
 +             "DADAO FS: raw image %s is %zu bytes, shorter than the %llu-byte "
 +             "reserved prefix", kernelPath, d.size(),
 +             static_cast<unsigned long long>(p_kernel_reserved));
-+    fatal_if(d.size() > p_sram_size - p_kernel_reserved,
-+             "DADAO FS: raw image %s is %zu bytes, larger than SRAM minus "
-+             "the reserved prefix (%llu)",
++    fatal_if(d.size() > appWindow(),
++             "DADAO FS: raw image %s is %zu bytes, larger than the Tiny image "
++             "window (%llu bytes above kernel_base, spec/Kaiwu §6.2)",
 +             kernelPath, d.size(),
-+             static_cast<unsigned long long>(p_sram_size - p_kernel_reserved));
++             static_cast<unsigned long long>(appWindow()));
 +    for (Addr i = 0; i < p_kernel_reserved; ++i) {
 +        fatal_if(d[i] != 0,
 +                 "DADAO FS: raw image %s has non-zero reserved byte at "
@@ -328,7 +373,8 @@ index 0000000..b9c199a
 +    }
 +    rawData = d;
 +    // The reset vector stays the BootROM base; the raw application entry is
-+    // reached by the BootROM trampoline, not by the platform's reset PC.
++    // reached by the power stub after the hmon hand-off, not by the platform's
++    // reset PC.
 +    if (romData.empty())
 +        entry = p_kernel_base + p_kernel_reserved;
 +}

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_tlb.cc b/src/arch/dadao/fs_tlb.cc
 new file mode 100644
-index 0000000..a6ceada
+index 0000000..e8b35a0
 --- /dev/null
 +++ b/src/arch/dadao/fs_tlb.cc
-@@ -0,0 +1,110 @@
+@@ -0,0 +1,118 @@
 +// DADAO FS TLB -- identity translation with Kaiwu-Tiny segment rules.
 +#include "arch/dadao/fs_tlb.hh"
 +
@@ -43,6 +43,14 @@ index 0000000..a6ceada
 +    const bool rom = inSegment(romBase, romSize, vaddr, size);
 +    const bool sram = inSegment(sramBase, sramSize, vaddr, size);
 +    const bool hmon = inSegment(hmonBase, hmonSize, vaddr, size);
++
++    // guard_lo is an unmapped 4 KiB hole inside the SRAM segment: access or
++    // fetch there is CFXMEM, not a plain SRAM hit (spec/Kaiwu §6.2.1).
++    if (sram && guardSize != 0 &&
++        inSegment(guardBase, guardSize, vaddr, size)) {
++        const Addr ip = (mode == BaseMMU::Execute) ? vaddr : instPc;
++        return machineFaultAt(FaultCFXMEM, ip, vaddr);
++    }
 +
 +    if (!rom && !sram && !hmon) {
 +        // Any other address (addr[47:42] == 0, the gap, cfxha 63 outside the

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_tlb.hh b/src/arch/dadao/fs_tlb.hh
 new file mode 100644
-index 0000000..f7c139c
+index 0000000..21d111a
 --- /dev/null
 +++ b/src/arch/dadao/fs_tlb.hh
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,84 @@
 +// DADAO FS TLB (Kaiwu-Tiny): identity translation with segment checks.
 +//
 +// Tiny has no PTW, no page table and no TLB fill: VA == PA, and only two
@@ -33,7 +33,8 @@ index 0000000..f7c139c
 +    explicit FsTLB(const Params &p) :
 +        BaseTLB(p), romBase(p.rom_base), romSize(p.rom_size),
 +        sramBase(p.sram_base), sramSize(p.sram_size),
-+        hmonBase(p.hmon_base), hmonSize(p.hmon_size)
++        hmonBase(p.hmon_base), hmonSize(p.hmon_size),
++        guardBase(p.guard_base), guardSize(p.guard_size)
 +    {}
 +
 +    void demapPage(Addr vaddr, uint64_t asn) override;
@@ -61,6 +62,8 @@ index 0000000..f7c139c
 +    const Addr sramSize;
 +    const Addr hmonBase;
 +    const Addr hmonSize;
++    const Addr guardBase;
++    const Addr guardSize;
 +
 +    bool inSegment(Addr base, Addr size, Addr addr, Addr len) const
 +    {

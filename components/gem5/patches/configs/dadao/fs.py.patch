@@ -1,9 +1,9 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..b29b090
+index 0000000..3e17d48
 --- /dev/null
 +++ b/configs/dadao/fs.py
-@@ -0,0 +1,550 @@
+@@ -0,0 +1,582 @@
 +#!/usr/bin/env python3
 +# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Vast).
 +#
@@ -12,8 +12,8 @@ index 0000000..b29b090
 +# `--dump-geometry` prints the values actually in force (they must equal
 +# contracts/machine.yaml + the tests/ee-<env>/runtime.yaml runtime layout).
 +#
-+#   tiny: 64 KiB BootROM + 8 MiB SRAM + 64 KiB hmon SRAM, identity segment
-+#         checks, cfx63 power + cfx3 hmon, no PTW.
++#   tiny: 8 KiB BootROM + 256 KiB SRAM + 8 KiB hmon SRAM, identity segment
++#         checks, cfx63 power + cfx3 hmon, no PTW (spec/Kaiwu §1.1/§6.2).
 +#   vast: 4 MiB BootROM + 2 GiB PA RAM + hmon/smon/pmem SRAM, PTW identity
 +#         map, cfx register file/monitor, cfx_pmem DMA, cfx_time/cfx_hart.
 +#
@@ -102,21 +102,34 @@ index 0000000..b29b090
 +
 +
 +PROFILES = {
-+    # Kaiwu-Tiny (spec/Kaiwu §1.1; contracts/machine.yaml tiny).
++    # Kaiwu-Tiny (spec/Kaiwu §1.1/§6.2.1; contracts/machine.yaml tiny).
++    # The SRAM offsets are fixed by the test-machine contract:
++    # VERSION 0x0000 / MAILBOX 0x0020 / EXIT_BLOCK 0x0030 / DUMP 0x0800 /
++    # SIGNATURE 0x1000 / ENTRY (raw base) 0x2000 / guard_lo 0x38000 /
++    # STACK 0x39000 / MemRAS 0x3F000.
 +    "tiny": {
 +        "bootrom_base": 0xFFFF_FFFF_0000,
-+        "bootrom_size": 0x1_0000,
++        "bootrom_size": 0x2000,
 +        "reset_pc": 0xFFFF_FFFF_0000,
 +        "ram_base": 0xFFFF_FF00_0000,
-+        "ram_size": 0x80_0000,
-+        "kernel_base": 0xFFFF_FF01_0000,
-+        "kernel_reserved": 0x100,
-+        "entry": 0xFFFF_FF01_0100,
-+        "sp": 0xFFFF_FF7E_FF00,
-+        "hmon": (0x0FFF_0000_0000, 0x1_0000),
++        "ram_size": 0x4_0000,
++        "kernel_base": 0xFFFF_FF00_2000,
++        "kernel_reserved": 0x0,
++        "entry": 0xFFFF_FF00_2000,
++        "image_window": 0x2_0000,
++        "sp": 0xFFFF_FF03_F000,
++        "version": 0xFFFF_FF00_0000,
++        "mailbox": 0xFFFF_FF00_0020,
++        "exit_block": 0xFFFF_FF00_0030,
++        "dump_base": 0xFFFF_FF00_0800,
++        "dump_size": 0x800,
++        "signature": (0xFFFF_FF00_1000, 0x800),
++        "guard": (0xFFFF_FF03_8000, 0x1000),
++        "stack": (0xFFFF_FF03_9000, 0x6000),
++        "memras": (0xFFFF_FF03_F000, 0x1000),
++        "hmon": (0x0FFF_0000_0000, 0x2000),
 +        "smon": None,
 +        "pmem": None,
-+        "exit_block": 0xFFFF_FF7E_0000,
 +    },
 +    # Kaiwu-Vast (spec/Kaiwu §1.1; contracts/machine.yaml vast).
 +    "vast": {
@@ -156,7 +169,7 @@ index 0000000..b29b090
 +                        help="raw or ET_EXEC DADAO ELF image (tiny: required)")
 +    parser.add_argument("--bootrom", default="",
 +                        help="flat BootROM image (tiny: the fixed exactly "
-+                             "64 KiB firmware; vast: the 4 MiB image)")
++                             "8 KiB firmware; vast: the 4 MiB image)")
 +    parser.add_argument("--semihost", choices=("on", "off"), default="off",
 +                        help="serve the Kaiwu semihosting trap "
 +                             "(`trap <any cfxha>, 0x3FFxx`) in FS mode; off "
@@ -258,7 +271,8 @@ index 0000000..b29b090
 +            ("pmem_size", g["pmem"][1]),
 +            ("exit_block", g["exit_block"]),
 +        ]
-+    # GEM5-015t tiny keys, plus the M13 hmon SRAM geometry.
++    # GEM5-015t tiny keys, plus the M13 hmon SRAM geometry and the M19
++    # fixed SRAM map (spec/Kaiwu §1.1/§6.2.1).
 +    return [
 +        ("bootrom_base", g["bootrom_base"]),
 +        ("bootrom_size", g["bootrom_size"]),
@@ -270,7 +284,21 @@ index 0000000..b29b090
 +        ("kernel_base", g["kernel_base"]),
 +        ("kernel_reserved", g["kernel_reserved"]),
 +        ("entry", g["entry"]),
++        ("image_window", g["image_window"]),
 +        ("sp", g["sp"]),
++        ("version", g["version"]),
++        ("mailbox", g["mailbox"]),
++        ("exit_block", g["exit_block"]),
++        ("dump_base", g["dump_base"]),
++        ("dump_size", g["dump_size"]),
++        ("signature_base", g["signature"][0]),
++        ("signature_size", g["signature"][1]),
++        ("guard_base", g["guard"][0]),
++        ("guard_size", g["guard"][1]),
++        ("stack_base", g["stack"][0]),
++        ("stack_size", g["stack"][1]),
++        ("memras_base", g["memras"][0]),
++        ("memras_size", g["memras"][1]),
 +    ]
 +
 +
@@ -329,6 +357,9 @@ index 0000000..b29b090
 +        tb.sram_size = g["ram_size"]
 +        tb.hmon_base = g["hmon"][0]
 +        tb.hmon_size = g["hmon"][1]
++        # guard_lo is an unmapped hole inside the SRAM segment (§6.2.1).
++        tb.guard_base = g["guard"][0]
++        tb.guard_size = g["guard"][1]
 +    return mmu
 +
 +
@@ -350,6 +381,7 @@ index 0000000..b29b090
 +        pmem_base=g["pmem"][0] if g["pmem"] else 0,
 +        kernel_base=g["kernel_base"],
 +        kernel_reserved=g["kernel_reserved"],
++        image_window=g["image_window"] if args.profile == "tiny" else 0,
 +        reset_pc=g["reset_pc"],
 +        entry=g["entry"],
 +        sp=g["sp"],

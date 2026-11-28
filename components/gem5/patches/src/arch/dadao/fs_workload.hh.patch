@@ -1,18 +1,21 @@
 diff --git a/src/arch/dadao/fs_workload.hh b/src/arch/dadao/fs_workload.hh
 new file mode 100644
-index 0000000..7612b1f
+index 0000000..8f794cb
 --- /dev/null
 +++ b/src/arch/dadao/fs_workload.hh
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,124 @@
 +// DADAO FS workload: boot image loading and reset for the two FS machines.
 +//
 +// profile="tiny" (Kaiwu-Tiny): the two-piece load contract of
-+// spec/Kaiwu §6.2 -- a fixed, exactly 64 KiB BootROM firmware image
-+// (power stub + hmon run segment + image index table) loaded verbatim at
++// spec/Kaiwu §6.2 -- a fixed, exactly 8 KiB BootROM firmware image
++// (power stub + hmon source segment + image index table) loaded verbatim at
 +// rom_base, plus the application (raw or ELF) in SRAM only.  The host loader
 +// never installs BootROM firmware or hmon from the application image; the
 +// application entry is fixed (params.entry) and the reset PC stays the BootROM
-+// vector.  Raw images carry a 0x100-byte zero prefix.
++// vector.  The application image lives in the window above ENTRY
++// (MAIN_SRAM_BASE + 0x2000): the SRAM header (VERSION/MAILBOX/EXIT_BLOCK),
++// DUMP, SIGNATURE and the stack/MemRAS area are never written by the loader
++// (spec/Kaiwu §6.2.1).
 +// profile="node" (Kaiwu-Node): 4 MiB BootROM (exact size) + 2 GiB PA RAM,
 +// raw images load at kernel_base with no prefix, ELF PT_LOAD segments must be
 +// in PA RAM, and the reset PC is the BootROM reset vector.
@@ -80,6 +83,7 @@ index 0000000..7612b1f
 +    Addr pmemBase() const { return p_pmem_base; }
 +    Addr kernelBase() const { return p_kernel_base; }
 +    Addr kernelReserved() const { return p_kernel_reserved; }
++    Addr imageWindow() const { return p_image_window; }
 +    Addr appEntry() const { return p_entry; }
 +    const std::string &traceCpuPath() const { return traceCpu; }
 +
@@ -98,6 +102,7 @@ index 0000000..7612b1f
 +    const Addr p_pmem_base;
 +    const Addr p_kernel_base;
 +    const Addr p_kernel_reserved;
++    const Addr p_image_window;
 +    const Addr p_reset_pc;
 +    const Addr p_entry;
 +
@@ -113,6 +118,7 @@ index 0000000..7612b1f
 +    SimObject *semihosting = nullptr;
 +
 +    bool inRange(Addr base, Addr size, Addr addr, Addr len) const;
++    Addr appWindow() const;
 +    void loadBootrom(const std::string &path);
 +    void validateElf(const std::vector<uint8_t> &file);
 +    void loadRaw(const std::vector<uint8_t> &file);

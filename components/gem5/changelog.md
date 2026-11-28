@@ -315,6 +315,11 @@
 
 - **2026-11-28 `m18-linux-016`**
   - 摘要：**SE `dadaoArgmask` 补 `case 449: /* futex_waitv */` = 0x09**（地址槽 0、3），与 musl C stub / QEMU host / 内核入口同一不变量（`check-syscall-abi` 86/86）。补丁 1 份改（`src/arch/dadao/se_workload.cc`）。
+
+## M19
+
+- **2026-11-27 m19-gem5-002**
+  - 摘要：**Tiny profile 迁到 M19 新几何（8 KiB ROM / 256 KiB SRAM / 8 KiB hmon）**。`configs/dadao/fs.py` 的 `tiny` 档重写：BootROM `0xffff_ffff_0000`+`0x2000`、SRAM `0xffff_ff00_0000`+`0x4_0000`、hmon `0x0fff_0000_0000`+`0x2000`；`kernel_base`/`entry` = `MAIN_SRAM_BASE+0x2000`（`kernel_reserved=0`）、`sp=+0x3F000`、`image_window=0x2_0000`；`--dump-geometry` 增列 `version/mailbox/exit_block/dump_base(+size)/signature/guard/stack/memras` 固定偏移。`fs_workload.cc`：ELF `PT_LOAD` 只接受 `[ENTRY, ENTRY+image_window)`，低于 `ENTRY`（头区/DUMP/SIGNATURE）与超出窗口均显式 fatal；raw 上限改为 image window；`--bootrom` 必须恰好 8192 B；构造期校验 `entry == kernel_base+reserved`、窗口落在 SRAM 内。`fs_tlb.{hh,cc}` 增 `guard_base/guard_size`：SRAM 内 `+0x38000` 4 KiB 空洞按 `CFXMEM`（fetch/store 同规则）。Vast 档与 SE 路径未改。证据：独立 8 KiB ROM（power→hmon→app）在 gem5 FS 跑通，DUMP `0x800` 四组 rd/rb/ra/rf 与 `rd0=status`/`rb0=ip`、`EXIT_BLOCK 0x30` SYS_EXIT 0x21、`+0x40000`/guard 两处 CFXMEM；注入旧 8 MiB 档 ⇒ 同一检查红，还原回绿。
   - 执行者：engineer
 
 ## M20
