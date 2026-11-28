@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_ctrl.c.inc b/target/dadao/insn_trans/trans_ctrl.c.inc
 new file mode 100644
-index 0000000..07af472
+index 0000000..cac2028
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_ctrl.c.inc
-@@ -0,0 +1,561 @@
+@@ -0,0 +1,573 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* ── Helper: RegRAS/MemRAS push/pop (ADR-0012 D7) ──────────────────── */
@@ -353,11 +353,23 @@ index 0000000..07af472
 +    return true;
 +}
 +
-+/* ── §7.1 swym: NOP ─────────────────────────────────────────────────── */
++/* ── §7.1 swym ──────────────────────────────────────────────────────── */
++/*
++ * swym oiii immu18 (opc=0x47, ha=0x22; SimRISC-12 §2):
++ *   N  = immu18[11:0]  — delay parameter (architectural latency 1 + N)
++ *   hb = immu18[17:12] — SBZ (non-zero => ILLI, encode_sbz)
++ *
++ * QEMU has no cycle model, so a legal `swym N` is a pure NOP.  The SBZ
++ * rule is functional, not timing: a non-zero hb raises ILLI at translate
++ * time with no side effect (same static shape as fence's hb check below).
++ */
 +static bool trans_swym_oiii_imm(DisasContext *ctx, arg_misc *a)
 +{
-+    /* swym: NOP */
-+    return true;
++    if (a->hb != 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    return true;    /* swym N: NOP */
 +}
 +
 +/* ── cfx/trap/escape (QEMU-044t): route into the SEE exception flow and the
