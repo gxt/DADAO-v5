@@ -180,12 +180,12 @@ __cm_\@:
 .endm
 
 	__TEST_BEGIN
-	set.rb	rb20, HMON_BASE
+	set.rb	rb20, HMON_DATA_BASE
 	set.rb	rb4, SSCR
 	set.rb	rb5, PSCR
 	@@ 任何意外异常先落到固件 hmon 的返回槽（fail-fast；向量接管前用）
 	set.rb	rb21, TEST_PAD
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 
 	@@ ---- 受控 hmon 入口先装：下面的能力探测会真触发异常（Tiny 缺行 ⇒ CFXREG）----
 	set.rd	rd5, hmon_entry

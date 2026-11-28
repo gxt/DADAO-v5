@@ -50,8 +50,16 @@ def render(prof):
         ".equ HMON_BASE, 0x%012x" % machine_profile.HMON_BASE,
         ".equ SMON_BASE, 0x0bff00000000",
         ".equ PMEM_BASE, 0x83ff00000000",
-        "",
     ]
+    if prof.fault_record is None:
+        # Tiny 的 hmon 用「保存-跳转」帧（`spec/Kaiwu §6.2` 数据页 0x0C00–0x0CFF；
+        # 页内槽 = 固件/框架契约，`m19-testcases-005`）。slot 常量只有这一处，
+        # 消费者一律引用；数值源 = machine_profile（宿主侧同一组常量）。
+        lines.append(".equ HMON_DATA_OFF, %#x" % machine_profile.HMON_DATA_OFF)
+        lines.append(".equ HMON_DATA_BASE, HMON_BASE + HMON_DATA_OFF")
+        for key, off in machine_profile.HMON_FRAME.items():
+            lines.append(".equ HMON_FRAME_%s, %#x" % (key, off))
+    lines.append("")
     return "\n".join(lines)
 
 

@@ -29,9 +29,9 @@
 @@ guest 内断言判（`SYS_EXIT(点号)` ⇒ 红），签名流为 0 槽（与 QEMU 的空流一致）。
 @@
 @@ 故障观察：chipyard 的固定 BootROM 是 Tiny 固件（`tests/ee-tiny/
-@@ cfx_hmon_tiny.S`）⇒ cause_id/cause_ip/cause_info 写在 hmon SRAM 的
-@@ +0xE0/+0xE8/+0xF0，返回地址从 +0xF8 取。`ARM_FAULT` 先清槽再写返回点，
-@@ 落点读回 cause —— 不靠残留值。
+@@ cfx_hmon_tiny.S`）⇒ cause_id/cause_ip/cause_info 写在 hmon 数据页的
+@@ +0x00/+0x08/+0x10，返回地址从 +0x18 取（`machine-tiny.inc` 的 `HMON_FRAME_*`）。
+@@ `ARM_FAULT` 先清槽再写返回点，落点读回 cause —— 不靠残留值。
 
 	.ifndef	PTW_CASE
 	.equ	PTW_CASE, 2
@@ -89,24 +89,24 @@
 
 @@ 清 cause 槽 + 写返回点；故障（或正常执行）后都落到 resume 标签
 .macro	ARM_FAULT resume
-	st.o	rd0, [rb20, 0xE0]
-	st.o	rd0, [rb20, 0xF0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_INFO]
 	set.rb	rb21, \resume
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 .endm
 
 .macro	READ_CAUSE rd
-	ld.o	\rd, [rb20, 0xE0]
+	ld.o	\rd, [rb20, HMON_FRAME_CAUSE_ID]
 .endm
 
 .macro	READ_INFO rd
-	ld.o	\rd, [rb20, 0xF0]
+	ld.o	\rd, [rb20, HMON_FRAME_CAUSE_INFO]
 .endm
 
 __TEST_BEGIN
 	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
 	PERM_MON_OPEN perm_mon
-	set.rb	rb20, HMON_BASE		@@ 固定固件 hmon 的 cause 槽/返回槽
+	set.rb	rb20, HMON_DATA_BASE	@@ 固定固件 hmon 的 cause 槽/返回槽
 
 	@@ 页表在镜像里预置（PT_L1/PT_L1B/PT_L2），这里只装 PTBR/开 PTW/清 TLB。
 	set.rd	rd6, PT_L1

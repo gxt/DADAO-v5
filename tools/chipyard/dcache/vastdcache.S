@@ -77,9 +77,9 @@
 	__TEST_BEGIN
 	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
 	PERM_MON_OPEN perm_mon
-	set.rb	rb25, HMON_BASE
+	set.rb	rb25, HMON_DATA_BASE
 	set.rb	rb22, TEST_PAD
-	st.o	rb22, [rb25, 0xF8]		@@ 固件 hmon 的返回地址槽
+	st.o	rb22, [rb25, HMON_FRAME_RETURN]  @@ 固件 hmon 的返回地址槽
 
 	@@ PTBR = 0（PA 0 的 L1 表），开 PTW
 	set.rd	rd6, 0

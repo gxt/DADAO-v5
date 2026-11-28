@@ -45,11 +45,11 @@
 @@   `jump [rb, rd0, 0]`（`rrii` 绝对形式，`Addr = rb + rd0 + 0`）。
 @@   用例寄存器不受影响：落点只用 rb11/rb16/rb20/rb21 与 rd20–rd23（保留寄存器）。
 @@
-@@ hmon 的返回地址：固件 hmon 从 hmon SRAM +0xF8 读返回地址（`spec/Kaiwu
-@@ §6.2`：power 写默认值 `trap+4`，**框架可覆盖**）。故障例在触发前把落点
-@@ `TEST_PAD` 写进 0xF8，于是三方走同一个硬件入口（向量 → 异常帧 → 固件 hmon →
-@@ `escape`），测试不再自带处理器。`m12-chipyard-028` 起三方 BootROM 固件同版
-@@ （`ISS-410` 已修）。
+@@ hmon 的返回地址：固件 hmon 从 hmon SRAM 数据页 `+0x18` 读返回地址（`spec/Kaiwu
+@@ §6.2`：数据页 `0x0C00`–`0x0CFF`；power 写默认值 `trap+4`，**框架可覆盖**）。
+@@ 故障例在触发前把落点 `TEST_PAD` 写进 `HMON_FRAME_RETURN`，于是三方走同一个
+@@ 硬件入口（向量 → 异常帧 → 固件 hmon → `escape`），测试不再自带处理器。
+@@ `m12-chipyard-028` 起三方 BootROM 固件同版（`ISS-410` 已修）。
 @@
 @@ 保留寄存器（用例不得占用）：rb3=数据基址、rb30=结果缓冲写指针、
 @@ rd20/rd21/rb21=期望/实测/临时、rd22/rd23=临时与退出码、
@@ -347,11 +347,12 @@ __ve_\@:
 @@   落点核对 `cause_id` 低 16 位 one-hot：不等 ⇒ `SYS_EXIT(点号)`；相等 ⇒ 跳下一例。
 @@ ---------------------------------------------------------------------------
 
-@@ 把落点写进固件 hmon 的返回地址槽（hmon SRAM + 0xF8；`spec/Kaiwu §6.2`）
+@@ 把落点写进固件 hmon 的返回地址槽（hmon 数据页 +0x18；`spec/Kaiwu §6.2`，
+@@ 页内槽常量见 `machine-tiny.inc` 的 `HMON_FRAME_*`）
 .macro __SET_HMON_RETURN
-	set.rb rb20, HMON_BASE
+	set.rb rb20, HMON_DATA_BASE
 	set.rb rb21, TEST_PAD
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 .endm
 
 @@ 故障例公共体：写 hmon 返回槽 + 把 one-hot / 失败点号写进 TEST_FAULTV
@@ -561,7 +562,7 @@ _start:
 __pad:
 	set.rb rb11, TEST_FAULTV
 	ld.o	rd23, [rb11, 8]			@@ 失败码 = 点号（兼 `.faulttab` 索引）
-	set.rb rb21, HMON_BASE + 0xE0	@@ 固件 hmon 的 cause_id 槽
+	set.rb rb21, HMON_DATA_BASE + HMON_FRAME_CAUSE_ID	@@ 固件 hmon 的 cause_id 槽
 	ld.o	rd20, [rb21, 0]
 	ld.o	rd21, [rb11, 0]
 	set.rd	rd22, 0xFFFF			@@ 只比大类 cause_id[15:0]

@@ -27,8 +27,9 @@
 @@ U/S 进入链落地（见任务书「遗留问题」）。
 @@
 @@ 故障观察：固件 hmon 把 `excp_cause_id`/`excp_cause_info` 存在
-@@ HMON_BASE+0xE0/+0xF0，并从 +0xF8 取回落点。每个故障例先把回落点设成自己的
-@@ resume；程序入口先把 +0xF8 指向 `abort` ⇒ 寄存器整体缺失时会以非零退出。
+@@ hmon 数据页 +0x00/+0x10，并从 +0x18 取回落点（`machine-tiny.inc` 的
+@@ `HMON_FRAME_*`）。每个故障例先把回落点设成自己的 resume；程序入口先把
+@@ +0x18 指向 `abort` ⇒ 寄存器整体缺失时会以非零退出。
 @@
 @@ **只在 `WumingVastConfig` 上跑**：`Kaiwu-Tiny` 不实现 cfx0/cfx2。
 @@ **只跑 hmon（hypv）模式**：020 未合入前没有 U/S 进入路由；smon/umon 模式
@@ -44,13 +45,13 @@
 	.equ PATTERN64, 0x123456789ABCDEF0
 
 	__TEST_BEGIN
-	set.rb rb20, HMON_BASE
-	set.rb rb20, HMON_BASE
+	set.rb rb20, HMON_DATA_BASE
+	set.rb rb20, HMON_DATA_BASE
 	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
 	PERM_MON_OPEN perm_mon
 	@@ 任何未预期异常都落到 abort（cfx0/cfx2 整体缺失时第一条访问即走这里）
 	set.rb rb21, abort
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 
 	@@ ---- A. cfx0 模式行 ----
 	cfx2rd	cfx_umon, cg2, rc0, rd5		@@ supv 行 cfxtrap mask 复位
@@ -135,39 +136,39 @@
 f1_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	f1_fault
 f1_fault:
 	cfx2rd	cfx_umon, cg0, rc9, rd5		@@ cg0 rc9 保留
 	.globl	f1_resume
 f1_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
 
 	.globl	f2_aip
 f2_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	f2_fault
 f2_fault:
 	cfx2rd	cfx_umon, cg4, rc7, rd5		@@ cg4 rc7 保留
 	.globl	f2_resume
 f2_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
 
 	.globl	f3_aip
 f3_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	f3_fault
 f3_fault:
 	cfx2rc	cfx_umon, cg4, rc0, rd6		@@ 写 RO cfx_id
 	.globl	f3_resume
 f3_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
 
 	@@ `cg0`–`cg3 rc4` 自 `ADR-0061` D5 起不定义（保留，访问 ⇒ CFXREG）
@@ -175,19 +176,19 @@ f3_resume:
 f6_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	f6_fault
 f6_fault:
 	cfx2rd	cfx_umon, cg0, rc4, rd5		@@ 模式行 rc4 保留
 	.globl	f6_resume
 f6_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
 
 	@@ cfx2 段之前把返回槽复位为 abort：cfx2 整体缺失时第一条访问即
 	@@ CFXREG ⇒ 直接显式失败（否则会复用 f3 的回落点、回到 cfx2 段反复触发）。
 	set.rb rb21, abort
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 
 	@@ ---- F. cfx2 寄存器面 ----
 	cfx2rd	cfx_smon, cg3, rc0, rd5
@@ -224,39 +225,39 @@ f6_resume:
 f4_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	f4_fault
 f4_fault:
 	cfx2rd	cfx_smon, cg5, rc6, rd5		@@ cg5 rc6 保留
 	.globl	f4_resume
 f4_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
 
 	.globl	f5_aip
 f5_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	f5_fault
 f5_fault:
 	cfx2rd	cfx_smon, cg8, rc2, rd5		@@ cg8 rc2 保留（monitor 只有 rc1）
 	.globl	f5_resume
 f5_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
 
 	.globl	f7_aip
 f7_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	f7_fault
 f7_fault:
 	cfx2rd	cfx_smon, cg3, rc4, rd5		@@ hypv 行 rc4 保留
 	.globl	f7_resume
 f7_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
 
 	__TEST_END

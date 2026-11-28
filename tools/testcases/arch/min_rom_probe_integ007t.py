@@ -4,16 +4,18 @@
 Oracle for the user ruling of 2026-11-11 (algorithm:
 ``.tao/archive/M13/integ/m13-integ-007-hmon最小保存跳转算法.md``):
 
-  * hmon SRAM layout: code at 0x00 (no jump); data at 0xD8 saved rd63 /
-    0xE0 cause_id / 0xE8 cause_ip / 0xF0 cause_info / 0xF8 return address;
-    the image segment carries only the code, so data keeps its SRAM value;
-  * the handler only saves the three cause registers, copies the framework's
-    return address from 0x28 into ``excp_cause_ip``, restores rd63 and escapes;
+  * hmon SRAM layout (M19, ``m19-testcases-005``): entry at 0x00 is a relative
+    ``jump`` into the body at 0x500; the data page is 0xC00-0xCFF (``spec/Kaiwu
+    §6.2``) holding +0x00 cause_id / +0x08 cause_ip / +0x10 cause_info /
+    +0x18 return address / +0x20 saved rd63 / +0x28 saved rb63; the image
+    segment carries only the code, so data keeps its SRAM value;
+  * the handler only saves the three cause registers, loads the framework's
+    return address from +0x18, restores rd63/rb63 and escapes;
   * the framework (= the application ELF) decides where to resume: it writes
-    address A to 0x28 and the fault must resume at A, then B at B;
+    address A to +0x18 and the fault must resume at A, then B at B;
   * no magic check, no IALIGN rewrite, no ``+4`` policy, no park loop.
 
-The probe builds the 64 KiB BootROM from the current sources with the shared
+The probe builds the 8 KiB BootROM from the current sources with the shared
 builder, links ``tests/unit/gem5/tiny_hmon/tiny_hmon_min.S`` as an SRAM-only application
 at the fixed entry, runs QEMU ``kaiwu-tiny`` and compares the guest-exported
 observation table against spec-derived values (one-hot cause ids from
@@ -46,6 +48,10 @@ import paths  # noqa: E402
 
 TINY_FW = os.path.join(REPO_ROOT, "tests", "ee-tiny")
 APP_SRC = os.path.join(REPO_ROOT, "tests", "unit", "gem5", "tiny_hmon", "tiny_hmon_min.S")
+# 同一用例的布局头（`tests/unit/gem5/**` 归 m19-gem5-003）：本探针只用它做
+# 「数据页/槽值一致」对账，不把它的 `.equ` 注入本镜像（单一常量源仍是 machine-tiny.inc）。
+LAYOUT_INC = os.path.join(REPO_ROOT, "tests", "unit", "gem5", "tiny_hmon",
+                          "tiny_hmon_layout.inc")
 APP_LDS = os.path.join(REPO_ROOT, "tests", "ee-tiny", "tests_freestanding_tiny.lds")
 # 公共段已内联进 lds。
 SHARED_ASM = os.path.join(REPO_ROOT, "tests", "shared", "asm")
@@ -68,19 +74,64 @@ TRAP_HMON_WORD = (0x7F << 24) | (3 << 18) | 0x30001
 TRAP_CFX7_WORD = (0x7F << 24) | (7 << 18)
 # Reserved instruction word used by the UNDI case (same vector as the arch case).
 UNDI_WORD = 0x08040001
-# hmon layout (m13-integ-007, second revision): code at 0x00, data at 0xD8.
-HMON_DATA_BASE = 0xD8
-HMON_CODE_MIN = 0x2C
-# Words whose encoding carries a data-slot offset (st.o rd63,[rb0,0xD8],
-# ld.o rd63,[rb0,0xDC], ld.o rd63,[rb0,0xB4]).
-HMON_LAYOUT_WORDS = {
-    0x00: 0x21FC00D8,
-    0x08: 0x21FC00D8,
-    0x10: 0x21FC00D8,
-    0x18: 0x21FC00D8,
-    0x1C: 0x20FC00DC,
-    0x24: 0x20FC00B4,
-}
+# hmon 代码布局（`tests/ee-tiny/cfx_hmon_tiny.S`；`m19-testcases-005`）：入口在 0x00
+# 是一条相对 `jump` → 处理体固定 0x500。处理体必须能在 `rb0` 相对 `imms12` 内够到
+# 数据页（IP ≥ 0xC00 − 0x7FF = 0x401），故不在段首；数据页起点/页内槽来自构建器
+# （`spec/Kaiwu §6.2` + `m19-testcases-005`），本文件不写裸偏移。
+HMON_BODY = 0x500
+# `jump [rb0, imm]`：opcode 0x70，immediate 以 4 B 字为单位（contracts/opcodes.yaml）。
+HMON_ENTRY_JUMP = (0x70 << 24) | (HMON_BODY // 4)
+# 8 字节 ld/st 的字段：opc[31:24] | rh[23:18] | rb[17:12] | imms12[11:0]
+# （contracts/opcodes.yaml；st/ld 的 RD 源 0x21/0x20、RB 源 0x23/0x22）。
+ST_O_RD, LD_O_RD, ST_O_RB, LD_O_RB = 0x21, 0x20, 0x23, 0x22
+
+
+def _ldst(opc, reg, base, imm):
+    return (opc << 24) | (reg << 18) | (base << 12) | (imm & 0xFFF)
+
+
+def layout_inc_slots(bld):
+    """`tiny_hmon_layout.inc` 的 HMON_* 常量 → (名字, 该文件值, 构建器值)。
+
+    两处必须逐值相等：应用（本探针链接的 `tiny_hmon_min.S`）用生成的
+    `machine-tiny.inc`，gem5 侧 `tiny_hmon.S` 用该布局头。
+    """
+    want = {"HMON_DATA": bld.HMON_DATA_BASE,
+            "HMON_SLOT_CAUSE_ID": bld.HMON_SLOT_CAUSE_ID,
+            "HMON_SLOT_CAUSE_IP": bld.HMON_SLOT_CAUSE_IP,
+            "HMON_SLOT_CAUSE_INFO": bld.HMON_SLOT_CAUSE_INFO,
+            "HMON_SLOT_RETURN": bld.HMON_SLOT_RETURN,
+            "HMON_SLOT_RD63": bld.HMON_SLOT_RD63,
+            "HMON_SLOT_RB63": bld.HMON_SLOT_RB63}
+    have = {}
+    with open(LAYOUT_INC, encoding="utf-8") as stream:
+        for line in stream:
+            line = line.split("@@", 1)[0].strip()
+            if not line.startswith(".equ"):
+                continue
+            fields = [f.strip() for f in line[len(".equ"):].split(",")]
+            if len(fields) != 2 or fields[0] not in want:
+                continue
+            have[fields[0]] = int(fields[1], 0)
+    return [(name, have.get(name), value) for name, value in want.items()]
+
+
+def hmon_layout_words(bld):
+    """处理体内携带数据页偏移的指令字：期望值由**数据页契约**派生（非实测反推）。"""
+    rd63 = rb63 = 63
+    page = bld.HMON_DATA_BASE
+    return {
+        0x000: HMON_ENTRY_JUMP,
+        HMON_BODY: _ldst(ST_O_RB, rb63, 0,
+                         page + bld.HMON_SLOT_RB63 - HMON_BODY),
+        HMON_BODY + 0x0C: _ldst(ST_O_RD, rd63, rb63, bld.HMON_SLOT_RD63),
+        HMON_BODY + 0x14: _ldst(ST_O_RD, rd63, rb63, bld.HMON_SLOT_CAUSE_ID),
+        HMON_BODY + 0x1C: _ldst(ST_O_RD, rd63, rb63, bld.HMON_SLOT_CAUSE_IP),
+        HMON_BODY + 0x24: _ldst(ST_O_RD, rd63, rb63, bld.HMON_SLOT_CAUSE_INFO),
+        HMON_BODY + 0x28: _ldst(LD_O_RD, rd63, rb63, bld.HMON_SLOT_RETURN),
+        HMON_BODY + 0x30: _ldst(LD_O_RD, rd63, rb63, bld.HMON_SLOT_RD63),
+        HMON_BODY + 0x34: _ldst(LD_O_RB, rb63, rb63, bld.HMON_SLOT_RB63),
+    }
 PASS_EXIT = 0x21
 # spec/Kaiwu §1.1 / DADAO-13 §1: hmon SRAM base == initial exception
 # vector.  power must not rewrite it (m13-integ-007 second revision).
@@ -208,15 +259,24 @@ def layout_checks(bld, image, hlen):
            "hmon segment size", f"8-aligned, <= {bld.HMON_SEG_MAX}", size)
 
     hmon = image[bld.HMON_SEG_OFF:bld.HMON_SEG_OFF + size]
-    report(len(hmon) >= HMON_CODE_MIN, "hmon code present",
-           f">= {HMON_CODE_MIN} B", f"{len(hmon)} B")
-    report(len(hmon) <= HMON_DATA_BASE, "hmon code stays below data base",
-           f"<= {HMON_DATA_BASE} B", f"{len(hmon)} B")
-    for off, want in HMON_LAYOUT_WORDS.items():
+    report(len(hmon) >= bld.HMON_CODE_MIN, "hmon code present",
+           f">= {bld.HMON_CODE_MIN} B", f"{len(hmon)} B")
+    report(len(hmon) <= bld.HMON_DATA_BASE, "hmon code stays below data base",
+           f"<= {bld.HMON_DATA_BASE} B", f"{len(hmon)} B")
+    for off, want in hmon_layout_words(bld).items():
         got = struct.unpack_from(">I", hmon, off)[0]
         report(got == want, f"hmon[{off:#04x}] layout word", hex(want), hex(got))
-    report(size <= HMON_DATA_BASE, "power copies only the code region",
-           f"table size <= {HMON_DATA_BASE}", size)
+    report(size <= bld.HMON_DATA_BASE, "power copies only the code region",
+           f"table size <= {bld.HMON_DATA_BASE}", size)
+    slots = layout_inc_slots(bld) if os.path.isfile(LAYOUT_INC) else []
+    if slots and all(have is not None for _n, have, _w in slots):
+        for name, have, want in slots:
+            report(have == want, f"tiny_hmon_layout.inc {name}", hex(want),
+                   hex(have))
+    else:
+        # 该布局头仍是无 HMON_* 常量的旧版 ⇒ 对账随 m19-gem5-003 合入后自动生效。
+        print("  [SKIP] tiny_hmon_layout.inc HMON_* 对账"
+              "（该文件当前无这些常量；m19-gem5-003 合入后自动启用）")
 
 
 def read_records(path, count):

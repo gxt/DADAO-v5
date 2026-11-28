@@ -9,11 +9,12 @@ RTL 与 QEMU/gem5 的差异只有「故障观察通道」：
 
   * QEMU/gem5：载体自己的 hmon 处理程序把 `excp_cause_id` 写进 RAM 故障槽并
     `escape` 回 `cause_ip + 4`；
-  * RTL：测试链固件的 hmon 把 `cause_id` 写 `HMON_BASE + 0xE0`、从
-    `HMON_BASE + 0xF8` 取回落点（与 `tests/arch/umon/cfx02_regs.S` 同一约定）。
+  * RTL：测试链固件的 hmon 把 `cause_id` 写 hmon 数据页 `+0x00`、从 `+0x18`
+    取回落点（`machine-tiny.inc` 的 `HMON_DATA_BASE`/`HMON_FRAME_*`；与
+    `tests/arch/umon/cfx02_regs.S` 同一约定）。
 
 两种通道都记「一个 probe 一个 8 字节槽」：`0` = 未异常，`ILLI` = 异常；
-生成器在故障 probe 前清零 `+0xE0`（不靠残留值），并把放行 probe 的回落点固定
+生成器在故障 probe 前清零 `+0x00`（不靠残留值），并把放行 probe 的回落点固定
 指向 `abort`（意外异常 ⇒ `SYS_EXIT(126)`，不是 PASS）。
 
 用法：
@@ -64,9 +65,9 @@ def render(case_id: str) -> str:
         "\t.include \"tests/inst/macros/inst_test.inc\"",
         "",
         "\t__TEST_BEGIN",
-        "\tset.rb rb20, HMON_BASE\t@@ 测试链固件 hmon 的异常帧槽",
+        "\tset.rb rb20, HMON_DATA_BASE\t@@ 测试链固件 hmon 的异常帧槽",
         "\tset.rb rb21, abort",
-        "\tst.o rb21, [rb20, 0xF8]\t@@ 放行 probe 的意外异常 ⇒ abort（fail-closed）",
+        "\tst.o rb21, [rb20, HMON_FRAME_RETURN]\t@@ 放行 probe 的意外异常 ⇒ abort（fail-closed）",
         "",
     ]
     for (label, cfx, hb, pred, succ, why), expected in zip(probes, want):
@@ -80,13 +81,13 @@ def render(case_id: str) -> str:
                          % (word, cfx, (hb << 12) | (pred << 6) | succ))
             lines.append("\t__REC\trd0\t@@ 见证：执行过 fence 才写这一槽")
         else:
-            lines.append("\tst.o rd0, [rb20, 0xE0]\t@@ 清固件 cause 槽（不靠残留）")
+            lines.append("\tst.o rd0, [rb20, HMON_FRAME_CAUSE_ID]\t@@ 清固件 cause 槽（不靠残留）")
             lines.append("\tset.rb rb21, 1f")
-            lines.append("\tst.o rb21, [rb20, 0xF8]")
+            lines.append("\tst.o rb21, [rb20, HMON_FRAME_RETURN]")
             lines.append("\t.dd.t32\t%#010x\t@@ fence cfx%d, %#x"
                          % (word, cfx, (hb << 12) | (pred << 6) | succ))
             lines.append("1:")
-            lines.append("\tld.o rd5, [rb20, 0xE0]")
+            lines.append("\tld.o rd5, [rb20, HMON_FRAME_CAUSE_ID]")
             lines.append("\t__REC\trd5")
         lines.append("")
     lines += [

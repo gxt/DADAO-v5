@@ -16,9 +16,10 @@
 @@   7 读 `cache_ctrl`（WO）⇒ `CFXREG`；写 `cache_exist`（RO）⇒ `CFXREG`；
 @@     保留 rc（`cg8 rc1`）⇒ `CFXREG`（CACHE-04）
 @@
-@@ 故障观察：固件 hmon 把 `excp_cause_id`/`excp_cause_info` 存在
-@@ HMON_BASE+0xE0/+0xF0，并从 +0xF8 取回落点（Tiny/Vast 共用的 BootROM 固件）。
-@@ 每个故障例先把回落点设成自己的 resume；程序入口先把 +0xF8 指向 `abort`
+@@ 故障观察：固件 hmon 把 `excp_cause_id`/`excp_cause_info` 存在数据页
+@@ `+0x00`/`+0x10`，并从 `+0x18` 取回落点（Tiny/Vast 共用的 BootROM 固件；
+@@ 槽常量见 `machine-tiny.inc` 的 `HMON_FRAME_*`）。
+@@ 每个故障例先把回落点设成自己的 resume；程序入口先把 `+0x18` 指向 `abort`
 @@ ⇒ 「cfx5 未实现时第一条 cfx2rd 就 CFXREG」会以非零退出收场，不是死循环。
 @@
 @@ **只在 `WumingVastConfig` 上跑**：`Kaiwu-Tiny` 不实现 cfx5（CACHE-28）。
@@ -48,10 +49,10 @@
 	__TEST_BEGIN
 	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
 	PERM_MON_OPEN perm_mon
-	set.rb rb20, HMON_BASE
+	set.rb rb20, HMON_DATA_BASE
 	@@ 任何未预期异常都落到 abort（cfx5 未实现时第一条访问即走这里）
 	set.rb rb21, abort
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 
 	@@ 复位/只读：cache_exist = I|D（CACHE-06/27）
 	cfx2rd	cfx_cache, cg8, rc0, rd5
@@ -139,15 +140,15 @@
 f1_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	f1_fault
 f1_fault:
 	cfx2rc	cfx_cache, cg8, rc9, rd6
 	.globl	f1_resume
 f1_resume:
-	ld.o	rd5, [rb20, 0xE0]		@@ excp_cause_id
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]		@@ excp_cause_id
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]		@@ excp_cause_info = 指令编码
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]		@@ excp_cause_info = 指令编码
 	__REC	rd5
 
 	@@ 读 cache_ctrl（WO）⇒ CFXREG（CACHE-03）
@@ -155,15 +156,15 @@ f1_resume:
 f2_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	f2_fault
 f2_fault:
 	cfx2rd	cfx_cache, cg8, rc9, rd5
 	.globl	f2_resume
 f2_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 写 cache_exist（RO）⇒ CFXREG（CACHE-03/04）
@@ -171,15 +172,15 @@ f2_resume:
 f3_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	f3_fault
 f3_fault:
 	cfx2rc	cfx_cache, cg8, rc0, rd6
 	.globl	f3_resume
 f3_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 保留 rc（cg8 rc1）⇒ CFXREG（CACHE-04）
@@ -187,15 +188,15 @@ f3_resume:
 f4_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	f4_fault
 f4_fault:
 	cfx2rd	cfx_cache, cg8, rc1, rd5
 	.globl	f4_resume
 f4_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	__TEST_END

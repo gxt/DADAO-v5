@@ -33,9 +33,9 @@
 	__TEST_BEGIN
 	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
 	PERM_MON_OPEN perm_mon
-	set.rb	rb20, HMON_BASE
+	set.rb	rb20, HMON_DATA_BASE
 	set.rb	rb21, abort
-	st.o	rb21, [rb20, 0xF8]		@@ 未预期异常 ⇒ 显式失败（不是死循环）
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]		@@ 未预期异常 ⇒ 显式失败（不是死循环）
 
 	@@ PTBR = 0（L1 在 PA 0），开 PTW
 	set.rd	rd6, 0
@@ -336,7 +336,7 @@ e0:
 	set.zw	rd13, wp0, IMM8
 	st.w	rd13, [rb8, 2]
 	set.rb	rb5, f1_resume
-	st.o	rb5, [rb20, 0xF8]
+	st.o	rb5, [rb20, HMON_FRAME_RETURN]
 	set.zw	rd7, wp0, CTRL_ID_CLEAN_RESV
 	.globl	f1_fault
 f1_fault:
@@ -344,11 +344,11 @@ f1_fault:
 	.dd.t32	0
 	.globl	f1_resume
 f1_resume:
-	set.rb	rb20, HMON_BASE
+	set.rb	rb20, HMON_DATA_BASE
 	set.rb	rb8, VA_CODE
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5				@@ cause_id
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5				@@ cause_info = 指令编码
 f1_resume2:
 	set.zw	rd7, wp0, CTRL_I_INVALIDATE_LINE
@@ -364,7 +364,7 @@ f1_end:
 	set.rd	rd7, 0
 	cfx2rc	cfx_cache, cg8, rc11, rd7
 	set.rb	rb5, f2_resume
-	st.o	rb5, [rb20, 0xF8]
+	st.o	rb5, [rb20, HMON_FRAME_RETURN]
 	set.zw	rd7, wp0, CTRL_D_INVALIDATE_RANGE
 	.globl	f2_fault
 f2_fault:
@@ -372,11 +372,11 @@ f2_fault:
 	.dd.t32	0
 	.globl	f2_resume
 f2_resume:
-	set.rb	rb20, HMON_BASE
+	set.rb	rb20, HMON_DATA_BASE
 	set.rb	rb8, VA_CODE
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 f2_resume2:
 	set.rd	rd7, PA_CODE
@@ -397,7 +397,7 @@ f2_end:
 	set.rd	rd7, 0
 	cfx2rc	cfx_cache, cg8, rc8, rd7		@@ 关 I/D
 	set.rb	rb5, f3_resume
-	st.o	rb5, [rb20, 0xF8]
+	st.o	rb5, [rb20, HMON_FRAME_RETURN]
 	set.zw	rd7, wp0, CTRL_D_CLEAN_RESV
 	.globl	f3_fault
 f3_fault:
@@ -405,11 +405,11 @@ f3_fault:
 	.dd.t32	0
 	.globl	f3_resume
 f3_resume:
-	set.rb	rb20, HMON_BASE
+	set.rb	rb20, HMON_DATA_BASE
 	set.rb	rb8, VA_CODE
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 f3_resume2:
 	set.rd	rd7, 3

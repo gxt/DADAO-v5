@@ -38,6 +38,8 @@
 
 	.include "tests/shared/asm/signature.inc"
 	.include "tests/shared/asm/perm_hypv.inc"
+	@@ hmon 帧槽常量（`spec/Kaiwu §6.2` 数据页；RTL 用的是共享 Tiny 固件）
+	.include "tests/shared/asm/machine-tiny.inc"
 
 	.equ	ENTRY,   0xffffff002000
 	.equ	SIG_BUF, 0xffffff001000
@@ -45,12 +47,10 @@
 	.equ	EXITB,   0xffffff000030
 	@@ RTL 的 hmon 是**共享的 Tiny 保存-跳转处理器**（`make build-bootrom` 的
 	@@ `--hmon-elf $(TINY_BOOTROM_DIR)/hmon.elf`，`m16-chipyard-025`）：它的
-	@@ cause_id 槽 = `hmon SRAM + 0xE0`、回落点 = `+0xF8`
-	@@ （`tools/testcases/arch/build_tiny_bootrom.py` 的固定布局；地址取
-	@@ `DadaoConfigs` 的 `hmonBase`）。**不能用** QEMU/gem5 的 `FAULT_RECORD`
-	@@ —— RTL 本体开着 PTW，`0x7ffc_0000` 不在固件建的页表里（实测
+	@@ cause_id 槽 = 数据页 `+0x00`、回落点 = `+0x18`（`machine-tiny.inc` 的
+	@@ `HMON_DATA_BASE`/`HMON_FRAME_*`；`spec/Kaiwu §6.2`）。**不能用** QEMU/gem5 的
+	@@ `FAULT_RECORD` —— RTL 本体开着 PTW，`0x7ffc_0000` 不在固件建的页表里（实测
 	@@ `CFXMEM [57] NONPTW` 循环）。
-	.equ	HMON_BASE, 0x0fff00000000
 
 	.ifndef	TCASE
 	.equ	TCASE, 1
@@ -242,48 +242,48 @@ t_base_rec:
 @@ ---------------------------------------------------------------------------
 reject_entry:
 	SIG_BEGIN SIG_BUF, SIG_SLOTS
-	set.rb	rb20, HMON_BASE
+	set.rb	rb20, HMON_DATA_BASE
 
 	@@ 槽 0：time_freq（cg10 rc0，RO）
 	cfx2rd	cfx_time, cg10, rc0, rd5
 	REC	rd5
 
 	@@ 槽 1：cg10 rc2（保留）读 ⇒ CFXREG
-	st.o	rd0, [rb20, 0xE0]		@@ 清固件 cause 槽（不靠残留）
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]	@@ 清固件 cause 槽（不靠残留）
 	set.rb	rb21, rf_rc2
-	st.o	rb21, [rb20, 0xF8]		@@ 回落点 = 触发指令之后
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]	@@ 回落点 = 触发指令之后
 	cfx2rd	cfx_time, cg10, rc2, rd6
 rf_rc2:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	REC	rd5
 
 	@@ 槽 2：cg10 rc63（保留，rc 上界）读 ⇒ CFXREG
-	st.o	rd0, [rb20, 0xE0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]
 	set.rb	rb21, rf_rc63
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	cfx2rd	cfx_time, cg10, rc63, rd6
 rf_rc63:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	REC	rd5
 
 	@@ 槽 3：写 cg10 rc0（RO）⇒ CFXREG
-	st.o	rd0, [rb20, 0xE0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]
 	set.rb	rb21, rf_w0
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	set.rd	rd6, 0
 	cfx2rc	cfx_time, cg10, rc0, rd6
 rf_w0:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	REC	rd5
 
 	@@ 槽 4：写 cg10 rc1（RO）⇒ CFXREG
-	st.o	rd0, [rb20, 0xE0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]
 	set.rb	rb21, rf_w1
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	set.rd	rd6, 0
 	cfx2rc	cfx_time, cg10, rc1, rd6
 rf_w1:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	REC	rd5
 
 	@@ 槽 5：被拒的写没有改到 freq（仍 1 GHz）

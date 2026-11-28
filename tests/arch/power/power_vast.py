@@ -533,9 +533,9 @@ def slot_asm(spec, idx):
         _, cfx, cg, rc = spec[:4]
         lab = "f%d" % idx
         lines = [
-            "\tst.o\trd0, [rb20, 0xE0]\t@@ 清固件 cause 槽（不靠残留）",
+            "\tst.o\trd0, [rb20, HMON_FRAME_CAUSE_ID]\t@@ 清固件 cause 槽（不靠残留）",
             "\tset.rb\trb21, %s" % lab,
-            "\tst.o\trb21, [rb20, 0xF8]\t@@ 返回点",
+            "\tst.o\trb21, [rb20, HMON_FRAME_RETURN]\t@@ 返回点",
         ]
         if kind == "fault_rd":
             lines.append("\tcfx2rd\t%s, rd6" % reg(cfx, cg, rc))
@@ -545,7 +545,7 @@ def slot_asm(spec, idx):
                                                 else "0"))
             lines.append("\tcfx2rc\t%s, rd6" % reg(cfx, cg, rc))
         lines += ["%s:" % lab,
-                  "\tld.o\trd5, [rb20, 0xE0]",
+                  "\tld.o\trd5, [rb20, HMON_FRAME_CAUSE_ID]",
                   "\t__REC\trd5"]
         return lines
     raise SetupError("未知槽类型 %r" % (kind,))

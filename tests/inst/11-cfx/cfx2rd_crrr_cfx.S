@@ -24,9 +24,9 @@
 @@ ---- 本文件局部宏（不改共享宏层）----
 @@ 任何意外异常都落到固件 hmon 的返回槽：先指向 TEST_PAD（故障落点，按监控码退出 = fail-fast）
 	__TEST_BEGIN
-	set.rb rb20, HMON_BASE
+	set.rb rb20, HMON_DATA_BASE
 	set.rb rb21, TEST_PAD
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 
 	@@ ---- encoding（规范编码字直接执行，钉 mask/value 与字段位域）----
 	@@ 0x7A0C33C5 = cfx3 / cg3 / rc15（hypv excp vector，原 rc10）/ rd5 ⇒ hmon SRAM 起始
@@ -57,7 +57,7 @@
 	cfx2rd	cfx_hmon, cg7, rc1, rd5
 	__CHECK_RD   9, rd5, (HMON_BASE - (3 * 0x40000000000))   @@ start：核内偏移 0x3FF_0000_0000
 	cfx2rd	cfx_hmon, cg7, rc2, rd5
-	__CHECK_RD  10, rd5, 0x10000                @@ size：64 KiB
+	__CHECK_RD  10, rd5, 0x2000                 @@ size：8 KiB（spec/Kaiwu §1.1，M19 几何）
 	cfx2rd	cfx_hmon, cg7, rc3, rd5
 	__CHECK_RD  11, rd5, 7                      @@ attr：R | W | X
 
@@ -67,7 +67,7 @@
 	cfx2rd	cfx_power, cg7, rc1, rd5
 	__CHECK_RD  13, rd5, (BOOTROM_BASE - (63 * 0x40000000000))
 	cfx2rd	cfx_power, cg7, rc2, rd5
-	__CHECK_RD  14, rd5, 0x10000
+	__CHECK_RD  14, rd5, 0x2000                 @@ size：8 KiB（spec/Kaiwu §6.2，M19 几何）
 	cfx2rd	cfx_power, cg7, rc3, rd5
 	__CHECK_RD  15, rd5, 5                      @@ attr：R | X
 
@@ -86,9 +86,9 @@
 
 	@@ ---- overlap：目的号与 cfxha 同号（rd3 / cfx3）不改变语义，且读是幂等的 ----
 	cfx2rd	cfx_hmon, cg7, rc2, rd3
-	__CHECK_RD  20, rd3, 0x10000
+	__CHECK_RD  20, rd3, 0x2000                 @@ size：8 KiB（M19 几何；读幂等）
 	cfx2rd	cfx_hmon, cg7, rc2, rd3
-	__CHECK_RD  21, rd3, 0x10000
+	__CHECK_RD  21, rd3, 0x2000
 
 	@@ ---- semantic：cg5 rc1 = `prev cfx code`（入口记录，只读；`spec/DADAO-12 §3.6`）----
 	@@ 期望 0x3F（= cfx_power 63）的独立 oracle：复位 cfx = cfx_power（`spec/Kaiwu §1`），

@@ -8,8 +8,8 @@
 `power_vast.py` 的**同一张探针表**生成，签名流与 QEMU/gem5 逐槽同源比对。
 
 RTL 侧的差异（`gen_power_rtl.py` 文件头）：故障走固件 hmon
-（`HMON_BASE+0xE0` / `+0xF8`），测试体固定交付为 `cfx_power`（cfx63）/hypv
-（无 U/S 进入链）⇒ `arch-power-001` 只跑一次。
+（hmon 数据页 `+0x00` / `+0x18`，`HMON_FRAME_*`），测试体固定交付为
+`cfx_power`（cfx63）/hypv（无 U/S 进入链）⇒ `arch-power-001` 只跑一次。
 
 `--write-side`（`m16-chipyard-031`）跑 `cfx_power ctrl` 的写侧：写 0 被接受 +
 读 ⇒ `CFXREG`，以及 bit0/1/2 ⇒ 结束仿真（复位 = 结束 + harness 重启）。
@@ -202,12 +202,12 @@ def selfcheck() -> int:
         # `wr_ok`（写被接受）也走同一条原因槽通道。
         n_fault = sum(1 for _, _, s in table
                       if s[0] in ("fault_rd", "fault_wr", "wr_ok"))
-        if text.count("[rb20, 0xE0]") != 2 * n_fault:
+        if text.count("[rb20, HMON_FRAME_CAUSE_ID]") != 2 * n_fault:
             problems.append("%s: cause 槽访问 %d 次 ≠ 2 × %d 个故障槽"
-                            % (case_id, text.count("[rb20, 0xE0]"), n_fault))
-        if text.count("[rb20, 0xF8]") != n_fault + 1:
+                            % (case_id, text.count("[rb20, HMON_FRAME_CAUSE_ID]"), n_fault))
+        if text.count("[rb20, HMON_FRAME_RETURN]") != n_fault + 1:
             problems.append("%s: 回落点写入 %d 次 ≠ %d 个故障槽 + 1（入口 abort）"
-                            % (case_id, text.count("[rb20, 0xF8]"), n_fault))
+                            % (case_id, text.count("[rb20, HMON_FRAME_RETURN]"), n_fault))
         if n_fault and "abort:" not in text:
             problems.append("%s: 有故障槽但缺 `abort` 回落点" % case_id)
         if "__EXIT\t126" not in text:

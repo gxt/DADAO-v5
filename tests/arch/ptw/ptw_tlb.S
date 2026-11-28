@@ -53,7 +53,7 @@
 	__TEST_BEGIN
 	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
 	PERM_MON_OPEN perm_mon
-	set.rb rb25, HMON_BASE
+	set.rb rb25, HMON_DATA_BASE
 	set.rb rb5, VA_L2SELF		@@ L2 表自映射页（读写 PTE）
 	set.rb rb6, VA_L1SELF		@@ L1 表自映射页
 
@@ -84,37 +84,37 @@
 	st.o	rb8, [rb7, 0]
 
 	@@ clean #1（故障可回落：注入时这里报 CFXMEM[56]）
-	st.o	rd0, [rb25, 0xE0]
-	st.o	rd0, [rb25, 0xF0]
+	st.o	rd0, [rb25, HMON_FRAME_CAUSE_ID]
+	st.o	rd0, [rb25, HMON_FRAME_CAUSE_INFO]
 	.globl	tl_or_aip1
 tl_or_aip1:
 	aip.si	rb21, 0
 	add.si	rb21, 20
-	st.o	rb21, [rb25, 0xF8]
+	st.o	rb21, [rb25, HMON_FRAME_RETURN]
 	set.rd	rd6, 1				@@ clean / all
 	cfx2rc	cfx_ptw, cg12, rc0, rd6
 	.globl	tl_or_res1
 tl_or_res1:
-	ld.o	rd5, [rb25, 0xE0]
+	ld.o	rd5, [rb25, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb25, 0xF0]
+	ld.o	rd5, [rb25, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ clean #2：失败侧条目保留 ⇒ 注入时这里再报一次（同一个 PTE PA）
-	st.o	rd0, [rb25, 0xE0]
-	st.o	rd0, [rb25, 0xF0]
+	st.o	rd0, [rb25, HMON_FRAME_CAUSE_ID]
+	st.o	rd0, [rb25, HMON_FRAME_CAUSE_INFO]
 	.globl	tl_or_aip2
 tl_or_aip2:
 	aip.si	rb21, 0
 	add.si	rb21, 20
-	st.o	rb21, [rb25, 0xF8]
+	st.o	rb21, [rb25, HMON_FRAME_RETURN]
 	set.rd	rd6, 1
 	cfx2rc	cfx_ptw, cg12, rc0, rd6
 	.globl	tl_or_res2
 tl_or_res2:
-	ld.o	rd5, [rb25, 0xE0]
+	ld.o	rd5, [rb25, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb25, 0xF0]
+	ld.o	rd5, [rb25, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 终值：未注入 A1D1；注入（D 侧回写不落地）A1D0
@@ -276,36 +276,36 @@ tl_or_res2:
 	set.rb rb7, (VA_OR + 0x808)
 	st.o	rb8, [rb7, 0]
 	@@ clean #1（注入时此处报 CFXMEM[56]）
-	st.o	rd0, [rb25, 0xE0]
-	st.o	rd0, [rb25, 0xF0]
+	st.o	rd0, [rb25, HMON_FRAME_CAUSE_ID]
+	st.o	rd0, [rb25, HMON_FRAME_CAUSE_INFO]
 	.globl	tl_or_aip1
 tl_or_aip1:
 	aip.si	rb21, 0
 	add.si	rb21, 20
-	st.o	rb21, [rb25, 0xF8]
+	st.o	rb21, [rb25, HMON_FRAME_RETURN]
 	set.rd	rd6, 1
 	cfx2rc	cfx_ptw, cg12, rc0, rd6
 	.globl	tl_or_res1
 tl_or_res1:
-	ld.o	rd5, [rb25, 0xE0]
+	ld.o	rd5, [rb25, HMON_FRAME_CAUSE_ID]
 	__REC	rd5				@@ r25 帧 cause（未注入 0）
-	ld.o	rd5, [rb25, 0xF0]
+	ld.o	rd5, [rb25, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5				@@ r26 帧 info
 	@@ clean #2
-	st.o	rd0, [rb25, 0xE0]
-	st.o	rd0, [rb25, 0xF0]
+	st.o	rd0, [rb25, HMON_FRAME_CAUSE_ID]
+	st.o	rd0, [rb25, HMON_FRAME_CAUSE_INFO]
 	.globl	tl_or_aip2
 tl_or_aip2:
 	aip.si	rb21, 0
 	add.si	rb21, 20
-	st.o	rb21, [rb25, 0xF8]
+	st.o	rb21, [rb25, HMON_FRAME_RETURN]
 	set.rd	rd6, 1
 	cfx2rc	cfx_ptw, cg12, rc0, rd6
 	.globl	tl_or_res2
 tl_or_res2:
-	ld.o	rd5, [rb25, 0xE0]
+	ld.o	rd5, [rb25, HMON_FRAME_CAUSE_ID]
 	__REC	rd5				@@ r27 帧 cause
-	ld.o	rd5, [rb25, 0xF0]
+	ld.o	rd5, [rb25, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5				@@ r28 帧 info
 	ld.o	rd5, [rb5, OFF_L2_OR]
 	__REC	rd5				@@ r29 PTE 终值

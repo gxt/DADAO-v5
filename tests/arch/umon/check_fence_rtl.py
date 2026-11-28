@@ -8,7 +8,7 @@
 `umon_fence.py` 的**同一张探针表**生成，签名流与 QEMU/gem5 逐槽同源比对。
 
 RTL 与 QEMU/gem5 的差异只有故障观察通道（固件 hmon：cause 在
-`HMON_BASE + 0xE0`、回落点 `+0xF8`），见 `gen_fence_rtl.py` 文件头。
+hmon 数据页 `+0x00`、回落点 `+0x18`，`HMON_FRAME_*`），见 `gen_fence_rtl.py` 文件头。
 
 用法：
   check_fence_rtl.py --only arch-umon-012 [--sim PATH] [--work-dir DIR]

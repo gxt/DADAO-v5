@@ -181,7 +181,7 @@ __smdone_\@:
 @@   写存储器**之前** raise ⇒ 单元素 ld 的目的、单元素 st 的目标数据单元均保持原值；
 @@   用户 2026-11-13 裁定「单元素 ld/st 仍须精确」）。
 @@ 机制：公共故障落点 `__pad` 只核 cause 后跳后继例，本类例需要「异常返回后」再核，
-@@   故把固件 hmon 的返回槽（hmon SRAM +0xF8，`spec/Kaiwu §6.2`「框架可覆盖」）改写成
+@@   故把固件 hmon 的返回槽（hmon 数据页 +0x18，`spec/Kaiwu §6.2`「框架可覆盖」）改写成
 @@   用例自己的核对点；核对点用 `__VERIFY_*`（不占检查点）后再跳回 `__pad` ——
 @@   cause 槽/`TEST_FAULTV` 都没被改动，公共落点仍按点号查 `.faulttab` 走下一例。
 @@   装返回地址用 `set.rd`（标签只能进 64 位立即数）+ `rd2rb`（不经被测指令）。
@@ -189,8 +189,8 @@ __smdone_\@:
 .macro __SET_HMON_RETURN_TO lbl
 	set.rd	rd19, \lbl
 	rd2rb	{rb21:rb21}, {rd19:rd19}
-	set.rb	rb20, HMON_BASE
-	st.o	rb21, [rb20, 0xF8]
+	set.rb	rb20, HMON_DATA_BASE
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 .endm
 
 @@ ld.*：未对齐 ⇒ MALIGN，且目的寄存器不被写（保持调用前预置值）

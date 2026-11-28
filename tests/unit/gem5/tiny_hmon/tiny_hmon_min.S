@@ -2,15 +2,18 @@
 @@ （m13-integ-007；算法见 .tao/archive/M13/integ/m13-integ-007-hmon最小保存跳转算法.md）
 @@
 @@ 加载契约：宿主只装本应用 ELF（crt + 本文件，SRAM-only，固定入口 ENTRY）；
-@@ 固定 64 KiB BootROM（共享 power stub + cfx_hmon_tiny.S）由 `bootrom-image` 提供。
+@@ 固定 8 KiB BootROM（共享 power stub + cfx_hmon_tiny.S）由 `bootrom-image` 提供
+@@ （`spec/Kaiwu §6.2`，M19 几何）。帧槽常量取 `machine-tiny.inc` 的
+@@ `HMON_DATA_BASE`/`HMON_FRAME_*`；与其一致的 `tiny_hmon_layout.inc`
+@@ 由 `min_rom_probe_integ007t.py` 逐值对账（不重复定义）。
 @@
 @@ 用例职责（测试框架 = 本程序）：
-@@   1. 移交闭环：应用能运行、hmon 槽 0xE0/0xE8/0xF0 保存的是 power 的
-@@      CFXTRAP 现场，槽 0xF8 是 power 写入的默认返回地址（trap+4）；
+@@   1. 移交闭环：应用能运行、hmon 数据页 +0x00/+0x08/+0x10 保存的是 power 的
+@@      CFXTRAP 现场，槽 +0x18 是 power 写入的默认返回地址（trap+4）；
 @@   2. 五类同步异常各 1 例（CFXMEM/ILLI/UNDI/MALIGN/IALIGN）：每例前把
-@@      槽 0xF8 写成不同的 landing 地址，事后读回 hmon 槽，逐值交给驱动
+@@      槽 +0x18 写成不同的 landing 地址，事后读回 hmon 槽，逐值交给驱动
 @@      与独立期望值比较；
-@@   3. 每例把 rd63 置为哨兵值，事后记录 rd63 与 hmon 槽 0xD8（保存值）；
+@@   3. 每例把 rd63 置为哨兵值，事后记录 rd63 与 hmon 槽 +0x20（保存值）；
 @@   4. landing 前两条指令写 poison=0xdead：若 hmon 采用旧的 `+4` 策略，
 @@      poison 会被执行，驱动据此判 FAIL（本用例不依赖 hmon 的任何判断）。
 @@   5. 控制流只用 call/branch/escape，不引入 jump（用户 2026-11-11 修正）。
@@ -46,30 +49,30 @@ _start:
 	.globl	hmon_min_main
 hmon_min_main:
 	set.rb rb3, RESULTS
-	set.rb rb5, HMON_BASE
+	set.rb rb5, HMON_DATA_BASE
 
 	@@ ---- record 0: power -> hmon 移交现场 + 默认返回地址 ------------------
-	ld.o	rd10, [rb5, 0xE0]		@@ cause_id (CFXTRAP)
-	ld.o	rd11, [rb5, 0xE8]		@@ cause_ip (power 的 trap)
-	ld.o	rd12, [rb5, 0xF0]		@@ cause_info (trap 编码)
+	ld.o	rd10, [rb5, HMON_FRAME_CAUSE_ID]		@@ cause_id (CFXTRAP)
+	ld.o	rd11, [rb5, HMON_FRAME_CAUSE_IP]		@@ cause_ip (power 的 trap)
+	ld.o	rd12, [rb5, HMON_FRAME_CAUSE_INFO]		@@ cause_info (trap 编码)
 	set.zw	rd13, wp0, 0
 	st.o	rd13, [rb3, 0]
 	st.o	rd10, [rb3, 8]
 	st.o	rd11, [rb3, 16]
 	st.o	rd12, [rb3, 24]
 	add.si	rb3, 32
-	ld.o	rd10, [rb5, 0xF8]		@@ power 写的默认返回地址
+	ld.o	rd10, [rb5, HMON_FRAME_RETURN]		@@ power 写的默认返回地址
 	st.o	rd10, [rb3, 0]
-	ld.o	rd10, [rb5, 0xD8]		@@ 移交时保存的 rd63
+	ld.o	rd10, [rb5, HMON_FRAME_RD63]		@@ 移交时保存的 rd63
 	st.o	rd10, [rb3, 8]
-	cfx2rd	cfx_hmon, cg3, rc10, rd10	@@ 异常向量（power 不改）
+	cfx2rd	cfx_hmon, cg3, rc15, rd10	@@ 异常向量（power 不改；ADR-0061 D5：rc15 = hypv excp_vector，原 rc10）
 	st.o	rd10, [rb3, 16]
 	st.o	rd0, [rb3, 24]
 	add.si	rb3, 32
 
 	@@ ---- 1: CFXMEM -> land_mem -------------------------------------------
 	LOAD_ABS rd5, land_mem
-	st.o	rd5, [rb5, 0xF8]
+	st.o	rd5, [rb5, HMON_FRAME_RETURN]
 	set.rd rd63, 0x1111222233334444
 	set.zw	rd20, wp0, 0
 	set.rb rb2, 0x1000000000
@@ -85,7 +88,7 @@ land_mem:
 
 	@@ ---- 2: ILLI -> land_illi -------------------------------------------
 	LOAD_ABS rd5, land_illi
-	st.o	rd5, [rb5, 0xF8]
+	st.o	rd5, [rb5, HMON_FRAME_RETURN]
 	set.rd rd63, 0x2222333344445555
 	set.zw	rd20, wp0, 0
 	.globl	f_illi
@@ -100,7 +103,7 @@ land_illi:
 
 	@@ ---- 3: UNDI -> land_undi --------------------------------------------
 	LOAD_ABS rd5, land_undi
-	st.o	rd5, [rb5, 0xF8]
+	st.o	rd5, [rb5, HMON_FRAME_RETURN]
 	set.rd rd63, 0x3333444455556666
 	set.zw	rd20, wp0, 0
 	.globl	f_undi
@@ -115,7 +118,7 @@ land_undi:
 
 	@@ ---- 4: MALIGN -> land_malign ----------------------------------------
 	LOAD_ABS rd5, land_malign
-	st.o	rd5, [rb5, 0xF8]
+	st.o	rd5, [rb5, HMON_FRAME_RETURN]
 	set.rd rd63, 0x4444555566667777
 	set.zw	rd20, wp0, 0
 	set.rb rb2, RAM_BASE + 1
@@ -131,7 +134,7 @@ land_malign:
 
 	@@ ---- 5: IALIGN -> land_ialign ----------------------------------------
 	LOAD_ABS rd5, land_ialign
-	st.o	rd5, [rb5, 0xF8]
+	st.o	rd5, [rb5, HMON_FRAME_RETURN]
 	set.rd rd63, 0x5555666677778888
 	set.zw	rd20, wp0, 0
 	set.rb rb2, IALIGN_TARGET
@@ -200,18 +203,18 @@ land_ialign:
 @@ record: rd13 = record id（其余现场值从 hmon 槽重读）。追加 8 个 octa。
 @@ ---------------------------------------------------------------------------
 record:
-	ld.o	rd10, [rb5, 0xE0]
-	ld.o	rd11, [rb5, 0xE8]
-	ld.o	rd12, [rb5, 0xF0]
+	ld.o	rd10, [rb5, HMON_FRAME_CAUSE_ID]
+	ld.o	rd11, [rb5, HMON_FRAME_CAUSE_IP]
+	ld.o	rd12, [rb5, HMON_FRAME_CAUSE_INFO]
 	st.o	rd13, [rb3, 0]
 	st.o	rd10, [rb3, 8]
 	st.o	rd11, [rb3, 16]
 	st.o	rd12, [rb3, 24]
 	add.si	rb3, 32
 	st.o	rd63, [rb3, 0]			@@ rd63 异常后值
-	ld.o	rd10, [rb5, 0xD8]		@@ hmon 保存的 rd63
+	ld.o	rd10, [rb5, HMON_FRAME_RD63]		@@ hmon 保存的 rd63
 	st.o	rd10, [rb3, 8]
-	ld.o	rd10, [rb5, 0xF8]		@@ hmon 读到的返回地址槽
+	ld.o	rd10, [rb5, HMON_FRAME_RETURN]		@@ hmon 读到的返回地址槽
 	st.o	rd10, [rb3, 16]
 	st.o	rd20, [rb3, 24]			@@ poison（+4 策略会写成 0xdead）
 	add.si	rb3, 32

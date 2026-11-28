@@ -4126,18 +4126,18 @@ tests/inst/11-cfx/cfx2rd_crrr_cfx.S	6	value	0x0000000000000003	3	tests/inst/11-c
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	7	value	0x0000000000000001	1	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:52
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	8	value	0x0000000000000003	3	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:56
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	9	value	0x000003ff00000000	(HMON_BASE - (3 * 0x40000000000))	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:58
-tests/inst/11-cfx/cfx2rd_crrr_cfx.S	10	value	0x0000000000010000	0x10000	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:60
+tests/inst/11-cfx/cfx2rd_crrr_cfx.S	10	value	0x0000000000002000	0x2000	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:60
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	11	value	0x0000000000000007	7	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:62
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	12	value	0x0000000000000005	5	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:66
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	13	value	0x000003ffffff0000	(BOOTROM_BASE - (63 * 0x40000000000))	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:68
-tests/inst/11-cfx/cfx2rd_crrr_cfx.S	14	value	0x0000000000010000	0x10000	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:70
+tests/inst/11-cfx/cfx2rd_crrr_cfx.S	14	value	0x0000000000002000	0x2000	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:70
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	15	value	0x0000000000000005	5	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:72
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	16	value	0x0000000000000000	0	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:76
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	17	value	0x0000000000000000	0	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:78
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	18	value	0x00000fff00000000	HMON_BASE	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:83
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	19	value	0x0000000000000000	0	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:85
-tests/inst/11-cfx/cfx2rd_crrr_cfx.S	20	value	0x0000000000010000	0x10000	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:89
-tests/inst/11-cfx/cfx2rd_crrr_cfx.S	21	value	0x0000000000010000	0x10000	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:91
+tests/inst/11-cfx/cfx2rd_crrr_cfx.S	20	value	0x0000000000002000	0x2000	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:89
+tests/inst/11-cfx/cfx2rd_crrr_cfx.S	21	value	0x0000000000002000	0x2000	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:91
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	22	value	0x000000000000003f	0x3F	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:99
 tests/inst/11-cfx/cfxreg_deny_cfxperm.S	1	value	0x7ffffffffffffff7	0x7FFFFFFFFFFFFFF7	tests/inst/11-cfx/cfxreg_deny_cfxperm.S:34
 tests/inst/11-cfx/cfxreg_deny_cfxperm.S	2	value	0x7ffffffffffffff6	0x7FFFFFFFFFFFFFF6	tests/inst/11-cfx/cfxreg_deny_cfxperm.S:40

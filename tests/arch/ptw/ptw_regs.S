@@ -28,8 +28,8 @@
 @@ 也不假设大类位号——`AGENTS.md`「Independent oracle」）。
 @@
 @@ 载体约定（与 `tools/chipyard/excp/causeid.S` 同源）：故障用例把回落点写进固件
-@@ hmon 的返回槽（hmon SRAM `+0xF8`，`aip.si` 现场取），落点读固件槽 `+0xE0`
-@@ （cause_id）与 `+0xF0`（cause_info）。每个故障用例的
+@@ hmon 的返回槽（hmon 数据页 `+0x18`，`aip.si` 现场取），落点读固件槽 `+0x00`
+@@ （cause_id）与 `+0x10`（cause_info）；页内槽见 `machine-tiny.inc` 的 `HMON_FRAME_*`。每个故障用例的
 @@ `aip → add.si(+16) → st.o(返回槽) → 故障访问 → 回落点` 恒为 16 B（取指用例为
 @@ 24 B，多一条 `sub.o`/`add.si` 求跳跃目标），`ptw_regs.lds` 对每个用例回读校验。
 @@
@@ -46,7 +46,7 @@
 	__TEST_BEGIN
 	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
 	PERM_MON_OPEN perm_mon
-	set.rb rb20, HMON_BASE		@@ 固件 hmon 的帧槽（+0xE0/0xE8/0xF0/0xF8）
+	set.rb rb20, HMON_DATA_BASE	@@ 固件 hmon 的帧槽（HMON_FRAME_*）
 	set.rb rb22, HMON_BASE		@@ 本探针自己的槽（+0xB0 标记、+0xB8/+0xC0 计数）
 	@@ SRAM 上电值不保证为 0 ⇒ 探针自己的槽显式清零（`tests/inst/11-cfx` 的教训）
 	st.o	rd0, [rb22, 0xB0]
@@ -121,14 +121,14 @@
 d1_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 d1_fault:
 	ld.o	rd18, [rb4, 0]
 	.globl	d1_resume
 d1_resume:
-	ld.o	rd5, [rb20, 0xE0]		@@ excp_cause_id
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]		@@ excp_cause_info
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 11：ptw_enable = 1、VA[47:42] = 0 的取指 ⇒ CFXMEM + 取指缺失类
@@ -137,7 +137,7 @@ d1_resume:
 d2_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 24
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	d2_fault
 d2_fault:
 	sub.o	rd18, rb4, rb0			@@ = 目标 − 本条地址
@@ -147,9 +147,9 @@ d2_jump:
 	jump	[rb0, rd18, 0]
 	.globl	d2_resume
 d2_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 12：ptw_enable = 0、VA[47:42] = 0 的数据读 ⇒ 只置 CFXMEM（无高位位图；TLB-41）
@@ -160,14 +160,14 @@ d2_resume:
 d3_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 d3_fault:
 	ld.o	rd18, [rb4, 0]
 	.globl	d3_resume
 d3_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 13：ptw_enable = 0、VA[47:42] = 0 的取指 ⇒ 只置 CFXMEM（无高位位图）
@@ -176,7 +176,7 @@ d3_resume:
 d4_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 24
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	d4_fault
 d4_fault:
 	sub.o	rd18, rb4, rb0
@@ -186,9 +186,9 @@ d4_jump:
 	jump	[rb0, rd18, 0]
 	.globl	d4_resume
 d4_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 收尾：恢复 ptw_enable = 0（不影响后续，仅为把机器留在复位口径）

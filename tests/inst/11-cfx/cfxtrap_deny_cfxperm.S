@@ -15,7 +15,7 @@
 @@   期望值按 `spec/DADAO-13 §1` 与 `spec/DADAO-12 §3.4/§4.1` 内联（不从实测反推）。
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；本例的拒绝路径落点用 4 号。
 @@ 探针：拒绝后的 cause_id / cause_ip / cause_info 由**平台固件** hmon 的「保存-跳转」写进
-@@   hmon SRAM 0xE0/0xE8/0xF0（`spec/Kaiwu §6.2`），本文件的落点块（`.org 0x880`）逐项核对；
+@@   hmon 数据页 `+0x00/+0x08/+0x10`（`spec/Kaiwu §6.2`；`HMON_FRAME_*`），本文件的落点块（`.org 0x880`）逐项核对；
 @@   触发指令地址用 `aip.si` 运行期派生（期望不写死 `.text` 偏移）。
 @@ 不可恢复说明：bit63 置 1 后，任何从 cfx_power 到 cfx_hmon 的 `cfx2rd`/`cfx2rc` 都被拒 ⇒
 @@   本例不再回写 mask（无需恢复：其后只走 semihosting 短路 `trap cfx0`，不经 cfx 掩码）。
@@ -26,9 +26,9 @@
 	.include "tests/inst/macros/inst_test.inc"
 
 	__TEST_BEGIN
-	set.rb rb20, HMON_BASE
+	set.rb rb20, HMON_DATA_BASE
 	set.rb rb21, TEST_PAD
-	st.o	rb21, [rb20, 0xF8]              @@ 任何意外异常 ⇒ 标准故障落点（fail-fast）
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]              @@ 任何意外异常 ⇒ 标准故障落点（fail-fast）
 
 	@@ ---- semantic：hmon 的 hypv cfxtrap mask 复位值（bit63=0 / bit3=0，`spec/DADAO-13 §1`）----
 	cfx2rd	cfx_hmon, cg3, rc0, rd5
@@ -49,7 +49,7 @@
 	set.rd	rd5, 0xFFFFFFFFFFFFFFF7
 	cfx2rc	cfx_hmon, cg3, rc0, rd5
 	set.rb rb21, (ENTRY + 0x880)
-	st.o	rb21, [rb20, 0xF8]              @@ 落点 = 本文件的权限检查块
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]  @@ 落点 = 本文件的权限检查块
 	aip.si	rb25, 0                        @@ rb25 = 本指令地址；+8 = 下面 trap 的地址
 	add.si	rb25, 8
 	trap	cfx_hmon, 0x10                  @@ 被 cfxtrap 来源掩码拒绝 ⇒ CFXPERM
@@ -57,14 +57,14 @@
 
 	@@ ---- 拒绝路径落点：cause_id = 1<<7（`CFXPERM`，无子原因）；cause_ip = cause_info = 指令地址 ----
 	.org	0x880
-	__VERIFY_MEM 4, HMON_BASE, 0xE0, 0x0000000000000080
+	__VERIFY_MEM 4, HMON_DATA_BASE, HMON_FRAME_CAUSE_ID, 0x0000000000000080
 	rb2rd	{rd22:rd22}, {rb25:rb25}            @@ 运行期派生的触发指令地址
-	set.rb rb21, (HMON_BASE + 0xE8)
+	set.rb rb21, (HMON_DATA_BASE + HMON_FRAME_CAUSE_IP)
 	ld.o	rd21, [rb21, 0]
 	br.eq	{rd22, rd21}?, [rb0, __cfxtrap_ip]
 	__EXIT	4                              @@ cause_ip ≠ 指令地址 ⇒ 判红
 __cfxtrap_ip:
-	set.rb rb21, (HMON_BASE + 0xF0)
+	set.rb rb21, (HMON_DATA_BASE + HMON_FRAME_CAUSE_INFO)
 	ld.o	rd21, [rb21, 0]
 	br.eq	{rd22, rd21}?, [rb0, __cfxtrap_done]
 	__EXIT	4                              @@ cause_info ≠ 指令地址（如写成指令编码）⇒ 判红

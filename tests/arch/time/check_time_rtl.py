@@ -14,7 +14,7 @@
   * `TCASE=2`（`arch-time-002`，6 槽）：只 `TMODE=3`（S/U 无同步异常处理程序）。
 
 **RTL 与 QEMU/gem5 的差异只有「故障观察通道」**：RTL 的 hmon 是共享的 Tiny
-保存-跳转处理器（cause_id 槽 = hmon SRAM + 0xE0、回落点 = +0xF8）；QEMU/gem5 的
+保存-跳转处理器（cause_id 槽 = hmon 数据页 +0x00、回落点 = +0x18）；QEMU/gem5 的
 step5 固件把 cause 写进 profile 的 `FAULT_RECORD` 并从 `cause_ip + 4` 回。判据
 （cause 值、槽序）两侧相同。
 

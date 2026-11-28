@@ -7,9 +7,9 @@
 @@
 @@ 载体约定（与 `tests/inst/**` 同源）：一个 ELF 在三个平台上跑同一条硬件路径 ——
 @@ 异常向量 → 固件 hmon（`tests/ee-tiny/cfx_hmon_tiny.S`：最小保存-跳转）→
-@@ `escape` 回框架写在 hmon SRAM `+0xF8` 的回落点。固件把 `cg5 rc2/rc3/rc4`
-@@ 存进 hmon SRAM `+0xE0/+0xE8/+0xF0`，探针在回落点读 `+0xE0`（cause_id）与
-@@ `+0xF0`（cause_info）各记 8 字节 ⇒ 每个用例 16 字节，按 `__PRINT` 逐字节打印。
+@@ `escape` 回框架写在 hmon 数据页 `+0x18` 的回落点。固件把 `cg5 rc4/rc2/rc5`
+@@ 存进数据页 `+0x00/+0x08/+0x10`，探针在回落点读 `+0x00`（cause_id）与
+@@ `+0x10`（cause_info）各记 8 字节 ⇒ 每个用例 16 字节，按 `__PRINT` 逐字节打印。
 @@
 @@ 回落点地址用 `aip.si rb21, 0` + `add.si` 现场取（`rb0` 口径；标签差进不了立即数，
 @@ 见 `tests/inst/MIGRATION.md §6`）：`aip → add.si(+16) → st.o(返回槽) → 故障指令 → 回落点`
@@ -31,8 +31,8 @@
 
 	__TEST_BEGIN
 
-	@@ 固件 hmon 的返回槽（hmon SRAM +0xF8）：每个用例先写自己的回落点。
-	set.rb rb20, HMON_BASE
+	@@ 固件 hmon 的返回槽（hmon 数据页 +0x18）：每个用例先写自己的回落点。
+	set.rb rb20, HMON_DATA_BASE
 
 	@@ ① 数据 CFXMEM：窗口外读（`cause_info` = 访存地址）
 	set.rb rb4, 0x1000000000
@@ -40,14 +40,14 @@
 c1_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 c1_fault:
 	ld.o	rd18, [rb4, 0]
 	.globl	c1_resume
 c1_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ ② 取指 CFXMEM：跳到窗口外取指（`cause_info` = 被取指地址）
@@ -58,7 +58,7 @@ c1_resume:
 c2_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 24
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	c2_fault
 c2_fault:
 	sub.o	rd18, rb4, rb0		@@ = 目标 - 本条地址
@@ -68,9 +68,9 @@ c2_jump:
 	jump	[rb0, rd18, 0]
 	.globl	c2_resume
 c2_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ ③ ILLI：保留 cfx 的 `trap`
@@ -78,14 +78,14 @@ c2_resume:
 c3_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 c3_fault:
 	trap	cfx7, 0
 	.globl	c3_resume
 c3_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ ④ UNDI：QFC 空白格
@@ -93,14 +93,14 @@ c3_resume:
 c4_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 c4_fault:
 	.dd.t32	0x08040001
 	.globl	c4_resume
 c4_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ ⑤ MALIGN：8 字节访问未对齐（`cause_info` = 访存地址）
@@ -109,14 +109,14 @@ c4_resume:
 c5_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 c5_fault:
 	ld.o	rd18, [rb4, 0]
 	.globl	c5_resume
 c5_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ ⑥ CFXREG：保留寄存器 `cg5 rc63`（`spec/DADAO-12 §3.6`：保留 ⇒ CFXREG，
@@ -126,14 +126,14 @@ c5_resume:
 c6_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 c6_fault:
 	cfx2rd	cfx_hmon, cg5, rc63, rd18
 	.globl	c6_resume
 c6_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ ⑦ CFXTRAP：`trap cfx_hmon` 移交（`cause_info` = 指令编码）
@@ -141,14 +141,14 @@ c6_resume:
 c7_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 c7_fault:
 	trap	cfx_hmon, 0x1234
 	.globl	c7_resume
 c7_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ ⑧ IALIGN：跳到 `IP[1:0] != 0`（`cause_info` = 该 IP）
@@ -157,7 +157,7 @@ c7_resume:
 c8_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 24
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	c8_fault
 c8_fault:
 	sub.o	rd18, rb4, rb0		@@ = 目标 - 本条地址
@@ -167,9 +167,9 @@ c8_jump:
 	jump	[rb0, rd18, 0]
 	.globl	c8_resume
 c8_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	__TEST_END

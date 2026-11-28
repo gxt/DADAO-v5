@@ -108,6 +108,24 @@ _INT_FIELDS = (
 # 无 monitor 的 profile 不使用该常量；执行资产（bootrom/harness）共用此值。
 HMON_BASE = 0x0FFF_0000_0000
 
+# Tiny hmon SRAM 数据页（`spec/Kaiwu §6.2`：数据 `0x0C00`–`0x0CFF`，256 B，初值 0；
+# 代码区上限 `0x0C00`）。页内帧槽是**固件/框架契约**（`m19-testcases-005` 定稿，
+# 固件真源 `tests/ee-tiny/cfx_hmon_tiny.S`，构建期由 `build_tiny_bootrom.py` 校验）：
+#   +0x00 cause_id、+0x08 cause_ip、+0x10 cause_info、
+#   +0x18 返回地址（框架可覆盖）、+0x20 保存的 rd63、+0x28 保存的 rb63。
+# 这是**唯一**的宿主/asm 常量源：`machine-tiny.inc` 由本模块生成，
+# `build_test_binary.py` 直接引用；消费者不得再写裸偏移。
+HMON_DATA_OFF = 0x0C00
+HMON_DATA_BASE = HMON_BASE + HMON_DATA_OFF
+HMON_FRAME = {
+    "CAUSE_ID": 0x00,
+    "CAUSE_IP": 0x08,
+    "CAUSE_INFO": 0x10,
+    "RETURN": 0x18,
+    "RD63": 0x20,
+    "RB63": 0x28,
+}
+
 
 class ProfileError(ValueError):
     """机器 profile 缺失/非法/无法解析。"""

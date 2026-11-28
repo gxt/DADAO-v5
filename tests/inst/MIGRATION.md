@@ -330,8 +330,8 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 - 旧口径：legacy `-bios` 短 trampoline 把 hmon 向量指到不可达地址 ⇒ QEMU 以
   「机器 fault」兜底退出码结束，测试镜像不参与。
 - 新口径（`spec/Kaiwu §4.4`/`§7.1`）：镜像在触发前把落点写进固件 hmon 的
-  返回槽（hmon SRAM +0xF8，`§6.2`「框架可覆盖」）；异常进入 cfx3 hmon，固件把
-  `cause_id` 存到 +0xE0 后 `escape` 回落点；落点核对 one-hot 后
+  返回槽（hmon 数据页 +0x18，`§6.2`「框架可覆盖」；`HMON_FRAME_RETURN`）；异常
+  进入 cfx3 hmon，固件把 `cause_id` 存到数据页 +0x00 后 `escape` 回落点；落点核对 one-hot 后
   `SYS_EXIT(0xF0|异常位索引)`。与 `tests/inst/macros/inst_test.inc` 的
   `.faultpad` 同一口径。
 - 载体：`tools/testcases/lib/build_test_binary.py`（落点生成）；
@@ -423,8 +423,8 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 - **`immu6=63` 的索引选择**：RD 形式的 `{rd1:rd63}` 已把 RD 组占满，索引只能用 `rd0`
   （rd0 读出 0 ⇒ EA = 基址）；用 `rd19` 会落进传送范围 ⇒ ILLI（`mreg_range_addr_overlap`）。
 - 三方逐字节：`run_asm_suite.py`（同镜像 chipyard / QEMU / gem5）链例比字节流、
-  故障例比 monitor 段退出码；故障例走 BootROM **固件** hmon（写 `0xF8` 返回槽、
-  读 `0xE0` cause_id），三方固件自 `m12-chipyard-028` 起同版，不再自装处理器（`ISS-410` 已修）。
+  故障例比 monitor 段退出码；故障例走 BootROM **固件** hmon（写数据页 `+0x18` 返回槽、
+  读 `+0x00` cause_id），三方固件自 `m12-chipyard-028` 起同版，不再自装处理器（`ISS-410` 已修）。
 - **YAML**：三册里 30 个 id（含 `012` 的 19 个单元素 id）全部有 `.S` 载体；文件
   删除被 §5.1 的前置阻塞，未删。
 
@@ -668,7 +668,7 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
   单次舍入反例（`(1±2^-23)(1∓2^-23)−1`）与溢出；root 的负数/±Inf⇒NV、n≠2⇒ILLI。
 - 三方逐字节：`run_asm_suite.py`（同一份 ELF：chipyard / QEMU / gem5）38 个镜像全绿 ——
   链例比结果字节流、故障例比 monitor 段退出码（20 例全 `0xF8` ILLI：目的 rf0 / root 的 n≠2）。
-  故障例走 BootROM **固件** hmon（写 `0xF8` 返回槽、读 `0xE0` cause_id），三方固件同版。
+  故障例走 BootROM **固件** hmon（写数据页 `+0x18` 返回槽、读 `+0x00` cause_id），三方固件同版。
 - **YAML**：`fp/divrem.yaml` 的 6 个 id 全部有 `.S` 载体，但文件**未删**（它是 `check-inst`
   的 L3 载体，且 §5.1 前置未解）；`fp/arith.yaml` 的 8 个 id 已并入（余 4 个比较 id 待 022）；
   `fosub`/`ftadd`/`ftsub`/`ftmax` 原本无 YAML 载体。

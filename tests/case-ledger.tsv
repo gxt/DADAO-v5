@@ -4693,18 +4693,18 @@ asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD   6, rd5, 3                  
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD   7, rd5, 1                      @@ excp_cause_id = CFXTRAP（启动移交留下有效帧）	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD   8, rd5, 3                      @@ desc：exists | SRAM	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD   9, rd5, (HMON_BASE - (3 * 0x40000000000))   @@ start：核内偏移 0x3FF_0000_0000	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  10, rd5, 0x10000                @@ size：64 KiB	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  10, rd5, 0x2000                 @@ size：8 KiB（spec/Kaiwu §1.1，M19 几何）	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  11, rd5, 7                      @@ attr：R | W | X	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  12, rd5, 5                      @@ desc：exists | ROM	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  13, rd5, (BOOTROM_BASE - (63 * 0x40000000000))	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  14, rd5, 0x10000	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  14, rd5, 0x2000                 @@ size：8 KiB（spec/Kaiwu §6.2，M19 几何）	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  15, rd5, 5                      @@ attr：R | X	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  16, rd5, 0	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  17, rd5, 0	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  18, rd63, HMON_BASE	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  19, rd0, 0	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  20, rd3, 0x10000	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  21, rd3, 0x10000	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  20, rd3, 0x2000                 @@ size：8 KiB（M19 几何；读幂等）	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  21, rd3, 0x2000	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  22, rd5, 0x3F	1
 asm	tests/inst/11-cfx/cfxreg_deny_cfxperm.S	__CHECK_RD   1, rd5, 0x7FFFFFFFFFFFFFF7	1
 asm	tests/inst/11-cfx/cfxreg_deny_cfxperm.S	__CHECK_RD   2, rd6, 0x7FFFFFFFFFFFFFF6	1
@@ -4776,14 +4776,14 @@ asm	tests/inst/11-cfx/trap_ciii_cfx.S	TEST_FAULT_ENC  12, ILLI, 0x7F8C0000, rb12
 asm	tests/inst/11-cfx/trap_ciii_cfx.S	TEST_FAULT_ENC  13, ILLI, 0x7F000000, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/trap_ciii_cfx.S	TEST_FAULT_ENC  14, ILLI, 0x7F140000, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/trap_ciii_cfx.S	TEST_FAULT_ENC  15, ILLI, 0x7F800000, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  2, HMON_BASE, 0xE0, 0x1       @@ cause_id = CFXTRAP（1<<0）	1
-asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  3, HMON_BASE, 0xE0, 0x1	1
-asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  4, HMON_BASE, 0xE0, 0x1	1
-asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  5, HMON_BASE, 0xE0, 0x1	1
-asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  6, HMON_BASE, 0xE0, 0x1	1
-asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  7, HMON_BASE, 0xE0, 0x1	1
-asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  8, HMON_BASE, 0xE0, 0x1	1
-asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  9, HMON_BASE, 0xE0, 0x1	1
+asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  2, HMON_DATA_BASE, HMON_FRAME_CAUSE_ID, 0x1       @@ cause_id = CFXTRAP（1<<0）	1
+asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  3, HMON_DATA_BASE, HMON_FRAME_CAUSE_ID, 0x1	1
+asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  4, HMON_DATA_BASE, HMON_FRAME_CAUSE_ID, 0x1	1
+asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  5, HMON_DATA_BASE, HMON_FRAME_CAUSE_ID, 0x1	1
+asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  6, HMON_DATA_BASE, HMON_FRAME_CAUSE_ID, 0x1	1
+asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  7, HMON_DATA_BASE, HMON_FRAME_CAUSE_ID, 0x1	1
+asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  8, HMON_DATA_BASE, HMON_FRAME_CAUSE_ID, 0x1	1
+asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_MEM  9, HMON_DATA_BASE, HMON_FRAME_CAUSE_ID, 0x1	1
 asm	tests/inst/11-cfx/trap_ciii_cfx.S	__CHECK_RD   1, rd5, 0x5A5A5A5A5A5A5A5A   @@ 到达这里 = semihosting 未进向量	1
 asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	10, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000008000, 7, 0x0000000000000008	1
 asm	tests/inst/12-misc/ctlz_orri_rd.S	TEST_AR_ORRI	11, ctlz, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000000000000, 63, 0x0000000000000040	1

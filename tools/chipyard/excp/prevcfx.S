@@ -26,7 +26,7 @@
 	.include "tests/inst/macros/inst_test.inc"
 
 	__TEST_BEGIN
-	set.rb rb20, HMON_BASE		@@ 固件 hmon 的槽（+0xE0/0xE8/0xF0/0xF8）
+	set.rb rb20, HMON_DATA_BASE	@@ 固件 hmon 的槽（HMON_FRAME_*）
 	set.rb rb22, HMON_BASE		@@ 本探针自己的槽（+0xB0/0xB8/0xC0/0xC8）
 	set.rd	rd11, HMON_BASE			@@ hmon 向量初值（`spec/DADAO-13 §1`）
 	st.o	rd0, [rb22, 0xC8]		@@ 到达计数**显式清零**（不依赖 SRAM 上电值；rd0 恒 0）
@@ -34,7 +34,7 @@
 	st.o	rd0, [rb22, 0xB8]		@@ catcher 记录的 cause_id 槽
 	st.o	rd0, [rb22, 0xB0]		@@ catcher 记录的 cause_ip 槽
 	set.rb rb21, TEST_PAD
-	st.o	rb21, [rb20, 0xF8]		@@ 固件 hmon 的返回槽（意外异常 ⇒ 红）
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]  @@ 固件 hmon 的返回槽（意外异常 ⇒ 红）
 
 	@@ ---- 1–3：`cg5 rc1` 的 boot 保存值与 RW ----
 	cfx2rd	cfx_hmon, cg5, rc1, rd5

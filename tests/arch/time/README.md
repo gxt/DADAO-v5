@@ -60,8 +60,8 @@ python3 tests/arch/time/check_time_rtl.py --only arch-time-001 --mode smon
 ## 与 QEMU/gem5 的已知差异（不写进判据）
 
 - **故障观察通道**：RTL 的 hmon 是共享的 **Tiny 保存-跳转处理程序**（cause_id 槽 =
-  hmon SRAM + 0xE0、回落点 = +0xF8）；QEMU/gem5 的 step5 固件把 cause 写进
-  `FAULT_RECORD` 并从 `cause_ip + 4` 回。判据（cause 值与槽序）两侧相同。
+  hmon 数据页 +0x00、回落点 = +0x18，`HMON_FRAME_*`）；QEMU/gem5 的 step5 固件把
+  cause 写进 `FAULT_RECORD` 并从 `cause_ip + 4` 回。判据（cause 值与槽序）两侧相同。
 - **gem5 无 cfx5**（`kCfxhaMap` 不含 5）：env 的「未声明 cfx 收窄」会对 cfx5 报
   `CFXREG`，故驱动只在 gem5 上跳过对 cfx5 的收窄（`ENV_PERM_SKIP_NARROW_5`）——
   未实现 cfx 的访问本身已是 `CFXREG`，fail-closed 性质不变。

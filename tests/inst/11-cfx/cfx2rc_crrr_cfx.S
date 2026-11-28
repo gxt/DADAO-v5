@@ -20,9 +20,9 @@
 	.include "tests/inst/macros/inst_test.inc"
 
 	__TEST_BEGIN
-	set.rb rb20, HMON_BASE
+	set.rb rb20, HMON_DATA_BASE
 	set.rb rb21, TEST_PAD
-	st.o	rb21, [rb20, 0xF8]              @@ 任何意外异常 ⇒ 故障落点（fail-fast）
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]              @@ 任何意外异常 ⇒ 故障落点（fail-fast）
 
 	@@ ---- encoding（规范编码字直接执行，钉 mask/value 与字段位域）----
 	@@ 0x7B0C5285 = cfx3 / cg5 rc10（escape ip，HW/RW）/ rd5

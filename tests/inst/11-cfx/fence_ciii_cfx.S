@@ -22,9 +22,9 @@
 	.include "tests/inst/macros/inst_test.inc"
 
 	__TEST_BEGIN
-	set.rb rb20, HMON_BASE
+	set.rb rb20, HMON_DATA_BASE
 	set.rb rb21, TEST_PAD
-	st.o	rb21, [rb20, 0xF8]              @@ 任何意外异常 ⇒ 故障落点（fail-fast）
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]  @@ 任何意外异常 ⇒ 故障落点（fail-fast）
 
 	@@ ---- encoding：规范编码字 0x79000000（cfx0 = all cfx，pred = succ = 0 = no-op）----
 	set.rd	rd5, 0x0123456789ABCDEF

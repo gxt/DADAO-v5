@@ -36,8 +36,8 @@
 @@ 比对（本文件不含子原因常量）。
 @@
 @@ 载体约定（与 `tests/arch/ptw/ptw_regs.S` 同源）：故障用例把回落点写进固件
-@@ hmon 的返回槽（hmon SRAM `+0xF8`，`aip.si` 现场取），落点读固件槽 `+0xE0`
-@@ （cause_id）与 `+0xF0`（cause_info）。数据类故障例的
+@@ hmon 的返回槽（hmon 数据页 `+0x18`，`aip.si` 现场取），落点读固件槽 `+0x00`
+@@ （cause_id）与 `+0x10`（cause_info）；页内槽见 `machine-tiny.inc` 的 `HMON_FRAME_*`。数据类故障例的
 @@ `aip → add.si(+16) → st.o(返回槽) → 故障访问 → 回落点` 恒为 16 B；取指类为
 @@ 24 B（多 `sub.o`/`add.si` 求跳跃目标）。`ptw_walk.lds` 对每个用例回读校验。
 @@
@@ -57,7 +57,7 @@
 	__TEST_BEGIN
 	@@ 测试侧两轴放行（`DIV-07` 关闭后 hypv 也判权；body 以 cfx_power 交付）
 	PERM_MON_OPEN perm_mon
-	set.rb rb20, HMON_BASE		@@ 固件 hmon 的帧槽（+0xE0/0xF0/0xF8）
+	set.rb rb20, HMON_DATA_BASE	@@ 固件 hmon 的帧槽（HMON_FRAME_*）
 
 	@@ PTBR = 0（PA 0 的 L1 表），开 PTW
 	set.rd	rd6, 0
@@ -133,140 +133,140 @@ vw_back:
 	@@ ================= C 故障路径 =================
 	@@ 11 L1 P=0, SP=0 ⇒ CFXMEM + DGPTRAP
 	set.rb rb4, VA_L1_NP
-	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
-	st.o	rd0, [rb20, 0xF0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]	@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_INFO]
 	.globl	f1_aip
 f1_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 f1_fault:
 	ld.o	rd18, [rb4, 0]
 	.globl	f1_resume
 f1_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 12 L1 P=0, SP=1 ⇒ CFXMEM + DSPTRAP
 	set.rb rb4, VA_L1_SP
-	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
-	st.o	rd0, [rb20, 0xF0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]	@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_INFO]
 	.globl	f2_aip
 f2_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 f2_fault:
 	ld.o	rd18, [rb4, 0]
 	.globl	f2_resume
 f2_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 13 L1 SPF 对应位 = 0 ⇒ CFXMEM + DSPFTRAP
 	set.rb rb4, VA_L1_SPF
-	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
-	st.o	rd0, [rb20, 0xF0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]	@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_INFO]
 	.globl	f3_aip
 f3_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 f3_fault:
 	ld.o	rd18, [rb4, 0]
 	.globl	f3_resume
 f3_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 14 L2 P=0 ⇒ CFXMEM + DGPTRAP
 	set.rb rb4, VA_L2B0
-	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
-	st.o	rd0, [rb20, 0xF0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]	@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_INFO]
 	.globl	f4_aip
 f4_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 f4_fault:
 	ld.o	rd18, [rb4, 0]
 	.globl	f4_resume
 f4_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 15 L2 GPF 对应位 = 0 ⇒ CFXMEM + DGPFTRAP
 	set.rb rb4, VA_L2B1
-	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
-	st.o	rd0, [rb20, 0xF0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]	@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_INFO]
 	.globl	f5_aip
 f5_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 f5_fault:
 	ld.o	rd18, [rb4, 0]
 	.globl	f5_resume
 f5_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 16 HSJU 不符（U-only 页、运行在 hypv）⇒ CFXPERM + NHPERM
 	set.rb rb4, VA_L2B2
-	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
-	st.o	rd0, [rb20, 0xF0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]	@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_INFO]
 	.globl	f6_aip
 f6_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 f6_fault:
 	ld.o	rd18, [rb4, 0]
 	.globl	f6_resume
 f6_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 17 W=0 的页做 st ⇒ CFXPERM + NWPERM
 	set.rb rb4, VA_W0
 	set.rb rb5, STORE_VAL
-	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
-	st.o	rd0, [rb20, 0xF0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]	@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_INFO]
 	.globl	f7_aip
 f7_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 f7_fault:
 	st.o	rb5, [rb4, 0]
 	.globl	f7_resume
 f7_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 18 X=0 的页取指 ⇒ CFXPERM + NXPERM
 	set.rb rb4, VA_NOX
-	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
-	st.o	rd0, [rb20, 0xF0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]	@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_INFO]
 	.globl	f8_aip
 f8_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 24
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.globl	f8_fault
 f8_fault:
 	sub.o	rd18, rb4, rb0			@@ = 目标 − 本条地址
@@ -276,27 +276,27 @@ f8_jump:
 	jump	[rb0, rd18, 0]
 	.globl	f8_resume
 f8_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 19 tlb_control 的 scope = 11（保留编码）⇒ CFXREG（TLB-24）
 	set.rd	rd6, 0x0D			@@ op=01 clean、scope=11
-	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
-	st.o	rd0, [rb20, 0xF0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]	@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_INFO]
 	.globl	f9_aip
 f9_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 f9_fault:
 	cfx2rc	cfx_ptw, cg12, rc0, rd6
 	.globl	f9_resume
 f9_resume:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 .endif	@@ CASE_ADWB == 0（ADWBFAIL 专用镜像只跑下面的 20 段）
@@ -306,21 +306,21 @@ f9_resume:
 	set.rb rb4, VA_FRESH
 	ld.o	rd5, [rb4, 0]			@@ 填充：A 本地置位（PTE.A = 0）
 	__CHECK_RD	20, rd5, FRESH_MAGIC
-	st.o	rd0, [rb20, 0xE0]
-	st.o	rd0, [rb20, 0xF0]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_ID]
+	st.o	rd0, [rb20, HMON_FRAME_CAUSE_INFO]
 	.globl	f20_aip
 f20_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 20			@@ set.rd + cfx2rc ⇒ 回落点 = aip + 20
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 f20_fault:
 	set.rd	rd6, 1			@@ clean/all：回写挂起的 A
 	cfx2rc	cfx_ptw, cg12, rc0, rd6
 	.globl	f20_after
 f20_after:
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	__REC	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	__REC	rd5
 
 	@@ 收尾：关 PTW（把机器留在复位口径），打印结果缓冲并 SYS_EXIT(0)

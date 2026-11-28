@@ -17,15 +17,17 @@
 @@ 生成；PTE 布局复用 `gen_cfx5_maint_tables.pte`）。数据行在 PA 0x4_1200 /
 @@ 0x4_1240 / 0x4_5000 / 0x4_5100，代码行在 PA 0x8_1000；VA = PA + 2 TiB。
 @@
-@@ 故障观察（CCASE=3）：固定 hmon 的 save-and-jump 槽 = HMON_BASE + 0xE0
-@@ （cause_id）、+0xF0（cause_info）、+0xF8（回落点）；每条故障例在触发前把
-@@ 自己的 resume 写进 +0xF8（同 `cfx5_maint.S` 的写法）。
+@@ 故障观察（CCASE=3）：固定 hmon 的 save-and-jump 帧 = 数据页 `+0x00`（cause_id）、
+@@ `+0x10`（cause_info）、`+0x18`（回落点；`machine-tiny.inc` 的 `HMON_FRAME_*`）；
+@@ 每条故障例在触发前把自己的 resume 写进 `+0x18`（同 `cfx5_maint.S` 的写法）。
 @@
 @@ 只在 `WumingVastConfig` 上跑（Tiny 无 cfx5、无 S/U 模式）。
 
 	.include "cache_rtl_tables.inc"
 	.include "signature.inc"
 	.include "tests/shared/asm/perm_hypv.inc"
+	@@ hmon 帧槽常量（`spec/Kaiwu §6.2` 数据页；RTL 用共享 Tiny 固件）
+	.include "tests/shared/asm/machine-tiny.inc"
 
 	.ifndef	CCASE
 	.equ	CCASE, 1
@@ -37,7 +39,6 @@
 	.equ	ENTRY,   0xffffff002000
 	.equ	SIG_BUF, 0xffffff001000
 	.equ	EXITB,   0xffffff000030
-	.equ	HMON_BASE, 0x0fff00000000
 
 	.if	CCASE == 1
 	.equ	CSLOTS, 21
@@ -134,17 +135,17 @@
 	EXIT	0
 .endm
 
-@@ 故障例：把回落点写进固定 hmon 的 +0xF8（`aip.si` 的当前 IP + 16 ⇒ resume）。
+@@ 故障例：把回落点写进固定 hmon 的 +0x18（`aip.si` 的当前 IP + 16 ⇒ resume）。
 .macro SET_FB
 	aip.si	rb21, 0
 	add.si	rb21, 16
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 .endm
 
 .macro REC_CAUSE
-	ld.o	rd5, [rb20, 0xE0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_ID]
 	SIGUPD	rd5
-	ld.o	rd5, [rb20, 0xF0]
+	ld.o	rd5, [rb20, HMON_FRAME_CAUSE_INFO]
 	SIGUPD	rd5
 .endm
 
@@ -427,9 +428,9 @@ c_body:
 
 .if	CCASE == 3
 	@@ ---------------- arch-cache-003（只 hmon） ----------------
-	set.rb	rb20, HMON_BASE
+	set.rb	rb20, HMON_DATA_BASE
 	set.rb	rb21, c_abort
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 
 	cfx2rd	cfx_cache, cg8, rc0, rd5
 	SIGUPD	rd5

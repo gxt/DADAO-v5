@@ -235,7 +235,8 @@
 .endm
 
 @@ 异常进入（`spec/SimRISC-12 §1`「保留机制」：异常或中断进入清本 hart 全部标记）：
-@@   `lr` 建标记 → 触发一次异常/陷阱 → 固件 hmon 按 `HMON_BASE + 0xF8` 的返回槽返回到
+@@   `lr` 建标记 → 触发一次异常/陷阱 → 固件 hmon 按数据页 `+0x18`
+@@   （`machine-tiny.inc` 的 `HMON_FRAME_RETURN`）的返回槽返回到
 @@   `slot` 处的落点 → `sc` 必须失败（1）、数据单元不变。`kind` 选进入路径：
 @@     malign = `ld.o` @ `maladdr`（该宽度不对齐 ⇒ MALIGN）
 @@     mem    = `ld.o` @ 0（CFXMEM）
@@ -247,9 +248,9 @@
 	__PT_ST_INIT	\ea, \init
 	set.rb	rb3, \ea
 	\lrmnem	rd2, [rb3]
-	set.rb	rb20, HMON_BASE
+	set.rb	rb20, HMON_DATA_BASE
 	set.rb	rb21, (ENTRY + \slot)
-	st.o	rb21, [rb20, 0xF8]
+	st.o	rb21, [rb20, HMON_FRAME_RETURN]
 	.ifc	\kind, malign
 	set.rb	rb22, \maladdr
 	ld.o	rd7, [rb22, 0]

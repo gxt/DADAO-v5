@@ -79,15 +79,16 @@ EXIT_RD     = 62                      # rd62: exit code / temp
 DUMP_RD     = 63                      # rd63: temp for dump
 MEM_RB      = 61                      # rb61: temp for memory address
 DUMP_RB     = 62                      # rb62: dump pointer
-HMON_RB     = 60                      # rb60: hmon SRAM base (fault landing pad)
+HMON_RB     = 60                      # rb60: hmon data-page base (fault landing pad)
 
-# cfx3 hmon fixed data slots (tests/ee-tiny/cfx_hmon_tiny.S header; m15-testcases-011):
-#   +0xE0 cause_id (one-hot, spec/DADAO-12 §5.2), +0xF8 return address.
+# cfx3 hmon 的数据页与页内帧槽（`spec/Kaiwu §6.2`：数据 0x0C00–0x0CFF；
+# 页内槽 = 固件/框架契约，m19-testcases-005；常量源 = machine_profile，消费者不写裸偏移）：
+#   +0x00 cause_id (one-hot, spec/DADAO-12 §5.2), +0x18 return address.
 # `spec/Kaiwu §6.2`: power writes the default (`trap+4`), the framework
 # (the application image) may overwrite it -- that is how the Tiny fault
 # oracle is dispatched through hmon (spec/Kaiwu §4.4).
-HMON_SLOT_CAUSE_ID = 0xE0
-HMON_SLOT_RETURN = 0xF8
+HMON_SLOT_CAUSE_ID = machine_profile.HMON_FRAME["CAUSE_ID"]
+HMON_SLOT_RETURN = machine_profile.HMON_FRAME["RETURN"]
 
 # spec/Kaiwu §7.1 monitor-segment exception bit indexes (DADAO cause bits).
 # CFXTRAP/CFXESC are encoded in the *other-cfx* segment (0x80-0xBF) and are
@@ -253,7 +254,7 @@ def uses_hmon_landing_pad(vector_case):
     """Tiny 故障例是否必须自带 hmon 落点。
 
     Tiny 的固定固件 hmon 是「最小保存-跳转」（m13-integ-007 用户裁定）：只把
-    `cause_id` 存进 hmon SRAM +0xE0 并 `escape` 到返回槽 +0xF8 指向的地址，
+    `cause_id` 存进 hmon 数据页 +0x00 并 `escape` 到返回槽 +0x18 指向的地址，
     自身不产生退出码。故障口径因此由被测镜像安装落点、读 cause 后产生
     （`spec/Kaiwu §4.4`）。Vast 的 hmon 写 RAM `fault_record` 并按固件
     策略直接退出（TESTCASES-092t §3）⇒ 不需要落点。
@@ -275,11 +276,9 @@ def build_hmon_landing_pad(expected_fault):
         raise ValueError("unknown expected_fault %r" % (expected_fault,))
     bit = FAULT_CAUSE_BIT[expected_fault]
     words = []
-    # rd60 = hmon SRAM + 0xE0 (cause_id written by the firmware handler)
-    words.extend(emit_load_imm64_rb(HMON_RB,
-                                    machine_profile.HMON_BASE
-                                    + HMON_SLOT_CAUSE_ID))
-    words.append(encode_ld_o(TEMP_RD, HMON_RB, 0))
+    # rd60 = hmon 数据页基址（cause_id 由固件 handler 写进 +0x00）
+    words.extend(emit_load_imm64_rb(HMON_RB, machine_profile.HMON_DATA_BASE))
+    words.append(encode_ld_o(TEMP_RD, HMON_RB, HMON_SLOT_CAUSE_ID))
     words.extend(emit_load_imm64_rd(ACCUM_RD, 1 << bit))
     words.append(encode_xor_o(TEMP_RD, TEMP_RD, ACCUM_RD))
     br_index = len(words)
@@ -998,8 +997,10 @@ def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
 
     # Tiny fault case (spec/Kaiwu §4.4): before the instruction under
     # test, install the harness landing pad in the firmware hmon's return slot
-    # (+0xF8, "framework may overwrite" per §6.2).  The pad is the last block.
-    hmon_base_words = emit_load_imm64_rb(HMON_RB, machine_profile.HMON_BASE)
+    # (+0x18 of the data page, "framework may overwrite" per §6.2).  The pad is
+    # the last block.
+    hmon_base_words = emit_load_imm64_rb(HMON_RB,
+                                        machine_profile.HMON_DATA_BASE)
     # Fixed-width placeholder; the real address is patched in below so the pad
     # offset is known before its own address is emitted.
     pad_addr_words = emit_load_imm64_rd_fixed(TEMP_RD, 0)

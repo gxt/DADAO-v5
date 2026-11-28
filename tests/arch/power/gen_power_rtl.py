@@ -9,8 +9,9 @@ RTL 可装配的汇编文本，**不新增第二条判据**。
 RTL 与 QEMU/gem5 的差异只有「故障观察通道」与「运行模式」：
 
   * 故障：QEMU/gem5 用载体自装的 `cfx_hmon.hypv` 处理程序；RTL 用测试链固件的
-    hmon（cause 在 `HMON_BASE + 0xE0`、回落点 `HMON_BASE + 0xF8`，与
-    `tests/arch/umon/cfx02_regs.S` / `tools/chipyard/excp/prevcfx.S` 同一约定）；
+    hmon（cause 在 hmon 数据页 `+0x00`、回落点 `+0x18`；常量 = `machine-tiny.inc`
+    的 `HMON_DATA_BASE`/`HMON_FRAME_*`，与 `tests/arch/umon/cfx02_regs.S` /
+    `tools/chipyard/excp/prevcfx.S` 同一约定）；
   * 运行模式：RTL 的 BootROM 把测试体交付为 `cfx_power`（cfx63）/hypv，没有
     U/S 进入链 ⇒ `arch-power-001` 只跑一次（相当于 hmon 那个镜像）。
 
@@ -80,9 +81,9 @@ def render(case_id: str) -> str:
         "\t.include \"tests/inst/macros/inst_test.inc\"",
         "",
         "\t__TEST_BEGIN",
-        "\tset.rb rb20, HMON_BASE\t@@ 测试链固件 hmon 的异常帧槽",
+        "\tset.rb rb20, HMON_DATA_BASE\t@@ 测试链固件 hmon 的异常帧槽",
         "\tset.rb rb21, abort",
-        "\tst.o rb21, [rb20, 0xF8]\t@@ 任何未预期异常 ⇒ abort（fail-closed）",
+        "\tst.o rb21, [rb20, HMON_FRAME_RETURN]\t@@ 任何未预期异常 ⇒ abort（fail-closed）",
         "",
     ]
     for idx, (_, label, spec) in enumerate(table):
@@ -117,9 +118,9 @@ def render_diagnose() -> str:
         "\t.include \"tests/inst/macros/inst_test.inc\"",
         "",
         "\t__TEST_BEGIN",
-        "\tset.rb rb20, HMON_BASE",
+        "\tset.rb rb20, HMON_DATA_BASE",
         "\tset.rb rb21, abort",
-        "\tst.o rb21, [rb20, 0xF8]",
+        "\tst.o rb21, [rb20, HMON_FRAME_RETURN]",
         "",
     ]
     for idx, (kind_label, kind, cg, rc) in enumerate(carrier.DIAG_PROBES):
@@ -127,9 +128,9 @@ def render_diagnose() -> str:
         lab = "d%d" % idx
         lines += [
             "\t@@ %s" % kind_label,
-            "\tst.o rd0, [rb20, 0xE0]\t@@ 清固件 cause 槽（不靠残留）",
+            "\tst.o rd0, [rb20, HMON_FRAME_CAUSE_ID]\t@@ 清固件 cause 槽（不靠残留）",
             "\tset.rb rb21, %s" % lab,
-            "\tst.o rb21, [rb20, 0xF8]\t@@ 返回点 = 本探针之后",
+            "\tst.o rb21, [rb20, HMON_FRAME_RETURN]\t@@ 返回点 = 本探针之后",
             "\tset.rd rd5, 0",
         ]
         if kind == "wr":
@@ -138,7 +139,7 @@ def render_diagnose() -> str:
         else:
             lines += ["\tcfx2rd\t%s, rd5" % target]
         lines += ["%s:" % lab,
-                  "\tld.o rd6, [rb20, 0xE0]",
+                  "\tld.o rd6, [rb20, HMON_FRAME_CAUSE_ID]",
                   "\t__REC rd6",
                   "\t__REC rd5",
                   ""]
@@ -164,10 +165,10 @@ def _probe_head(reason: str) -> list:
         "\t.include \"tests/inst/macros/inst_test.inc\"",
         "",
         "\t__TEST_BEGIN",
-        "\tset.rb rb20, HMON_BASE",
+        "\tset.rb rb20, HMON_DATA_BASE",
         "\tset.rb rb21, abort",
-        "\tst.o rb21, [rb20, 0xF8]\t@@ 任何意外异常 ⇒ abort（fail-closed）",
-        "\tst.o rd0, [rb20, 0xE0]\t@@ 清固件 cause 槽（不靠残留）",
+        "\tst.o rb21, [rb20, HMON_FRAME_RETURN]\t@@ 任何意外异常 ⇒ abort（fail-closed）",
+        "\tst.o rd0, [rb20, HMON_FRAME_CAUSE_ID]\t@@ 清固件 cause 槽（不靠残留）",
     ]
 
 
@@ -188,14 +189,14 @@ def render_write0() -> str:
     lines += [
         "\tset.rd\trd6, 0",
         "\tcfx2rc\t%s, rd6\t@@ 写 0：WO 写必须被接受" % target,
-        "\tld.o rd5, [rb20, 0xE0]",
+        "\tld.o rd5, [rb20, HMON_FRAME_CAUSE_ID]",
         "\t__REC\trd5\t@@ 槽 0 = 0（接受）",
-        "\tst.o rd0, [rb20, 0xE0]\t@@ 清 cause 槽",
+        "\tst.o rd0, [rb20, HMON_FRAME_CAUSE_ID]\t@@ 清 cause 槽",
         "\tset.rb rb21, read_done",
-        "\tst.o rb21, [rb20, 0xF8]\t@@ 读故障的返回点",
+        "\tst.o rb21, [rb20, HMON_FRAME_RETURN]\t@@ 读故障的返回点",
         "\tcfx2rd\t%s, rd6\t@@ WO 读 ⇒ CFXREG" % target,
         "read_done:",
-        "\tld.o rd5, [rb20, 0xE0]",
+        "\tld.o rd5, [rb20, HMON_FRAME_CAUSE_ID]",
         "\t__REC\trd5\t@@ 槽 1 = CFXREG",
         "\t__TEST_END",
         "abort:",
