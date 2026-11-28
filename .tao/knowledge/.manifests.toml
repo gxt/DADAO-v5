@@ -15,9 +15,6 @@ owner = "main-session"
 [files."issues-left.yaml"]
 owner = "main-session"
 
-[files."issues-m16.yaml"]
-owner = "m16-session"
-
 [files."issues-m18.yaml"]
 owner = "m18-session"
 
@@ -29,9 +26,6 @@ owner = "m20-session"
 
 [files."m20-riscv-arch-test-porting.md"]
 owner = "m20-session"
-
-[files."milestones-m16.md"]
-owner = "main-session"
 
 [files."milestones-m18.md"]
 owner = "main-session"
