@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..bcd6d5e
+index 0000000..b2f69a5
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,2313 @@
+@@ -0,0 +1,2357 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -105,7 +105,9 @@ index 0000000..bcd6d5e
 +//     m12-011 FP forms add the rf-bank variants;
 +//   * register-block copies run one register per cycle in the new `sCopy`
 +//     state (12 states -> 13);
-+//   * `fence`/`swym` are recognised no-ops (one cycle, no write-back).
++//   * `fence` is a recognised no-op (one cycle, no write-back); `swym N` is
++//     the delay instruction — `swym 0` is one cycle, `swym N` costs 1 + N and
++//     runs its N extra cycles in `sSwym` (`m19-chipyard-003`).
 +//
 +// m12-chipyard-014 adds the multi-cycle FP family (spec/SimRISC-07 §2.1/§2.2):
 +// `ftdiv`/`fodiv`, `ftrem`/`forem`, `ftroot`/`foroot`.  The unit is started in
@@ -370,8 +372,16 @@ index 0000000..bcd6d5e
 +    (ha >= 6.U && ha <= 14.U) || (ha >= 16.U && ha <= 31.U) ||
 +      (ha >= 35.U && ha <= 61.U)
 +
-+  val sIdle :: sFreq :: sFwait :: sExec :: sTrap :: sSemi :: sExc :: sMreq :: sMwait :: sSlow :: sCopy :: sCls :: sFpSlow :: sXlate :: sFault :: sHalt :: Nil = Enum(16)
++  val sIdle :: sFreq :: sFwait :: sExec :: sTrap :: sSemi :: sExc :: sMreq :: sMwait :: sSlow :: sCopy :: sCls :: sFpSlow :: sXlate :: sFault :: sHalt :: sSwym :: Nil = Enum(17)
 +  val state = RegInit(sIdle)
++
++  // `swym N` multi-cycle wait (`m19-chipyard-003`, spec/SimRISC-12 §2):
++  // N = `immu18[11:0]` extra cycles on top of the one-cycle `swym 0`, i.e. a
++  // total of 1 + N.  `sSwym` samples no asynchronous source, so a pending
++  // interrupt is only taken at the next instruction boundary after the last
++  // extra cycle (the instruction is atomic and delays the response by 1 + N).
++  val swymN = RegInit(0.U(12.W))
++  val swymLeft = RegInit(0.U(12.W))
 +
 +  // Simulation-time cycle stamp for the timing evidence (`+verbose`).  It is
 +  // also the `cfx_hart cg8 rc2 cycle` / `cfx_time_value` time base
@@ -1840,6 +1850,19 @@ index 0000000..bcd6d5e
 +        copyDstBankL := d.copyDstBank
 +        copySrcBankL := d.copySrcBank
 +        state := sCopy
++      }.elsewhen(d.isSwym) {
++        // `swym N` (spec/SimRISC-12 §2, `m19-chipyard-003`): `N = immu18[11:0]`,
++        // `swym 0` stays the one-cycle no-op.  The N extra cycles run in
++        // `sSwym`; the asynchronous check lives only in `sExec`/`sFreq`, so the
++        // instruction is atomic and a pending interrupt is taken at the next
++        // instruction boundary (after `finish`).
++        swymN := inst(11, 0)
++        when(inst(11, 0) === 0.U) {
++          finish(ip + 4.U)
++        }.otherwise {
++          swymLeft := inst(11, 0) - 1.U
++          state := sSwym
++        }
 +      }.elsewhen(d.isLd || d.isSt || d.isLdm || d.isStm) {
 +        when(memAlignFail) {
 +          // MALIGN: address generated and checked before any bus request;
@@ -1883,6 +1906,18 @@ index 0000000..bcd6d5e
 +        }
 +      }.otherwise {
 +        finish(Mux(d.isJump, jumpTarget, ip + 4.U))
++      }
++    }
++    is(sSwym) {
++      // `swym N` extra cycles (`m19-chipyard-003`): each cycle here is one of
++      // the N extra cycles; the last one completes the instruction.  There is
++      // deliberately no `gewu.io.intr` sampling and no `intrAck` in this
++      // state, so the instruction cannot be interrupted between `sExec` and
++      // `finish` (spec/SimRISC-12 §2 atomicity).
++      when(swymLeft === 0.U) {
++        finish(ip + 4.U)
++      }.otherwise {
++        swymLeft := swymLeft - 1.U
 +      }
 +    }
 +    is(sTrap) {
@@ -2272,7 +2307,16 @@ index 0000000..bcd6d5e
 +    printf(p"WumingCore: fence ip=0x${Hexadecimal(ip(47, 0))} cfxha=${d.cfxHa} imm=0x${Hexadecimal(inst(17, 0))} cycle=${cycles}\n")
 +  }
 +  when(state === sExec && d.isSwym && !execFault) {
-+    printf(p"WumingCore: swym ip=0x${Hexadecimal(ip(47, 0))} imm=0x${Hexadecimal(inst(17, 0))} cycle=${cycles}\n")
++    // `n` is the 12-bit delay parameter (immu18[11:0]); the total cost is
++    // 1 + n cycles (`m19-chipyard-003`, spec/SimRISC-12 §2).  `swym-done` is
++    // printed in the cycle `finish` runs, so `done - start + 1` is the total.
++    printf(p"WumingCore: swym ip=0x${Hexadecimal(ip(47, 0))} imm=0x${Hexadecimal(inst(17, 0))} n=${inst(11, 0)} cycle=${cycles}\n")
++    when(inst(11, 0) === 0.U) {
++      printf(p"WumingCore: swym-done ip=0x${Hexadecimal(ip(47, 0))} n=${inst(11, 0)} cycle=${cycles}\n")
++    }
++  }
++  when(state === sSwym && swymLeft === 0.U) {
++    printf(p"WumingCore: swym-done ip=0x${Hexadecimal(ip(47, 0))} n=${swymN} cycle=${cycles}\n")
 +  }
 +  when(state === sCopy) {
 +    printf(p"WumingCore: copy ip=0x${Hexadecimal(ip(47, 0))} dstbank=${copyDstBankL} dst=${(copyDstStart + copyIdx)(5, 0)} srcbank=${copySrcBankL} src=${(copySrcStart + copyIdx)(5, 0)} count=${copyCount} cycle=${cycles}\n")

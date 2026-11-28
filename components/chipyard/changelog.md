@@ -234,6 +234,9 @@
 
 ## M19
 
+- **2026-11-27 `m19-chipyard-003`**
+  - 摘要：**RTL 实现 `swym N`（12 位、1 + N 拍、原子）**（`spec/SimRISC-12 §2`、`m19-spec-001`）。`WumingDecoder`：`ha = 0x22` 的 `swym` 增加 `immu18[17:12] != 0 ⇒ ILLI`（`encode_sbz`），`N = immu18[11:0]`。`WumingCore`：新增第 17 个状态 `sSwym` 与 12 位 `swymN`/`swymLeft`；`swym 0` 仍在 `sExec` 一拍 `finish`，`swym N` 进 `sSwym` 数完 N 个额外拍后 `finish(ip+4)`（总 1 + N 拍）；`sSwym` 不采样 `gewu.io.intr`、不置 `intrAck`，`asyncTake` 仍只在 `sExec`/`sFreq` ⇒ 执行期间不取中断，pending 中断在完成后下一个指令边界才投递。trace 增 `n=` 字段与 `swym-done`（`done - start + 1` 即总拍数）。`docs/core-wuming-cycle-model.md` 与 `contracts/wuming-cycles.yaml` 由生成器重派生（`cycles: 1+N`、`dynamic: N`）。**验证**：Tiny `make verilog` + `make` rc=0、`%Error`=0；新载体 `tools/chipyard/swym/swym.S` + `check_swym.py` 在 `WumingTinyConfig` 上 N=0/1/4095 ⇒ 1/2/4096 拍，三个 `immu18[17:12] != 0` 编码 ⇒ `ILLI`（`cause_ip`/`cause_info` 与 ELF 符号/指令字逐条相等）；注入「计数器多一拍」「删高位 SBZ 判定」两路均真重建后红、`cp`+md5 还原重建回绿。
+
 - **2026-11-27 `m19-chipyard-004`**
   - 摘要：**Tiny 新几何与 8 KiB BootROM 资源**（`m19-spec-002`/`spec/Kaiwu §1.1/§6.2`）。`WumingTinyAddressMap`：BootROM `0x2000`（8 KiB）、SRAM `0x4_0000`（256 KiB）、hmon `0x2000`（8 KiB）、`appEntry = 0xffff_ff00_2000`（`MAIN_SRAM_BASE + 0x2000`，`kernel_reserved = 0`）；`WumingVastAddressMap` 的 `sramSize`/`hmonSize`/`appEntry` 改为显式常量，Vast 的 8 MiB/64 KiB/`0xffff_ff01_0100` **不变**。`build.sbt` 的 Tiny 资源解码尺寸 `64 KiB → 8 KiB`。`bootrom.tiny.hex` 按 8 KiB 布局重生成：power `0x0000`（292 B）、hmon 源 `0x0800`（48 B）、保留 `0x1400–0x1EFF`、image index table `0x1F00`（`offset = 0x800`、`size = 0x30`、`flags = 0x3`）、保留尾 `0x1F30–0x1FFF`；power stub 的镜像内布局常量改为「表基址 `0x1F00`、hmon 源段上限 `0xC00`、跳转目标 `ENTRY = 0xffff_ff00_2000`」（`tests/ee-tiny/cfx_power_tiny.S` 与 `tools/testcases/arch/build_tiny_bootrom.py` 的对应迁移不属本任务范围，见任务书「待裁定」）。`VERSION`/`MAILBOX` 放核握手**未实现**（`MAILBOX` magic 仍 `[OPEN]`，`spec/Kaiwu §6.2.1`）。
   - 执行者：engineer

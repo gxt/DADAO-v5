@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..4efe9d3
+index 0000000..b5fd8fa
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
-@@ -0,0 +1,1220 @@
+@@ -0,0 +1,1224 @@
 +// See LICENSE for license details.
 +//
 +// DADAO decoder for the M12 integer core.
@@ -1011,7 +1011,11 @@ index 0000000..4efe9d3
 +        when(hb === 0.U) { d.ill := true.B }
 +      }.elsewhen(ha === 0x22.U) {
 +        subHandled := true.B
-+        d.isSwym := true.B // 1-cycle no-op (delay N is implementation defined)
++        d.isSwym := true.B
++        // `N = immu18[11:0]` is the delay parameter; `immu18[17:12]` is SBZ
++        // (non-zero => ILLI, spec/SimRISC-12 §2 and
++        // contracts/legality_rules.yaml `encode_sbz`; m19-chipyard-003).
++        when(imm18(17, 12) =/= 0.U) { d.ill := true.B }
 +      }.elsewhen(ha === 0x25.U) {
 +        subHandled := true.B; bitCount(WumingAluOp.CTPOP)
 +      }.elsewhen(ha === 0x26.U) {

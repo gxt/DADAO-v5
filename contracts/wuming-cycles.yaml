@@ -5,7 +5,7 @@
 schema: 1
 generated_by: tools/gem5/gen_wuming_cycles.py
 source_doc: docs/core-wuming-cycle-model.md
-source_doc_sha256: 'b877431f491eaef2860934a9003d859de1cb8df356f81bd4c58ae0ee45a5ddbf'
+source_doc_sha256: '4f502752254e2aabeada241cc4a64340148eb09de2c213a2d19c3d74f9f10727'
 instruction_count: 263
 static_rows: 206
 dynamic_rows: 57
@@ -30,7 +30,7 @@ memory_system:
   beat_bytes: 8
   mem_latency: 7
   xbar_latency: 2
-  doc_lines: {bus_class: 36, sram: 152, fetch: 17}
+  doc_lines: {bus_class: 36, sram: 154, fetch: 17}
 # overrides: §5 实测与 §3 估计冲突时的收敛口径（值仍出自文档）
 overrides: []
 # doc_rows: 每个 §3 行覆盖到的 id 数（0 = 该行只描述寄存器/RAS 子操作）
