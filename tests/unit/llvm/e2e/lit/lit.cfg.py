@@ -96,8 +96,8 @@ config.substitutions.append(("%bootrom", bootrom))
 
 # Locate the freestanding crt0 + linker script used by the linked-ELF E2E
 # pipeline.  The Tiny script is the contract layout (crt + program in SRAM,
-# e_entry = 0xffff_ff01_0100, spec/Kaiwu §6); `tests_freestanding_tiny.lds` is the
-# pre-contract crt-in-ROM layout for legacy harnesses.
+# e_entry = 0xffff_ff00_2000, spec/Kaiwu §6.2); `tests_freestanding_tiny.lds`
+# is that single layout for the Tiny profile.
 # 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
 # `tests/ee-tiny/`；公共段已内联进 lds，`%ld` 只需带 ee-tiny 的 `-L`。
 config.substitutions.append(("%crt0", os.path.join(root, "tests", "ee-user", "crt0_user.s")))

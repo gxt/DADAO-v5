@@ -5,8 +5,9 @@
 背景
 ----
 picolibc 此前只有自测/冒烟，没有真实应用跑通。embench 不再拆
-freestanding/picolibc 两套，改用 ansibench 语料里「text+data+bss < 64 KiB
-（Tiny 装载窗口 image_window）」的四个基准作为 picolibc 的实际应用验证：
+freestanding/picolibc 两套，改用 ansibench 语料里「text+data+bss <
+Tiny 装载窗口 image_window（0x2_0000 = 128 KiB）」的四个基准作为 picolibc 的
+实际应用验证：
 
     coremark   dhrystone   linpack   whetstone
 
@@ -33,7 +34,7 @@ freestanding/picolibc 两套，改用 ansibench 语料里「text+data+bss < 64 K
 * 由 picolibc 归档实际拉起的 **能力符号** 都在最终 ELF 里被定义
   （printf / malloc / free / clock / times / libm 数学函数 …）：归档成员只有
   被引用才会被拉入，所以「符号已定义」= 该能力真的被这条链接用到；
-* ``text+data+bss <= 65536``（Tiny ``image_window``，来自
+* ``text+data+bss <= image_window``（Tiny ``0x2_0000``，来自
   ``tests/ee-tiny/runtime.yaml``；上限现场从 machine_profile 读取）；
 * 计时数字 **只记录**，从不断言（见下）。
 

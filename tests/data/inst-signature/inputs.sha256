@@ -1,4 +1,4 @@
-c4b9b47977b3afa964f72f64b631cd474d199db704cb0ed65f4b9acd9eef0921  tests/ee-tiny/tests_inst_tiny.lds
+22d4a6e129c09b5c37600cd9997985dea54a7884b230dcfb1ef42f1a5b587bb2  tests/ee-tiny/tests_inst_tiny.lds
 0916ef49a03c67ce3051887880a0228287f5bafad1e1625bb7f809cc18e56aa5  tests/inst/00-isa-design/atomic_rmw.S
 05de104cfae954099c0a0230a553e0e01b6ee834944c11f093814ed1066ea3d8  tests/inst/00-isa-design/pseudo_set.fo_imm64.S
 26fc2d8d65ffaa994365cc47e32f179e4450c43b1d7c57fbfa6c95f440c912c4  tests/inst/00-isa-design/pseudo_set.ft_imm32.S
@@ -281,6 +281,6 @@ e5f1630c372dde652aa6f404f3f6f6ee28ef1a777d878ebb127ffed433e35e1d  tests/inst/12-
 8dcdb8133b1679f8df2b740b1014ecb94ff73643b07f489da0e206a630d975a9  tests/inst/12-misc/sc.w.nn_orrr_rd.S
 3895e7939ae42b4b419c43e3527aa0a50dac58f87d2c21f1e4ffa50ce8793651  tests/inst/12-misc/sc.w.nr_orrr_rd.S
 599b13c6a3b71589ccbef89c7532b888213b4eb5dc9f2c3570bfb2eb30e33968  tests/inst/12-misc/swym_oiii_imm.S
-5c7b0bd2fc9e77b5eec191f7c5ab6caa0dd12ab5afdaf01f2c509db295d75e1b  tests/inst/macros/inst_test.inc
-74a13f07b4d38b10d9565f52b01fbb3d92bfb719ba3c105c0286015f5e745978  tests/shared/asm/machine-tiny.inc
+a20dc94e10a0b4ea3c490a4523905628c073101027f796ff850baaf9a1f8b2fb  tests/inst/macros/inst_test.inc
+b244cba0bf6c445e684fc27013fc162eaa55bef1bc22347b3a952a00f639749a  tests/shared/asm/machine-tiny.inc
 8460203104a9199e2c2b89ebb8747037cbd14b019322e71aa422ace3bbdcf500  tests/shared/asm/signature.inc

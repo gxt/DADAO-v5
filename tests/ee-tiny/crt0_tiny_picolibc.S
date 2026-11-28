@@ -12,12 +12,13 @@
 @@ This stub is linked with the entry symbol `_start`; picolibc's crt0.o is linked
 @@ in with `--redefine-sym _start=_picolibc_start` (see the harness), so the flow
 @@ is:
-@@   _start (this stub): set rb1 = profile SP (0xffff_ff7e_ff00), then call
+@@   _start (this stub): set rb1 = profile SP (0xffff_ff03_f000), then call
 @@                       picolibc `_picolibc_start`
 @@   __start (picolibc): init .data/.bss, run constructors, call main, exit()
 @@
-@@ The stub is placed in .text.start at ROM 0xffff_ffff_0000 (Tiny A scheme:
-@@ e_entry in ROM, application in SRAM); picolibc __start clears BSS.
+@@ The stub is placed in .text.start at the fixed SRAM entry 0xffff_ff00_2000
+@@ (Tiny, spec/Kaiwu §6.2: crt and application are one SRAM image);
+@@ picolibc __start clears BSS.
 @@ Entry/exit conventions follow tests/ee-user/crt0_user.s and
 @@ contract-semihosting.md §3/§5 (SYS_EXIT reaches the host $?).
 

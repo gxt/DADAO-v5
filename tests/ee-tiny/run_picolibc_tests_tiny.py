@@ -25,9 +25,9 @@ Design
   test's own assertions, never from any DADAO-side expectation.
 
 * **Run path.**  Two engines run the same built ELF (``--engine``):
-  ``qemu`` (default) boots the fixed 64 KiB Kaiwu-Tiny BootROM firmware
+  ``qemu`` (default) boots the fixed 8 KiB Kaiwu-Tiny BootROM firmware
   (``-machine kaiwu-tiny,bootrom-image=...``) and loads the test ELF into SRAM
-  (spec/Kaiwu §6: power -> hmon -> fixed entry 0xffff_ff01_0100).
+  (spec/Kaiwu §6: power -> hmon -> fixed entry 0xffff_ff00_2000).
   picolibc's own
   ``crt0-semihost.o`` assumes the architecture start-up code already set the
   stack, so the harness links it with ``--redefine-sym _start=_picolibc_start``

@@ -7,13 +7,20 @@
 @@   4. report via semihosting SYS_EXIT (trap cfx0, 0x3FF00; this is not a cfx
 @@      service: Tiny has no cfx but semihosting is allowed).
 @@
-@@ The stub is placed in .text.start: Tiny links it at the ROM base
-@@ (0xffff_ffff_0000), Vast at the profile entry.  The linked-ELF pipeline uses
-@@ app_tiny.lds / kernel_vast.lds; the single-TU CodeGen pipeline supplies
-@@ __stack_top/__exit_block/__bss_* as assembler symbols and loads the raw blob
-@@ at the Tiny kernel base (first kernel_reserved bytes zero, app entry after).
+@@ The stub is placed in .text.start: Tiny links it at the fixed SRAM entry
+@@ (0xffff_ff00_2000, spec/Kaiwu §6.2; `kernel_reserved = 0`), Vast at the
+@@ profile entry.  The linked-ELF pipeline uses
+@@ tests_freestanding_tiny.lds / kernel_vast.lds; the single-TU CodeGen pipeline
+@@ supplies __stack_top/__exit_block/__bss_* as assembler symbols and loads the
+@@ raw blob at the Tiny kernel base (= the entry itself now).
 @@
-@@ Exit block: {ADP_Stopped_ApplicationExit (0x20026), code} at __exit_block.
+@@ Exit block: {ADP_Stopped_ApplicationExit (0x20026), code} at __exit_block
+@@ (`MAIN_SRAM_BASE + 0x0030`; code at +0x38).
+@@
+@@ MemRAS: this crt leaves `ra0` (MRPTR) at its reset value 0 = MemRAS disabled
+@@ (`spec/SimRISC-00 §2.4`; spec/Kaiwu §6.2.1 fixes the 4 KiB MemRAS at
+@@ MAIN_SRAM_BASE+0x3F000 with MRPTR = +0x40000, set only by a harness that wants
+@@ it).  No C program here depends on MemRAS spill.
 
 	.section	.text.start,"ax"
 	.globl	_start

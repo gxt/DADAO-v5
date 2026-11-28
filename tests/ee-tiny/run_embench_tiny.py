@@ -30,7 +30,7 @@ Pipeline per (benchmark, optimisation level):
     llvm-mc --triple=dadao -filetype=obj crt0_user.s                   -> crt0.o
     ld.lld -T tests/ee-tiny/tests_freestanding_tiny.lds *.o                        -> <b>.elf
     timeout N qemu-system-dadao \
-            -machine kaiwu-tiny,bootrom-image=<fixed 64 KiB firmware> \
+            -machine kaiwu-tiny,bootrom-image=<fixed 8 KiB firmware> \
             -kernel <b>.elf -semihosting-config enable=on,target=native -> guest exit
      # or (--engine chipyard):
      timeout N simulator-chipyard.harness-WumingTinyConfig +permissive \

@@ -60,14 +60,21 @@
 @@
 @@ 固定地址（Tiny；`.lds` 的 ASSERT 与本节 `.equ` 共同钉住）——全部册（00 + 01–12）**同一份**布局
 @@ `tests/ee-tiny/tests_inst_tiny.lds`（`m15-testcases-006` 统一，见该文件头）：
+@@   ENTRY = MAIN_SRAM_BASE + 0x2000（`0xffff_ff00_2000`；spec/Kaiwu §6.2，
+@@           `kernel_reserved = 0`；image_window = 0x2_0000 覆盖 ENTRY..+0x21FFF）
 @@   ENTRY+0x0000 .. +0x4000  .text          链例 + 故障例体 + 收尾代码（16 KiB 窗口）
 @@   ENTRY+0x4000 .. +0x4200  .faultpad      故障落点 `__pad`（≤512 B）
 @@   ENTRY+0x4200             TEST_FAULTV    故障期望槽：+0 one-hot、+8 失败码（=点号）
 @@   ENTRY+0x4300 .. +0x4780  .faulttab      后继表（点号 × 8 B + 表尾哨兵；≤0x480）
 @@   ENTRY+0x5000 .. +0x7000  .testdata     数据块（TEST_DATA = +0x5800，0x800 负偏移
 @@                                           区在前；单元素 24 个 8 字节数据单元模式；多元素区见下）
-@@   ENTRY+0x7000 .. +0x7800  结果字节缓冲（每检查点 8 字节，≤127 点 ⇒ ≤1016 B）
-@@   ENTRY+0x7800             SYS_EXIT 参数块
+@@   SIGNATURE = MAIN_SRAM_BASE+0x1000 .. +0x1800  结果字节缓冲（TEST_BUF；运行期写，不进镜像；
+@@                                           ≤127 槽 × 8 B = 1016 B；`SIG_DUMP` 参数块在尾部 +0x7F8）
+@@   EXIT_BLOCK = MAIN_SRAM_BASE+0x0030（16 B）      SYS_EXIT 参数块（TEST_EXITB；运行期写，不进镜像）
+@@
+@@ `m19-testcases-002`：结果缓冲从 `ENTRY+0x7000` 迁到固定签名区 `SIGNATURE`，
+@@ SYS_EXIT 参数块从 `ENTRY+0x7800` 迁到全局 `EXIT_BLOCK`（`+0x0030`），
+@@ `ENTRY` 由 `0xffff_ff01_0100` 改为 `0xffff_ff00_2000`。
 @@
 @@ 副作用口径（用户 2026-11-13 裁定，`ldm`/`stm`/`r2r` 等多寄存器/多元素指令）：
 @@   **不要求无副作用** —— 这类指令**允许部分元素已经生效**（「源/目范围不得重叠」正是为此）；
@@ -115,8 +122,11 @@
 	@@ `.text` 窗口 16 KiB（原 01 册 0x1E00 / 07 册 0x4000 两份布局合并为一份）。
 	.equ TEST_PAD,    ENTRY + 0x4000
 	.equ TEST_DATA,   ENTRY + 0x5800
-	.equ TEST_BUF,    ENTRY + 0x7000
-	.equ TEST_EXITB,  ENTRY + 0x7800
+	@@ 结果缓冲 = 固定签名区（spec/Kaiwu §6.2.1：MAIN_SRAM_BASE + 0x1000，0x800）；
+	@@ 不在镜像窗口内 ⇒ 运行期写入，不占 PT_LOAD 字节。
+	.equ TEST_BUF,    RAM_BASE + 0x1000
+	@@ SYS_EXIT 参数块 = 全局 EXIT_BLOCK（spec/Kaiwu §6.2.1：MAIN_SRAM_BASE + 0x0030）。
+	.equ TEST_EXITB,  EXIT_BLOCK
 	.equ TEST_FAULTV, ENTRY + 0x4200        @@ 故障期望槽（2 × 8 B；见文件头）
 	.equ FAULTTAB,    ENTRY + 0x4300        @@ 后继表（点号 × 8 B + 哨兵；见文件头）
 

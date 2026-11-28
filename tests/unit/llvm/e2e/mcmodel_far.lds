@@ -3,9 +3,10 @@
  * Geometry follows the tiny profile (contracts/machine.yaml + tests/ee-tiny/
  * runtime.yaml).
  * `.text.start` (crt stub) sits at the Tiny ROM base; app `.text` starts at the
- * profile entry.  The `.far` output section is 64 MiB below `.text` (outside the
- * 8 MiB RAM window and beyond the ±32 MiB REL26 reach) and owns its own FAR
- * memory region: with a MEMORY block present, lld assigns an output section
+ * profile entry (0xffff_ff00_2000, `MAIN_SRAM_BASE + 0x2000`).  The `.far`
+ * output section is 64 MiB below `.text` (outside the 256 KiB RAM window and
+ * beyond the ±32 MiB REL26 reach) and owns its own FAR memory region: with a
+ * MEMORY block present, lld assigns an output section
  * without `>region` to a flag-compatible region and ignores a bare
  * `. = <addr>` location-counter assignment (the section would land right after
  * `.text.start`, in REL26 reach, and the `default` control case would wrongly
@@ -18,8 +19,8 @@ ENTRY(_start)
 
 MEMORY
 {
-  ROM (rx)  : ORIGIN = 0xffffffff0000, LENGTH = 64K
-  RAM (rwx) : ORIGIN = 0xffffff000000, LENGTH = 0x800000
+  ROM (rx)  : ORIGIN = 0xffffffff0000, LENGTH = 8K
+  RAM (rwx) : ORIGIN = 0xffffff000000, LENGTH = 0x40000
   /* Second code region: 64 MiB below .text (outside RAM and REL26 reach). */
   FAR (rx)  : ORIGIN = 0xFFFFFB000000, LENGTH = 64K
 }
@@ -33,8 +34,8 @@ PHDRS
 }
 
 /* Runtime symbols used by minimal_crt0. */
-__stack_top = 0xffffff7eff00;
-__exit_block = 0xffffff7e0000;
+__stack_top = 0xffffff03f000;
+__exit_block = 0xffffff000030;
 
 SECTIONS
 {
@@ -42,7 +43,7 @@ SECTIONS
     *(.text.start .text.start.*)
   } > ROM :start
 
-  .text ORIGIN(RAM) + 0x10100 : ALIGN(4) {
+  .text ORIGIN(RAM) + 0x2000 : ALIGN(4) {
     *(.text .text.*)
   } > RAM :text
 

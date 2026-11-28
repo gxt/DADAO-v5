@@ -1,7 +1,7 @@
 # Undefined weak function references must link on DADAO (LLVM-085t / ISS-194).
 #
 # ELF gives an undefined weak symbol the value 0; the DADAO code image lives at
-# the tiny profile ENTRY (0xFFFF_FF00_0000), so the PC-relative displacement to 0 cannot be encoded and a
+# the tiny profile ENTRY (0xFFFF_FF00_2000), so the PC-relative displacement to 0 cannot be encoded and a
 # veneer cannot bridge the 2^47 gap either.  lld now resolves such a reference
 # to the place itself (RISC-V convention for relative-only ISAs) -- a self-loop
 # -- and rewrites a `call` site to `jump` so that no RegRAS entry is pushed for

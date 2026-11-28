@@ -148,8 +148,8 @@ tests/inst/01-load-store/ld.o_rrii_ra.S	14	value	0x0123456789abcdef	0x0123456789
 tests/inst/01-load-store/ld.o_rrii_ra.S	15	value	0x0011223344556677	0x0011223344556677	tests/inst/01-load-store/ld.o_rrii_ra.S:62
 tests/inst/01-load-store/ld.o_rrii_ra.S	16	value	0x0001000000000000	0x0001000000000000	tests/inst/01-load-store/ld.o_rrii_ra.S:72
 tests/inst/01-load-store/ld.o_rrii_ra.S	17	value	0x0002000000000000	0x0002000000000000	tests/inst/01-load-store/ld.o_rrii_ra.S:84
-tests/inst/01-load-store/ld.o_rrii_ra.S	18	value	0x003fffffff017078	(0x003F000000000000 + MEMRAS + 0x78)	tests/inst/01-load-store/ld.o_rrii_ra.S:100
-tests/inst/01-load-store/ld.o_rrii_ra.S	19	value	0x0000ffffff017080	(MEMRAS + 0x80)	tests/inst/01-load-store/ld.o_rrii_ra.S:116
+tests/inst/01-load-store/ld.o_rrii_ra.S	18	value	0x003fffffff008f78	(0x003F000000000000 + MEMRAS + 0x78)	tests/inst/01-load-store/ld.o_rrii_ra.S:100
+tests/inst/01-load-store/ld.o_rrii_ra.S	19	value	0x0000ffffff008f80	(MEMRAS + 0x80)	tests/inst/01-load-store/ld.o_rrii_ra.S:116
 tests/inst/01-load-store/ld.o_rrii_ra.S	20	value	0x003f000000000000	0x003F000000000000	tests/inst/01-load-store/ld.o_rrii_ra.S:129
 tests/inst/01-load-store/ld.o_rrii_ra.S	21	value	0x0000000001234568	0x0000000001234568	tests/inst/01-load-store/ld.o_rrii_ra.S:135
 tests/inst/01-load-store/ld.o_rrii_ra.S	22	value	0x002aa5a55a5a1230	0x002AA5A55A5A1230	tests/inst/01-load-store/ld.o_rrii_ra.S:141
@@ -653,11 +653,11 @@ tests/inst/01-load-store/st.o_rrii_rb.S	9	value	0xdeadbeefcafef00d	0xDEADBEEFCAF
 tests/inst/01-load-store/st.o_rrii_rb.S	10	value	0xdeadbeefcafef00d	0xDEADBEEFCAFEF00D	tests/inst/01-load-store/st.o_rrii_rb.S:58
 tests/inst/01-load-store/st.o_rrii_rb.S	11	value	0xdeadbeefcafef00d	0xDEADBEEFCAFEF00D	tests/inst/01-load-store/st.o_rrii_rb.S:59
 tests/inst/01-load-store/st.o_rrii_rb.S	12	value	0xdeadbeefcafef00d	0xDEADBEEFCAFEF00D	tests/inst/01-load-store/st.o_rrii_rb.S:60
-tests/inst/01-load-store/st.o_rrii_rb.S	13	value	0x0000ffffff015988	TEST_DATA + 0x088	tests/inst/01-load-store/st.o_rrii_rb.S:64
+tests/inst/01-load-store/st.o_rrii_rb.S	13	value	0x0000ffffff007888	TEST_DATA + 0x088	tests/inst/01-load-store/st.o_rrii_rb.S:64
 tests/inst/01-load-store/st.o_rrii_rb.S	14	value	0xdeadbeefcafef00d	0xDEADBEEFCAFEF00D	tests/inst/01-load-store/st.o_rrii_rb.S:65
 tests/inst/01-load-store/st.o_rrii_rb.S	15	relation	-	运行期关系断言（__REC）	tests/inst/01-load-store/st.o_rrii_rb.S:75
 tests/inst/01-load-store/st.o_rrii_rb.S	16	relation	-	运行期关系断言（__REC）	tests/inst/01-load-store/st.o_rrii_rb.S:82
-tests/inst/01-load-store/st.o_rrii_rb.S	17	value	0x0000ffffff011900	(ENTRY + 0x1800)	tests/inst/01-load-store/st.o_rrii_rb.S:93
+tests/inst/01-load-store/st.o_rrii_rb.S	17	value	0x0000ffffff003800	(ENTRY + 0x1800)	tests/inst/01-load-store/st.o_rrii_rb.S:93
 tests/inst/01-load-store/st.o_rrii_rb.S	18	value	0x7fffffffffffffff	0x7FFFFFFFFFFFFFFF	tests/inst/01-load-store/st.o_rrii_rb.S:98
 tests/inst/01-load-store/st.o_rrii_rb.S	19	value	0x8000000000000000	0x8000000000000000	tests/inst/01-load-store/st.o_rrii_rb.S:99
 tests/inst/01-load-store/st.o_rrii_rb.S	20	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/01-load-store/st.o_rrii_rb.S:100
@@ -820,12 +820,12 @@ tests/inst/01-load-store/stm.o_rrri_rb.S	5	value	0x0102030405060713	0x0102030405
 tests/inst/01-load-store/stm.o_rrri_rb.S	6	value	0x010203040506071a	0x010203040506071A	tests/inst/01-load-store/stm.o_rrri_rb.S:39
 tests/inst/01-load-store/stm.o_rrri_rb.S	7	value	0x010203040506071d	0x010203040506071D	tests/inst/01-load-store/stm.o_rrri_rb.S:51
 tests/inst/01-load-store/stm.o_rrri_rb.S	8	value	0x010203040506071e	0x010203040506071E	tests/inst/01-load-store/stm.o_rrri_rb.S:52
-tests/inst/01-load-store/stm.o_rrri_rb.S	9	value	0x0000ffffff016a00	MSTORE	tests/inst/01-load-store/stm.o_rrri_rb.S:53
+tests/inst/01-load-store/stm.o_rrri_rb.S	9	value	0x0000ffffff008900	MSTORE	tests/inst/01-load-store/stm.o_rrri_rb.S:53
 tests/inst/01-load-store/stm.o_rrri_rb.S	10	value	0x0102030405060720	0x0102030405060720	tests/inst/01-load-store/stm.o_rrri_rb.S:54
 tests/inst/01-load-store/stm.o_rrri_rb.S	11	value	0x0102030405060721	0x0102030405060721	tests/inst/01-load-store/stm.o_rrri_rb.S:55
 tests/inst/01-load-store/stm.o_rrri_rb.S	12	value	0x010203040506071d	0x010203040506071D	tests/inst/01-load-store/stm.o_rrri_rb.S:56
 tests/inst/01-load-store/stm.o_rrri_rb.S	13	value	0x010203040506071e	0x010203040506071E	tests/inst/01-load-store/stm.o_rrri_rb.S:57
-tests/inst/01-load-store/stm.o_rrri_rb.S	14	value	0x0000ffffff016a00	MSTORE	tests/inst/01-load-store/stm.o_rrri_rb.S:58
+tests/inst/01-load-store/stm.o_rrri_rb.S	14	value	0x0000ffffff008900	MSTORE	tests/inst/01-load-store/stm.o_rrri_rb.S:58
 tests/inst/01-load-store/stm.o_rrri_rb.S	15	value	0x0102030405060720	0x0102030405060720	tests/inst/01-load-store/stm.o_rrri_rb.S:59
 tests/inst/01-load-store/stm.o_rrri_rb.S	16	value	0x0102030405060721	0x0102030405060721	tests/inst/01-load-store/stm.o_rrri_rb.S:60
 tests/inst/01-load-store/stm.o_rrri_rb.S	17	value	0x0102030405060713	0x0102030405060713	tests/inst/01-load-store/stm.o_rrri_rb.S:63
@@ -1826,17 +1826,17 @@ tests/inst/05-arith-addr/add.si_riii_rb.S	9	value	0x0001000000000000	0x000100000
 tests/inst/05-arith-addr/add.si_riii_rb.S	10	value	0x00007fffffffffff	0x00007FFFFFFFFFFF	tests/inst/05-arith-addr/add.si_riii_rb.S:68
 tests/inst/05-arith-addr/add.si_riii_rb.S	11	value	0x0000000000000100	0x0000000000000100	tests/inst/05-arith-addr/add.si_riii_rb.S:76
 tests/inst/05-arith-addr/add.si_riii_rb.S	12	value	0x0000000000000004	0x0000000000000004	tests/inst/05-arith-addr/add.si_riii_rb.S:83
-tests/inst/05-arith-addr/aip.si_riii_rb.S	1	value	0x0000ffffff010300	(ENTRY + 0x200)	tests/inst/05-arith-addr/aip.si_riii_rb.S:49
-tests/inst/05-arith-addr/aip.si_riii_rb.S	2	value	0x000100001f00f304	(ENTRY + 0x204 + 0x1FFFF000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:51
-tests/inst/05-arith-addr/aip.si_riii_rb.S	3	value	0x0000ffffff010308	(ENTRY + 0x208)	tests/inst/05-arith-addr/aip.si_riii_rb.S:56
-tests/inst/05-arith-addr/aip.si_riii_rb.S	4	value	0x0000ffffff01130c	(ENTRY + 0x20C + 0x1000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:60
-tests/inst/05-arith-addr/aip.si_riii_rb.S	5	value	0x0000ffffff00f310	(ENTRY + 0x210 - 0x1000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:64
-tests/inst/05-arith-addr/aip.si_riii_rb.S	6	value	0x0000ffffff012314	(ENTRY + 0x214 + 0x2000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:68
-tests/inst/05-arith-addr/aip.si_riii_rb.S	7	value	0x000100001f00f318	(ENTRY + 0x218 + 0x1FFFF000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:73
-tests/inst/05-arith-addr/aip.si_riii_rb.S	8	value	0x0000ffffdf01031c	(ENTRY + 0x21C - 0x20000000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:77
-tests/inst/05-arith-addr/aip.si_riii_rb.S	9	value	0x0000ffffff011320	(ENTRY + 0x220 + 0x1000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:81
-tests/inst/05-arith-addr/aip.si_riii_rb.S	10	value	0x0000ffffff011328	(ENTRY + 0x228 + 0x1000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:86
-tests/inst/05-arith-addr/aip.si_riii_rb.S	11	value	0x0000ffffff00f32c	(ENTRY + 0x22C - 0x1000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:90
+tests/inst/05-arith-addr/aip.si_riii_rb.S	1	value	0x0000ffffff002200	(ENTRY + 0x200)	tests/inst/05-arith-addr/aip.si_riii_rb.S:49
+tests/inst/05-arith-addr/aip.si_riii_rb.S	2	value	0x000100001f001204	(ENTRY + 0x204 + 0x1FFFF000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:51
+tests/inst/05-arith-addr/aip.si_riii_rb.S	3	value	0x0000ffffff002208	(ENTRY + 0x208)	tests/inst/05-arith-addr/aip.si_riii_rb.S:56
+tests/inst/05-arith-addr/aip.si_riii_rb.S	4	value	0x0000ffffff00320c	(ENTRY + 0x20C + 0x1000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:60
+tests/inst/05-arith-addr/aip.si_riii_rb.S	5	value	0x0000ffffff001210	(ENTRY + 0x210 - 0x1000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:64
+tests/inst/05-arith-addr/aip.si_riii_rb.S	6	value	0x0000ffffff004214	(ENTRY + 0x214 + 0x2000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:68
+tests/inst/05-arith-addr/aip.si_riii_rb.S	7	value	0x000100001f001218	(ENTRY + 0x218 + 0x1FFFF000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:73
+tests/inst/05-arith-addr/aip.si_riii_rb.S	8	value	0x0000ffffdf00221c	(ENTRY + 0x21C - 0x20000000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:77
+tests/inst/05-arith-addr/aip.si_riii_rb.S	9	value	0x0000ffffff003220	(ENTRY + 0x220 + 0x1000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:81
+tests/inst/05-arith-addr/aip.si_riii_rb.S	10	value	0x0000ffffff003228	(ENTRY + 0x228 + 0x1000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:86
+tests/inst/05-arith-addr/aip.si_riii_rb.S	11	value	0x0000ffffff00122c	(ENTRY + 0x22C - 0x1000)	tests/inst/05-arith-addr/aip.si_riii_rb.S:90
 tests/inst/05-arith-addr/cmp.uo_orrr_dbb.S	1	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/05-arith-addr/cmp.uo_orrr_dbb.S:26
 tests/inst/05-arith-addr/cmp.uo_orrr_dbb.S	2	value	0x0000000000000000	0x0000000000000000	tests/inst/05-arith-addr/cmp.uo_orrr_dbb.S:31
 tests/inst/05-arith-addr/cmp.uo_orrr_dbb.S	3	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/05-arith-addr/cmp.uo_orrr_dbb.S:35
@@ -1885,11 +1885,11 @@ tests/inst/06-control-flow/br.eq_rrii_rd.S	6	value	0x0000000000000000	0	tests/in
 tests/inst/06-control-flow/br.eq_rrii_rd.S	7	value	0x0000000000000000	0	tests/inst/06-control-flow/br.eq_rrii_rd.S:55
 tests/inst/06-control-flow/br.eq_rrii_rd.S	8	value	0x0000000000000001	1	tests/inst/06-control-flow/br.eq_rrii_rd.S:59
 tests/inst/06-control-flow/br.eq_rrii_rd.S	9	value	0x0000000000000001	1	tests/inst/06-control-flow/br.eq_rrii_rd.S:62
-tests/inst/06-control-flow/br.eq_rrii_rd.S	10	value	0x0000ffffff011500	(ENTRY + 0x1400)	tests/inst/06-control-flow/br.eq_rrii_rd.S:88
-tests/inst/06-control-flow/br.eq_rrii_rd.S	11	value	0x0000ffffff010900	(ENTRY + 0x800)	tests/inst/06-control-flow/br.eq_rrii_rd.S:91
-tests/inst/06-control-flow/br.eq_rrii_rd.S	12	value	0x0000ffffff011c00	(ENTRY + 0x1B00)	tests/inst/06-control-flow/br.eq_rrii_rd.S:98
-tests/inst/06-control-flow/br.eq_rrii_rd.S	13	value	0x0000ffffff013cfc	(ENTRY + 0x3BFC)	tests/inst/06-control-flow/br.eq_rrii_rd.S:120
-tests/inst/06-control-flow/br.eq_rrii_rd.S	14	value	0x0000ffffff011d10	(ENTRY + 0x1C10)	tests/inst/06-control-flow/br.eq_rrii_rd.S:123
+tests/inst/06-control-flow/br.eq_rrii_rd.S	10	value	0x0000ffffff003400	(ENTRY + 0x1400)	tests/inst/06-control-flow/br.eq_rrii_rd.S:88
+tests/inst/06-control-flow/br.eq_rrii_rd.S	11	value	0x0000ffffff002800	(ENTRY + 0x800)	tests/inst/06-control-flow/br.eq_rrii_rd.S:91
+tests/inst/06-control-flow/br.eq_rrii_rd.S	12	value	0x0000ffffff003b00	(ENTRY + 0x1B00)	tests/inst/06-control-flow/br.eq_rrii_rd.S:98
+tests/inst/06-control-flow/br.eq_rrii_rd.S	13	value	0x0000ffffff005bfc	(ENTRY + 0x3BFC)	tests/inst/06-control-flow/br.eq_rrii_rd.S:120
+tests/inst/06-control-flow/br.eq_rrii_rd.S	14	value	0x0000ffffff003c10	(ENTRY + 0x1C10)	tests/inst/06-control-flow/br.eq_rrii_rd.S:123
 tests/inst/06-control-flow/br.n_riii_rd.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/br.n_riii_rd.S:32
 tests/inst/06-control-flow/br.n_riii_rd.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/br.n_riii_rd.S:39
 tests/inst/06-control-flow/br.n_riii_rd.S	3	value	0x0000000000000001	1	tests/inst/06-control-flow/br.n_riii_rd.S:43
@@ -1900,9 +1900,9 @@ tests/inst/06-control-flow/br.n_riii_rd.S	7	value	0x0000000000000000	0	tests/ins
 tests/inst/06-control-flow/br.n_riii_rd.S	8	value	0x0000000000000000	0	tests/inst/06-control-flow/br.n_riii_rd.S:53
 tests/inst/06-control-flow/br.n_riii_rd.S	9	value	0x0000000000000001	1	tests/inst/06-control-flow/br.n_riii_rd.S:67
 tests/inst/06-control-flow/br.n_riii_rd.S	10	value	0x0000000000000000	0	tests/inst/06-control-flow/br.n_riii_rd.S:70
-tests/inst/06-control-flow/br.n_riii_rd.S	11	value	0x0000ffffff011700	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.n_riii_rd.S:95
-tests/inst/06-control-flow/br.n_riii_rd.S	12	value	0x0000ffffff010b00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.n_riii_rd.S:98
-tests/inst/06-control-flow/br.n_riii_rd.S	13	value	0x0000ffffff011b00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.n_riii_rd.S:105
+tests/inst/06-control-flow/br.n_riii_rd.S	11	value	0x0000ffffff003600	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.n_riii_rd.S:95
+tests/inst/06-control-flow/br.n_riii_rd.S	12	value	0x0000ffffff002a00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.n_riii_rd.S:98
+tests/inst/06-control-flow/br.n_riii_rd.S	13	value	0x0000ffffff003a00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.n_riii_rd.S:105
 tests/inst/06-control-flow/br.ne_rrii_rd.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/br.ne_rrii_rd.S:32
 tests/inst/06-control-flow/br.ne_rrii_rd.S	2	value	0x0000000000000001	1	tests/inst/06-control-flow/br.ne_rrii_rd.S:39
 tests/inst/06-control-flow/br.ne_rrii_rd.S	3	value	0x0000000000000001	1	tests/inst/06-control-flow/br.ne_rrii_rd.S:43
@@ -1912,10 +1912,10 @@ tests/inst/06-control-flow/br.ne_rrii_rd.S	6	value	0x0000000000000000	0	tests/in
 tests/inst/06-control-flow/br.ne_rrii_rd.S	7	value	0x0000000000000001	1	tests/inst/06-control-flow/br.ne_rrii_rd.S:55
 tests/inst/06-control-flow/br.ne_rrii_rd.S	8	value	0x0000000000000000	0	tests/inst/06-control-flow/br.ne_rrii_rd.S:59
 tests/inst/06-control-flow/br.ne_rrii_rd.S	9	value	0x0000000000000000	0	tests/inst/06-control-flow/br.ne_rrii_rd.S:62
-tests/inst/06-control-flow/br.ne_rrii_rd.S	10	value	0x0000ffffff011500	(ENTRY + 0x1400)	tests/inst/06-control-flow/br.ne_rrii_rd.S:88
-tests/inst/06-control-flow/br.ne_rrii_rd.S	11	value	0x0000ffffff010900	(ENTRY + 0x800)	tests/inst/06-control-flow/br.ne_rrii_rd.S:91
-tests/inst/06-control-flow/br.ne_rrii_rd.S	12	value	0x0000ffffff011c00	(ENTRY + 0x1B00)	tests/inst/06-control-flow/br.ne_rrii_rd.S:98
-tests/inst/06-control-flow/br.ne_rrii_rd.S	13	value	0x0000ffffff011d00	(ENTRY + 0x1C00)	tests/inst/06-control-flow/br.ne_rrii_rd.S:113
+tests/inst/06-control-flow/br.ne_rrii_rd.S	10	value	0x0000ffffff003400	(ENTRY + 0x1400)	tests/inst/06-control-flow/br.ne_rrii_rd.S:88
+tests/inst/06-control-flow/br.ne_rrii_rd.S	11	value	0x0000ffffff002800	(ENTRY + 0x800)	tests/inst/06-control-flow/br.ne_rrii_rd.S:91
+tests/inst/06-control-flow/br.ne_rrii_rd.S	12	value	0x0000ffffff003b00	(ENTRY + 0x1B00)	tests/inst/06-control-flow/br.ne_rrii_rd.S:98
+tests/inst/06-control-flow/br.ne_rrii_rd.S	13	value	0x0000ffffff003c00	(ENTRY + 0x1C00)	tests/inst/06-control-flow/br.ne_rrii_rd.S:113
 tests/inst/06-control-flow/br.nn_riii_rd.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/br.nn_riii_rd.S:32
 tests/inst/06-control-flow/br.nn_riii_rd.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/br.nn_riii_rd.S:39
 tests/inst/06-control-flow/br.nn_riii_rd.S	3	value	0x0000000000000001	1	tests/inst/06-control-flow/br.nn_riii_rd.S:43
@@ -1926,9 +1926,9 @@ tests/inst/06-control-flow/br.nn_riii_rd.S	7	value	0x0000000000000001	1	tests/in
 tests/inst/06-control-flow/br.nn_riii_rd.S	8	value	0x0000000000000001	1	tests/inst/06-control-flow/br.nn_riii_rd.S:53
 tests/inst/06-control-flow/br.nn_riii_rd.S	9	value	0x0000000000000001	1	tests/inst/06-control-flow/br.nn_riii_rd.S:67
 tests/inst/06-control-flow/br.nn_riii_rd.S	10	value	0x0000000000000001	1	tests/inst/06-control-flow/br.nn_riii_rd.S:70
-tests/inst/06-control-flow/br.nn_riii_rd.S	11	value	0x0000ffffff011700	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.nn_riii_rd.S:95
-tests/inst/06-control-flow/br.nn_riii_rd.S	12	value	0x0000ffffff010b00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.nn_riii_rd.S:98
-tests/inst/06-control-flow/br.nn_riii_rd.S	13	value	0x0000ffffff011b00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.nn_riii_rd.S:105
+tests/inst/06-control-flow/br.nn_riii_rd.S	11	value	0x0000ffffff003600	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.nn_riii_rd.S:95
+tests/inst/06-control-flow/br.nn_riii_rd.S	12	value	0x0000ffffff002a00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.nn_riii_rd.S:98
+tests/inst/06-control-flow/br.nn_riii_rd.S	13	value	0x0000ffffff003a00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.nn_riii_rd.S:105
 tests/inst/06-control-flow/br.np_riii_rd.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/br.np_riii_rd.S:32
 tests/inst/06-control-flow/br.np_riii_rd.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/br.np_riii_rd.S:39
 tests/inst/06-control-flow/br.np_riii_rd.S	3	value	0x0000000000000001	1	tests/inst/06-control-flow/br.np_riii_rd.S:43
@@ -1938,9 +1938,9 @@ tests/inst/06-control-flow/br.np_riii_rd.S	6	value	0x0000000000000000	0	tests/in
 tests/inst/06-control-flow/br.np_riii_rd.S	7	value	0x0000000000000000	0	tests/inst/06-control-flow/br.np_riii_rd.S:51
 tests/inst/06-control-flow/br.np_riii_rd.S	8	value	0x0000000000000001	1	tests/inst/06-control-flow/br.np_riii_rd.S:65
 tests/inst/06-control-flow/br.np_riii_rd.S	9	value	0x0000000000000001	1	tests/inst/06-control-flow/br.np_riii_rd.S:68
-tests/inst/06-control-flow/br.np_riii_rd.S	10	value	0x0000ffffff011700	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.np_riii_rd.S:93
-tests/inst/06-control-flow/br.np_riii_rd.S	11	value	0x0000ffffff010b00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.np_riii_rd.S:96
-tests/inst/06-control-flow/br.np_riii_rd.S	12	value	0x0000ffffff011b00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.np_riii_rd.S:103
+tests/inst/06-control-flow/br.np_riii_rd.S	10	value	0x0000ffffff003600	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.np_riii_rd.S:93
+tests/inst/06-control-flow/br.np_riii_rd.S	11	value	0x0000ffffff002a00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.np_riii_rd.S:96
+tests/inst/06-control-flow/br.np_riii_rd.S	12	value	0x0000ffffff003a00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.np_riii_rd.S:103
 tests/inst/06-control-flow/br.nz_riii_rb.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/br.nz_riii_rb.S:32
 tests/inst/06-control-flow/br.nz_riii_rb.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/br.nz_riii_rb.S:39
 tests/inst/06-control-flow/br.nz_riii_rb.S	3	value	0x0000000000000001	1	tests/inst/06-control-flow/br.nz_riii_rb.S:43
@@ -1950,9 +1950,9 @@ tests/inst/06-control-flow/br.nz_riii_rb.S	6	value	0x0000000000000001	1	tests/in
 tests/inst/06-control-flow/br.nz_riii_rb.S	7	value	0x0000000000000001	1	tests/inst/06-control-flow/br.nz_riii_rb.S:51
 tests/inst/06-control-flow/br.nz_riii_rb.S	8	value	0x0000000000000001	1	tests/inst/06-control-flow/br.nz_riii_rb.S:65
 tests/inst/06-control-flow/br.nz_riii_rb.S	9	value	0x0000000000000001	1	tests/inst/06-control-flow/br.nz_riii_rb.S:68
-tests/inst/06-control-flow/br.nz_riii_rb.S	10	value	0x0000ffffff011700	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.nz_riii_rb.S:93
-tests/inst/06-control-flow/br.nz_riii_rb.S	11	value	0x0000ffffff010b00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.nz_riii_rb.S:96
-tests/inst/06-control-flow/br.nz_riii_rb.S	12	value	0x0000ffffff011b00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.nz_riii_rb.S:103
+tests/inst/06-control-flow/br.nz_riii_rb.S	10	value	0x0000ffffff003600	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.nz_riii_rb.S:93
+tests/inst/06-control-flow/br.nz_riii_rb.S	11	value	0x0000ffffff002a00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.nz_riii_rb.S:96
+tests/inst/06-control-flow/br.nz_riii_rb.S	12	value	0x0000ffffff003a00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.nz_riii_rb.S:103
 tests/inst/06-control-flow/br.nz_riii_rd.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/br.nz_riii_rd.S:32
 tests/inst/06-control-flow/br.nz_riii_rd.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/br.nz_riii_rd.S:39
 tests/inst/06-control-flow/br.nz_riii_rd.S	3	value	0x0000000000000001	1	tests/inst/06-control-flow/br.nz_riii_rd.S:43
@@ -1962,9 +1962,9 @@ tests/inst/06-control-flow/br.nz_riii_rd.S	6	value	0x0000000000000001	1	tests/in
 tests/inst/06-control-flow/br.nz_riii_rd.S	7	value	0x0000000000000001	1	tests/inst/06-control-flow/br.nz_riii_rd.S:51
 tests/inst/06-control-flow/br.nz_riii_rd.S	8	value	0x0000000000000001	1	tests/inst/06-control-flow/br.nz_riii_rd.S:65
 tests/inst/06-control-flow/br.nz_riii_rd.S	9	value	0x0000000000000000	0	tests/inst/06-control-flow/br.nz_riii_rd.S:68
-tests/inst/06-control-flow/br.nz_riii_rd.S	10	value	0x0000ffffff011700	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.nz_riii_rd.S:93
-tests/inst/06-control-flow/br.nz_riii_rd.S	11	value	0x0000ffffff010b00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.nz_riii_rd.S:96
-tests/inst/06-control-flow/br.nz_riii_rd.S	12	value	0x0000ffffff011b00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.nz_riii_rd.S:103
+tests/inst/06-control-flow/br.nz_riii_rd.S	10	value	0x0000ffffff003600	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.nz_riii_rd.S:93
+tests/inst/06-control-flow/br.nz_riii_rd.S	11	value	0x0000ffffff002a00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.nz_riii_rd.S:96
+tests/inst/06-control-flow/br.nz_riii_rd.S	12	value	0x0000ffffff003a00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.nz_riii_rd.S:103
 tests/inst/06-control-flow/br.p_riii_rd.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/br.p_riii_rd.S:32
 tests/inst/06-control-flow/br.p_riii_rd.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/br.p_riii_rd.S:39
 tests/inst/06-control-flow/br.p_riii_rd.S	3	value	0x0000000000000001	1	tests/inst/06-control-flow/br.p_riii_rd.S:43
@@ -1974,9 +1974,9 @@ tests/inst/06-control-flow/br.p_riii_rd.S	6	value	0x0000000000000000	0	tests/ins
 tests/inst/06-control-flow/br.p_riii_rd.S	7	value	0x0000000000000001	1	tests/inst/06-control-flow/br.p_riii_rd.S:51
 tests/inst/06-control-flow/br.p_riii_rd.S	8	value	0x0000000000000001	1	tests/inst/06-control-flow/br.p_riii_rd.S:65
 tests/inst/06-control-flow/br.p_riii_rd.S	9	value	0x0000000000000000	0	tests/inst/06-control-flow/br.p_riii_rd.S:68
-tests/inst/06-control-flow/br.p_riii_rd.S	10	value	0x0000ffffff011700	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.p_riii_rd.S:93
-tests/inst/06-control-flow/br.p_riii_rd.S	11	value	0x0000ffffff010b00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.p_riii_rd.S:96
-tests/inst/06-control-flow/br.p_riii_rd.S	12	value	0x0000ffffff011b00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.p_riii_rd.S:103
+tests/inst/06-control-flow/br.p_riii_rd.S	10	value	0x0000ffffff003600	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.p_riii_rd.S:93
+tests/inst/06-control-flow/br.p_riii_rd.S	11	value	0x0000ffffff002a00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.p_riii_rd.S:96
+tests/inst/06-control-flow/br.p_riii_rd.S	12	value	0x0000ffffff003a00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.p_riii_rd.S:103
 tests/inst/06-control-flow/br.z_riii_rb.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/br.z_riii_rb.S:32
 tests/inst/06-control-flow/br.z_riii_rb.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/br.z_riii_rb.S:39
 tests/inst/06-control-flow/br.z_riii_rb.S	3	value	0x0000000000000001	1	tests/inst/06-control-flow/br.z_riii_rb.S:43
@@ -1986,9 +1986,9 @@ tests/inst/06-control-flow/br.z_riii_rb.S	6	value	0x0000000000000000	0	tests/ins
 tests/inst/06-control-flow/br.z_riii_rb.S	7	value	0x0000000000000000	0	tests/inst/06-control-flow/br.z_riii_rb.S:51
 tests/inst/06-control-flow/br.z_riii_rb.S	8	value	0x0000000000000001	1	tests/inst/06-control-flow/br.z_riii_rb.S:65
 tests/inst/06-control-flow/br.z_riii_rb.S	9	value	0x0000000000000000	0	tests/inst/06-control-flow/br.z_riii_rb.S:68
-tests/inst/06-control-flow/br.z_riii_rb.S	10	value	0x0000ffffff011700	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.z_riii_rb.S:93
-tests/inst/06-control-flow/br.z_riii_rb.S	11	value	0x0000ffffff010b00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.z_riii_rb.S:96
-tests/inst/06-control-flow/br.z_riii_rb.S	12	value	0x0000ffffff011b00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.z_riii_rb.S:103
+tests/inst/06-control-flow/br.z_riii_rb.S	10	value	0x0000ffffff003600	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.z_riii_rb.S:93
+tests/inst/06-control-flow/br.z_riii_rb.S	11	value	0x0000ffffff002a00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.z_riii_rb.S:96
+tests/inst/06-control-flow/br.z_riii_rb.S	12	value	0x0000ffffff003a00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.z_riii_rb.S:103
 tests/inst/06-control-flow/br.z_riii_rd.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/br.z_riii_rd.S:32
 tests/inst/06-control-flow/br.z_riii_rd.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/br.z_riii_rd.S:39
 tests/inst/06-control-flow/br.z_riii_rd.S	3	value	0x0000000000000001	1	tests/inst/06-control-flow/br.z_riii_rd.S:43
@@ -1998,74 +1998,74 @@ tests/inst/06-control-flow/br.z_riii_rd.S	6	value	0x0000000000000000	0	tests/ins
 tests/inst/06-control-flow/br.z_riii_rd.S	7	value	0x0000000000000000	0	tests/inst/06-control-flow/br.z_riii_rd.S:51
 tests/inst/06-control-flow/br.z_riii_rd.S	8	value	0x0000000000000001	1	tests/inst/06-control-flow/br.z_riii_rd.S:65
 tests/inst/06-control-flow/br.z_riii_rd.S	9	value	0x0000000000000001	1	tests/inst/06-control-flow/br.z_riii_rd.S:68
-tests/inst/06-control-flow/br.z_riii_rd.S	10	value	0x0000ffffff011700	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.z_riii_rd.S:93
-tests/inst/06-control-flow/br.z_riii_rd.S	11	value	0x0000ffffff010b00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.z_riii_rd.S:96
-tests/inst/06-control-flow/br.z_riii_rd.S	12	value	0x0000ffffff011b00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.z_riii_rd.S:103
+tests/inst/06-control-flow/br.z_riii_rd.S	10	value	0x0000ffffff003600	(ENTRY + 0x1600)	tests/inst/06-control-flow/br.z_riii_rd.S:93
+tests/inst/06-control-flow/br.z_riii_rd.S	11	value	0x0000ffffff002a00	(ENTRY + 0xA00)	tests/inst/06-control-flow/br.z_riii_rd.S:96
+tests/inst/06-control-flow/br.z_riii_rd.S	12	value	0x0000ffffff003a00	(ENTRY + 0x1A00)	tests/inst/06-control-flow/br.z_riii_rd.S:103
 tests/inst/06-control-flow/call_iiii_ra.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/call_iiii_ra.S:30
 tests/inst/06-control-flow/call_iiii_ra.S	2	value	0x0000000000000001	1	tests/inst/06-control-flow/call_iiii_ra.S:42
 tests/inst/06-control-flow/call_iiii_ra.S	3	value	0x0000000000000000	0	tests/inst/06-control-flow/call_iiii_ra.S:44
-tests/inst/06-control-flow/call_iiii_ra.S	4	value	0x0000ffffff010940	(ENTRY + 0x840)	tests/inst/06-control-flow/call_iiii_ra.S:57
-tests/inst/06-control-flow/call_iiii_ra.S	5	value	0x0001ffffff010904	(0x0001000000000000 + ENTRY + 0x804)	tests/inst/06-control-flow/call_iiii_ra.S:59
+tests/inst/06-control-flow/call_iiii_ra.S	4	value	0x0000ffffff002840	(ENTRY + 0x840)	tests/inst/06-control-flow/call_iiii_ra.S:57
+tests/inst/06-control-flow/call_iiii_ra.S	5	value	0x0001ffffff002804	(0x0001000000000000 + ENTRY + 0x804)	tests/inst/06-control-flow/call_iiii_ra.S:59
 tests/inst/06-control-flow/call_iiii_ra.S	6	value	0x0001000000000000	0x0001000000000000	tests/inst/06-control-flow/call_iiii_ra.S:61
-tests/inst/06-control-flow/call_iiii_ra.S	7	value	0x0000ffffff010b40	(ENTRY + 0xA40)	tests/inst/06-control-flow/call_iiii_ra.S:77
-tests/inst/06-control-flow/call_iiii_ra.S	8	value	0x0002ffffff010b04	(0x0002000000000000 + ENTRY + 0xA04)	tests/inst/06-control-flow/call_iiii_ra.S:79
+tests/inst/06-control-flow/call_iiii_ra.S	7	value	0x0000ffffff002a40	(ENTRY + 0xA40)	tests/inst/06-control-flow/call_iiii_ra.S:77
+tests/inst/06-control-flow/call_iiii_ra.S	8	value	0x0002ffffff002a04	(0x0002000000000000 + ENTRY + 0xA04)	tests/inst/06-control-flow/call_iiii_ra.S:79
 tests/inst/06-control-flow/call_iiii_ra.S	9	value	0x0001000000000000	0x0001000000000000	tests/inst/06-control-flow/call_iiii_ra.S:81
-tests/inst/06-control-flow/call_iiii_ra.S	10	value	0x0000ffffff010d40	(ENTRY + 0xC40)	tests/inst/06-control-flow/call_iiii_ra.S:97
-tests/inst/06-control-flow/call_iiii_ra.S	11	value	0x0001ffffff010d04	(0x0001000000000000 + ENTRY + 0xC04)	tests/inst/06-control-flow/call_iiii_ra.S:99
+tests/inst/06-control-flow/call_iiii_ra.S	10	value	0x0000ffffff002c40	(ENTRY + 0xC40)	tests/inst/06-control-flow/call_iiii_ra.S:97
+tests/inst/06-control-flow/call_iiii_ra.S	11	value	0x0001ffffff002c04	(0x0001000000000000 + ENTRY + 0xC04)	tests/inst/06-control-flow/call_iiii_ra.S:99
 tests/inst/06-control-flow/call_iiii_ra.S	12	value	0x0001aaaa00000000	0x0001AAAA00000000	tests/inst/06-control-flow/call_iiii_ra.S:101
 tests/inst/06-control-flow/call_iiii_ra.S	13	value	0x0002000000000000	0x0002000000000000	tests/inst/06-control-flow/call_iiii_ra.S:103
-tests/inst/06-control-flow/call_iiii_ra.S	14	value	0x0000ffffff011104	(ENTRY + 0x1004)	tests/inst/06-control-flow/call_iiii_ra.S:115
-tests/inst/06-control-flow/call_iiii_ra.S	15	value	0x0000ffffff011340	(ENTRY + 0x1240)	tests/inst/06-control-flow/call_iiii_ra.S:133
-tests/inst/06-control-flow/call_iiii_ra.S	16	value	0x0001ffffff011304	(0x0001000000000000 + ENTRY + 0x1204)	tests/inst/06-control-flow/call_iiii_ra.S:135
-tests/inst/06-control-flow/call_iiii_ra.S	17	value	0x003fffffff017078	(0x003F000000000000 + MEMRAS + 0x78)	tests/inst/06-control-flow/call_iiii_ra.S:137
+tests/inst/06-control-flow/call_iiii_ra.S	14	value	0x0000ffffff003004	(ENTRY + 0x1004)	tests/inst/06-control-flow/call_iiii_ra.S:115
+tests/inst/06-control-flow/call_iiii_ra.S	15	value	0x0000ffffff003240	(ENTRY + 0x1240)	tests/inst/06-control-flow/call_iiii_ra.S:133
+tests/inst/06-control-flow/call_iiii_ra.S	16	value	0x0001ffffff003204	(0x0001000000000000 + ENTRY + 0x1204)	tests/inst/06-control-flow/call_iiii_ra.S:135
+tests/inst/06-control-flow/call_iiii_ra.S	17	value	0x003fffffff008f78	(0x003F000000000000 + MEMRAS + 0x78)	tests/inst/06-control-flow/call_iiii_ra.S:137
 tests/inst/06-control-flow/call_iiii_ra.S	18	value	0x0005dddd00000000	0x0005DDDD00000000	tests/inst/06-control-flow/call_iiii_ra.S:140
 tests/inst/06-control-flow/call_rrii_ra.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/call_rrii_ra.S:29
 tests/inst/06-control-flow/call_rrii_ra.S	2	value	0x0000000000000001	1	tests/inst/06-control-flow/call_rrii_ra.S:41
 tests/inst/06-control-flow/call_rrii_ra.S	3	value	0x0000000000000000	0	tests/inst/06-control-flow/call_rrii_ra.S:43
 tests/inst/06-control-flow/call_rrii_ra.S	4	value	0x0000000000000000	0	tests/inst/06-control-flow/call_rrii_ra.S:51
 tests/inst/06-control-flow/call_rrii_ra.S	5	value	0x0001000000000000	0x0001000000000000	tests/inst/06-control-flow/call_rrii_ra.S:53
-tests/inst/06-control-flow/call_rrii_ra.S	6	value	0x0000ffffff010a40	(ENTRY + 0x940)	tests/inst/06-control-flow/call_rrii_ra.S:68
-tests/inst/06-control-flow/call_rrii_ra.S	7	value	0x0001ffffff010904	(0x0001000000000000 + ENTRY + 0x804)	tests/inst/06-control-flow/call_rrii_ra.S:70
+tests/inst/06-control-flow/call_rrii_ra.S	6	value	0x0000ffffff002940	(ENTRY + 0x940)	tests/inst/06-control-flow/call_rrii_ra.S:68
+tests/inst/06-control-flow/call_rrii_ra.S	7	value	0x0001ffffff002804	(0x0001000000000000 + ENTRY + 0x804)	tests/inst/06-control-flow/call_rrii_ra.S:70
 tests/inst/06-control-flow/call_rrii_ra.S	8	value	0x0001000000000000	0x0001000000000000	tests/inst/06-control-flow/call_rrii_ra.S:72
-tests/inst/06-control-flow/call_rrii_ra.S	9	value	0x0000ffffff010c80	(ENTRY + 0xB80)	tests/inst/06-control-flow/call_rrii_ra.S:86
-tests/inst/06-control-flow/call_rrii_ra.S	10	value	0x0001ffffff010c04	(0x0001000000000000 + ENTRY + 0xB04)	tests/inst/06-control-flow/call_rrii_ra.S:88
+tests/inst/06-control-flow/call_rrii_ra.S	9	value	0x0000ffffff002b80	(ENTRY + 0xB80)	tests/inst/06-control-flow/call_rrii_ra.S:86
+tests/inst/06-control-flow/call_rrii_ra.S	10	value	0x0001ffffff002b04	(0x0001000000000000 + ENTRY + 0xB04)	tests/inst/06-control-flow/call_rrii_ra.S:88
 tests/inst/06-control-flow/call_rrii_ra.S	11	value	0x0001000000000000	0x0001000000000000	tests/inst/06-control-flow/call_rrii_ra.S:90
-tests/inst/06-control-flow/call_rrii_ra.S	12	value	0x0000ffffff010f40	(ENTRY + 0xE40)	tests/inst/06-control-flow/call_rrii_ra.S:107
-tests/inst/06-control-flow/call_rrii_ra.S	13	value	0x0002ffffff010f04	(0x0002000000000000 + ENTRY + 0xE04)	tests/inst/06-control-flow/call_rrii_ra.S:109
+tests/inst/06-control-flow/call_rrii_ra.S	12	value	0x0000ffffff002e40	(ENTRY + 0xE40)	tests/inst/06-control-flow/call_rrii_ra.S:107
+tests/inst/06-control-flow/call_rrii_ra.S	13	value	0x0002ffffff002e04	(0x0002000000000000 + ENTRY + 0xE04)	tests/inst/06-control-flow/call_rrii_ra.S:109
 tests/inst/06-control-flow/call_rrii_ra.S	14	value	0x0001000000000000	0x0001000000000000	tests/inst/06-control-flow/call_rrii_ra.S:111
 tests/inst/06-control-flow/jump_iiii_rb.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/jump_iiii_rb.S:29
 tests/inst/06-control-flow/jump_iiii_rb.S	2	value	0x0000000000000001	1	tests/inst/06-control-flow/jump_iiii_rb.S:42
 tests/inst/06-control-flow/jump_iiii_rb.S	3	value	0x0000000000000001	1	tests/inst/06-control-flow/jump_iiii_rb.S:49
-tests/inst/06-control-flow/jump_iiii_rb.S	4	value	0x0000ffffff011500	(ENTRY + 0x1400)	tests/inst/06-control-flow/jump_iiii_rb.S:74
-tests/inst/06-control-flow/jump_iiii_rb.S	5	value	0x0000ffffff010900	(ENTRY + 0x800)	tests/inst/06-control-flow/jump_iiii_rb.S:77
-tests/inst/06-control-flow/jump_iiii_rb.S	6	value	0x0000ffffff0119a0	(ENTRY + 0x18A0)	tests/inst/06-control-flow/jump_iiii_rb.S:80
-tests/inst/06-control-flow/jump_iiii_rb.S	7	value	0x0000ffffff013d00	(ENTRY + 0x3C00)	tests/inst/06-control-flow/jump_iiii_rb.S:100
-tests/inst/06-control-flow/jump_iiii_rb.S	8	value	0x0000ffffff011d20	(ENTRY + 0x1C20)	tests/inst/06-control-flow/jump_iiii_rb.S:103
+tests/inst/06-control-flow/jump_iiii_rb.S	4	value	0x0000ffffff003400	(ENTRY + 0x1400)	tests/inst/06-control-flow/jump_iiii_rb.S:74
+tests/inst/06-control-flow/jump_iiii_rb.S	5	value	0x0000ffffff002800	(ENTRY + 0x800)	tests/inst/06-control-flow/jump_iiii_rb.S:77
+tests/inst/06-control-flow/jump_iiii_rb.S	6	value	0x0000ffffff0038a0	(ENTRY + 0x18A0)	tests/inst/06-control-flow/jump_iiii_rb.S:80
+tests/inst/06-control-flow/jump_iiii_rb.S	7	value	0x0000ffffff005c00	(ENTRY + 0x3C00)	tests/inst/06-control-flow/jump_iiii_rb.S:100
+tests/inst/06-control-flow/jump_iiii_rb.S	8	value	0x0000ffffff003c20	(ENTRY + 0x1C20)	tests/inst/06-control-flow/jump_iiii_rb.S:103
 tests/inst/06-control-flow/jump_rrii_rb.S	1	value	0x0000000000000000	0	tests/inst/06-control-flow/jump_rrii_rb.S:30
 tests/inst/06-control-flow/jump_rrii_rb.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/jump_rrii_rb.S:39
 tests/inst/06-control-flow/jump_rrii_rb.S	3	value	0x0000000000000000	0	tests/inst/06-control-flow/jump_rrii_rb.S:46
-tests/inst/06-control-flow/jump_rrii_rb.S	4	value	0x0000ffffff011500	(ENTRY + 0x1400)	tests/inst/06-control-flow/jump_rrii_rb.S:73
-tests/inst/06-control-flow/jump_rrii_rb.S	5	value	0x0000ffffff010900	(ENTRY + 0x800)	tests/inst/06-control-flow/jump_rrii_rb.S:78
-tests/inst/06-control-flow/jump_rrii_rb.S	6	value	0x0000ffffff0119a0	(ENTRY + 0x18A0)	tests/inst/06-control-flow/jump_rrii_rb.S:83
-tests/inst/06-control-flow/jump_rrii_rb.S	7	value	0x0000ffffff011d40	(ENTRY + 0x1C40)	tests/inst/06-control-flow/jump_rrii_rb.S:98
+tests/inst/06-control-flow/jump_rrii_rb.S	4	value	0x0000ffffff003400	(ENTRY + 0x1400)	tests/inst/06-control-flow/jump_rrii_rb.S:73
+tests/inst/06-control-flow/jump_rrii_rb.S	5	value	0x0000ffffff002800	(ENTRY + 0x800)	tests/inst/06-control-flow/jump_rrii_rb.S:78
+tests/inst/06-control-flow/jump_rrii_rb.S	6	value	0x0000ffffff0038a0	(ENTRY + 0x18A0)	tests/inst/06-control-flow/jump_rrii_rb.S:83
+tests/inst/06-control-flow/jump_rrii_rb.S	7	value	0x0000ffffff003c40	(ENTRY + 0x1C40)	tests/inst/06-control-flow/jump_rrii_rb.S:98
 tests/inst/06-control-flow/ret_riii_ra.S	1	value	0x0000000000000001	1	tests/inst/06-control-flow/ret_riii_ra.S:54
 tests/inst/06-control-flow/ret_riii_ra.S	2	value	0x0000000000000000	0	tests/inst/06-control-flow/ret_riii_ra.S:56
-tests/inst/06-control-flow/ret_riii_ra.S	3	value	0x0000ffffff010900	(ENTRY + 0x800)	tests/inst/06-control-flow/ret_riii_ra.S:72
+tests/inst/06-control-flow/ret_riii_ra.S	3	value	0x0000ffffff002800	(ENTRY + 0x800)	tests/inst/06-control-flow/ret_riii_ra.S:72
 tests/inst/06-control-flow/ret_riii_ra.S	4	value	0x0001aaaa00000000	0x0001AAAA00000000	tests/inst/06-control-flow/ret_riii_ra.S:74
 tests/inst/06-control-flow/ret_riii_ra.S	5	value	0x0001000000000000	0x0001000000000000	tests/inst/06-control-flow/ret_riii_ra.S:76
-tests/inst/06-control-flow/ret_riii_ra.S	6	value	0x0000ffffff010b00	(ENTRY + 0xA00)	tests/inst/06-control-flow/ret_riii_ra.S:90
-tests/inst/06-control-flow/ret_riii_ra.S	7	value	0x0001ffffff010b00	(0x0001000000000000 + ENTRY + 0xA00)	tests/inst/06-control-flow/ret_riii_ra.S:92
+tests/inst/06-control-flow/ret_riii_ra.S	6	value	0x0000ffffff002a00	(ENTRY + 0xA00)	tests/inst/06-control-flow/ret_riii_ra.S:90
+tests/inst/06-control-flow/ret_riii_ra.S	7	value	0x0001ffffff002a00	(0x0001000000000000 + ENTRY + 0xA00)	tests/inst/06-control-flow/ret_riii_ra.S:92
 tests/inst/06-control-flow/ret_riii_ra.S	8	value	0x0001000000000000	0x0001000000000000	tests/inst/06-control-flow/ret_riii_ra.S:94
 tests/inst/06-control-flow/ret_riii_ra.S	9	value	0x000000000000002a	0x000000000000002A	tests/inst/06-control-flow/ret_riii_ra.S:108
-tests/inst/06-control-flow/ret_riii_ra.S	10	value	0x0000ffffff010d00	(ENTRY + 0xC00)	tests/inst/06-control-flow/ret_riii_ra.S:109
+tests/inst/06-control-flow/ret_riii_ra.S	10	value	0x0000ffffff002c00	(ENTRY + 0xC00)	tests/inst/06-control-flow/ret_riii_ra.S:109
 tests/inst/06-control-flow/ret_riii_ra.S	11	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/06-control-flow/ret_riii_ra.S:123
-tests/inst/06-control-flow/ret_riii_ra.S	12	value	0x0000ffffff010f00	(ENTRY + 0xE00)	tests/inst/06-control-flow/ret_riii_ra.S:124
-tests/inst/06-control-flow/ret_riii_ra.S	13	value	0x0000ffffff011100	(ENTRY + 0x1000)	tests/inst/06-control-flow/ret_riii_ra.S:138
-tests/inst/06-control-flow/ret_riii_ra.S	14	value	0x0000ffffff011300	(ENTRY + 0x1200)	tests/inst/06-control-flow/ret_riii_ra.S:154
-tests/inst/06-control-flow/ret_riii_ra.S	15	value	0x0002ffffff011300	(0x0002000000000000 + ENTRY + 0x1200)	tests/inst/06-control-flow/ret_riii_ra.S:156
-tests/inst/06-control-flow/ret_riii_ra.S	16	value	0x0001ffffff017008	(0x0001000000000000 + MEMRAS + 8)	tests/inst/06-control-flow/ret_riii_ra.S:158
-tests/inst/06-control-flow/ret_riii_ra.S	17	value	0x0000ffffff011500	(ENTRY + 0x1400)	tests/inst/06-control-flow/ret_riii_ra.S:173
-tests/inst/06-control-flow/ret_riii_ra.S	18	value	0x0000ffffff017008	(MEMRAS + 8)	tests/inst/06-control-flow/ret_riii_ra.S:175
+tests/inst/06-control-flow/ret_riii_ra.S	12	value	0x0000ffffff002e00	(ENTRY + 0xE00)	tests/inst/06-control-flow/ret_riii_ra.S:124
+tests/inst/06-control-flow/ret_riii_ra.S	13	value	0x0000ffffff003000	(ENTRY + 0x1000)	tests/inst/06-control-flow/ret_riii_ra.S:138
+tests/inst/06-control-flow/ret_riii_ra.S	14	value	0x0000ffffff003200	(ENTRY + 0x1200)	tests/inst/06-control-flow/ret_riii_ra.S:154
+tests/inst/06-control-flow/ret_riii_ra.S	15	value	0x0002ffffff003200	(0x0002000000000000 + ENTRY + 0x1200)	tests/inst/06-control-flow/ret_riii_ra.S:156
+tests/inst/06-control-flow/ret_riii_ra.S	16	value	0x0001ffffff008f08	(0x0001000000000000 + MEMRAS + 8)	tests/inst/06-control-flow/ret_riii_ra.S:158
+tests/inst/06-control-flow/ret_riii_ra.S	17	value	0x0000ffffff003400	(ENTRY + 0x1400)	tests/inst/06-control-flow/ret_riii_ra.S:173
+tests/inst/06-control-flow/ret_riii_ra.S	18	value	0x0000ffffff008f08	(MEMRAS + 8)	tests/inst/06-control-flow/ret_riii_ra.S:175
 tests/inst/07-floating-point/fo2ft_orri_rf.S	1	value	0x000000003fc00000	0x000000003FC00000	tests/inst/07-floating-point/fo2ft_orri_rf.S:15
 tests/inst/07-floating-point/fo2ft_orri_rf.S	2	value	0x00000000bfc00000	0x00000000BFC00000	tests/inst/07-floating-point/fo2ft_orri_rf.S:17
 tests/inst/07-floating-point/fo2ft_orri_rf.S	3	value	0x000000003f800000	0x000000003F800000	tests/inst/07-floating-point/fo2ft_orri_rf.S:19
@@ -4114,7 +4114,7 @@ tests/inst/11-cfx/cfx2rc_crrr_cfx.S	8	value	0x00000fff00000004	(HMON_BASE + 4)	t
 tests/inst/11-cfx/cfx2rc_crrr_cfx.S	9	value	0x00000fff00000000	HMON_BASE	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:75
 tests/inst/11-cfx/cfx2rc_crrr_cfx.S	10	value	0x0000ffffffff0000	BOOTROM_BASE	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:81
 tests/inst/11-cfx/cfx2rc_crrr_cfx.S	11	value	0x0000000000000000	0x0000000000000000	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:86
-tests/inst/11-cfx/cfx2rc_crrr_cfx.S	12	value	0x0000ffffff010104	(ENTRY + 4)	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:91
+tests/inst/11-cfx/cfx2rc_crrr_cfx.S	12	value	0x0000ffffff002004	(ENTRY + 4)	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:91
 tests/inst/11-cfx/cfx2rc_crrr_cfx.S	13	value	0x0000222222222220	0x0000222222222220	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:99
 tests/inst/11-cfx/cfx2rc_crrr_cfx.S	14	value	0x0000111111111110	0x0000111111111110	tests/inst/11-cfx/cfx2rc_crrr_cfx.S:103
 tests/inst/11-cfx/cfx2rd_crrr_cfx.S	1	value	0x00000fff00000000	HMON_BASE	tests/inst/11-cfx/cfx2rd_crrr_cfx.S:34

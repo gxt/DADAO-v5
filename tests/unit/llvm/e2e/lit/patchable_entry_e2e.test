@@ -45,8 +45,8 @@
 # SLOT-NEXT:  st.o
 #
 # The section content must be exactly the first-slot address of each function
-# (big-endian 8-byte words in the Tiny program region 0x0000_ffff_ff01_xxxx).
+# (big-endian 8-byte words in the Tiny program region 0x0000_ffff_ff00_xxxx).
 # ADDR: {{[0-9a-f]+}}[[LOW1:[0-9a-f]{4}]] <patched>:
 # ADDR: {{[0-9a-f]+}}[[LOW2:[0-9a-f]{4}]] <patched2>:
 # ADDR: Contents of section __patchable_function_entries:
-# ADDR-NEXT: {{[0-9a-f]+ }}0000ffff ff01[[LOW1]] 0000ffff ff01[[LOW2]]
+# ADDR-NEXT: {{[0-9a-f]+ }}0000ffff ff00[[LOW1]] 0000ffff ff00[[LOW2]]
