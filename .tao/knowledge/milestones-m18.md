@@ -30,7 +30,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m18-integ-001 | 2–3 h | M18 收口评审：K6 busybox + kselftest 两轮 + LTP 两轮 + 非 PASS 全分诊 + L3 门控；只读复核 |
 
 > **已作废（2026-11-23，ADR-0060）**：`m18-qemu-002`（monitor-first QEMU）reviewer Accepted 但**不合入 master**，分支留参考；`m18-qemu-003`（旧探针迁 monitor-first）未开工、被 hart-first 取代。
 
@@ -38,6 +37,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m18-integ-001 | 2026-11-28 14:15 | 2–3 h | M18 收口评审：K6 busybox + kselftest 两轮 + LTP 两轮 + 非 PASS 全分诊 + L3 门控；issue 能关则关、余迁 `issues-left` |
 
 ## 已验证
 
