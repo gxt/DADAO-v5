@@ -11,7 +11,7 @@ expected value (it does NOT rely on lit exit codes):
     link:    ld.lld -T tests/ee-tiny/tests_freestanding_tiny.lds \
                  crt0.o <tu>.o ... -o <prog>.elf          (ET_EXEC, SRAM-only)
     run:     timeout N qemu-system-dadao \
-                 -machine kaiwu-tiny,bootrom-image=<fixed 64 KiB firmware> \
+                 -machine kaiwu-tiny,bootrom-image=<fixed 8 KiB firmware> \
                  -kernel <prog>.elf \
                  -semihosting-config enable=on,target=native \
                  -display none -nographic
@@ -19,7 +19,7 @@ expected value (it does NOT rely on lit exit codes):
 
 The application ELF follows the Kaiwu-Tiny load contract
 (spec/Kaiwu §6): crt + program are linked into SRAM and e_entry is the
-fixed 0xffff_ff01_0100; the fixed BootROM firmware is supplied separately and
+fixed 0xffff_ff00_2000; the fixed BootROM firmware is supplied separately and
 performs the real power -> hmon -> entry handover.
 
 The crt0 `_start` calls `@main` (via an R_DADAO_REL26 relocation resolved by

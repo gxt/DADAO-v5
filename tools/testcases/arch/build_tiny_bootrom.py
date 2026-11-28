@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""Build the Kaiwu-Tiny 64 KiB fixed BootROM image (m12-chipyard-007).
+"""Build the Kaiwu-Tiny 8 KiB fixed BootROM image (m12-chipyard-007; m19 layout).
 
 Spec source: ``spec/Kaiwu-测试机运行环境.md``
   * §6.1  image index table (16-byte big-endian header + 32-byte entries);
-  * §6.2  Tiny layout and the hmon load contract:
+  * §6.2  Tiny layout and the hmon load contract (M19 8 KiB geometry):
 
-      image offset 0x0000-0x1FFF  power boot stub   (flat, reset vector)
-                   0x2000-0x3FFF  hmon run segment  (flat, hmon SRAM base)
-                   0x4000-0xDFFF  reserved          (all zero)
-                   0xE000-0xFFFF  image index table (count = 1, type = 1)
+      image offset 0x0000-0x07FF  power boot stub   (flat, reset vector, <=2 KiB)
+                   0x0800-0x13FF  hmon source seg  (flat, hmon SRAM base, <=3 KiB)
+                   0x1400-0x1EFF  reserved          (all zero)
+                   0x1F00-0x1F2F  image index table (count = 1, type = 1, 48 B)
+                   0x1F30-0x1FFF  reserved          (all zero)
 
 The builder *packs*; the firmware validates.  Every condition §6.1/§6.2 asks the
 builder to enforce is enforced here and makes the tool exit non-zero:
 
-  * power/hmon segment size <= 8 KiB each (link-time asserts also guard this);
+  * power/hmon segment size <= 2 KiB / 3 KiB (link-time asserts also guard this);
   * the segments are linked at the addresses the layout implies
     (power e_entry == BootROM base, hmon e_entry == hmon SRAM base);
   * the hmon table entry is 8-byte aligned (`offset`/`size`) and points at the
@@ -21,15 +22,15 @@ builder to enforce is enforced here and makes the tool exit non-zero:
     no ELF structure to check, §6.1);
   * `boot_magic` sits below the semihosting tag range and is patched into the
     power stub's ``trap cfx_hmon, <magic>`` instruction;
-  * the image is exactly 64 KiB; the reserved region and every unused table
+  * the image is exactly 8 KiB; the reserved regions and every unused table
     byte are zero.
 
 Outputs (``--out-dir``): ``bootrom_tiny.bin`` (the image the SoC boots) and,
 with ``--hex-out``, the checked-in text hex that the chipyard ``wuming``
 resource generator decodes into ``/dadao/bootrom/bootrom.tiny.img`` (a component
 patch set cannot carry binary blobs).  The hex is *sparse*: ``@<offset>`` lines
-set the write offset and byte lines append, so the 56 KiB of zeros cost one
-line instead of 1,800.
+set the write offset and byte lines append, so the reserved zeros cost one
+line instead of hundreds.
 
 Usage:
   build_tiny_bootrom.py --out-dir DIR --power-elf P --hmon-elf H \\
@@ -54,17 +55,19 @@ COUNT = 1
 DEFAULT_BOOT_MAGIC = 0x30001
 SEMIHOST_TAG = 0x3FF00
 
-# spec/Kaiwu §6.2 — fixed Tiny layout (image offsets).
-BOOTROM_SIZE = 0x10000
+# spec/Kaiwu §6.2 — fixed Tiny layout (image offsets, M19 8 KiB geometry).
+BOOTROM_SIZE = 0x2000
 POWER_SEG_OFF = 0x0000
-POWER_SEG_MAX = 0x2000
-HMON_SEG_OFF = 0x2000
-HMON_SEG_MAX = 0x2000
-RESERVED_OFF = 0x4000
-TABLE_OFF = 0xE000
-TABLE_SIZE = 0x2000
+POWER_SEG_MAX = 0x0800
+HMON_SEG_OFF = 0x0800
+HMON_SEG_MAX = 0x0C00
+RESERVED_OFF = 0x1400           # 0x1400-0x1EFF，全零
+TABLE_OFF = 0x1F00
+TABLE_SIZE = 0x30               # 表头 16 B + 1 表项 32 B
 TABLE_HDR = 16
 TABLE_ENT = 32
+# 表后保留尾（0x1F30-0x1FFF）也必须全零。
+TABLE_END = TABLE_OFF + TABLE_SIZE
 
 # spec/DADAO-12 §2.1 / contracts/machine.yaml (tiny).
 BOOTROM_BASE = 0xFFFF_FFFF_0000
@@ -81,6 +84,12 @@ HMON_BASE = 0x0FFF_0000_0000
 #
 # The data area is outside the image segment: power copies only `size` bytes
 # (the code), so the SRAM data slots keep their initial value.
+#
+# M19 note: `spec/Kaiwu §6.2` now puts the hmon SRAM data area at 0x0C00 with
+# the code region 0x0000-0x0BFF.  The firmware (`tests/ee-tiny/cfx_hmon_tiny.S`)
+# and every consumer still use 0xD8-0xF8; that migration is not part of this
+# builder's task (m19-testcases-002 待裁定 1), so the in-segment slots below
+# stay the enforced layout until the firmware moves.
 HMON_DATA_BASE = 0xD8
 HMON_SLOT_RD63 = 0xD8
 HMON_SLOT_CAUSE_ID = 0xE0
@@ -250,7 +259,11 @@ def build(args, max_segment, boot_magic, hmon_flags, out_name):
         raise BuildError("hmon segment is %d bytes: code is shorter than %#x"
                          % (len(hmon_bin), HMON_CODE_MIN))
     if len(hmon_bin) > HMON_DATA_BASE:
-        raise BuildError("hmon code is %d bytes > data base %#x"
+        raise BuildError("hmon code is %d bytes > data base %#x (spec/Kaiwu §6.2 "
+                         "moves the data slots to 0x0C00, but that is unreachable "
+                         "for an rb0-relative st.o with a signed 12-bit immediate "
+                         "and hmon has only rd63 as scratch — see m19-testcases-003 "
+                         "待裁定; this builder keeps the legacy in-segment slots)"
                          % (len(hmon_bin), HMON_DATA_BASE))
     for off, want in HMON_LAYOUT_WORDS.items():
         if off + 4 > len(hmon_bin):
@@ -330,9 +343,11 @@ def verify_image(image, boot_magic, hmon_flags):
     if resv != 0:
         raise BuildError("verify: entry reserved is not zero")
     if any(image[RESERVED_OFF:TABLE_OFF]):
-        raise BuildError("verify: the 40 KiB reserved region is not all zero")
-    if any(image[TABLE_OFF + TABLE_HDR + TABLE_ENT:TABLE_OFF + TABLE_SIZE]):
-        raise BuildError("verify: unused image index table bytes are not zero")
+        raise BuildError("verify: the reserved region %#x-%#x is not all zero"
+                         % (RESERVED_OFF, TABLE_OFF))
+    if any(image[TABLE_END:BOOTROM_SIZE]):
+        raise BuildError("verify: the reserved tail %#x-%#x is not all zero"
+                         % (TABLE_END, BOOTROM_SIZE))
     if not any(image[POWER_SEG_OFF:POWER_SEG_OFF + POWER_SEG_MAX]):
         raise BuildError("verify: power segment is empty")
     if not any(image[HMON_SEG_OFF:HMON_SEG_OFF + size]):
@@ -355,7 +370,7 @@ def verify_image(image, boot_magic, hmon_flags):
 def to_hex(image, comment_lines, ranges, width=32):
     """Sparse text form: ``@<offset>`` sets the position, byte lines append.
 
-    Only the payload ranges (power / hmon / table) are written out; the 40 KiB
+    Only the payload ranges (power / hmon / table) are written out; the
     reserved region and the unused table tail stay implicit zeros.
     """
     lines = ["# " + c if c else "#" for c in comment_lines]
@@ -430,9 +445,10 @@ def dump(image_path):
         print("dump: entry %d type=%d flags=%#x offset=%#06x size=%d reserved=%#x"
               % (i, typ, flags, off, size, resv))
     print("dump: power[%#06x,%#06x) hmon[%#06x,%#06x) reserved[%#06x,%#06x) "
-          "table[%#06x,%#06x)"
+          "table[%#06x,%#06x) reserved-tail[%#06x,%#06x)"
           % (POWER_SEG_OFF, HMON_SEG_OFF, HMON_SEG_OFF, RESERVED_OFF,
-             RESERVED_OFF, TABLE_OFF, TABLE_OFF, BOOTROM_SIZE))
+             RESERVED_OFF, TABLE_OFF, TABLE_OFF, TABLE_END,
+             TABLE_END, BOOTROM_SIZE))
     nonzero = sum(1 for b in image if b)
     print("dump: non-zero bytes = %d of %d" % (nonzero, len(image)))
     return 0
@@ -502,7 +518,8 @@ def main():
     ap.add_argument("--llvm-nm", default=None)
     ap.add_argument("--boot-magic", default=hex(DEFAULT_BOOT_MAGIC))
     ap.add_argument("--hmon-flags", default=hex(DEFAULT_HMON_FLAGS))
-    ap.add_argument("--max-segment-size", type=int, default=0x2000)
+    ap.add_argument("--max-segment-size", type=int,
+                    default=max(POWER_SEG_MAX, HMON_SEG_MAX))
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--out-name", default="bootrom_tiny.bin")
     ap.add_argument("--hex-out", default=None,

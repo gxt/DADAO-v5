@@ -9,8 +9,9 @@
   * ``contracts/tests-matrix.yaml`` —— 执行环境 → 套件（套件开关的唯一真源）；
   * ``tests/ee-<env>/runtime.yaml`` —— **测试侧运行布局**：entry / sp /
     image_window / kernel_base / kernel_reserved / exit_block / dump_base /
-    fault_record / cfx（用户裁定 2026-11-18：这些属测试资产/驱动参数，
-    不写进 ``contracts/machine.yaml``）。
+    fault_record / cfx，以及 pt_regs 转储布局的 dump_size / signature_base
+    （用户裁定 2026-11-18：这些属测试资产/驱动参数，不写进
+    ``contracts/machine.yaml``）。
 
 本模块做四件事：
 
@@ -84,6 +85,11 @@ REQUIRED_RUNTIME_FIELDS = (
     "entry", "sp", "image_window", "kernel_base", "kernel_reserved",
     "exit_block", "dump_base", "fault_record", "cfx",
 )
+# pt_regs 转储布局（`spec/Kaiwu §6.2.1`，m19-testcases-002/003）：dump 区大小与
+# 紧随其后的签名区基址必须成对登记、可交叉核对。Vast 的 dump 区尚未按 pt_regs
+# 定义（`tests/ee-vast/runtime.yaml` 未登记这两项），因此只对下列环境强制。
+REQUIRED_RUNTIME_PT_REGS_FIELDS = ("dump_size", "signature_base")
+PT_REGS_DUMP_ENVS = ("tiny",)
 # 合并后扁平 profile 的必填字段（三契约 + 运行布局 + 矩阵行）。
 REQUIRED_PROFILE_FIELDS = (
     ("name", "machine", "engines", "load_kind", "run_modes", "capabilities",
@@ -95,6 +101,8 @@ _INT_FIELDS = (
     "bootrom_base", "bootrom_size", "reset_pc", "ram_base", "ram_size",
     "ram_end", "entry", "sp", "image_window", "kernel_base",
     "kernel_reserved", "exit_block", "dump_base", "fault_record",
+    # pt_regs 转储布局（可缺省；登记时必须是整数）
+    "dump_size", "signature_base",
 )
 # `spec/DADAO-13 §1`：cfx3 hmon 的 SRAM 基址（Tiny/Vast 同址，异常向量初值）。
 # 无 monitor 的 profile 不使用该常量；执行资产（bootrom/harness）共用此值。
@@ -103,6 +111,52 @@ HMON_BASE = 0x0FFF_0000_0000
 
 class ProfileError(ValueError):
     """机器 profile 缺失/非法/无法解析。"""
+
+
+# pt_regs 转储区几何（`spec/Kaiwu §6.2.1`）：rd/rb/ra/rf 四组、每组 64 项、每项 8 B。
+PT_REGS_BANKS = ("rd", "rb", "ra", "rf")
+PT_REGS_REGS = 64
+PT_REGS_SLOT = 8
+PT_REGS_DUMP_SIZE = len(PT_REGS_BANKS) * PT_REGS_REGS * PT_REGS_SLOT  # 0x800
+
+
+def _check_pt_regs_dump(env, data):
+    """交叉核对转储区与签名区（`tests/ee-<env>/runtime.yaml` 的登记值）。
+
+    * ``dump_size`` 与 ``signature_base`` 成对登记（缺一 ⇒ 报错，不静默取默认）；
+    * ``dump_size`` 必须恰为 pt_regs 四段（rd/rb/ra/rf × 64 × 8 B = 0x800）；
+    * 转储区必须整段留在 RAM 内，且不得压到签名区（`SIGNATURE` 紧随其后）。
+    """
+    dump_size = data.get("dump_size")
+    sig = data.get("signature_base")
+    if (dump_size is None) != (sig is None):
+        raise ProfileError(
+            "profile %r: dump_size and signature_base must be registered "
+            "together (got dump_size=%r, signature_base=%r)"
+            % (env, dump_size, sig))
+    if dump_size is None:
+        return
+    if dump_size != PT_REGS_DUMP_SIZE:
+        raise ProfileError(
+            "profile %r: dump_size %#x != pt_regs layout %#x "
+            "(rd/rb/ra/rf × 64 × 8 B)" % (env, dump_size, PT_REGS_DUMP_SIZE))
+    if data["dump_base"] + dump_size - 1 > data["ram_end"]:
+        raise ProfileError(
+            "profile %r: dump region [%#x, %#x) outside RAM (end %#x)"
+            % (env, data["dump_base"], data["dump_base"] + dump_size,
+               data["ram_end"]))
+    if sig % PT_REGS_SLOT:
+        raise ProfileError(
+            "profile %r: signature_base %#x is not 8-byte aligned" % (env, sig))
+    if not (data["ram_base"] <= sig <= data["ram_end"]):
+        raise ProfileError(
+            "profile %r: signature_base %#x outside RAM [%#x, %#x]"
+            % (env, sig, data["ram_base"], data["ram_end"]))
+    if sig < data["dump_base"] + dump_size:
+        raise ProfileError(
+            "profile %r: signature_base %#x overlaps the dump region "
+            "[%#x, %#x)" % (env, sig, data["dump_base"],
+                            data["dump_base"] + dump_size))
 
 
 def _read_yaml(path, what):
@@ -127,7 +181,7 @@ class Profile:
                 raise ProfileError(
                     "profile %r missing required field %r" % (env, field))
         for field in _INT_FIELDS:
-            val = data[field]
+            val = data.get(field)
             if val is None:
                 continue
             if not isinstance(val, int):
@@ -193,6 +247,7 @@ class Profile:
             raise ProfileError(
                 "profile %r: tests-matrix has no suite for this environment"
                 % env)
+        _check_pt_regs_dump(env, data)
 
     def __getitem__(self, key):
         return self._data[key]
@@ -243,6 +298,16 @@ class Profile:
     @property
     def dump_base(self):
         return self._data["dump_base"]
+
+    @property
+    def dump_size(self):
+        """pt_regs 转储区大小；未登记 pt_regs dump 的环境为 None。"""
+        return self._data.get("dump_size")
+
+    @property
+    def signature_base(self):
+        """签名区基址；未登记 pt_regs dump 的环境为 None。"""
+        return self._data.get("signature_base")
 
     @property
     def image_window(self):
@@ -375,6 +440,16 @@ def _build_profile(env, machines, envs, matrix):
                 % (env, layout_path, field))
     for field in REQUIRED_RUNTIME_FIELDS:
         data[field] = layout[field]
+    # pt_regs 转储布局字段：登记了 pt_regs dump 的环境必须给出（Vast 未启用）。
+    if env in PT_REGS_DUMP_ENVS:
+        for field in REQUIRED_RUNTIME_PT_REGS_FIELDS:
+            if field not in layout:
+                raise ProfileError(
+                    "profile %r: runtime layout %s missing required field %r "
+                    "(pt_regs dump layout)" % (env, layout_path, field))
+    for field in REQUIRED_RUNTIME_PT_REGS_FIELDS:
+        if field in layout:
+            data[field] = layout[field]
 
     data["suites"] = list(matrix.get(env) or [])
     return Profile(env, data)

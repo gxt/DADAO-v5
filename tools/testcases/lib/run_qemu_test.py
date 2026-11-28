@@ -49,7 +49,7 @@ DEFAULT_QEMU = str(_paths.host_toolchain_bin() / "qemu-system-dadao")
 # Machine profile selection (TESTCASES-091t / QEMU-080t).  build_test_binary
 # already derives BINARY_BASE/SP from the same table; here we only decide how
 # the ROM/启动链 is supplied:
-#   tiny: the fixed 64 KiB `-bios` BootROM firmware (reset window)
+#   tiny: the fixed 8 KiB `-bios` BootROM firmware (reset window)
 #   vast: the 4 MiB step5 BootROM via the `bootrom-image` property; its
 #         power -> hmon -> hypv chain enables the PTW identity map that makes
 #         the Vast PA-RAM test body reachable.
@@ -64,7 +64,7 @@ def _selected_profile():
 def default_bootrom(profile_name=None):
     """固定 BootROM 固件默认路径（经 paths.py 解析产物根，不写死绝对路径）。
 
-    Tiny = 64 KiB 固定固件（`spec/Kaiwu §6`，hmon/power 链）；
+    Tiny = 8 KiB 固定固件（`spec/Kaiwu §6.2`，hmon/power 链）；
     Vast = step5 BootROM 的 `-bios`/`bootrom-image` 镜像。两者都由
     `make build-bootrom` 产出，位置见 `manifests/install-dirs.lock.toml`。
     """
@@ -870,7 +870,7 @@ def main():
                         help="Path to qemu-system-dadao binary")
     parser.add_argument("--bootrom", default=None,
                         help="Boot firmware image passed to QEMU as `-bios`/"
-                             "`bootrom-image` (Tiny: the fixed 64 KiB firmware; "
+                             "`bootrom-image` (Tiny: the fixed 8 KiB firmware; "
                              "Vast: the exit-policy BootROM). Default: the "
                              "artifact built by `make build-bootrom`")
     parser.add_argument("--jobs", type=int, default=None,
@@ -906,7 +906,7 @@ def main():
         print("Error: qemu-system-dadao not found. Set QEMU_SYSTEM_DADAO or --qemu", file=sys.stderr)
         sys.exit(1)
 
-    # 固定 BootROM 固件（Tiny 64 KiB / Vast step5；默认取 `make build-bootrom` 的产物）
+    # 固定 BootROM 固件（Tiny 8 KiB / Vast step5；默认取 `make build-bootrom` 的产物）
     bootrom_path = args.bootrom or default_bootrom()
     if not os.path.isfile(bootrom_path):
         print(f"Error: BootROM firmware not found at {bootrom_path}", file=sys.stderr)

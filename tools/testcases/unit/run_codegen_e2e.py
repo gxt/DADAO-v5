@@ -15,9 +15,9 @@ independently-derived expected value (it does NOT rely on lit exit codes):
     llvm-mc --triple=dadao -filetype=obj       -> <prog>.o
     llvm-objcopy -O binary --only-section=.text.start --only-section=.text
                                                -> <prog>.bin
-    prepend profile.kernel_reserved zero bytes (Tiny raw entry = base + 0x100)
+    prepend profile.kernel_reserved zero bytes (Tiny M19: reserved = 0)
     timeout N qemu-system-dadao -M kaiwu-tiny \
-            -bios <fixed 64 KiB BootROM firmware> -kernel <prog>.bin \
+            -bios <fixed 8 KiB BootROM firmware> -kernel <prog>.bin \
             -semihosting-config enable=on,target=native \
             -display none -nographic
                                                -> process exit code == guest exit code
@@ -440,13 +440,13 @@ def main():
                     default=os.environ.get("LLVM_OBJCOPY", DEFAULT_LLVM_OBJCOPY))
     ap.add_argument("--qemu", default=os.environ.get("QEMU_SYSTEM_DADAO", DEFAULT_QEMU))
     ap.add_argument("--bootrom", default=DEFAULT_BOOTROM,
-                    help="fixed 64 KiB Kaiwu-Tiny BootROM firmware passed as "
+                    help="fixed 8 KiB Kaiwu-Tiny BootROM firmware passed as "
                          "-bios (default: the test-artifacts "
                          "bootrom/tiny/bootrom_tiny.bin built by "
                          "'make build-bootrom')")
     # `m13-testcases-030`: the legacy 56-byte flat `-bios` blob was retired
     # (its generator + artifact are gone), so the deprecated switch that fed
-    # it is gone too — only `--bootrom` (fixed 64 KiB firmware) remains.
+    # it is gone too — only `--bootrom` (fixed 8 KiB firmware) remains.
     ap.add_argument("--crt0", default=DEFAULT_CRT0)
     ap.add_argument("--vectors-dir", default=DEFAULT_VECTORS_DIR)
     ap.add_argument("--expected", default=DEFAULT_EXPECTED)

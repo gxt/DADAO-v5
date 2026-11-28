@@ -37,7 +37,7 @@ This directory contains the QEMU-based ISA semantic test harness for `kaiwu-tiny
 
 ### BootROM firmware（`-bios` / `bootrom-image`）
 
-启动固件不再由本目录生成：Tiny 用**固定 64 KiB 固件**、Vast 用 step5 BootROM，
+启动固件不再由本目录生成：Tiny 用**固定 8 KiB 固件**、Vast 用 step5 BootROM，
 两者都由 `make build-bootrom` 产出到测试产物根（`bootrom/{tiny,step5}/`）。
 `run_qemu_test.py` 的默认值经 `paths.py` 解析，也可显式 `--bootrom <bin>`
 （`m13-testcases-030` 起旧的 trampoline 生成器与 `trampoline.bin` 已退役）。

@@ -98,7 +98,7 @@ DEFAULT_LLVM_MC = os.path.join(TARGET_TOOLS_BIN, "llvm-mc")
 DEFAULT_LLVM_OBJCOPY = os.path.join(TARGET_TOOLS_BIN, "llvm-objcopy")
 DEFAULT_QEMU = os.path.join(TARGET_TOOLS_BIN, "qemu-system-dadao")
 DEFAULT_CRT0 = "tests/ee-user/crt0_user.s"
-# 固定 64 KiB Tiny 固件（`make build-bootrom` 产物；产物根经 paths.py 解析，ADR-0016 D7）
+# 固定 8 KiB Tiny 固件（`make build-bootrom` 产物；产物根经 paths.py 解析，ADR-0016 D7）
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir() / "bootrom" / "tiny" /
                       "bootrom_tiny.bin")
 DEFAULT_MANIFEST = "tests/unit/llvm/ir-lli/manifest.yaml"
@@ -432,7 +432,7 @@ def main():
     ap.add_argument("--qemu", default=os.environ.get("QEMU_SYSTEM_DADAO", DEFAULT_QEMU))
     ap.add_argument("--crt0", default=DEFAULT_CRT0)
     ap.add_argument("--bootrom", default=DEFAULT_BOOTROM,
-                    help="fixed 64 KiB BootROM firmware (built by 'make "
+                    help="fixed 8 KiB BootROM firmware (built by 'make "
                          "build-bootrom')")
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     ap.add_argument("--verbose", "-v", action="store_true")

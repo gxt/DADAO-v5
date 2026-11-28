@@ -57,10 +57,14 @@ RAW_PREFIX = BINARY_BASE - KERNEL_BASE  # reserved bytes before the entry
 # profile-defined exit block, above the downward-growing stack.
 EXIT_BLOCK = _PROFILE.exit_block       # SYS_EXIT argument-block address
 DUMP_BASE = _PROFILE.dump_base         # State-dump region base
-DUMP_SIZE   = 0x408                  # 1032 bytes: rd[0]+rd[1..63]+rb[0]+rb[1..63]+pc
-RD_DUMP_OFF = 0x008                  # rd[1] starts at +0x008 (rd[0] slot at +0x000 is reserved)
-RB_DUMP_OFF = 0x208                  # rb[1] starts at +0x208 (rb[0] slot at +0x200 is reserved)
-PC_DUMP_OFF = 0x400                  # pc (rb0 via rb2rd→st.o-rd) at +0x400
+# pt_regs 转储区（`spec/Kaiwu §6.2.1`）：四组 rd/rb/ra/rf，每组 64 × 8 B = 0x800。
+# 登记了 `dump_size` 的 profile 以 `runtime.yaml` 为准；未登记的环境（Vast）
+# 沿用同一 pt_regs 块大小（转储仅诊断用，仍按四组顺序写）。
+DUMP_SIZE = (_PROFILE.dump_size if _PROFILE.dump_size is not None else 0x800)
+RD_DUMP_OFF = 0x000                  # rd[0..63]，rd0 = status
+RB_DUMP_OFF = 0x200                  # rb[0..63]，rb0 = ip
+RA_DUMP_OFF = 0x400                  # ra[0..63]
+RF_DUMP_OFF = 0x600                  # rf[0..63]
 
 # Semihosting SYS_EXIT (contract-semihosting.md §1/§3/§5; ADR-0020 D1/D8)
 SEMIHOST_TAG = 0x3FF00               # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
@@ -104,13 +108,14 @@ IMAGE_WINDOW = _PROFILE.image_window
 def set_profile(name):
     """Select the machine profile for this process (CLI --profile)."""
     global _PROFILE, BINARY_BASE, KERNEL_BASE, RAW_PREFIX
-    global EXIT_BLOCK, DUMP_BASE, IMAGE_WINDOW
+    global EXIT_BLOCK, DUMP_BASE, DUMP_SIZE, IMAGE_WINDOW
     _PROFILE = machine_profile.load(name)
     BINARY_BASE = _PROFILE.entry
     KERNEL_BASE = _PROFILE.get("kernel_base", BINARY_BASE)
     RAW_PREFIX = BINARY_BASE - KERNEL_BASE
     EXIT_BLOCK = _PROFILE.exit_block
     DUMP_BASE = _PROFILE.dump_base
+    DUMP_SIZE = (_PROFILE.dump_size if _PROFILE.dump_size is not None else 0x800)
     IMAGE_WINDOW = _PROFILE.image_window
     return _PROFILE
 
@@ -157,6 +162,14 @@ def encode_st_o_rd(rdha, rbhb, imms12):
 def encode_st_o_rb(rbha, rbhb, imms12):
     """st.o rb, rb, offset (rrii, op=0x23). Store RB to memory."""
     return (0x23 << 24) | (rbha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
+
+def encode_st_o_ra(raha, rbhb, imms12):
+    """st.o ra, rb, offset (rrii, op=0x25). Store RA to memory."""
+    return (0x25 << 24) | (raha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
+
+def encode_st_o_rf(rfha, rbhb, imms12):
+    """st.o rf, rb, offset (rrii, op=0x27). Store RF to memory."""
+    return (0x27 << 24) | (rfha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
 
 def encode_xor_o(rdhb, rdhc, rdhd):
     """xor.o rdX, rdY, rdZ (orrr, op=0x40, ha=0x0A). rdX = rdY ^ rdZ."""
@@ -579,42 +592,43 @@ def build_test_section(vector_case):
 
 
 def build_dumper_section():
-    """Build dumper section: dump rd/rb to state-dump region.
+    """Build dumper section: dump the pt_regs state to the DUMP region.
 
-    State-dump layout (at DUMP_BASE):
-      offset 0x0000: rd[0] slot  (8 bytes, reserved, not written; rd0 hardwired zero)
-      offset 0x0008..0x01F8: rd[1..63]  (63 × 8 bytes = 504 bytes, big-endian)
-      offset 0x0200: rb[0] slot  (8 bytes, reserved, not written; rb0=PC stored at +0x400)
-      offset 0x0208..0x03F8: rb[1..63]  (63 × 8 bytes = 504 bytes, big-endian)
-      offset 0x0400: pc (rb0 via rb2rd→st.o-rd)  (8 bytes, big-endian)
-      Total: 1032 bytes (DUMP_SIZE = 0x408)
+    State-dump layout (at DUMP_BASE, `spec/Kaiwu §6.2.1`):
+      +0x000 .. +0x1F8: rd[0..63]  (64 × 8 B, big-endian; rd0 = status)
+      +0x200 .. +0x3F8: rb[0..63]  (64 × 8 B; rb0 = ip)
+      +0x400 .. +0x5F8: ra[0..63]  (64 × 8 B)
+      +0x600 .. +0x7F8: rf[0..63]  (64 × 8 B)
+      Total: 0x800 bytes (DUMP_SIZE).
 
-    Note: rd0=0 (hardwired), rb0=PC are special; rd[0]/rb[0] slots reserved (not written).
+    `st.o-ra` / `st.o-rf` read the RA/RF bank directly.  `rb0` is the read-only
+    PC and `st.o-rb` may be treated as a destination write by some cores, so the
+    ip slot is copied through `rb2rd` into rd63 first (the rd63 value has
+    already been stored at that point).  `rd0` is hardwired zero (= status)
+    and is stored through the rd form.
     """
     words = []
 
     # Set up DUMP_RB = DUMP_BASE
     words.extend(emit_load_imm64_rb(DUMP_RB, DUMP_BASE))
 
-    # Dump rd[1..63]
-    for i in range(1, 64):
-        offset = i * 8
-        if offset < 0x200:  # Within rd dump region
-            words.append(encode_st_o_rd(i, DUMP_RB, offset))
+    # rd[0..63] @ +0x000; rd0 = status (hardwired zero)
+    for i in range(64):
+        words.append(encode_st_o_rd(i, DUMP_RB, RD_DUMP_OFF + i * 8))
 
-    # Set up DUMP_RB = DUMP_BASE + 0x0200 for rb dump
-    # We already have DUMP_RB = DUMP_BASE, use offset 0x200 directly
-    # But 0x200 = 512, imms12 max = 2047, so we can use offset directly
-    for i in range(1, 64):
-        offset = 0x200 + i * 8
-        if offset < 0x400:  # Within rb dump region
-            words.append(encode_st_o_rb(i, DUMP_RB, offset))
-
-    # Dump rb0 (PC) at offset 0x0400
-    # st.o-rb requires rbha != rb0 (legality), so we use rb2rd to copy
-    # rb0 into a scratch RD, then st.o-rd to store it.
+    # rb[0..63] @ +0x200; rb0 = ip via rb2rd -> st.o-rd
     words.append(encode_rb2rd(DUMP_RD, 0, 1))   # rd63 = rb0 (PC)
-    words.append(encode_st_o_rd(DUMP_RD, DUMP_RB, 0x400))
+    words.append(encode_st_o_rd(DUMP_RD, DUMP_RB, RB_DUMP_OFF))
+    for i in range(1, 64):
+        words.append(encode_st_o_rb(i, DUMP_RB, RB_DUMP_OFF + i * 8))
+
+    # ra[0..63] @ +0x400
+    for i in range(64):
+        words.append(encode_st_o_ra(i, DUMP_RB, RA_DUMP_OFF + i * 8))
+
+    # rf[0..63] @ +0x600
+    for i in range(64):
+        words.append(encode_st_o_rf(i, DUMP_RB, RF_DUMP_OFF + i * 8))
 
     return words
 

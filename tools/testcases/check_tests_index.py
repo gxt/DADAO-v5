@@ -768,9 +768,17 @@ def _write_profile_lds(root: Path, tamper: str | None = None) -> None:
         "  .bss : ALIGN(8) { __bss_start = .; *(.bss) __bss_end = .; } > RAM\n"
         "  PROVIDE(__heap_start = __end);\n", encoding="utf-8")
     (root / TESTS_REL / "ee-tiny" / "picolibc-tiny.ld").write_text(
-        "MEMORY { flash (rx!w) : ORIGIN = 0xffffffff0000, LENGTH = 0x10000\n"
-        "         ram (rwx) : ORIGIN = 0xffffff010100, LENGTH = 0x7eff00 }\n"
-        "__stack = 0xffffff7eff00;\n"
+        # 测试侧 Tiny 布局（`spec/Kaiwu §6.2.1`）：BootROM 8 KiB、主 SRAM 256 KiB、
+        # entry 0x2000、签名 0x1000、EXIT 0x30、DUMP 0x800、栈/MemRAS 见下。
+        "MEMORY { flash (rx!w) : ORIGIN = 0xffffffff0000, LENGTH = 0x2000\n"
+        "         ram (rwx) : ORIGIN = 0xffffff000000, LENGTH = 0x40000 }\n"
+        "__stack = 0xffffff03f000;\n"
+        "__entry = 0xffffff002000;\n"
+        "__signature = 0xffffff001000;\n"
+        "__exit_block = 0xffffff000030;\n"
+        "__dump = 0xffffff000800;\n"
+        "__memras = 0xffffff03f000;\n"
+        "__mrptr = 0xffffff040000;\n"
         "SECTIONS { .text.start : { *(.text.start) } > flash }\n",
         encoding="utf-8")
 

@@ -400,7 +400,7 @@ def main() -> int:
                     help="gate 目录（--form-check 时可省）")
     ap.add_argument("--qemu", default=harness.DEFAULT_QEMU)
     ap.add_argument("--bootrom", default=None,
-                    help="启动固件镜像（Tiny = 固定 64 KiB 固件；Vast = "
+                    help="启动固件镜像（Tiny = 固定 8 KiB 固件；Vast = "
                          "exit-policy BootROM）；作为 QEMU 的 `-bios`/"
                          "`bootrom-image` 传入。默认取 `make build-bootrom` 的产物")
     ap.add_argument("--jobs", type=int, default=1)

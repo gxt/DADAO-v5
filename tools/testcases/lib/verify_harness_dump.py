@@ -16,6 +16,9 @@ Tests:
 Usage:
   python3 tools/testcases/lib/verify_harness_dump.py
 
+Exit: 0 = all checks passed; 1 = at least one check failed; 2 = BLOCKED (the
+installed QEMU still enforces the pre-M19 Tiny raw-kernel geometry, m19-qemu-001).
+
 All assertions are real (can fail). No check(..., True) hard-coded passes.
 """
 
@@ -39,14 +42,30 @@ sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(_script_dir)), "infra"))
 import paths as _paths  # noqa: E402
 
-from build_test_binary import DUMP_BASE, DUMP_SIZE, RD_DUMP_OFF, RB_DUMP_OFF, PC_DUMP_OFF
+from build_test_binary import (DUMP_BASE, DUMP_SIZE, RD_DUMP_OFF, RB_DUMP_OFF,
+                               RA_DUMP_OFF, RF_DUMP_OFF)
 
 # Exit code ranges (from run_qemu_test.py, ADR-0004 D5)
 EXIT_FAULT_MIN = 0x80
 
-QEMU = ".work/build/qemu/qemu-system-dadao"
+QEMU = (os.environ.get("QEMU_SYSTEM_DADAO")
+        or str(_paths.host_toolchain_bin() / "qemu-system-dadao"))
 BIOS = os.path.join(_paths.test_artifacts_dir(), "bootrom", "tiny",
                     "bootrom_tiny.bin")
+
+# The dump-channel probe does not come from a YAML carrier any more (YAML
+# vectors were retired in m13-testcases-043).  A single `fence cfx0, hb=1`
+# word (ILLI, spec/SimRISC-11 §屏障指令) is enough: the guest faults with the
+# monitor exit code 0xF8 before the dumper runs, which is exactly what Tests
+# A/D assert, while Tests B/C/E only need a valid image for pmemsave.
+PROBE_CASE = {
+    "id": "dump-channel-probe",
+    "class": "semantic",
+    "mnemonic": "fence",
+    "encoding": {"word": "0x79001000"},
+    "input_state": {},
+    "expected_state": {},
+}
 
 
 def qmp_session(sock_path, timeout=10):
@@ -101,30 +120,24 @@ def qmp_session(sock_path, timeout=10):
 
 
 def generate_pattern():
-    """Generate a 1032-byte pattern with identifiable big-endian markers.
+    """Generate a DUMP_SIZE-byte pattern with identifiable big-endian markers.
 
-    Layout (must match build_test_binary.py dumper section):
-      +0x000 (rd[0] slot): all zeros (reserved, not written by dumper)
-      +RD_DUMP_OFF..+0x1F8 (rd[1..63]): 0xDDCCBBAA00000000 | i  (i = 1..63)
-      +0x200 (rb[0] slot): all zeros (reserved, not written by dumper)
-      +RB_DUMP_OFF..+0x3F8 (rb[1..63]): 0xBBAA998800000000 | i  (i = 1..63)
-      +PC_DUMP_OFF (pc): 0x1122334455667788 (known constant)
+    Layout (must match build_test_binary.py dumper section; `spec/Kaiwu §6.2.1`):
+      +0x000..+0x1F8 (rd[0..63]): 0xDDCCBBAA00000000 | i  (rd0 = status slot)
+      +0x200..+0x3F8 (rb[0..63]): 0xBBAA998800000000 | i  (rb0 = ip slot)
+      +0x400..+0x5F8 (ra[0..63]): 0xAABBCCDD00000000 | i
+      +0x600..+0x7F8 (rf[0..63]): 0xCCDDEEFF00000000 | i
     """
     buf = bytearray(DUMP_SIZE)
-    # rd[0] slot: zeros (offset 0)
-    # rd[1..63]: identifiable pattern
-    for i in range(1, 64):
-        off = RD_DUMP_OFF + (i - 1) * 8  # rd[i] @ RD_DUMP_OFF + (i-1)*8
-        val = 0xDDCCBBAA00000000 | i
-        struct.pack_into(">Q", buf, off, val)
-    # rb[0] slot: zeros (offset 0x200)
-    # rb[1..63]: identifiable pattern
-    for i in range(1, 64):
-        off = RB_DUMP_OFF + (i - 1) * 8  # rb[i] @ RB_DUMP_OFF + (i-1)*8
-        val = 0xBBAA998800000000 | i
-        struct.pack_into(">Q", buf, off, val)
-    # pc: known constant at PC_DUMP_OFF
-    struct.pack_into(">Q", buf, PC_DUMP_OFF, 0x1122334455667788)
+    for i in range(64):
+        struct.pack_into(">Q", buf, RD_DUMP_OFF + i * 8,
+                         0xDDCCBBAA00000000 | i)
+        struct.pack_into(">Q", buf, RB_DUMP_OFF + i * 8,
+                         0xBBAA998800000000 | i)
+        struct.pack_into(">Q", buf, RA_DUMP_OFF + i * 8,
+                         0xAABBCCDD00000000 | i)
+        struct.pack_into(">Q", buf, RF_DUMP_OFF + i * 8,
+                         0xCCDDEEFF00000000 | i)
     return bytes(buf)
 
 
@@ -149,19 +162,31 @@ def main():
         if os.path.exists(f):
             os.unlink(f)
 
-    # Build a test binary with dump_mode=True (will spin or fault)
+    # Build the ILLI probe binary with dump_mode=True (guest faults before dump)
     sys.path.insert(0, _script_dir)
-    import yaml
     from build_test_binary import build_test_binary
 
-    _misc = os.path.join(_script_dir, "..", "..", "..", "tests", "inst", "base",
-                         "misc.yaml")
-    with open(_misc) as f:
-        cases = yaml.safe_load(f)
-    blob = build_test_binary(cases[0], dump_mode=True)
+    blob = build_test_binary(PROBE_CASE, dump_mode=True)
     test_bin = "/tmp/opencode/QEMU-014t/test-a.bin"
     with open(test_bin, "wb") as f:
         f.write(blob)
+
+    # Cross-task dependency (m19-qemu-001): the installed QEMU may still enforce
+    # the pre-M19 raw `-kernel` contract (256-byte reserved prefix / fixed entry
+    # 0xffffff010100).  Fail fast and report BLOCKED instead of a QMP traceback.
+    probe = subprocess.run(
+        [QEMU, "-machine", "kaiwu-tiny", "-nographic",
+         "-bios", BIOS, "-kernel", test_bin],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
+    err = probe.stderr.decode("utf-8", errors="replace")
+    legacy_markers = ("reserved prefix byte",
+                      "is not the fixed application entry 0xffffff010100")
+    if any(m in err for m in legacy_markers):
+        print("[BLOCKED] installed QEMU still enforces the pre-M19 Tiny geometry:")
+        print("          " + (err.strip().splitlines()[-1] if err.strip() else ""))
+        print("          rerun after m19-qemu-001; the dump channel is covered by "
+              "the task evidence script meanwhile.")
+        return 2
 
     proc = subprocess.Popen(
         [QEMU, "-machine", "kaiwu-tiny", "-nographic",
@@ -261,59 +286,58 @@ def main():
         check("Dump file size = DUMP_SIZE", len(data) == DUMP_SIZE,
               f"{len(data)} bytes (expected {DUMP_SIZE})")
 
-        # Layout (from build_test_binary.py dumper section):
-        #   +0x000: rd[0] slot (reserved, not written, 8 bytes)
-        #   +RD_DUMP_OFF..+0x1F8: rd[1..63] (63 * 8 = 504 bytes, rd[i] @ RD_DUMP_OFF+(i-1)*8)
-        #   +0x200: rb[0] slot (reserved, not written, 8 bytes)
-        #   +RB_DUMP_OFF..+0x3F8: rb[1..63] (63 * 8 = 504 bytes, rb[i] @ RB_DUMP_OFF+(i-1)*8)
-        #   +PC_DUMP_OFF: pc (rb0 via rb2rd->st.o-rd, 8 bytes)
-        # Total: DUMP_SIZE (0x408 = 1032) bytes
+        # Layout (from build_test_binary.py dumper section, spec/Kaiwu §6.2.1):
+        #   +0x000..+0x1F8: rd[0..63] (64 * 8 = 512 bytes, rd0 = status)
+        #   +0x200..+0x3F8: rb[0..63] (64 * 8 = 512 bytes, rb0 = ip)
+        #   +0x400..+0x5F8: ra[0..63] (64 * 8 = 512 bytes)
+        #   +0x600..+0x7F8: rf[0..63] (64 * 8 = 512 bytes)
+        # Total: DUMP_SIZE (0x800 = 2048) bytes
 
-        # rd[0] slot: reserved, not written, should be 0 (frozen, no dumper)
-        rd0 = struct.unpack(">Q", data[0:8])[0]
-        check("rd[0] slot @ +0x000 = 0 (reserved, not written)", rd0 == 0,
+        # rd[0] status slot: frozen, no dumper executed, should be 0
+        rd0 = struct.unpack(">Q", data[RD_DUMP_OFF:RD_DUMP_OFF + 8])[0]
+        check("rd[0] status slot @ +0x000 = 0 (frozen, no dumper)", rd0 == 0,
               f"0x{rd0:016X}")
 
-        # rd[1..63] region: frozen, no dumper executed, should be 0
-        rd_region = data[RD_DUMP_OFF:RD_DUMP_OFF + 63 * 8]
+        # rd[1..63]: frozen, no dumper executed, should be 0
+        rd_region = data[RD_DUMP_OFF + 8:RD_DUMP_OFF + 64 * 8]
         rd_zero = all(b == 0 for b in rd_region)
         check("rd[1..63] @ +0x008 = 0 (frozen, no dumper)", rd_zero)
 
-        # rb[0] slot: reserved, not written, should be 0
-        rb0_slot_off = RB_DUMP_OFF - 8  # rb[0] slot is 8 bytes before rb[1] region
-        rb0_slot = struct.unpack(">Q", data[rb0_slot_off:rb0_slot_off + 8])[0]
-        check("rb[0] slot @ +0x200 = 0 (reserved, not written)", rb0_slot == 0,
-              f"0x{rb0_slot:016X}")
+        # rb[0] ip slot: frozen, not written, should be 0
+        rb0 = struct.unpack(">Q", data[RB_DUMP_OFF:RB_DUMP_OFF + 8])[0]
+        check("rb[0] ip slot @ +0x200 = 0 (frozen, no dumper)", rb0 == 0,
+              f"0x{rb0:016X}")
 
-        # rb[1..63] region: frozen, no dumper executed, should be 0
-        rb_region = data[RB_DUMP_OFF:RB_DUMP_OFF + 63 * 8]
+        # rb[1..63]: frozen, no dumper executed, should be 0
+        rb_region = data[RB_DUMP_OFF + 8:RB_DUMP_OFF + 64 * 8]
         rb_zero = all(b == 0 for b in rb_region)
         check("rb[1..63] @ +0x208 = 0 (frozen, no dumper)", rb_zero)
 
-        # pc slot: frozen, no dumper executed, should be 0
-        pc_bytes = data[PC_DUMP_OFF:PC_DUMP_OFF + 8]
-        pc_val = struct.unpack(">Q", pc_bytes)[0]
-        check("pc @ +0x400 = 0 (frozen, no dumper)", pc_val == 0,
-              f"0x{pc_val:016X}")
+        # ra/rf regions: frozen, no dumper executed, should be 0
+        ra_zero = all(b == 0 for b in data[RA_DUMP_OFF:RA_DUMP_OFF + 64 * 8])
+        check("ra[0..63] @ +0x400 = 0 (frozen, no dumper)", ra_zero)
+        rf_zero = all(b == 0 for b in data[RF_DUMP_OFF:RF_DUMP_OFF + 64 * 8])
+        check("rf[0..63] @ +0x600 = 0 (frozen, no dumper)", rf_zero)
 
         # Offset calculation + alignment verification
         # These verify that the dumper's offset formulas (from build_test_binary.py)
         # produce 8-byte-aligned offsets at the expected positions.
         print("\n  --- Offset calculation + alignment verification ---")
         slot_checks = [
-            ("rd[1]",  1,  "rd", RD_DUMP_OFF),
-            ("rd[63]", 63, "rd", RD_DUMP_OFF + 62 * 8),
-            ("rb[1]",  1,  "rb", RB_DUMP_OFF),
-            ("rb[63]", 63, "rb", RB_DUMP_OFF + 62 * 8),
-            ("pc",     0,  "pc", PC_DUMP_OFF),
+            ("rd[0] status", 0, "rd", RD_DUMP_OFF),
+            ("rd[63]", 63, "rd", RD_DUMP_OFF + 63 * 8),
+            ("rb[0] ip", 0, "rb", RB_DUMP_OFF),
+            ("rb[63]", 63, "rb", RB_DUMP_OFF + 63 * 8),
+            ("ra[0]", 0, "ra", RA_DUMP_OFF),
+            ("ra[63]", 63, "ra", RA_DUMP_OFF + 63 * 8),
+            ("rf[0]", 0, "rf", RF_DUMP_OFF),
+            ("rf[63]", 63, "rf", RF_DUMP_OFF + 63 * 8),
         ]
         for name, idx, reg_type, expected_off in slot_checks:
-            if reg_type == "rd":
-                computed_off = RD_DUMP_OFF + (idx - 1) * 8
-            elif reg_type == "rb":
-                computed_off = RB_DUMP_OFF + (idx - 1) * 8
-            else:  # pc
-                computed_off = PC_DUMP_OFF
+            computed_off = {
+                "rd": RD_DUMP_OFF, "rb": RB_DUMP_OFF,
+                "ra": RA_DUMP_OFF, "rf": RF_DUMP_OFF,
+            }[reg_type] + idx * 8
             aligned = (computed_off % 8) == 0
             matches = (computed_off == expected_off)
             ok = aligned and matches
@@ -335,7 +359,7 @@ def main():
     from run_qemu_test import run_qemu
 
     # Build a test binary with dump_mode=True
-    blob = build_test_binary(cases[0], dump_mode=True)
+    blob = build_test_binary(PROBE_CASE, dump_mode=True)
     test_bin_d = "/tmp/opencode/QEMU-014t/test-d.bin"
     with open(test_bin_d, "wb") as f:
         f.write(blob)
@@ -379,14 +403,19 @@ def main():
         f.write(pattern)
     print(f"  Pattern file: {pattern_file} ({len(pattern)} bytes)")
 
-    # Show pattern content summary
-    rd1_val = struct.unpack(">Q", pattern[RD_DUMP_OFF:RD_DUMP_OFF + 8])[0]
-    rd63_val = struct.unpack(">Q", pattern[RD_DUMP_OFF + 62 * 8:RD_DUMP_OFF + 63 * 8])[0]
-    rb1_val = struct.unpack(">Q", pattern[RB_DUMP_OFF:RB_DUMP_OFF + 8])[0]
-    rb63_val = struct.unpack(">Q", pattern[RB_DUMP_OFF + 62 * 8:RB_DUMP_OFF + 63 * 8])[0]
-    pc_val = struct.unpack(">Q", pattern[PC_DUMP_OFF:PC_DUMP_OFF + 8])[0]
-    print(f"  Pattern markers: rd[1]=0x{rd1_val:016X} rd[63]=0x{rd63_val:016X} "
-          f"rb[1]=0x{rb1_val:016X} rb[63]=0x{rb63_val:016X} pc=0x{pc_val:016X}")
+    # Show pattern content summary (four pt_regs banks, first/last slot each)
+    rd0_val = struct.unpack(">Q", pattern[RD_DUMP_OFF:RD_DUMP_OFF + 8])[0]
+    rd63_val = struct.unpack(">Q", pattern[RD_DUMP_OFF + 63 * 8:RD_DUMP_OFF + 64 * 8])[0]
+    rb0_val = struct.unpack(">Q", pattern[RB_DUMP_OFF:RB_DUMP_OFF + 8])[0]
+    rb63_val = struct.unpack(">Q", pattern[RB_DUMP_OFF + 63 * 8:RB_DUMP_OFF + 64 * 8])[0]
+    ra0_val = struct.unpack(">Q", pattern[RA_DUMP_OFF:RA_DUMP_OFF + 8])[0]
+    ra63_val = struct.unpack(">Q", pattern[RA_DUMP_OFF + 63 * 8:RA_DUMP_OFF + 64 * 8])[0]
+    rf0_val = struct.unpack(">Q", pattern[RF_DUMP_OFF:RF_DUMP_OFF + 8])[0]
+    rf63_val = struct.unpack(">Q", pattern[RF_DUMP_OFF + 63 * 8:RF_DUMP_OFF + 64 * 8])[0]
+    print(f"  Pattern markers: rd[0]=0x{rd0_val:016X} rd[63]=0x{rd63_val:016X} "
+          f"rb[0]=0x{rb0_val:016X} rb[63]=0x{rb63_val:016X} "
+          f"ra[0]=0x{ra0_val:016X} ra[63]=0x{ra63_val:016X} "
+          f"rf[0]=0x{rf0_val:016X} rf[63]=0x{rf63_val:016X}")
 
     qmp_sock_e = "/tmp/opencode/QEMU-014t/verify-e.sock"
     if os.path.exists(qmp_sock_e):
@@ -401,7 +430,7 @@ def main():
     proc_e = subprocess.Popen(
         [QEMU, "-machine", "kaiwu-tiny", "-nographic",
          "-bios", BIOS, "-kernel", kernel_bin,
-         "-device", f"loader,file={pattern_file},addr=0xffff00fe0000",
+         "-device", f"loader,file={pattern_file},addr=0x{DUMP_BASE:x}",
          "-qmp", f"unix:{qmp_sock_e},server=on,wait=off", "-S"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
@@ -437,31 +466,32 @@ def main():
                         print(f"    offset 0x{off:03X}: got 0x{dumped[off]:02X} "
                               f"expected 0x{pattern[off]:02X}")
 
-                # Verify specific markers in the dump
-                got_rd1 = struct.unpack(">Q", dumped[RD_DUMP_OFF:RD_DUMP_OFF + 8])[0]
-                got_rd63 = struct.unpack(">Q", dumped[RD_DUMP_OFF + 62 * 8:RD_DUMP_OFF + 63 * 8])[0]
-                got_rb1 = struct.unpack(">Q", dumped[RB_DUMP_OFF:RB_DUMP_OFF + 8])[0]
-                got_rb63 = struct.unpack(">Q", dumped[RB_DUMP_OFF + 62 * 8:RB_DUMP_OFF + 63 * 8])[0]
-                got_pc = struct.unpack(">Q", dumped[PC_DUMP_OFF:PC_DUMP_OFF + 8])[0]
+                # Verify specific markers in the dump (first/last slot per bank)
+                got_rd0 = struct.unpack(">Q", dumped[RD_DUMP_OFF:RD_DUMP_OFF + 8])[0]
+                got_rd63 = struct.unpack(">Q", dumped[RD_DUMP_OFF + 63 * 8:RD_DUMP_OFF + 64 * 8])[0]
+                got_rb0 = struct.unpack(">Q", dumped[RB_DUMP_OFF:RB_DUMP_OFF + 8])[0]
+                got_rb63 = struct.unpack(">Q", dumped[RB_DUMP_OFF + 63 * 8:RB_DUMP_OFF + 64 * 8])[0]
+                got_ra0 = struct.unpack(">Q", dumped[RA_DUMP_OFF:RA_DUMP_OFF + 8])[0]
+                got_ra63 = struct.unpack(">Q", dumped[RA_DUMP_OFF + 63 * 8:RA_DUMP_OFF + 64 * 8])[0]
+                got_rf0 = struct.unpack(">Q", dumped[RF_DUMP_OFF:RF_DUMP_OFF + 8])[0]
+                got_rf63 = struct.unpack(">Q", dumped[RF_DUMP_OFF + 63 * 8:RF_DUMP_OFF + 64 * 8])[0]
 
-                check(f"rd[1] marker: got 0x{got_rd1:016X} == expected 0x{rd1_val:016X}",
-                      got_rd1 == rd1_val)
+                check(f"rd[0] marker: got 0x{got_rd0:016X} == expected 0x{rd0_val:016X}",
+                      got_rd0 == rd0_val)
                 check(f"rd[63] marker: got 0x{got_rd63:016X} == expected 0x{rd63_val:016X}",
                       got_rd63 == rd63_val)
-                check(f"rb[1] marker: got 0x{got_rb1:016X} == expected 0x{rb1_val:016X}",
-                      got_rb1 == rb1_val)
+                check(f"rb[0] marker: got 0x{got_rb0:016X} == expected 0x{rb0_val:016X}",
+                      got_rb0 == rb0_val)
                 check(f"rb[63] marker: got 0x{got_rb63:016X} == expected 0x{rb63_val:016X}",
                       got_rb63 == rb63_val)
-                check(f"pc marker: got 0x{got_pc:016X} == expected 0x{pc_val:016X}",
-                      got_pc == pc_val)
-
-                # Verify reserved slots are untouched (pattern has zeros there)
-                got_rd0 = struct.unpack(">Q", dumped[0:8])[0]
-                got_rb0_slot = struct.unpack(">Q", dumped[512:520])[0]
-                check("rd[0] slot preserved zero", got_rd0 == 0,
-                      f"0x{got_rd0:016X}")
-                check("rb[0] slot preserved zero", got_rb0_slot == 0,
-                      f"0x{got_rb0_slot:016X}")
+                check(f"ra[0] marker: got 0x{got_ra0:016X} == expected 0x{ra0_val:016X}",
+                      got_ra0 == ra0_val)
+                check(f"ra[63] marker: got 0x{got_ra63:016X} == expected 0x{ra63_val:016X}",
+                      got_ra63 == ra63_val)
+                check(f"rf[0] marker: got 0x{got_rf0:016X} == expected 0x{rf0_val:016X}",
+                      got_rf0 == rf0_val)
+                check(f"rf[63] marker: got 0x{got_rf63:016X} == expected 0x{rf63_val:016X}",
+                      got_rf63 == rf63_val)
 
         except Exception as e:
             check("QMP dump via harness", False, f"exception: {e}")

@@ -127,11 +127,9 @@ def main(argv=None):
           status == "INCONCLUSIVE" and desc.startswith("Timeout"))
 
     # spin at the current PC forever (jump rb0, rd0, 0) -> real timeout.
-    # `m13-testcases-030`: the raw `-kernel` path under the fixed 64 KiB firmware
-    # skips a reserved 256-byte prefix (ENTRY - KERNEL_BASE); a bare 4-byte blob
-    # is rejected as "smaller than the reserved prefix".  Keep the spin word at
-    # ENTRY and pad the prefix so the guest really spins instead of exiting.
-    spin = b"\x00" * 0x100 + struct.pack(">I", 0x71000000)
+    # M19 Tiny geometry: `kernel_reserved = 0`, so the raw `-kernel` image starts
+    # at ENTRY and no reserved prefix is prepended (m19-testcases-002).
+    spin = struct.pack(">I", 0x71000000)
     rc, _err, timed_out, _d = _run(spin, "spin.bin", timeout=1)
     status, desc = rqt.interpret_exit_code(rc)
     check("real timeout case", "timed_out=True, INCONCLUSIVE/Timeout",
