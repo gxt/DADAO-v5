@@ -817,3 +817,11 @@
 - **`check-idl-full` 已支持 `expected-divergences` 逐槽例外**（`m17-idl-026`，见 `idl/docs/four-way.md §7`）；Tiny 缺 `cg4`/`cg15 rc3` 按 `DIV-18` `slots` 声明（真触发 CFXREG、不写常量、不跳过）。M20 不需重复实现该能力。
 - **已知基线红（非 M17，均已登记）**：`check-patch-tree` 52 problem（linux 51/musl 1，`ISS-left-004`）；L3 `stack-protector*.ll` 未归类（`ISS-left-005`）；`check-milestones-fresh` 的 `m18-linux-027` 未入表（M18 会话）；`check-manifests-guard` 的 M16 归档遗留 2 条登记。
 - **证据位置**：本轮门控/注入日志在运行期证据目录（不入库）；结论已写进归档 `README.md §3`、`m17-retrospective.md` 与各任务书完成区/审阅记录。
+
+## N42. M18 收口（2026-11-28）
+
+- **判据达成**：busybox/K6 **82/82**（含交互命令集与失败臂）；kselftest 两轮逐例一致（PASS 7 + `mm-pfnmap` SKIP）；LTP 两轮 **14/14** 一致；4 轮 44 case-run 中 `HOST_TIMEOUT`/`die`/`MALIGN`/`CFXESC` **0 命中**。
+- **台账**：72 册全部 `已验证`；待开始/进行中均为 0；M18 分支与 worktree 已全部清除。
+- **issues**：`issues-m18` open=**0**；关闭 3 条（`009`/`539`/`540`）；18 条迁 `issues-left-003/006–022`（字段逐字保留），新增 6 条（023–028）记录本轮暴露的工具/环境缺口。
+- **待追认**：`ISS-left-013`（原 `ISS-500`）——K6 之后用户态不再接收异步中断（`dadao_enter_user()` 把 `cfx_umon` user 行写 `~0`、全仓无第二处写回）。当前按长期模型处理；若要用户态可被 tick 打断，另立任务。
+- **非 M18 红**：L3 `unit:full` 红 = m19 Tiny 新几何（`ISS-left-025`）；`tset` 红 = `ISS-left-005`；`check-milestones-fresh` 的 M20 项由 M20 会话收口。
