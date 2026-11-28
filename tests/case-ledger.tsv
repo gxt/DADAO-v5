@@ -5768,6 +5768,7 @@ lit	tests/unit/llvm/lit/MC/DADAO/m6-callconv.s	70000000	jump	1
 lit	tests/unit/llvm/lit/MC/DADAO/m6-callconv.s	74000000	call	1
 lit	tests/unit/llvm/lit/MC/DADAO/oiii.s	47880000	swym	1
 lit	tests/unit/llvm/lit/MC/DADAO/oiii.s	4788002a	swym	1
+lit	tests/unit/llvm/lit/MC/DADAO/oiii.s	47880fff	swym	1
 lit	tests/unit/llvm/lit/MC/DADAO/orri.s	40a08001	ext.uo	1
 lit	tests/unit/llvm/lit/MC/DADAO/orrr.s	4024824a	or.o	1
 lit	tests/unit/llvm/lit/MC/DADAO/orrr.s	40cc824a	sub.o	1

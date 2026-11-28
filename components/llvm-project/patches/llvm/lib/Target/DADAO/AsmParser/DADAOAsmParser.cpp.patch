@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..e0651ac5b
+index 000000000..c74c9312a
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2769 @@
+@@ -0,0 +1,2790 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -2429,6 +2429,27 @@ index 000000000..e0651ac5b
 +        return Error(Flat[2]->getStartLoc(),
 +                     "fence: reserved encoding (hb = immu18[17:12] must be "
 +                     "zero; see SimRISC-11)");
++    }
++  }
++
++  // swym immediate legality (SimRISC-12 §2; contracts/opcodes.yaml
++  // `swym_oiii_imm`).  The 18-bit field is `immu18[17:12] | N[11:0]`: N is the
++  // 12-bit idle delay (0 <= N <= 4095) and immu18[17:12] is SBZ, so a value
++  // above 4095 would set SBZ bits and produce an architectural ILLI word.
++  // Reject it at assembly time instead of masking (no silent truncation).  A
++  // symbolic operand is left to the linker (it cannot be a swym delay in this
++  // target anyway), mirroring the fence check above.
++  if (Mnemonic == "swym" && Flat.size() == 2 && Flat[1]->isImm()) {
++    auto *DOp = static_cast<DADAOOperand *>(Flat[1].get());
++    if (!DOp->getImmExpr()) {
++      int64_t Imm = DOp->getImm();
++      // Values outside the 18-bit unsigned range are reported by the immu18
++      // operand class itself, so only in-range values are examined here.
++      if (Imm >= 0 && Imm <= 0x3FFFF && (Imm & 0x3F000) != 0)
++        return Error(Flat[1]->getStartLoc(),
++                     "swym: reserved encoding (immu18[17:12] is SBZ and must "
++                     "be zero; delay N = immu18[11:0] must be at most 4095; "
++                     "see SimRISC-12)");
 +    }
 +  }
 +

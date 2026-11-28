@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
 new file mode 100644
-index 000000000..3f65560e6
+index 000000000..9e54c18dd
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
-@@ -0,0 +1,412 @@
+@@ -0,0 +1,432 @@
 +//===-- DADAODisassembler.cpp - DADAO Disassembler ------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -362,6 +362,22 @@ index 000000000..3f65560e6
 +}
 +
 +//===----------------------------------------------------------------------===//
++// Architectural validity of `swym`'s SBZ field (m20-llvm-005).
++//
++// SimRISC-12 §2 / contracts/opcodes.yaml `swym_oiii_imm`: `N = immu18[11:0]`
++// is the 12-bit idle delay and `immu18[17:12]` is SBZ -- non-zero is an ILLI
++// word.  The assembly form can never produce a non-zero field; a hand-crafted
++// word must render as `<unknown>` like `escape` above.
++//===----------------------------------------------------------------------===//
++
++static bool hasInvalidSwymImm(const MCInst &MI) {
++  if (MI.getOpcode() != DADAO::swym_oiii)
++    return false;
++  // swym has a single operand: the immu18 field itself.
++  return !MI.getOperand(0).isImm() || (MI.getOperand(0).getImm() >> 12) != 0;
++}
++
++//===----------------------------------------------------------------------===//
 +// getInstruction: main entry point for disassembly.
 +//
 +// contract-isa.md §2.1: instructions are 4 bytes, big-endian.
@@ -396,6 +412,10 @@ index 000000000..3f65560e6
 +
 +  // `escape`'s imms18 is SBZ: non-zero is an architectural ILLI word.
 +  if (hasInvalidEscapeImm(MI))
++    return MCDisassembler::Fail;
++
++  // `swym`'s immu18[17:12] is SBZ: non-zero is an architectural ILLI word.
++  if (hasInvalidSwymImm(MI))
 +    return MCDisassembler::Fail;
 +
 +  return MCDisassembler::Success;

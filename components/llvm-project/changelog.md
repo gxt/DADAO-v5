@@ -589,6 +589,10 @@
 
 ## M20
 
+- **2026-11-28 m20-llvm-005**
+  - 摘要：**`swym` 的 `immu18[17:12]` SBZ 汇编/反汇编同步**（真源 `SimRISC-12 §2`、`contracts/opcodes.yaml` `swym_oiii_imm`：`N = immu18[11:0]`，`0 ≤ N ≤ 4095`，高 6 位 SBZ，非 0 ⇒ ILLI）：`DADAOAsmParser::matchAndEmitInstruction` 在匹配前对常量 `swym` 立即数加 SBZ 判据（`4096..262143` 硬报错，诊断含 `immu18[17:12]`/SBZ/4095，不掩码不截断；符号/可重定位操作数仍走 `getImmExpr()` guard 留给链接器）；`DADAODisassembler` 新增 `hasInvalidSwymImm`（`swym_oiii` 的 `operand(0)` 高 6 位非 0 ⇒ `Fail`，按 `escape` 先例打印 `<unknown>`）。`swym 0`（`0x47880000`，NOP）与 `swym 4095`（`0x47880FFF`）不变；`swym 4096`（`0x47881000`）/`262143`（`0x478BFFFF`）汇编 rc≠0、反汇编 `<unknown>`。测试：`oiii.s` 增 `swym 4095` 正例；新增 `swym-sbz.s`（汇编拒绝 + `.dd.t32` 原始字 `<unknown>`）。补丁 2 份改，`series` 99 不变。
+  - 执行者：engineer
+
 - **2026-11-25 m20-llvm-001**
   - 摘要：**`llvm-objdump` 对越界寄存器组的断言崩溃修复（ISS-468）**：`DADAODisassembler::getInstruction` 在 TableGen 解码成功后按 MC 层判据复核组编码——`contract-isa.md §15.1` / `contract-fp.md §15` 的 `mreg_zero`（`immu6 == 0`）与 `mreg_range_overflow`（`起始 + immu6 > 64`，不环绕、不截断，源与目的起始寄存器均查）命中 19 条 rrri `ldm.*`/`stm.*`（operand 0 为组首、operand 3 为 immu6）或 11 条 orri（9 条块复制 + `ftcls`/`focls`；operand 0/1 为组首、operand 2 为 immu6）时返回 `MCDisassembler::Fail`，`llvm-objdump` 输出 `<unknown>`，不再走到打印机 `printRegGroupRange` 的 `Start.id() + Count - 1`（原 `0x3EDC304A` = `rf55 + 10` 得寄存器枚举 258，撞 `getRegisterName` 断言；RD/RB/RA 同类越界此前静默打印成 `{rd61:rf0}`/`{rb61:rd0}`/`{ra61:rb0}`）。合法组（`{rf63}`、`{rf1:rf63}`、`{rf60:rf63}`、`{rf32:rf47}`、`rf2rf`、`ftcls`）与修复前逐字节一致；非组窗口 orri（`ext.so` 的移位量）不受影响。新增 lit `rf-group-range.s`（9 个 `_rf.S` 的原始字 + RD/RB/RA 越界 + classify 双窗口 + count=9 对照 + 合法边界）；订正 `ra.s` 中把 `ra2rd`(`0x40BBFFFF`, 63+63>64, ILLI) 的跨 bank 打印误当 expected 的两处（改为 `<unknown>`）。补丁 1 份改，`series` 99 不变。
   - 执行者：engineer

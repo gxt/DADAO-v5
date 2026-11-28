@@ -61,8 +61,9 @@ ext.uo rd8, rd0, 0
 set.zw rd8, wp0, 0xffff
 @@ OK: encoding: [0x47,0x88,0x00,0x00]
 swym 0
-@@ OK: encoding: [0x47,0x8b,0xff,0xff]
-swym 262143
+@@ swym 的 immu18 高 6 位是 SBZ（SimRISC-12 §2），延迟上限 4095
+@@ OK: encoding: [0x47,0x88,0x0f,0xff]
+swym 4095
 
 @@ Address-class boundaries (%4==0 + byte range); `ret` is NOT an address and
 @@ is not subject to the %4 constraint.

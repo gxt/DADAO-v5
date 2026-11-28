@@ -18,3 +18,11 @@ swym 0
 @@ OBJ: {{[0-9a-f]+:}} 47 88 00 2a{{.*}}swym{{.*}}42
 @@ ASM: swym 42
 swym 42
+
+@@ swym 4095
+@@ SimRISC-12 §2: N = immu18[11:0] ∈ [0, 4095]; immu18[17:12] is SBZ.
+@@ op=0x47, ha=0x22(swym), imm18=4095=0xFFF
+@@ word = (0x47<<24)|(0x22<<18)|0xFFF = 0x47880FFF
+@@ OBJ: {{[0-9a-f]+:}} 47 88 0f ff{{.*}}swym{{.*}}4095
+@@ ASM: swym 4095
+swym 4095
