@@ -112,10 +112,14 @@ while IFS=$'\t' read -r SUB_PATH SUB_BASE; do
   fi
   echo "replay-source: reset --hard $SUB_PATH ${SUB_BASE:0:12}"
   git -C "$SUB_SRC" reset --hard "$SUB_BASE"
+  # 上一轮失败的 apply 会留下未跟踪的补丁产物；不清理会让下一次 `git apply` 报 "already exists"。
+  git -C "$SUB_SRC" clean -fd >/dev/null
 done <<< "$SUBS"
 
 echo "replay-source: reset --hard $COMPONENT ${BASE:0:12}"
 git -C "$SOURCE" reset --hard "$BASE"
+# 同上：清理未跟踪的补丁产物；`.conda-env` 是 chipyard 的构建环境（运行期），必须保留。
+git -C "$SOURCE" clean -fd -e .conda-env >/dev/null
 
 echo "replay-source: applying master patch set (shared-tree credential)"
 DADAO_SHARED_SOURCE_OWNER=main-session \
