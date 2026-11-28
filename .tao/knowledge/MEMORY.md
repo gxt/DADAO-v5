@@ -7,7 +7,7 @@
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
 - **2026-11-27 基线**：
-  - **已归档**：M14（76 册）、M15（66 册）、**M16（95 册，2026-11-27）**、**M17（46 册，2026-11-27）** → `.tao/archive/M14/`、`M15/`、`M16/`、`M17/`；**M18（Linux 测试集/K6）已收口（2026-11-28，72 册凡例：busybox/K6 82/82、kselftest 两轮一致、LTP 两轮 14/14；issues-m18 open=0，18 条迁 issues-left）**；M19（2 件，需硬件在场）、M20 未开工。
+  - **已归档**：M14（76 册）、M15（66 册）、**M16（95 册，2026-11-27）**、**M17（46 册，2026-11-27）** → `.tao/archive/M14/`、`M15/`、`M16/`、`M17/`；**M18（Linux 测试集/K6）已收口（2026-11-28，72 册全部已验证：busybox/K6 82/82、kselftest 两轮一致、LTP 两轮 14/14；issues-m18 open=0，18 条迁 issues-left）**；M19（2 件，需硬件在场）、M20 未开工。
   - **三方差分收口归 M20**（用户 2026-11-27）：现场红项（`arch-power-001/002`、`arch-umon-012/013` 回归挂死；`arch-cache-003/004` 既有红）与 `run_arch` 的 4 处工具链缺口（chipyard 腿缺 `LD_LIBRARY_PATH`、不识别 `expected-divergences`、单 case 缺承载中止整腿、power RTL 参数不通）见 `discussing.md` N40。
   - **环境（2026-11-27 重放对齐）**：qemu `e470dc56…`（源树 `a8d0796`）、gem5.opt `ebb19d0b…`（`7db7553`）、chipyard Vast `0ead2519…` / Tiny `71cbed98…`（`7b1d785`）、LLVM 11-26 07:23。组件补丁合入后必须「删源树→`make fetch`→`apply_series`→重建→`install-host`」，否则 L2/L3 的绿红都不算证据。
   - **已知基线红**：`check-patch-tree` **52 problem**（linux 51 / musl 1，`ISS-left-004`）；`check-milestones-fresh` 红 1 处 = M18 台账 `m18-linux-027` 未列入三表（由 M18 会话修）；L3 `unit:full`/`tset:m6` 的 `stack-protector*.ll` 未归类（`ISS-left-005`）；picolibc harness `.done` 无库指纹（`ISS-504`）；`check-manifests-guard` 红 2 处 = M16 归档遗留的 `issues-m16.yaml`/`milestones-m16.md` 登记（M17 条目已随归档删除）。
