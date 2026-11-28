@@ -37,6 +37,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m18-integ-002 | 2026-11-28 17:05 | 1–2 h | M18 归档：72 册迁 `.tao/archive/M18/` + 归档 README/retrospective/issues-closed；台账/MEMORY/README 收口 |
 
 ## 已验证
 
