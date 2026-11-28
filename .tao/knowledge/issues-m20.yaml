@@ -199,3 +199,12 @@
   closed_in: null
   resolved_by: null
   title: '【P2】`tests/unit/llvm/e2e` 的 4 个 smoke（`DADAO-E2E::smoke_{arith,add,fp,jump}.test`）仍用旧几何（`+0x100` 前缀、旧 `EXIT_BLOCK`），M19 新几何合入后**基线红**：`make check-lit` 183/187、4 例 Exit Code 124；`m20-llvm-005` 复核已用 pre-fix 布局独立复跑，失败块归一化后与本轮 4/4 逐行相同 ⇒ 非 swym 改动引入。处置：把这 4 例迁到新几何（entry/EXIT_BLOCK/前缀按 `tests/ee-*` 真源），迁完 `check-lit` 应 187/187；在此之前 `check-lit` 判据按「与基线逐行相同」。'
+- id: ISS-m20-010
+  scope:
+  - qemu
+  - idl
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P2】`swym` 的 `immu18[17:12]` SBZ 在 **QEMU 与 IDL 参考模型未落实**（非 0 应 ILLI）：`components/qemu/patches/target/dadao/insn_trans/trans_ctrl.c.inc.patch` 的 `trans_swym_oiii_imm` 是裸 `return true`（纯 NOP），`insn.decode` 的 `swym_oiii_imm` 模式覆盖全部 `immu18`；`idl/tools/idl_exec.py` 的 `_op_swym` 也只做 no-op，无合法性检查。对照：gem5 已在 `decode_assertions.inc` 落实（`m19-gem5-001`，0x47881000 ⇒ ILLI 负例），chipyard 已在 `WumingDecoder.scala` 判 `imm18(17,12) =/= 0`（`m19-chipyard-003`），LLVM 已由 `m20-llvm-005` 补上（汇编拒绝 + 反汇编判非法）。后果：同一 `0x47881000` 字在 LLVM/gem5/chipyard 是非法、在 QEMU/IDL 被当 NOP 静默执行，四方差分在“非法编码”维度上不可信。处置：QEMU 在 `trans_swym_oiii_imm` 判 `immu18[17:12] != 0 ⇒ gen_exception_illegal`（或 decoder 层拒绝），IDL 在 `_op_swym` 前加同一判据；补一条非法编码探针即可（无需大规模向量）。'
