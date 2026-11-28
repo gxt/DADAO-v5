@@ -182,3 +182,20 @@
   closed_in: null
   resolved_by: null
   title: '【P3】`fence` 的 `immu18[17:12]` SBZ 只在汇编器有检查（`DADAOAsmParser.cpp` 诊断 `fence: reserved encoding (hb = immu18[17:12] must be zero)`），**反汇编器无对应检查**（`DADAODisassembler.cpp` 全文无 fence/SBZ 分支），而 `contracts/opcodes.yaml` 的 fence 条目同带该合法性 ⇒ 手工构造的 `hb != 0` 字会被反汇编成合法 `fence`，按 spec 应为 ILLI 字。与 `swym` 同类（`m20-llvm-005` 修 swym 时发现；swym 两方向都缺，已在 005 一并修）。处置：给反汇编器加 fence 的 `hb` 非零判非法，补 `0x47Axxxxx` 负例 lit；可与 swym 的实现风格共用判据。'
+- id: ISS-m20-008
+  scope:
+  - llvm
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P3】`swym` 用符号操作数（前/后向标签、外部符号）时汇编器**崩溃**：`rc=134`、`LLVM ERROR: no PC-relative fixup kind`（`m20-llvm-005` 复核实测，改动前后同 rc；`swym L`、`swym extsym` 均复现）。oiii 格式本不支持符号/重定位操作数，正确行为应是**干净诊断**（不可编码）而非断言退出。处置：AsmParser 对 oiii 立即数拒绝非 Absolute 符号并给诊断；补 lit 负例（断言 rc≠0 且非 ICCrash）。'
+- id: ISS-m20-009
+  scope:
+  - testcases
+  - llvm
+  milestone: M20
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P2】`tests/unit/llvm/e2e` 的 4 个 smoke（`DADAO-E2E::smoke_{arith,add,fp,jump}.test`）仍用旧几何（`+0x100` 前缀、旧 `EXIT_BLOCK`），M19 新几何合入后**基线红**：`make check-lit` 183/187、4 例 Exit Code 124；`m20-llvm-005` 复核已用 pre-fix 布局独立复跑，失败块归一化后与本轮 4/4 逐行相同 ⇒ 非 swym 改动引入。处置：把这 4 例迁到新几何（entry/EXIT_BLOCK/前缀按 `tests/ee-*` 真源），迁完 `check-lit` 应 187/187；在此之前 `check-lit` 判据按「与基线逐行相同」。'
