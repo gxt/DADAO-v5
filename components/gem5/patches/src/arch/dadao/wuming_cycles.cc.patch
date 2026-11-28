@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/wuming_cycles.cc b/src/arch/dadao/wuming_cycles.cc
 new file mode 100644
-index 0000000..e9731ea
+index 0000000..9172640
 --- /dev/null
 +++ b/src/arch/dadao/wuming_cycles.cc
 @@ -0,0 +1,369 @@
@@ -275,7 +275,7 @@ index 0000000..e9731ea
 +    {"sub.uo_rrrr_rd", "sub.uo", 1u, 1, -1, -1, -1, -1, -1, -1, -1, 0u, 0u, -1, -1, -1, -1, 0, "", 64, "实测"},
 +    {"sub.ut_orrr_rd", "sub.ut", 1u, 1, -1, -1, -1, -1, -1, -1, -1, 0u, 0u, -1, -1, -1, -1, 0, "", 27, "实测"},
 +    {"sub.uw_orrr_rd", "sub.uw", 1u, 1, -1, -1, -1, -1, -1, -1, -1, 0u, 0u, -1, -1, -1, -1, 0, "", 27, "实测"},
-+    {"swym_oiii_imm", "swym", 1u, 1, -1, -1, -1, -1, -1, -1, -1, 0u, 0u, -1, -1, -1, -1, 0, "", 93, "实测"},
++    {"swym_oiii_imm", "swym", 1u, -1, -1, -1, -1, -1, -1, -1, -1, 0u, 0u, -1, -1, -1, -1, 0, "N", 93, "实测"},
 +    {"trap_ciii_cfx", "trap", 57344u, -1, -1, -1, 1, 4, 5, -1, -1, 261888u, 261888u, -1, -1, -1, -1, 0, "trap-target", 85, "实测（本 harness 一次 `SYS_WRITEC` 12 拍，见 §5） / 实测（exec 成本 4，跨 beat 取指另计） / 实测（exec 成本 4）"},
 +    {"uo2fo_orri_rf", "uo2fo", 128u, 1, -1, -1, -1, -1, -1, -1, -1, 0u, 0u, -1, -1, -1, -1, 0, "", 72, "实测"},
 +    {"uo2ft_orri_rf", "uo2ft", 128u, 1, -1, -1, -1, -1, -1, -1, -1, 0u, 0u, -1, -1, -1, -1, 0, "", 72, "实测"},

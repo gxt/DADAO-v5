@@ -325,6 +325,10 @@
   - 摘要：**`swym N`：N = `immu18[11:0]`（12 位、无上限），总时延 = 1 + N 拍，`immu18[17:12]` SBZ 非零 ⇒ ILLI，执行期间不取中断**（用户 2026-11-27 裁定，实现 `m19-spec-001`）。`exec/b6.cc` 的 `B6Op::Swym` 在执行任何副作用前检查高 6 位（`immu18 & 0x3F000`）⇒ `Fault::Illegal`，`swymHint` 改带 `N = immu18[11:0]`；`wuming_latency.hh` 的 `swymCycles()` 改为 `1 + (immu18 & 0xFFF)`（不再用行内 1 拍 + 18 位立即数，也没有上限分支；`extraFromTotal` ⇒ N，整个时延由 `timing.cc` 一次重排下一次取指，指令边界之间无中断点，故原子）；`isa.cc` 的 swym 分支注明口径。按 `contracts/opcodes.yaml` 重生成解码表/断言（swym legality = `immu18[17:12] == 0` + `encode_sbz`），`decode_test.cc` 的 legality 求值器新增 `<field>[hi:lo] == 0` 形态，`gen_decode_table.py` 增加 swym N=4095 合法 / 高位非零 ILLI 两条用例；`exec/b6_test.cc` 覆盖 N=0/1/0x7FF/4095、五个高位非零 ILLI 与精确 fault；`tools/gem5/check_b6.py` 期望表更新为 `encode_sbz`=15。新增 `tools/gem5/swym_policy_test.cc` + `check_swym.py`（策略单测：total=1+N、extra=N）与 `tools/gem5/check_swym_atomic.py`（Vast FS timing 探针：`swym 0/1/4095` 的 cycle 差为 26/27/4121 ⇒ 差分 1/4095；TIMER 在 1+N 窗口内到期时异步进入落在 `swym` 之后边界且不早于 `t0+N`）。已知：`contracts/wuming-cycles.yaml` 是生成物而 `docs/core-wuming-cycle-model.md` 尚未同步（`m19-spec-001` 已披露），`check-wuming-cycles` 仍只在 YAML 行报红，生成 C++ 表未改。
   - 执行者：engineer
 
+- **2026-11-28 m19-gem5-004**
+  - 摘要：**生成物周期表与 `m19-chipyard-003` 的文档/yaml 对齐（消 ISS-541）**。按 `docs/core-wuming-cycle-model.md` 用 `gen_wuming_cycles.py` 重派生 `src/arch/dadao/wuming_cycles.cc`：`swym` 行由 `1u, 1, …, ""` 变为 `1u, -1, …, "N"`（`1+N`、`dynamic: N`），`wuming_cycles.hh` 与 `contracts/wuming-cycles.yaml` 逐字节不变；`make_patch.py gem5` 重导出只写 1 份（`wuming_cycles.cc.patch`），`series` 仍 106。行为代码未改（`wuming_latency.hh` 的 `swymCycles()` 早已是 `1+N`，本任务只对齐生成物与补丁集）。共享源树先按 `apply_series.py --component gem5` 重放到当前补丁集（原树落后 `m19-gem5-001` 的 9 份补丁），再生成并 `--amend` 收敛为 base+1、导出后 clean。证据：`check-wuming-cycles`/`build-gem5`/`check-gem5-decode`/`check-component-changelog` rc=0、`check-patch-tree` gem5 段 0 problem；注入旧 `swym` 行 ⇒ `check-wuming-cycles` 红，`cp`+md5 还原回绿。
+  - 执行者：engineer
+
 ## M20
 
 - **2026-11-26 m20-gem5-002**
